@@ -1,0 +1,8 @@
+# Python
+.venv/
+__pycache__/
+
+# React
+painel-dash/node_modules/
+painel-dash/dist/
+.env
