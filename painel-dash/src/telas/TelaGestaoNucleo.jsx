@@ -6,6 +6,7 @@ import {
   Building2,
   Calculator,
   ChevronRight,
+  Eye,
   Loader2,
   RefreshCw,
   Save,
@@ -16,7 +17,11 @@ import {
   X,
 } from "lucide-react";
 
-const API_BASE = "https://xc3lin-dash-sb-api.hf.space";
+const API_BASE =
+  import.meta.env?.VITE_API_URL ||
+  (import.meta.env?.DEV
+    ? "http://127.0.0.1:8001"
+    : "https://xc3lin-dash-sb-api.hf.space");
 const COR_PRINCIPAL = "#048187";
 const COR_DARK = "#036b70";
 
@@ -85,6 +90,81 @@ const formatarPercentual = (valor) =>
     maximumFractionDigits: 1,
   })}%`;
 
+
+const dataLocalSegura = (valor) => {
+  if (!valor) return null;
+  const texto = String(valor).slice(0, 10);
+  const partes = texto.split("-");
+  if (partes.length !== 3) return null;
+  const [ano, mes, dia] = partes.map(Number);
+  if (!ano || !mes || !dia) return null;
+  const data = new Date(ano, mes - 1, dia);
+  return Number.isNaN(data.getTime()) ? null : data;
+};
+
+const diferencaDiasInclusiva = (inicio, fim) => {
+  if (!inicio || !fim) return 0;
+  const umDia = 24 * 60 * 60 * 1000;
+  const ini = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()).getTime();
+  const f = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate()).getTime();
+  return Math.max(0, Math.floor((f - ini) / umDia) + 1);
+};
+
+const calcularTendenciaGerencial = ({ realizado, metaGerencial, infoCiclo, dados }) => {
+  const valorBackend = numeroSeguro(
+    dados?.cards?.tendencia_gerencial ??
+      dados?.cards?.tendencia ??
+      dados?.tendencia_gerencial ??
+      dados?.tendencia
+  );
+
+  const meta = numeroSeguro(metaGerencial);
+  const realizadoAtual = numeroSeguro(realizado);
+  const inicio = dataLocalSegura(
+    infoCiclo?.data_inicio ||
+      infoCiclo?.inicio_ciclo ||
+      infoCiclo?.inicio ||
+      dados?.inicio_ciclo ||
+      dados?.data_inicio
+  );
+  const fim = dataLocalSegura(
+    infoCiclo?.data_fim ||
+      infoCiclo?.fim_ciclo ||
+      infoCiclo?.fim ||
+      dados?.fim_ciclo ||
+      dados?.data_fim
+  );
+
+  let valor = valorBackend;
+  let diasDecorridos = 0;
+  let diasTotais = 0;
+
+  if (!valor && inicio && fim && realizadoAtual > 0) {
+    const hoje = new Date();
+    const hojeBase = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    const dataReferencia = hojeBase < inicio ? inicio : hojeBase > fim ? fim : hojeBase;
+    diasDecorridos = diferencaDiasInclusiva(inicio, dataReferencia);
+    diasTotais = diferencaDiasInclusiva(inicio, fim);
+    valor = diasDecorridos > 0 && diasTotais > 0 ? (realizadoAtual / diasDecorridos) * diasTotais : realizadoAtual;
+  }
+
+  if (!valor) valor = realizadoAtual;
+
+  const gap = valor - meta;
+  const percentual = meta > 0 ? (valor / meta) * 100 : 0;
+  const risco = meta > 0 && valor < meta;
+
+  return {
+    valor,
+    gap,
+    percentual,
+    risco,
+    status: meta <= 0 ? "Sem meta cadastrada" : risco ? "Risco de não bater" : "Tendência positiva",
+    diasDecorridos,
+    diasTotais,
+  };
+};
+
 const moedaParaInput = (valor) => {
   const numero = numeroSeguro(valor);
   if (!numero) return "";
@@ -116,59 +196,6 @@ const montarId = (...partes) =>
         .toLowerCase()
     )
     .join("-");
-
-const obterTokenAutenticacao = () => {
-  if (typeof window === "undefined") return "";
-
-  const chavesDiretas = [
-    "access_token",
-    "token",
-    "authToken",
-    "dash_token",
-    "dashSbToken",
-    "token_usuario",
-  ];
-
-  for (const chave of chavesDiretas) {
-    const valor = window.localStorage.getItem(chave) || window.sessionStorage.getItem(chave);
-    if (valor) return valor.replace(/^Bearer\s+/i, "").trim();
-  }
-
-  const chavesObjeto = ["usuarioLogado", "usuario", "auth", "dash_user", "dashSbUsuario"];
-
-  for (const chave of chavesObjeto) {
-    const bruto = window.localStorage.getItem(chave) || window.sessionStorage.getItem(chave);
-    if (!bruto) continue;
-
-    try {
-      const objeto = JSON.parse(bruto);
-      const token =
-        objeto?.access_token ||
-        objeto?.token ||
-        objeto?.jwt ||
-        objeto?.usuario?.access_token ||
-        objeto?.usuario?.token;
-
-      if (token) return String(token).replace(/^Bearer\s+/i, "").trim();
-    } catch {
-      // Ignora valores que não estejam em JSON.
-    }
-  }
-
-  return "";
-};
-
-const montarConfigAxios = (config = {}) => {
-  const token = obterTokenAutenticacao();
-
-  return {
-    ...config,
-    headers: {
-      ...(config.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  };
-};
 
 function BarraProgresso({ percentual, danger = false }) {
   const valor = Math.max(0, Math.min(100, numeroSeguro(percentual)));
@@ -592,6 +619,7 @@ const mediaPonderada = (lista, campo, pesoCampo = "quantidade_pedidos") => {
 const calcularIndicadores = ({ listaEstruturas = [], itemEstrutura = null, cards = {} }) => {
   const lista = itemEstrutura ? [itemEstrutura] : listaEstruturas;
   const metaOficial = itemEstrutura ? numeroSeguro(itemEstrutura.meta_oficial) : numeroSeguro(cards.meta_oficial || somaLista(lista, "meta_oficial"));
+  const metaGerencial = itemEstrutura ? numeroSeguro(itemEstrutura.meta_gerencial) : numeroSeguro(cards.meta_gerencial || somaLista(lista, "meta_gerencial"));
   const realizado = itemEstrutura ? numeroSeguro(itemEstrutura.realizado) : numeroSeguro(cards.realizado || somaLista(lista, "realizado"));
   const pedidos = itemEstrutura ? numeroSeguro(itemEstrutura.quantidade_pedidos ?? itemEstrutura.pedidos) : somaLista(lista, "quantidade_pedidos") || somaLista(lista, "pedidos");
   const baseAtiva = itemEstrutura ? numeroSeguro(itemEstrutura.base_ativa) : somaLista(lista, "base_ativa");
@@ -603,7 +631,7 @@ const calcularIndicadores = ({ listaEstruturas = [], itemEstrutura = null, cards
   const upa = itemEstrutura ? numeroSeguro(itemEstrutura.upa) : mediaPonderada(lista, "upa", "quantidade_pedidos");
 
   return {
-    percentual_rec: metaOficial > 0 ? (realizado / metaOficial) * 100 : 0,
+    percentual_rec: metaGerencial > 0 ? (realizado / metaGerencial) * 100 : 0,
     atividade,
     percentual_atividade: baseAtiva > 0 ? (atividade / baseAtiva) * 100 : 0,
     rpa,
@@ -614,15 +642,15 @@ const calcularIndicadores = ({ listaEstruturas = [], itemEstrutura = null, cards
     cabelo_realizado: cabelo,
     percentual_cabelo: atividade > 0 ? (cabelo / atividade) * 100 : 0,
     meta_oficial: metaOficial,
+    meta_gerencial: metaGerencial,
     realizado,
     pedidos,
     base_ativa: baseAtiva,
   };
 };
-
 function GridIndicadores({ titulo, subtitulo, indicadores }) {
   const itens = [
-    { titulo: "% Rec.", valor: formatarPercentual(indicadores.percentual_rec), subtitulo: "Realizado / meta oficial", percentual: indicadores.percentual_rec },
+    { titulo: "% Rec.", valor: formatarPercentual(indicadores.percentual_rec), subtitulo: "Meta gerencial", percentual: indicadores.percentual_rec },
     { titulo: "Ativ.", valor: numeroSeguro(indicadores.atividade).toLocaleString("pt-BR"), subtitulo: "Revendedores ativos" },
     { titulo: "% Ativ.", valor: formatarPercentual(indicadores.percentual_atividade), subtitulo: "Ativos / base", percentual: indicadores.percentual_atividade, cor: "laranja" },
     { titulo: "RPA", valor: formatarMoedaCompleta(indicadores.rpa), subtitulo: "Receita por ativo" },
@@ -650,6 +678,7 @@ function GridIndicadores({ titulo, subtitulo, indicadores }) {
 export default function TelaGestaoNucleo({ nucleo = "N1", cicloAtivo = "08/2026", apiBase = API_BASE }) {
   const nucleoNormalizado = normalizarNucleo(nucleo);
   const [dados, setDados] = useState(null);
+  const [infoCiclo, setInfoCiclo] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState("");
@@ -663,13 +692,20 @@ export default function TelaGestaoNucleo({ nucleo = "N1", cicloAtivo = "08/2026"
     setCarregando(true);
     setErro("");
     try {
-      const { data } = await axios.get(
-        `${apiBase}/gestao-nucleos/${nucleoNormalizado}/resumo`,
-        montarConfigAxios({
-          params: { ciclo: cicloAtivo },
-        })
-      );
+      const { data } = await axios.get(`${apiBase}/gestao-nucleos/${nucleoNormalizado}/resumo`, {
+        params: { ciclo: cicloAtivo },
+      });
       setDados(data || {});
+
+      try {
+        const respostaCiclos = await axios.get(`${apiBase}/ciclos`);
+        const listaCiclos = respostaCiclos?.data?.ciclos || [];
+        const cicloEncontrado = listaCiclos.find((item) => String(item?.ciclo || "").trim() === String(cicloAtivo || "").trim());
+        setInfoCiclo(cicloEncontrado || null);
+      } catch (_) {
+        setInfoCiclo(null);
+      }
+
       const primeira = data?.estruturas?.[0]?.estrutura || null;
       setEstruturaPainel((atual) => atual || primeira);
     } catch (error) {
@@ -751,11 +787,7 @@ export default function TelaGestaoNucleo({ nucleo = "N1", cicloAtivo = "08/2026"
         })),
       };
 
-      await axios.post(
-        `${apiBase}/gestao-nucleos/${nucleoNormalizado}/salvar`,
-        payload,
-        montarConfigAxios()
-      );
+      await axios.post(`${apiBase}/gestao-nucleos/${nucleoNormalizado}/salvar`, payload);
       setModalAberto(false);
       await carregarResumo();
     } catch (error) {
@@ -816,6 +848,11 @@ export default function TelaGestaoNucleo({ nucleo = "N1", cicloAtivo = "08/2026"
     gap_gerencial: dados?.gap_gerencial || 0,
   };
 
+  const tendenciaGerencial = useMemo(
+    () => calcularTendenciaGerencial({ realizado: cards.realizado, metaGerencial: cards.meta_gerencial, infoCiclo, dados }),
+    [cards.realizado, cards.meta_gerencial, infoCiclo, dados]
+  );
+
   const indicadoresGerais = useMemo(() => calcularIndicadores({ listaEstruturas: estruturasComIndicadores, cards }), [estruturasComIndicadores, cards]);
   const indicadoresEstruturaSelecionada = useMemo(
     () => calcularIndicadores({ itemEstrutura: estruturaSelecionada || {}, cards }),
@@ -854,11 +891,48 @@ export default function TelaGestaoNucleo({ nucleo = "N1", cicloAtivo = "08/2026"
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <CardResumo titulo="Meta oficial" valor={formatarMoeda(cards.meta_oficial)} subtitulo="Meta real do núcleo" percentual={cards.meta_oficial ? 100 : undefined} labelMeta="Meta oficial" valorMeta={formatarMoeda(cards.meta_oficial)} />
-            <CardResumo titulo="Meta gerencial" valor={formatarMoeda(cards.meta_gerencial)} subtitulo="Soma das estruturas" percentual={cards.meta_gerencial ? 100 : undefined} labelMeta="Meta gerencial" valorMeta={formatarMoeda(cards.meta_gerencial)} />
-            <CardResumo titulo="Realizado" valor={formatarMoeda(cards.realizado)} subtitulo="Resultado atual" percentual={cards.percentual_gerencial} labelMeta="Meta gerencial" valorMeta={formatarMoeda(cards.meta_gerencial)} />
-            <CardResumo titulo="Gap gerencial" valor={formatarMoeda(cards.gap_gerencial)} subtitulo="Quanto falta para o desafio" destaque={numeroSeguro(cards.gap_gerencial) > 0 ? "erro" : "normal"} labelMeta="Gap" valorMeta={formatarMoeda(cards.gap_gerencial)} />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <CardResumo
+              titulo="Meta gerencial"
+              valor={formatarMoeda(cards.meta_gerencial)}
+              subtitulo="Meta gerencial definida para o núcleo"
+              labelMeta="Meta gerencial"
+              valorMeta={formatarMoeda(cards.meta_gerencial)}
+            />
+            <CardResumo
+              titulo="Realizado"
+              valor={formatarMoeda(cards.realizado)}
+              subtitulo="Resultado atual"
+              percentual={cards.percentual_gerencial}
+              labelMeta="% da meta"
+              valorMeta={formatarPercentual(cards.percentual_gerencial)}
+            />
+            <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full min-w-0 transition-all hover:shadow-md">
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-[10px] sm:text-[11px] font-bold uppercase text-gray-400 truncate tracking-wide">Tendência</h3>
+                  <Eye size={15} className="text-[#048187]" />
+                </div>
+                <div className="mt-2 flex items-center gap-2 min-w-0">
+                  <p className={`text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tighter truncate leading-tight ${tendenciaGerencial.risco ? "text-red-500" : "text-[#048187]"}`}>
+                    {formatarMoeda(tendenciaGerencial.valor)}
+                  </p>
+                  <span className={`text-lg font-black ${tendenciaGerencial.risco ? "text-red-500" : "text-[#048187]"}`}>
+                    {tendenciaGerencial.risco ? "⌁" : "↗"}
+                  </span>
+                </div>
+                <p className={`mt-1 text-[10px] sm:text-[11px] font-bold ${tendenciaGerencial.risco ? "text-red-500" : "text-[#048187]"}`}>
+                  {tendenciaGerencial.status}
+                </p>
+                <BarraProgresso percentual={tendenciaGerencial.percentual} danger={tendenciaGerencial.risco} />
+              </div>
+              <div className="mt-4 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-3">
+                <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase truncate">Gap tendência:</p>
+                <p className={`text-xs sm:text-sm font-bold truncate ${tendenciaGerencial.gap < 0 ? "text-gray-700" : "text-[#048187]"}`}>
+                  {formatarMoeda(tendenciaGerencial.gap)}
+                </p>
+              </div>
+            </div>
           </div>
 
           <GridIndicadores
