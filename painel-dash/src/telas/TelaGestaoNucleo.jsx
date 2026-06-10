@@ -16,7 +16,12 @@ import {
   X,
 } from "lucide-react";
 
-const API_BASE = "http://127.0.0.1:8001";
+const API_BASE = (
+  import.meta.env?.VITE_API_URL ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://127.0.0.1:8001"
+    : "https://xc3lin-dash-sb-api.hf.space")
+).replace(/\/$/, "");
 const COR_PRINCIPAL = "#048187";
 const COR_DARK = "#036b70";
 
@@ -116,6 +121,59 @@ const montarId = (...partes) =>
         .toLowerCase()
     )
     .join("-");
+
+const obterTokenAutenticacao = () => {
+  if (typeof window === "undefined") return "";
+
+  const chavesDiretas = [
+    "access_token",
+    "token",
+    "authToken",
+    "dash_token",
+    "dashSbToken",
+    "token_usuario",
+  ];
+
+  for (const chave of chavesDiretas) {
+    const valor = window.localStorage.getItem(chave) || window.sessionStorage.getItem(chave);
+    if (valor) return valor.replace(/^Bearer\s+/i, "").trim();
+  }
+
+  const chavesObjeto = ["usuarioLogado", "usuario", "auth", "dash_user", "dashSbUsuario"];
+
+  for (const chave of chavesObjeto) {
+    const bruto = window.localStorage.getItem(chave) || window.sessionStorage.getItem(chave);
+    if (!bruto) continue;
+
+    try {
+      const objeto = JSON.parse(bruto);
+      const token =
+        objeto?.access_token ||
+        objeto?.token ||
+        objeto?.jwt ||
+        objeto?.usuario?.access_token ||
+        objeto?.usuario?.token;
+
+      if (token) return String(token).replace(/^Bearer\s+/i, "").trim();
+    } catch {
+      // Ignora valores que não estejam em JSON.
+    }
+  }
+
+  return "";
+};
+
+const montarConfigAxios = (config = {}) => {
+  const token = obterTokenAutenticacao();
+
+  return {
+    ...config,
+    headers: {
+      ...(config.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  };
+};
 
 function BarraProgresso({ percentual, danger = false }) {
   const valor = Math.max(0, Math.min(100, numeroSeguro(percentual)));
@@ -610,9 +668,12 @@ export default function TelaGestaoNucleo({ nucleo = "N1", cicloAtivo = "08/2026"
     setCarregando(true);
     setErro("");
     try {
-      const { data } = await axios.get(`${apiBase}/gestao-nucleos/${nucleoNormalizado}/resumo`, {
-        params: { ciclo: cicloAtivo },
-      });
+      const { data } = await axios.get(
+        `${apiBase}/gestao-nucleos/${nucleoNormalizado}/resumo`,
+        montarConfigAxios({
+          params: { ciclo: cicloAtivo },
+        })
+      );
       setDados(data || {});
       const primeira = data?.estruturas?.[0]?.estrutura || null;
       setEstruturaPainel((atual) => atual || primeira);
@@ -695,7 +756,11 @@ export default function TelaGestaoNucleo({ nucleo = "N1", cicloAtivo = "08/2026"
         })),
       };
 
-      await axios.post(`${apiBase}/gestao-nucleos/${nucleoNormalizado}/salvar`, payload);
+      await axios.post(
+        `${apiBase}/gestao-nucleos/${nucleoNormalizado}/salvar`,
+        payload,
+        montarConfigAxios()
+      );
       setModalAberto(false);
       await carregarResumo();
     } catch (error) {
