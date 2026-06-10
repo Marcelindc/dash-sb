@@ -6,7 +6,11 @@ import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoBrancaLogin from './assets/logo-branca.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001';
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV
+    ? 'http://127.0.0.1:8001'
+    : 'https://xc3lin-dash-sb-api.hf.space');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
 
 const aplicarTokenAxios = (token) => {

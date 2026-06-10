@@ -16,12 +16,7 @@ import {
   X,
 } from "lucide-react";
 
-const API_BASE = (
-  import.meta.env?.VITE_API_URL ||
-  (typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "http://127.0.0.1:8001"
-    : "https://xc3lin-dash-sb-api.hf.space")
-).replace(/\/$/, "");
+const API_BASE = "https://xc3lin-dash-sb-api.hf.space";
 const COR_PRINCIPAL = "#048187";
 const COR_DARK = "#036b70";
 
