@@ -2136,9 +2136,6 @@ const enviarArquivo = async (tipo) => {
             <button onClick={() => setModalMetasReaisAberto(true)} className="bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2">
               <Plus size={16} /> Cadastrar / Ver metas reais
             </button>
-            <button onClick={() => setModalCriarConsultorAberto(true)} className="bg-[#e6f6f7] hover:bg-[#d0f0f1] text-[#048187] font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2">
-              <Users size={16} /> Novo consultor
-            </button>
           </div>
         </div>
       </div>
@@ -2150,7 +2147,7 @@ const enviarArquivo = async (tipo) => {
     const cFilt = listaConsultores.filter(c => String(c.nome || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.nome_social || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.id_colaborador).includes(buscaConsultor));
     return (
       <div className="space-y-6 animate-fade-in">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2"><h1 className="text-xl sm:text-2xl font-bold text-gray-700">Gestão de Consultores</h1><div className="flex gap-2"><button onClick={() => setModalCriarConsultorAberto(true)} className="bg-[#048187] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#036b70] flex items-center gap-2 text-sm"><Plus size={16} /> Novo</button><button onClick={carregarListaConsultores} className="bg-[#e6f6f7] text-[#048187] font-bold px-4 py-2 rounded-lg hover:bg-[#d0f0f1] flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button></div></div></div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2"><h1 className="text-xl sm:text-2xl font-bold text-gray-700">Gestão de Consultores</h1><div className="flex gap-2"><button onClick={() => setModalCriarConsultorAberto(true)} className="bg-[#048187] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#036b70] flex items-center gap-2 text-sm"><Plus size={16} /> Novo consultor</button><button onClick={carregarListaConsultores} className="bg-[#e6f6f7] text-[#048187] font-bold px-4 py-2 rounded-lg hover:bg-[#d0f0f1] flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button></div></div></div>
         {(mensagemConsultor || erroGestaoConsultor) && (<div className={`rounded-xl p-4 font-bold text-sm ${mensagemConsultor ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemConsultor || erroGestaoConsultor}</div>)}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"><div className="relative w-full sm:w-96"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Buscar por nome ou ID..." value={buscaConsultor} onChange={(e) => setBuscaConsultor(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div><div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{cFilt.length} Registros</div></div>
