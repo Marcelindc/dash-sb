@@ -6,11 +6,7 @@ import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoBrancaLogin from './assets/logo-branca.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV
-    ? 'http://127.0.0.1:8001'
-    : 'https://xc3lin-dash-sb-api.hf.space');
+const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
 
 const aplicarTokenAxios = (token) => {
@@ -72,7 +68,7 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
 const filtroVazio = { nucleos: [], unidades: [], estruturas: [], consultores: [], situacoes: [], data_inicio: '', data_fim: '' };
 const buscaFiltrosVazia = { nucleos: '', unidades: '', estruturas: '', consultores: '', situacoes: '' };
 const cicloFormVazio = { ciclo: '', data_inicio: '', data_fim: '', meta_ciclo: '', status_ciclo: 'ativo' };
-const consultorVazio = { id_colaborador: '', nome: '', estrutura: '', canal: 'ESPAÇO DO REVENDEDOR', status_consultor: 'ativo', peso_meta: 0 };
+const consultorVazio = { id_colaborador: '', nome: '', nome_social: '', estrutura: '', canal: 'ESPAÇO DO REVENDEDOR', status_consultor: 'ativo', peso_meta: 0 };
 
 const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(v || 0));
 const formatarAbrev = (v) => {
@@ -253,6 +249,307 @@ const FiltroRapidoNucleos = ({ filtrosAtivos, onSelecionar }) => {
   );
 };
 
+
+const metaRealVazia = {
+  ciclo: '',
+  nome_meta: '',
+  tipo_meta: 'grupo_estruturas',
+  meta_real: '',
+  regra_calculo: 'somar_estruturas',
+  status: 'ativo',
+  observacao: '',
+  estruturas: []
+};
+
+function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao }) {
+  const [metas, setMetas] = useState([]);
+  const [estruturas, setEstruturas] = useState([]);
+  const [busca, setBusca] = useState('');
+  const [form, setForm] = useState({ ...metaRealVazia, ciclo: cicloPadrao || '' });
+  const [editandoId, setEditandoId] = useState(null);
+  const [carregando, setCarregando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [mensagem, setMensagem] = useState('');
+  const [erro, setErro] = useState('');
+
+  const cicloConsulta = form.ciclo || cicloPadrao || '';
+
+  const carregarMetas = async () => {
+    setCarregando(true);
+    setErro('');
+    try {
+      const { data } = await axios.get(`${apiUrl}/metas-reais`, { params: cicloConsulta ? { ciclo: cicloConsulta } : {} });
+      setMetas(data.metas || []);
+    } catch (e) {
+      setErro(e.response?.data?.detail || 'Erro ao carregar metas reais.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const carregarEstruturas = async () => {
+    try {
+      const { data } = await axios.get(`${apiUrl}/metas-reais/estruturas-opcoes`, { params: cicloConsulta ? { ciclo: cicloConsulta } : {} });
+      setEstruturas(data.estruturas || []);
+    } catch (e) {
+      setEstruturas([]);
+    }
+  };
+
+  useEffect(() => {
+    if (!aberto) return;
+    setForm((atual) => ({ ...atual, ciclo: atual.ciclo || cicloPadrao || '' }));
+    carregarMetas();
+    carregarEstruturas();
+  }, [aberto]);
+
+  const limparForm = () => {
+    setEditandoId(null);
+    setForm({ ...metaRealVazia, ciclo: cicloPadrao || form.ciclo || '' });
+    setBusca('');
+  };
+
+  const estruturaJaSelecionada = (estrutura) => form.estruturas.some((e) => String(e.estrutura).trim() === String(estrutura).trim());
+
+  const adicionarEstrutura = (item) => {
+    const estrutura = String(item.estrutura || '').trim();
+    if (!estrutura || estruturaJaSelecionada(estrutura)) return;
+    const cod = String(item.cod_estrutura || estrutura.split('-')[0] || '').trim();
+    setForm((atual) => ({
+      ...atual,
+      estruturas: [...atual.estruturas, { cod_estrutura: cod, estrutura }]
+    }));
+    setBusca('');
+  };
+
+  const removerEstrutura = (estrutura) => {
+    setForm((atual) => ({ ...atual, estruturas: atual.estruturas.filter((e) => e.estrutura !== estrutura) }));
+  };
+
+  const salvarMeta = async (e) => {
+    e.preventDefault();
+    setErro('');
+    setMensagem('');
+    if (!form.ciclo.trim()) return setErro('Informe o ciclo.');
+    if (!form.nome_meta.trim()) return setErro('Informe o nome da meta.');
+    if (!form.estruturas.length) return setErro('Vincule pelo menos uma estrutura.');
+    setSalvando(true);
+    const payload = {
+      ...form,
+      meta_real: Number(String(form.meta_real || '0').replace(/\./g, '').replace(',', '.')) || 0,
+      estruturas: form.estruturas.map((e) => ({ cod_estrutura: e.cod_estrutura || '', estrutura: e.estrutura }))
+    };
+    try {
+      if (editandoId) await axios.put(`${apiUrl}/metas-reais/${editandoId}`, payload);
+      else await axios.post(`${apiUrl}/metas-reais`, payload);
+      setMensagem(editandoId ? 'Meta real atualizada.' : 'Meta real cadastrada.');
+      limparForm();
+      await carregarMetas();
+      if (onAtualizacao) onAtualizacao();
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao salvar meta real.');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const editarMeta = (meta) => {
+    setEditandoId(meta.id);
+    setForm({
+      ciclo: meta.ciclo || '',
+      nome_meta: meta.nome_meta || '',
+      tipo_meta: meta.tipo_meta || 'grupo_estruturas',
+      meta_real: meta.meta_real || '',
+      regra_calculo: meta.regra_calculo || 'somar_estruturas',
+      status: meta.status || 'ativo',
+      observacao: meta.observacao || '',
+      estruturas: meta.estruturas || []
+    });
+    setBusca('');
+  };
+
+  const excluirMeta = async (meta) => {
+    const ok = window.confirm(`Excluir a meta real "${meta.nome_meta}"?`);
+    if (!ok) return;
+    setErro('');
+    try {
+      await axios.delete(`${apiUrl}/metas-reais/${meta.id}`);
+      setMensagem('Meta real excluída.');
+      await carregarMetas();
+      if (onAtualizacao) onAtualizacao();
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao excluir meta real.');
+    }
+  };
+
+  const estruturasFiltradas = estruturas
+    .filter((e) => {
+      const termo = busca.toLowerCase().trim();
+      if (!termo) return false;
+      return String(e.estrutura || '').toLowerCase().includes(termo) || String(e.cod_estrutura || '').toLowerCase().includes(termo);
+    })
+    .slice(0, 8);
+
+  if (!aberto) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4 py-6">
+      <div className="bg-white w-full max-w-6xl max-h-[92vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="flex items-start justify-between p-6 border-b border-gray-100">
+          <div>
+            <h2 className="text-xl font-black text-gray-700">Cadastro de Metas Reais</h2>
+            <p className="text-sm text-gray-400 font-semibold mt-1">Meta oficial por estrutura, ER ou grupo de estruturas. A divisão por consultor usa o Peso Meta da aba Consultores.</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button>
+        </div>
+
+        <div className="p-6 overflow-y-auto grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
+          <form onSubmit={salvarMeta} className="border border-gray-100 rounded-2xl p-5 space-y-4 h-fit">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-base font-black text-gray-700">{editandoId ? 'Editar meta' : 'Nova meta'}</h3>
+              {editandoId && <button type="button" onClick={limparForm} className="text-xs font-black text-[#048187] hover:underline">Limpar edição</button>}
+            </div>
+
+            {erro && <div className="bg-red-50 text-red-600 border border-red-100 rounded-xl p-3 text-sm font-bold">{erro}</div>}
+            {mensagem && <div className="bg-green-50 text-green-700 border border-green-100 rounded-xl p-3 text-sm font-bold">{mensagem}</div>}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Ciclo</label>
+                <input value={form.ciclo} onChange={(e) => setForm({ ...form, ciclo: e.target.value })} placeholder="09/2026" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+              </div>
+              <div>
+                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Meta Real</label>
+                <input value={form.meta_real} onChange={(e) => setForm({ ...form, meta_real: e.target.value })} placeholder="383337,00" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-black text-gray-400 uppercase block mb-1">Nome da meta</label>
+              <input value={form.nome_meta} onChange={(e) => setForm({ ...form, nome_meta: e.target.value })} placeholder="EQUIPE GRAZIELLE" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Tipo</label>
+                <select value={form.tipo_meta} onChange={(e) => setForm({ ...form, tipo_meta: e.target.value })} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]">
+                  <option value="estrutura">Estrutura</option>
+                  <option value="er">ER</option>
+                  <option value="grupo_estruturas">Grupo de estruturas</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Status</label>
+                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]">
+                  <option value="ativo">Ativo</option>
+                  <option value="inativo">Inativo</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-black text-gray-400 uppercase block mb-1">Estruturas vinculadas</label>
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-3.5 text-gray-400" />
+                <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código ou nome da estrutura" className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]" />
+                {busca && estruturasFiltradas.length > 0 && (
+                  <div className="absolute z-10 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                    {estruturasFiltradas.map((e) => (
+                      <button key={`${e.cod_estrutura}-${e.estrutura}`} type="button" onClick={() => adicionarEstrutura(e)} className="w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] text-gray-600 font-bold">
+                        {e.estrutura}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {form.estruturas.map((e) => (
+                  <span key={e.estrutura} className="inline-flex items-center gap-2 bg-[#e6f6f7] text-[#048187] rounded-full px-3 py-1.5 text-xs font-black">
+                    {e.estrutura}
+                    <button type="button" onClick={() => removerEstrutura(e.estrutura)} className="text-[#048187] hover:text-red-500"><X size={13} /></button>
+                  </span>
+                ))}
+                {!form.estruturas.length && <span className="text-xs text-gray-400 font-semibold">Nenhuma estrutura vinculada.</span>}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-black text-gray-400 uppercase block mb-1">Observação</label>
+              <textarea value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} rows={3} placeholder="Ex.: soma as estruturas 13476 e 17325" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] resize-none" />
+            </div>
+
+            <button type="submit" disabled={salvando} className="w-full bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-xl px-4 py-3 disabled:opacity-60 inline-flex items-center justify-center gap-2">
+              <Save size={16} /> {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar meta real'}
+            </button>
+          </form>
+
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-gray-700">Metas cadastradas</h3>
+                <p className="text-xs text-gray-400 font-semibold">Realizado calculado pela soma das estruturas vinculadas.</p>
+              </div>
+              <button type="button" onClick={carregarMetas} className="bg-[#e6f6f7] text-[#048187] font-black px-4 py-2 rounded-lg hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm"><RefreshCcw size={15} /> Atualizar</button>
+            </div>
+
+            {carregando ? <p className="text-[#048187] font-bold">Carregando metas reais...</p> : (
+              <div className="space-y-3">
+                {metas.map((m) => (
+                  <div key={m.id} className="border border-gray-100 rounded-2xl p-4 bg-white hover:shadow-sm transition-shadow">
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-black text-gray-700 uppercase">{m.nome_meta}</h4>
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-black ${m.status === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{m.status}</span>
+                          <span className="px-2 py-1 rounded-full text-[10px] font-black bg-gray-50 text-gray-500">{m.ciclo}</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {(m.estruturas || []).map((e) => <span key={e.id || e.estrutura} className="bg-[#f7fafb] border border-gray-100 text-gray-500 px-2 py-1 rounded-lg text-[11px] font-bold">{e.estrutura}</span>)}
+                        </div>
+                        {m.observacao && <p className="text-xs text-gray-400 font-semibold mt-2">{m.observacao}</p>}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 min-w-[360px]">
+                        <div className="bg-[#f7fafb] rounded-xl p-3"><p className="text-[10px] uppercase font-black text-gray-400">Meta</p><p className="text-sm font-black text-[#048187]">{formatarMoeda(m.meta_real)}</p></div>
+                        <div className="bg-[#f7fafb] rounded-xl p-3"><p className="text-[10px] uppercase font-black text-gray-400">Realizado</p><p className="text-sm font-black text-[#048187]">{formatarMoeda(m.realizado)}</p></div>
+                        <div className="bg-[#f7fafb] rounded-xl p-3"><p className="text-[10px] uppercase font-black text-gray-400">% Ating.</p><p className="text-sm font-black text-[#048187]">{Number(m.percentual || 0).toFixed(1)}%</p></div>
+                      </div>
+                    </div>
+
+                    {Array.isArray(m.consultores) && m.consultores.length > 0 && (
+                      <div className="mt-4 border-t border-gray-50 pt-3 overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead><tr className="text-left text-gray-400 uppercase"><th className="py-2">Consultor</th><th>Peso</th><th>Meta Individual</th><th>Realizado</th><th>%</th></tr></thead>
+                          <tbody>
+                            {m.consultores.map((c) => (
+                              <tr key={`${m.id}-${c.id_colaborador}`} className="border-t border-gray-50">
+                                <td className="py-2 font-bold text-gray-700">{c.nome_exibicao || c.nome}</td>
+                                <td className="font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td>
+                                <td>{formatarMoeda(c.meta_individual)}</td>
+                                <td>{formatarMoeda(c.realizado)}</td>
+                                <td className="font-black text-[#048187]">{Number(c.percentual || 0).toFixed(1)}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 mt-3">
+                      <button onClick={() => editarMeta(m)} className="text-[#048187] hover:bg-[#e6f6f7] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black"><Pencil size={14} /> Editar</button>
+                      <button onClick={() => excluirMeta(m)} className="text-red-500 hover:bg-red-50 rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black"><Trash2 size={14} /> Excluir</button>
+                    </div>
+                  </div>
+                ))}
+                {!metas.length && <div className="border border-dashed border-gray-200 rounded-2xl p-8 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</div>}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [usuarioLogado, setUsuarioLogado] = useState(() => { const s = localStorage.getItem('usuarioLogado'); return s ? JSON.parse(s) : null; });
   const [tokenAuth, setTokenAuth] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || '');
@@ -279,7 +576,7 @@ export default function App() {
 
   const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState('');
 
-  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false);
+  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false);
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
 
@@ -1749,7 +2046,26 @@ const enviarArquivo = async (tipo) => {
       {(mensagemUpload || erroUpload) && (<div className={`rounded-xl p-4 font-bold text-sm ${mensagemUpload ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemUpload || erroUpload}</div>)}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 xl:gap-6">
         <CompUpload titulo="Pedidos" desc="Base principal" arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaPedidos} acaoExtraLoad={carregandoAutomacaoPedidos} />
-        <CompUpload titulo="Metas" desc="Estrutura, Receita, etc." arq={arquivoMetas} setArq={setArquivoMetas} onEnv={() => enviarArquivo('metas')} icone={FileSpreadsheet} load={carregandoUpload} />
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><FileSpreadsheet size={22} /></div>
+            <div>
+              <h3 className="font-black text-gray-700">Metas</h3>
+              <p className="text-xs text-gray-400 font-semibold">Meta real/oficial por estrutura, ER ou grupo.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-2">
+            <button onClick={() => setModalMetasReaisAberto(true)} className="w-full bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2">
+              <Plus size={16} /> Cadastrar / Ver metas reais
+            </button>
+            <div className="pt-2 border-t border-gray-50">
+              <input type="file" onChange={(e) => setArquivoMetas(e.target.files?.[0] || null)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              <button onClick={() => enviarArquivo('metas')} disabled={carregandoUpload} className="mt-2 w-full bg-[#e6f6f7] hover:bg-[#d0f0f1] text-[#048187] font-black rounded-lg px-4 py-2 inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                <Upload size={15} /> Importar planilha antiga
+              </button>
+            </div>
+          </div>
+        </div>
         <CompUpload titulo="Consultores" desc="Equipe de vendas." arq={arquivoConsultores} setArq={setArquivoConsultores} onEnv={() => enviarArquivo('consultores')} icone={Users} load={carregandoUpload} />
         <CompUpload titulo="Base Ativa" desc="Base de revendedores." arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload} />
         <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload} />
@@ -1774,7 +2090,7 @@ const enviarArquivo = async (tipo) => {
   );
 
   const renderTelaConsultores = () => {
-    const cFilt = listaConsultores.filter(c => c.nome.toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.id_colaborador).includes(buscaConsultor));
+    const cFilt = listaConsultores.filter(c => String(c.nome || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.nome_social || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.id_colaborador).includes(buscaConsultor));
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2"><h1 className="text-xl sm:text-2xl font-bold text-gray-700">Gestão de Consultores</h1><div className="flex gap-2"><button onClick={() => setModalCriarConsultorAberto(true)} className="bg-[#048187] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#036b70] flex items-center gap-2 text-sm"><Plus size={16} /> Novo</button><button onClick={carregarListaConsultores} className="bg-[#e6f6f7] text-[#048187] font-bold px-4 py-2 rounded-lg hover:bg-[#d0f0f1] flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button></div></div></div>
@@ -1782,8 +2098,8 @@ const enviarArquivo = async (tipo) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"><div className="relative w-full sm:w-96"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Buscar por nome ou ID..." value={buscaConsultor} onChange={(e) => setBuscaConsultor(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div><div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{cFilt.length} Registros</div></div>
           {carregandoListaConsultores ? (<div className="py-10 text-center text-[#048187] font-bold">Carregando...</div>) : (
-            <div className="overflow-x-auto"><div className="max-h-[600px] overflow-y-auto pr-2"><table className="w-full text-sm min-w-[900px]"><thead className="sticky top-0 bg-white z-10"><tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">ID</th><th className="py-3 px-2">Nome</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Canal</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Peso Meta</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>
-              {cFilt.map((c) => (<tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50"><td className="py-3 px-2 font-medium text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2 font-bold text-gray-700">{c.nome}</td><td className="py-3 px-2 text-gray-600">{c.estrutura}</td><td className="py-3 px-2 text-gray-600">{c.canal}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${c.status_consultor === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="py-3 px-2 text-right whitespace-nowrap"><button onClick={() => abrirEditarConsultor(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirConsultor(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>))}
+            <div className="overflow-x-auto"><div className="max-h-[600px] overflow-y-auto pr-2"><table className="w-full text-sm min-w-[900px]"><thead className="sticky top-0 bg-white z-10"><tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">ID</th><th className="py-3 px-2">Nome</th><th className="py-3 px-2">Nome Social</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Canal</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Peso Meta</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>
+              {cFilt.map((c) => (<tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50"><td className="py-3 px-2 font-medium text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2 font-bold text-gray-700">{c.nome_social || c.nome}</td><td className="py-3 px-2 text-gray-500">{c.nome_social ? c.nome : '-'}</td><td className="py-3 px-2 text-gray-600">{c.estrutura}</td><td className="py-3 px-2 text-gray-600">{c.canal}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${c.status_consultor === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="py-3 px-2 text-right whitespace-nowrap"><button onClick={() => abrirEditarConsultor(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirConsultor(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>))}
             </tbody></table></div></div>
           )}
         </div>
@@ -2056,12 +2372,22 @@ const enviarArquivo = async (tipo) => {
         <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col"><div className="flex items-start justify-between p-5 sm:p-6 border-b border-gray-100 shrink-0"><div><h2 className="text-lg sm:text-xl font-bold text-gray-700">{modalDetalhes.titulo}</h2><p className="text-sm text-gray-400 mt-1 leading-relaxed">{modalDetalhes.subtitulo}</p></div><button onClick={() => setModalDetalhes(null)} className="text-gray-400 hover:text-red-500 bg-gray-50 rounded-full p-2 shrink-0"><X size={20} /></button></div><div className="p-5 sm:p-6 space-y-5 overflow-y-auto"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{modalDetalhes.itens.map((item) => (<div key={item.label} className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4 min-w-0"><p className="text-xs font-bold uppercase text-gray-400 mb-1">{item.label}</p><p className="text-xl sm:text-2xl font-bold text-[#048187] whitespace-nowrap overflow-hidden text-ellipsis">{item.valor}</p></div>))}</div>{modalDetalhes.tipo === 'tendencia' && modalDetalhes.plano && (<div className={`rounded-2xl border p-5 ${modalDetalhes.plano.status === 'risco' ? 'bg-red-50/70 border-red-100' : 'bg-green-50/70 border-green-100'}`}><div className="flex items-start gap-3 mb-4"><div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${modalDetalhes.plano.status === 'risco' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{modalDetalhes.plano.status === 'risco' ? <AlertCircle size={20} /> : <CheckCircle size={20} />}</div><div><h3 className="text-base sm:text-lg font-black text-gray-700">{modalDetalhes.plano.titulo}</h3><p className="text-sm text-gray-600 mt-1 leading-relaxed">{modalDetalhes.plano.resumo}</p></div></div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">{modalDetalhes.plano.cards.map((card) => (<div key={card.label} className="bg-white/80 rounded-xl border border-white p-3 shadow-sm"><p className="text-[10px] font-black uppercase text-gray-400 mb-1">{card.label}</p><p className="text-base font-black text-[#048187]">{card.valor}</p></div>))}</div><div className="bg-white/80 rounded-xl border border-white p-4"><h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><Sparkles size={15} className="text-[#048187]" /> Sugestão inteligente</h4><ul className="space-y-2">{modalDetalhes.plano.sugestoes.map((sugestao, idx) => (<li key={idx} className="flex items-start gap-2 text-sm text-gray-600 leading-relaxed"><span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#048187] shrink-0" /> <span>{sugestao}</span></li>))}</ul></div></div>)}{modalDetalhes.tipo === 'cancelados' && (<div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-5"><h3 className="text-lg font-bold text-gray-700 mb-4">Motivos dos Cancelamentos</h3>{modalDetalhes.motivos_cancelamento?.length > 0 ? (<div className="overflow-x-auto"><table className="w-full text-sm min-w-[680px]"><thead><tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3">Motivo</th><th className="py-3 text-right">Pedidos</th><th className="py-3 text-right">%</th><th className="py-3 text-right">Valor líquido</th></tr></thead><tbody>{modalDetalhes.motivos_cancelamento.map((item) => (<tr key={item.motivo} className="border-b border-gray-100"><td className="py-3 font-medium text-gray-700">{item.motivo}</td><td className="py-3 text-right text-gray-600">{item.quantidade}</td><td className="py-3 text-right text-gray-600">{Number(item.percentual || 0).toFixed(2)}%</td><td className="py-3 text-right font-bold text-[#048187]">{formatarMoeda(item.valor_liquido || 0)}</td></tr>))}</tbody></table></div>) : (<div className="h-40 flex items-center justify-center text-gray-400 text-sm">Nenhum motivo de cancelamento.</div>)}</div>)}</div><div className="p-5 sm:p-6 border-t border-gray-100 shrink-0"><button onClick={() => setModalDetalhes(null)} className="w-full bg-[#048187] text-white font-bold py-3 rounded-xl hover:bg-[#036b70]">Fechar</button></div></div></div>
       )}
 
+      {modalMetasReaisAberto && (
+        <ModalMetasReais
+          aberto={modalMetasReaisAberto}
+          onClose={() => setModalMetasReaisAberto(false)}
+          apiUrl={API_URL}
+          cicloPadrao={dados?.ciclo_atual || ciclos.find((c) => c.status_ciclo === 'ativo')?.ciclo || ''}
+          onAtualizacao={atualizarTelasAposMudancaBanco}
+        />
+      )}
+
       {modalCriarConsultorAberto && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Novo consultor</h2></div><button onClick={() => setModalCriarConsultorAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarNovoConsultor} className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">ID Colaborador</label><input type="text" value={novoConsultor.id_colaborador} onChange={(e) => setNovoConsultor({...novoConsultor, id_colaborador: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome</label><input type="text" value={novoConsultor.nome} onChange={(e) => setNovoConsultor({...novoConsultor, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Estrutura</label><input type="text" value={novoConsultor.estrutura} onChange={(e) => setNovoConsultor({...novoConsultor, estrutura: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Canal</label><input type="text" value={novoConsultor.canal} onChange={(e) => setNovoConsultor({...novoConsultor, canal: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={novoConsultor.status_consultor} onChange={(e) => setNovoConsultor({...novoConsultor, status_consultor: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Peso Meta (%)</label><input type="number" step="0.01" value={novoConsultor.peso_meta} onChange={(e) => setNovoConsultor({...novoConsultor, peso_meta: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" /></div></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setModalCriarConsultorAberto(false)} className="px-5 py-3 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button type="submit" className="px-5 py-3 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Criar Consultor</button></div></form></div></div>
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Novo consultor</h2></div><button onClick={() => setModalCriarConsultorAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarNovoConsultor} className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">ID Colaborador</label><input type="text" value={novoConsultor.id_colaborador} onChange={(e) => setNovoConsultor({...novoConsultor, id_colaborador: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome cadastral</label><input type="text" value={novoConsultor.nome} onChange={(e) => setNovoConsultor({...novoConsultor, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome social</label><input type="text" value={novoConsultor.nome_social || ''} onChange={(e) => setNovoConsultor({...novoConsultor, nome_social: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" placeholder="Preencha somente se houver" /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Estrutura</label><input type="text" value={novoConsultor.estrutura} onChange={(e) => setNovoConsultor({...novoConsultor, estrutura: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Canal</label><input type="text" value={novoConsultor.canal} onChange={(e) => setNovoConsultor({...novoConsultor, canal: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={novoConsultor.status_consultor} onChange={(e) => setNovoConsultor({...novoConsultor, status_consultor: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Peso Meta (%)</label><input type="number" step="0.01" value={novoConsultor.peso_meta} onChange={(e) => setNovoConsultor({...novoConsultor, peso_meta: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" /></div></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setModalCriarConsultorAberto(false)} className="px-5 py-3 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button type="submit" className="px-5 py-3 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Criar Consultor</button></div></form></div></div>
       )}
 
       {modalEditarConsultorAberto && consultorEditando && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Editar consultor</h2></div><button onClick={() => setModalEditarConsultorAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarEdicaoConsultor} className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">ID</label><input type="text" value={consultorEditando.id_colaborador} disabled className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome</label><input type="text" value={consultorEditando.nome} onChange={(e) => setConsultorEditando({...consultorEditando, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Estrutura</label><input type="text" value={consultorEditando.estrutura} onChange={(e) => setConsultorEditando({...consultorEditando, estrutura: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Canal</label><input type="text" value={consultorEditando.canal} onChange={(e) => setConsultorEditando({...consultorEditando, canal: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={consultorEditando.status_consultor} onChange={(e) => setConsultorEditando({...consultorEditando, status_consultor: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Peso Meta (%)</label><input type="number" step="0.01" value={consultorEditando.peso_meta} onChange={(e) => setConsultorEditando({...consultorEditando, peso_meta: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" /></div></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setModalEditarConsultorAberto(false)} className="px-5 py-3 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button type="submit" className="px-5 py-3 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Salvar alterações</button></div></form></div></div>
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Editar consultor</h2></div><button onClick={() => setModalEditarConsultorAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarEdicaoConsultor} className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">ID</label><input type="text" value={consultorEditando.id_colaborador} disabled className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome cadastral</label><input type="text" value={consultorEditando.nome} onChange={(e) => setConsultorEditando({...consultorEditando, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome social</label><input type="text" value={consultorEditando.nome_social || ''} onChange={(e) => setConsultorEditando({...consultorEditando, nome_social: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" placeholder="Preencha somente se houver" /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Estrutura</label><input type="text" value={consultorEditando.estrutura} onChange={(e) => setConsultorEditando({...consultorEditando, estrutura: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Canal</label><input type="text" value={consultorEditando.canal} onChange={(e) => setConsultorEditando({...consultorEditando, canal: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={consultorEditando.status_consultor} onChange={(e) => setConsultorEditando({...consultorEditando, status_consultor: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Peso Meta (%)</label><input type="number" step="0.01" value={consultorEditando.peso_meta} onChange={(e) => setConsultorEditando({...consultorEditando, peso_meta: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" /></div></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setModalEditarConsultorAberto(false)} className="px-5 py-3 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button type="submit" className="px-5 py-3 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Salvar alterações</button></div></form></div></div>
       )}
 
       {modalExcluirConsultorAberto && consultorParaExcluir && (
