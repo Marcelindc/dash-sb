@@ -19,6 +19,8 @@ aplicarTokenAxios(tokenInicial);
 const CORES_GRAFICO = ['#048187', '#712231', '#F97316', '#FACC15', '#A3E635', '#257B9C'];
 const CORES_ESTRUTURA = ['#048187', '#15956B', '#5BB2B4', '#257B9C', '#56549E', '#712231', '#F97316'];
 
+const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
+
 const permissoesPadrao = {
   admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Consultores', 'Base', 'Configurações', 'Perfil'],
   gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Consultores', 'Perfil'],
@@ -175,7 +177,7 @@ const CardTop5 = ({ titulo, dados, propValor, formatter, corValor, propSubValor,
           const subtitulo = subtituloExtra ? `${subtituloBase} • ${subtituloExtra}` : subtituloBase;
           return (
             <div key={i} className="flex justify-between items-center min-w-0 gap-3">
-              <div className="flex items-center gap-3 min-w-0 flex-1"><span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500 shrink-0">{i + 1}</span><div className="flex flex-col min-w-0"><span className="text-xs font-bold text-gray-700 truncate">{c.nome}</span><span className="text-[9px] text-gray-400 truncate">{subtitulo}</span></div></div>
+              <div className="flex items-center gap-3 min-w-0 flex-1"><span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500 shrink-0">{i + 1}</span><div className="flex flex-col min-w-0"><span className="text-xs font-bold text-gray-700 truncate">{obterNomeExibicaoConsultor(c)}</span><span className="text-[9px] text-gray-400 truncate">{subtitulo}</span></div></div>
               <div className="flex items-center gap-2 shrink-0"><span className={`font-black text-sm truncate`} style={{ color: corValor }}>{formatter(c[propValor])}</span>{trend.val > 0 ? (trend.up ? <ArrowUpRight size={14} className="text-green-500" /> : <ArrowDownRight size={14} className="text-red-500" />) : (<span className="w-3.5"></span>)}</div>
             </div>
           );
@@ -1617,7 +1619,7 @@ const enviarArquivo = async (tipo) => {
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-3 min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="w-7 h-7 rounded-full bg-[#048187] text-white text-xs font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
-                          <div className="min-w-0"><h3 className="text-sm font-bold text-gray-700 truncate">{c.nome}</h3><p className="text-xs text-gray-400 truncate">ID: {c.id_colaborador} • Peso: {Number(c.peso_meta || 0).toFixed(2)}% • Pedidos: {c.quantidade_pedidos}</p></div>
+                          <div className="min-w-0"><h3 className="text-sm font-bold text-gray-700 truncate">{obterNomeExibicaoConsultor(c)}</h3><p className="text-xs text-gray-400 truncate">ID: {c.id_colaborador} • Peso: {Number(c.peso_meta || 0).toFixed(2)}% • Pedidos: {c.quantidade_pedidos}</p></div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <p className="text-lg font-bold text-[#048187] whitespace-nowrap">{Number(c.percentual || 0).toFixed(2)}%</p>
@@ -1720,7 +1722,7 @@ const enviarArquivo = async (tipo) => {
           <div className="flex items-end justify-center w-full max-w-2xl gap-2 sm:gap-4 h-48">
             {podio[0] && (
               <div className="flex flex-col items-center w-1/3 z-10 hover:-translate-y-2 transition-transform cursor-default group">
-                <p className="text-xs font-bold text-gray-600 truncate w-full text-center px-1">{formatarNomePodio(podio[0].nome)}</p>
+                <p className="text-xs font-bold text-gray-600 truncate w-full text-center px-1">{formatarNomePodio(obterNomeExibicaoConsultor(podio[0]))}</p>
                 <p className="text-sm font-black text-gray-600 mb-0.5 truncate w-full text-center">{formatarPercentualFaturamento(podio[0])}</p>
                 <p className="text-[10px] text-gray-400 mb-2 truncate w-full text-center">{formatarRealizadoPodio(podio[0])}</p>
                 <div className="w-full h-32 bg-gradient-to-t from-gray-300 to-gray-200 rounded-t-lg flex flex-col items-center justify-start pt-2 border-t-4 border-gray-400 shadow-inner"><span className="text-xl font-black text-white drop-shadow-md">2º</span></div>
@@ -1729,7 +1731,7 @@ const enviarArquivo = async (tipo) => {
             {podio[1] && (
               <div className="flex flex-col items-center w-1/3 z-20 hover:-translate-y-2 transition-transform cursor-default group">
                 <Trophy size={24} className="text-yellow-500 mb-1 animate-bounce" />
-                <p className="text-sm font-black text-[#048187] truncate w-full text-center px-1">{formatarNomePodio(podio[1].nome)}</p>
+                <p className="text-sm font-black text-[#048187] truncate w-full text-center px-1">{formatarNomePodio(obterNomeExibicaoConsultor(podio[1]))}</p>
                 <p className="text-base font-black text-yellow-600 mb-0.5 truncate w-full text-center">{formatarPercentualFaturamento(podio[1])}</p>
                 <p className="text-[11px] text-gray-400 mb-2 truncate w-full text-center">{formatarRealizadoPodio(podio[1])}</p>
                 <div className="w-full h-40 bg-gradient-to-t from-yellow-300 to-yellow-100 rounded-t-lg flex flex-col items-center justify-start pt-2 border-t-4 border-yellow-500 shadow-2xl relative"><span className="text-3xl font-black text-white drop-shadow-md">1º</span></div>
@@ -1737,7 +1739,7 @@ const enviarArquivo = async (tipo) => {
             )}
             {podio[2] && (
               <div className="flex flex-col items-center w-1/3 z-0 hover:-translate-y-2 transition-transform cursor-default group">
-                <p className="text-xs font-bold text-gray-600 truncate w-full text-center px-1">{formatarNomePodio(podio[2].nome)}</p>
+                <p className="text-xs font-bold text-gray-600 truncate w-full text-center px-1">{formatarNomePodio(obterNomeExibicaoConsultor(podio[2]))}</p>
                 <p className="text-sm font-black text-orange-600 mb-0.5 truncate w-full text-center">{formatarPercentualFaturamento(podio[2])}</p>
                 <p className="text-[10px] text-gray-400 mb-2 truncate w-full text-center">{formatarRealizadoPodio(podio[2])}</p>
                 <div className="w-full h-24 bg-gradient-to-t from-orange-300 to-orange-200 rounded-t-lg flex flex-col items-center justify-start pt-2 border-t-4 border-orange-400 shadow-inner"><span className="text-xl font-black text-white drop-shadow-md">3º</span></div>
@@ -2099,7 +2101,7 @@ const enviarArquivo = async (tipo) => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"><div className="relative w-full sm:w-96"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Buscar por nome ou ID..." value={buscaConsultor} onChange={(e) => setBuscaConsultor(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div><div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{cFilt.length} Registros</div></div>
           {carregandoListaConsultores ? (<div className="py-10 text-center text-[#048187] font-bold">Carregando...</div>) : (
             <div className="overflow-x-auto"><div className="max-h-[600px] overflow-y-auto pr-2"><table className="w-full text-sm min-w-[900px]"><thead className="sticky top-0 bg-white z-10"><tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">ID</th><th className="py-3 px-2">Nome</th><th className="py-3 px-2">Nome Social</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Canal</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Peso Meta</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>
-              {cFilt.map((c) => (<tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50"><td className="py-3 px-2 font-medium text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2 font-bold text-gray-700">{c.nome_social || c.nome}</td><td className="py-3 px-2 text-gray-500">{c.nome_social ? c.nome : '-'}</td><td className="py-3 px-2 text-gray-600">{c.estrutura}</td><td className="py-3 px-2 text-gray-600">{c.canal}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${c.status_consultor === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="py-3 px-2 text-right whitespace-nowrap"><button onClick={() => abrirEditarConsultor(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirConsultor(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>))}
+              {cFilt.map((c) => (<tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50"><td className="py-3 px-2 font-medium text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2 font-bold text-gray-700">{c.nome}</td><td className="py-3 px-2 font-bold text-[#048187]">{c.nome_social || '-'}</td><td className="py-3 px-2 text-gray-600">{c.estrutura}</td><td className="py-3 px-2 text-gray-600">{c.canal}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${c.status_consultor === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="py-3 px-2 text-right whitespace-nowrap"><button onClick={() => abrirEditarConsultor(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirConsultor(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>))}
             </tbody></table></div></div>
           )}
         </div>
@@ -2391,7 +2393,7 @@ const enviarArquivo = async (tipo) => {
       )}
 
       {modalExcluirConsultorAberto && consultorParaExcluir && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6"><h2 className="text-xl font-bold text-gray-700 mb-4">Excluir consultor?</h2><p className="text-gray-600 mb-6">{consultorParaExcluir.nome}</p><div className="flex justify-end gap-3"><button onClick={() => setModalExcluirConsultorAberto(false)} className="px-5 py-2 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button onClick={confirmarExclusaoConsultor} className="bg-red-500 text-white px-5 py-2 rounded-lg font-bold hover:bg-red-600">Excluir</button></div></div></div>
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6"><h2 className="text-xl font-bold text-gray-700 mb-4">Excluir consultor?</h2><p className="text-gray-600 mb-6">{obterNomeExibicaoConsultor(consultorParaExcluir)}</p><div className="flex justify-end gap-3"><button onClick={() => setModalExcluirConsultorAberto(false)} className="px-5 py-2 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button onClick={confirmarExclusaoConsultor} className="bg-red-500 text-white px-5 py-2 rounded-lg font-bold hover:bg-red-600">Excluir</button></div></div></div>
       )}
       
       {modalEditarCicloAberto && cicloEditando && (
