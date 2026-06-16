@@ -22,8 +22,8 @@ const CORES_ESTRUTURA = ['#048187', '#15956B', '#5BB2B4', '#257B9C', '#56549E', 
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Consultores', 'Base', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Consultores', 'Perfil'],
+  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Cadastro', 'Base', 'Configurações', 'Perfil'],
+  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Cadastro', 'Perfil'],
   visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Perfil']
 };
 
@@ -35,7 +35,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Consultores', 'Base', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Cadastro', 'Base', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -54,7 +54,8 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
 
   PERFIS_SISTEMA.forEach((perfil) => {
     const listaSalva = Array.isArray(permissoes?.[perfil]) ? permissoes[perfil] : [];
-    normalizadas[perfil] = Array.from(new Set(listaSalva.filter((aba) => ABAS_SISTEMA.includes(aba))));
+    const listaMigrada = listaSalva.map((aba) => aba === 'Consultores' ? 'Cadastro' : aba);
+    normalizadas[perfil] = Array.from(new Set(listaMigrada.filter((aba) => ABAS_SISTEMA.includes(aba))));
   });
 
   // O admin nunca pode perder acesso à própria tela de configuração/perfil.
@@ -409,6 +410,31 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     }
   };
 
+  const salvarPesoConsultorMeta = async (consultor, valorPeso) => {
+    const idConsultor = consultor?.id;
+    if (!idConsultor) {
+      setErro('Não foi possível identificar o cadastro do consultor para atualizar o peso.');
+      return;
+    }
+    const pesoNumero = Number(String(valorPeso ?? '0').replace(',', '.')) || 0;
+    try {
+      await axios.put(`${apiUrl}/consultores/${idConsultor}`, {
+        id_colaborador: consultor.id_colaborador || '',
+        nome: consultor.nome || consultor.nome_cadastral || consultor.nome_exibicao || '',
+        nome_social: consultor.nome_social || '',
+        estrutura: consultor.estrutura || '',
+        canal: consultor.canal || 'ESPAÇO DO REVENDEDOR',
+        status_consultor: consultor.status_consultor || 'ativo',
+        peso_meta: pesoNumero
+      });
+      setMensagem('Peso Meta do consultor atualizado.');
+      await carregarMetas(cicloConsulta);
+      if (onAtualizacao) onAtualizacao();
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao atualizar peso do consultor.');
+    }
+  };
+
   const estruturasFiltradas = estruturas
     .filter((e) => {
       const termo = busca.toLowerCase().trim();
@@ -545,12 +571,12 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                     {Array.isArray(m.consultores) && m.consultores.length > 0 && (
                       <div className="mt-4 border-t border-gray-50 pt-3 overflow-x-auto">
                         <table className="w-full text-xs">
-                          <thead><tr className="text-left text-gray-400 uppercase"><th className="py-2">Consultor</th><th>Peso</th><th>Meta Individual</th><th>Realizado</th><th>%</th></tr></thead>
+                          <thead><tr className="text-left text-gray-400 uppercase"><th className="py-2">Consultor</th><th>Peso editável</th><th>Meta Individual</th><th>Realizado</th><th>%</th></tr></thead>
                           <tbody>
                             {m.consultores.map((c) => (
                               <tr key={`${m.id}-${c.id_colaborador}`} className="border-t border-gray-50">
                                 <td className="py-2 font-bold text-gray-700">{c.nome_exibicao || c.nome}</td>
-                                <td className="font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td>
+                                <td className="font-bold text-[#048187]"><input type="number" step="0.01" defaultValue={Number(c.peso_meta || 0).toFixed(2)} onBlur={(e) => salvarPesoConsultorMeta(c, e.target.value)} className="w-24 border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-[#048187] outline-none focus:border-[#048187]" />%</td>
                                 <td>{formatarMoeda(c.meta_individual)}</td>
                                 <td>{formatarMoeda(c.realizado)}</td>
                                 <td className="font-black text-[#048187]">{Number(c.percentual || 0).toFixed(1)}%</td>
@@ -621,7 +647,7 @@ export default function App() {
   const debounceFiltroRapidoRef = useRef(null);
 
   const itensMenuTopo = [
-    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Consultores', icone: Users }, { nome: 'Base', icone: Database }
+    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
   ];
 
   const carregarPermissoesDoBanco = async () => {
@@ -1031,7 +1057,7 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
     if (telaAtual === 'Revendedores') return carregarRevendedores();
     if (telaAtual === 'Base') return carregarCiclos();
-    if (telaAtual === 'Consultores') return carregarListaConsultores();
+    if (telaAtual === 'Cadastro') return carregarListaConsultores();
     if (telaAtual === 'Configurações') return carregarUsuarios();
   };
 
@@ -1216,7 +1242,7 @@ const carregarRevendedores = async () => {
     else if (telaAtual === 'Comparativo') tarefas.push(carregarComparativo(filtrosAtivos));
     else tarefas.push(carregarDashboard(filtrosAtivos, true));
 
-    if (telaAtual === 'Consultores') tarefas.push(carregarListaConsultores());
+    if (telaAtual === 'Cadastro') tarefas.push(carregarListaConsultores());
     if (telaAtual === 'Base') tarefas.push(carregarCiclos());
     if (telaAtual === 'Configurações') tarefas.push(carregarUsuarios());
 
@@ -2069,31 +2095,13 @@ const enviarArquivo = async (tipo) => {
 
   const renderTelaBase = () => (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Base de dados</h1></div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Base de dados</h1>
+        <p className="text-sm text-gray-400 font-semibold">Uploads de bases operacionais. Cadastros manuais agora ficam na aba Cadastro.</p>
+      </div>
       {(mensagemUpload || erroUpload) && (<div className={`rounded-xl p-4 font-bold text-sm ${mensagemUpload ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemUpload || erroUpload}</div>)}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 xl:gap-6">
         <CompUpload titulo="Pedidos" desc="Base principal" arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaPedidos} acaoExtraLoad={carregandoAutomacaoPedidos} />
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-12 h-12 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><FileSpreadsheet size={22} /></div>
-            <div>
-              <h3 className="font-black text-gray-700">Metas</h3>
-              <p className="text-xs text-gray-400 font-semibold">Meta real/oficial por estrutura, ER ou grupo.</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <button onClick={() => setModalMetasReaisAberto(true)} className="w-full bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2">
-              <Plus size={16} /> Cadastrar / Ver metas reais
-            </button>
-            <div className="pt-2 border-t border-gray-50">
-              <input type="file" onChange={(e) => setArquivoMetas(e.target.files?.[0] || null)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-              <button onClick={() => enviarArquivo('metas')} disabled={carregandoUpload} className="mt-2 w-full bg-[#e6f6f7] hover:bg-[#d0f0f1] text-[#048187] font-black rounded-lg px-4 py-2 inline-flex items-center justify-center gap-2 disabled:opacity-60">
-                <Upload size={15} /> Importar planilha antiga
-              </button>
-            </div>
-          </div>
-        </div>
-        <CompUpload titulo="Consultores" desc="Equipe de vendas." arq={arquivoConsultores} setArq={setArquivoConsultores} onEnv={() => enviarArquivo('consultores')} icone={Users} load={carregandoUpload} />
         <CompUpload titulo="Base Ativa" desc="Base de revendedores." arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload} />
         <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload} />
         <CompUpload titulo="SKUS IAF" desc="Abas MAKE e CABELO." arq={arquivoSkusIaf} setArq={setArquivoSkusIaf} onEnv={() => enviarArquivo('skusIaf')} icone={Sparkles} load={carregandoUpload} />
@@ -2113,6 +2121,28 @@ const enviarArquivo = async (tipo) => {
           )}
         </div>
       </div>
+    </div>
+  );
+
+  const renderTelaCadastro = () => (
+    <div className="space-y-6 animate-fade-in">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Cadastro</h1>
+            <p className="text-sm text-gray-400 font-semibold">Cadastre e mantenha consultores, nomes sociais, pesos de meta e metas reais.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button onClick={() => setModalMetasReaisAberto(true)} className="bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2">
+              <Plus size={16} /> Cadastrar / Ver metas reais
+            </button>
+            <button onClick={() => setModalCriarConsultorAberto(true)} className="bg-[#e6f6f7] hover:bg-[#d0f0f1] text-[#048187] font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2">
+              <Users size={16} /> Novo consultor
+            </button>
+          </div>
+        </div>
+      </div>
+      {renderTelaConsultores()}
     </div>
   );
 
@@ -2170,7 +2200,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'Comparativo') return renderTelaComparativo();
     if (telaAtual === 'Revendedores') return renderTelaRevendedores();
     if (telaAtual === 'Base') return renderTelaBase();
-    if (telaAtual === 'Consultores') return renderTelaConsultores();
+    if (telaAtual === 'Cadastro') return renderTelaCadastro();
     if (telaAtual === 'Configurações') return renderTelaConfiguracoes();
     if (telaAtual === 'Perfil') return renderTelaPerfil();
     return null;
@@ -2414,7 +2444,7 @@ const enviarArquivo = async (tipo) => {
       )}
 
       {modalEditarConsultorAberto && consultorEditando && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Editar consultor</h2></div><button onClick={() => setModalEditarConsultorAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarEdicaoConsultor} className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">ID</label><input type="text" value={consultorEditando.id_colaborador} disabled className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome cadastral</label><input type="text" value={consultorEditando.nome} onChange={(e) => setConsultorEditando({...consultorEditando, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome social</label><input type="text" value={consultorEditando.nome_social || ''} onChange={(e) => setConsultorEditando({...consultorEditando, nome_social: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" placeholder="Preencha somente se houver" /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Estrutura</label><input type="text" value={consultorEditando.estrutura} onChange={(e) => setConsultorEditando({...consultorEditando, estrutura: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Canal</label><input type="text" value={consultorEditando.canal} onChange={(e) => setConsultorEditando({...consultorEditando, canal: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={consultorEditando.status_consultor} onChange={(e) => setConsultorEditando({...consultorEditando, status_consultor: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Peso Meta (%)</label><input type="number" step="0.01" value={consultorEditando.peso_meta} onChange={(e) => setConsultorEditando({...consultorEditando, peso_meta: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" /></div></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setModalEditarConsultorAberto(false)} className="px-5 py-3 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button type="submit" className="px-5 py-3 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Salvar alterações</button></div></form></div></div>
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Editar consultor</h2></div><button onClick={() => setModalEditarConsultorAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarEdicaoConsultor} className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">ID Colaborador</label><input type="text" value={consultorEditando.id_colaborador || ''} onChange={(e) => setConsultorEditando({...consultorEditando, id_colaborador: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome cadastral</label><input type="text" value={consultorEditando.nome} onChange={(e) => setConsultorEditando({...consultorEditando, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome social</label><input type="text" value={consultorEditando.nome_social || ''} onChange={(e) => setConsultorEditando({...consultorEditando, nome_social: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" placeholder="Preencha somente se houver" /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Estrutura</label><input type="text" value={consultorEditando.estrutura} onChange={(e) => setConsultorEditando({...consultorEditando, estrutura: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Canal</label><input type="text" value={consultorEditando.canal} onChange={(e) => setConsultorEditando({...consultorEditando, canal: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={consultorEditando.status_consultor} onChange={(e) => setConsultorEditando({...consultorEditando, status_consultor: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Peso Meta (%)</label><input type="number" step="0.01" value={consultorEditando.peso_meta} onChange={(e) => setConsultorEditando({...consultorEditando, peso_meta: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" /></div></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setModalEditarConsultorAberto(false)} className="px-5 py-3 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button type="submit" className="px-5 py-3 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Salvar alterações</button></div></form></div></div>
       )}
 
       {modalExcluirConsultorAberto && consultorParaExcluir && (
