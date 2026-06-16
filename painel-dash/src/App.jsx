@@ -263,6 +263,26 @@ const metaRealVazia = {
   estruturas: []
 };
 
+const converterMetaRealParaNumero = (valor) => {
+  const textoOriginal = String(valor ?? '').trim();
+  if (!textoOriginal) return 0;
+  let texto = textoOriginal.replace(/R\$/gi, '').replace(/\s/g, '');
+  texto = texto.replace(/[^0-9,.-]/g, '');
+
+  if (texto.includes(',')) {
+    texto = texto.replace(/\./g, '').replace(',', '.');
+  }
+
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : 0;
+};
+
+const formatarMetaRealInput = (valor) => {
+  const numero = converterMetaRealParaNumero(valor);
+  if (!numero) return '';
+  return numero.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao }) {
   const [metas, setMetas] = useState([]);
   const [estruturas, setEstruturas] = useState([]);
@@ -276,11 +296,12 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
   const cicloConsulta = form.ciclo || cicloPadrao || '';
 
-  const carregarMetas = async () => {
+  const carregarMetas = async (cicloForcado = null) => {
     setCarregando(true);
     setErro('');
     try {
-      const { data } = await axios.get(`${apiUrl}/metas-reais`, { params: cicloConsulta ? { ciclo: cicloConsulta } : {} });
+      const cicloUsado = cicloForcado ?? cicloConsulta;
+      const { data } = await axios.get(`${apiUrl}/metas-reais`, { params: cicloUsado ? { ciclo: cicloUsado } : {} });
       setMetas(data.metas || []);
     } catch (e) {
       setErro(e.response?.data?.detail || 'Erro ao carregar metas reais.');
@@ -305,9 +326,9 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     carregarEstruturas();
   }, [aberto]);
 
-  const limparForm = () => {
+  const limparForm = (cicloManter = null) => {
     setEditandoId(null);
-    setForm({ ...metaRealVazia, ciclo: cicloPadrao || form.ciclo || '' });
+    setForm({ ...metaRealVazia, ciclo: cicloManter || cicloPadrao || form.ciclo || '' });
     setBusca('');
   };
 
@@ -335,18 +356,22 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     if (!form.ciclo.trim()) return setErro('Informe o ciclo.');
     if (!form.nome_meta.trim()) return setErro('Informe o nome da meta.');
     if (!form.estruturas.length) return setErro('Vincule pelo menos uma estrutura.');
+    const metaRealNumero = converterMetaRealParaNumero(form.meta_real);
+    if (metaRealNumero <= 0) return setErro('Informe uma meta real maior que zero.');
     setSalvando(true);
     const payload = {
       ...form,
-      meta_real: Number(String(form.meta_real || '0').replace(/\./g, '').replace(',', '.')) || 0,
+      ciclo: String(form.ciclo || '').trim(),
+      nome_meta: String(form.nome_meta || '').trim(),
+      meta_real: metaRealNumero,
       estruturas: form.estruturas.map((e) => ({ cod_estrutura: e.cod_estrutura || '', estrutura: e.estrutura }))
     };
     try {
       if (editandoId) await axios.put(`${apiUrl}/metas-reais/${editandoId}`, payload);
       else await axios.post(`${apiUrl}/metas-reais`, payload);
       setMensagem(editandoId ? 'Meta real atualizada.' : 'Meta real cadastrada.');
-      limparForm();
-      await carregarMetas();
+      limparForm(payload.ciclo);
+      await carregarMetas(payload.ciclo);
       if (onAtualizacao) onAtualizacao();
     } catch (err) {
       setErro(err.response?.data?.detail || 'Erro ao salvar meta real.');
@@ -361,7 +386,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       ciclo: meta.ciclo || '',
       nome_meta: meta.nome_meta || '',
       tipo_meta: meta.tipo_meta || 'grupo_estruturas',
-      meta_real: meta.meta_real || '',
+      meta_real: formatarMetaRealInput(meta.meta_real),
       regra_calculo: meta.regra_calculo || 'somar_estruturas',
       status: meta.status || 'ativo',
       observacao: meta.observacao || '',
@@ -422,7 +447,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
               </div>
               <div>
                 <label className="text-xs font-black text-gray-400 uppercase block mb-1">Meta Real</label>
-                <input value={form.meta_real} onChange={(e) => setForm({ ...form, meta_real: e.target.value })} placeholder="383337,00" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+                <input value={form.meta_real} onChange={(e) => { setMensagem(''); setForm({ ...form, meta_real: e.target.value }); }} onBlur={(e) => setForm((atual) => ({ ...atual, meta_real: formatarMetaRealInput(e.target.value) }))} placeholder="383337,00" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
               </div>
             </div>
 
@@ -480,7 +505,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
               <textarea value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} rows={3} placeholder="Ex.: soma as estruturas 13476 e 17325" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] resize-none" />
             </div>
 
-            <button type="submit" disabled={salvando} className="w-full bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-xl px-4 py-3 disabled:opacity-60 inline-flex items-center justify-center gap-2">
+            <button type="submit" disabled={salvando || !form.estruturas.length} className="w-full bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-xl px-4 py-3 disabled:opacity-60 inline-flex items-center justify-center gap-2">
               <Save size={16} /> {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar meta real'}
             </button>
           </form>
