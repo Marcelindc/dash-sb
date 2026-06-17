@@ -258,6 +258,12 @@ const metaRealVazia = {
   nome_meta: '',
   tipo_meta: 'grupo_estruturas',
   meta_real: '',
+  meta_atividade: '',
+  meta_make: '',
+  meta_cabelo: '',
+  meta_rpa: '',
+  meta_tkt_medio: '',
+  meta_upa: '',
   regra_calculo: 'somar_estruturas',
   status: 'ativo',
   observacao: '',
@@ -283,6 +289,25 @@ const formatarMetaRealInput = (valor) => {
   if (!numero) return '';
   return numero.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
+
+const formatarMetaIndicadorInput = (valor, casas = 2) => {
+  const numero = converterMetaRealParaNumero(valor);
+  if (!numero) return '';
+  return numero.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+};
+
+const CampoMetaIndicador = ({ label, value, onChange, placeholder = '0,00', casas = 2 }) => (
+  <div>
+    <label className="text-xs font-black text-gray-400 uppercase block mb-1">{label}</label>
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={(e) => onChange(formatarMetaIndicadorInput(e.target.value, casas))}
+      placeholder={placeholder}
+      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"
+    />
+  </div>
+);
 
 function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao }) {
   const [metas, setMetas] = useState([]);
@@ -365,6 +390,12 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       ciclo: String(form.ciclo || '').trim(),
       nome_meta: String(form.nome_meta || '').trim(),
       meta_real: metaRealNumero,
+      meta_atividade: converterMetaRealParaNumero(form.meta_atividade),
+      meta_make: converterMetaRealParaNumero(form.meta_make),
+      meta_cabelo: converterMetaRealParaNumero(form.meta_cabelo),
+      meta_rpa: converterMetaRealParaNumero(form.meta_rpa),
+      meta_tkt_medio: converterMetaRealParaNumero(form.meta_tkt_medio),
+      meta_upa: converterMetaRealParaNumero(form.meta_upa),
       estruturas: form.estruturas.map((e) => ({ cod_estrutura: e.cod_estrutura || '', estrutura: e.estrutura }))
     };
     try {
@@ -388,6 +419,12 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       nome_meta: meta.nome_meta || '',
       tipo_meta: meta.tipo_meta || 'grupo_estruturas',
       meta_real: formatarMetaRealInput(meta.meta_real),
+      meta_atividade: formatarMetaIndicadorInput(meta.meta_atividade, 1),
+      meta_make: formatarMetaIndicadorInput(meta.meta_make, 1),
+      meta_cabelo: formatarMetaIndicadorInput(meta.meta_cabelo, 1),
+      meta_rpa: formatarMetaIndicadorInput(meta.meta_rpa, 2),
+      meta_tkt_medio: formatarMetaIndicadorInput(meta.meta_tkt_medio, 2),
+      meta_upa: formatarMetaIndicadorInput(meta.meta_upa, 1),
       regra_calculo: meta.regra_calculo || 'somar_estruturas',
       status: meta.status || 'ativo',
       observacao: meta.observacao || '',
@@ -451,7 +488,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
         <div className="flex items-start justify-between p-6 border-b border-gray-100">
           <div>
             <h2 className="text-xl font-black text-gray-700">Cadastro de Metas Reais</h2>
-            <p className="text-sm text-gray-400 font-semibold mt-1">Meta oficial por estrutura, ER ou grupo de estruturas. A divisão por consultor usa o Peso Meta da aba Consultores.</p>
+            <p className="text-sm text-gray-400 font-semibold mt-1">Meta oficial por estrutura, ER ou grupo de estruturas. A divisão por consultor usa o Peso Meta da aba Cadastro.</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button>
         </div>
@@ -474,6 +511,21 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
               <div>
                 <label className="text-xs font-black text-gray-400 uppercase block mb-1">Meta Real</label>
                 <input value={form.meta_real} onChange={(e) => { setMensagem(''); setForm({ ...form, meta_real: e.target.value }); }} onBlur={(e) => setForm((atual) => ({ ...atual, meta_real: formatarMetaRealInput(e.target.value) }))} placeholder="383337,00" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+              </div>
+            </div>
+
+            <div className="border border-gray-100 bg-[#f7fafb] rounded-2xl p-4 space-y-3">
+              <div>
+                <h4 className="text-xs font-black text-gray-600 uppercase">Metas dos indicadores da estrutura</h4>
+                <p className="text-[11px] text-gray-400 font-semibold mt-1">Esses valores alimentam os cards de Atividade, MAKE, CABELO, RPA, Ticket Médio e UPA na aba Metas Estruturas.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <CampoMetaIndicador label="Meta Atividade (%)" value={form.meta_atividade} casas={1} placeholder="46,0" onChange={(valor) => setForm({ ...form, meta_atividade: valor })} />
+                <CampoMetaIndicador label="Meta MAKE (%)" value={form.meta_make} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_make: valor })} />
+                <CampoMetaIndicador label="Meta CABELO (%)" value={form.meta_cabelo} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_cabelo: valor })} />
+                <CampoMetaIndicador label="Meta RPA (R$)" value={form.meta_rpa} casas={2} placeholder="1.500,00" onChange={(valor) => setForm({ ...form, meta_rpa: valor })} />
+                <CampoMetaIndicador label="Meta Tkt Médio (R$)" value={form.meta_tkt_medio} casas={2} placeholder="800,00" onChange={(valor) => setForm({ ...form, meta_tkt_medio: valor })} />
+                <CampoMetaIndicador label="Meta UPA" value={form.meta_upa} casas={1} placeholder="15,0" onChange={(valor) => setForm({ ...form, meta_upa: valor })} />
               </div>
             </div>
 
@@ -542,7 +594,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                 <h3 className="text-base font-black text-gray-700">Metas cadastradas</h3>
                 <p className="text-xs text-gray-400 font-semibold">Realizado calculado pela soma das estruturas vinculadas.</p>
               </div>
-              <button type="button" onClick={carregarMetas} className="bg-[#e6f6f7] text-[#048187] font-black px-4 py-2 rounded-lg hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm"><RefreshCcw size={15} /> Atualizar</button>
+              <button type="button" onClick={() => carregarMetas()} className="bg-[#e6f6f7] text-[#048187] font-black px-4 py-2 rounded-lg hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm"><RefreshCcw size={15} /> Atualizar</button>
             </div>
 
             {carregando ? <p className="text-[#048187] font-bold">Carregando metas reais...</p> : (
@@ -566,6 +618,15 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                         <div className="bg-[#f7fafb] rounded-xl p-3"><p className="text-[10px] uppercase font-black text-gray-400">Realizado</p><p className="text-sm font-black text-[#048187]">{formatarMoeda(m.realizado)}</p></div>
                         <div className="bg-[#f7fafb] rounded-xl p-3"><p className="text-[10px] uppercase font-black text-gray-400">% Ating.</p><p className="text-sm font-black text-[#048187]">{Number(m.percentual || 0).toFixed(1)}%</p></div>
                       </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">Atividade</p><p className="text-xs font-black text-gray-700">{Number(m.meta_atividade || 0).toFixed(1)}%</p></div>
+                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">MAKE</p><p className="text-xs font-black text-gray-700">{Number(m.meta_make || 0).toFixed(1)}%</p></div>
+                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">CABELO</p><p className="text-xs font-black text-gray-700">{Number(m.meta_cabelo || 0).toFixed(1)}%</p></div>
+                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">RPA</p><p className="text-xs font-black text-gray-700">{formatarMoeda(m.meta_rpa)}</p></div>
+                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">Tkt Médio</p><p className="text-xs font-black text-gray-700">{formatarMoeda(m.meta_tkt_medio)}</p></div>
+                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">UPA</p><p className="text-xs font-black text-gray-700">{Number(m.meta_upa || 0).toFixed(1)}</p></div>
                     </div>
 
                     {Array.isArray(m.consultores) && m.consultores.length > 0 && (
