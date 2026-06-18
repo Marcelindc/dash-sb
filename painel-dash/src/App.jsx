@@ -998,6 +998,14 @@ export default function App() {
     } catch (erro) { console.error('Erro detalhe estrutura:', erro); setErroMetas('Erro detalhe estrutura.'); } finally { setCarregandoDetalheMeta(false); }
   };
 
+  const voltarParaListaMetas = () => {
+    setVisaoMetas('estruturas');
+    setDetalheMeta(null);
+    setEstruturaSelecionada('');
+    setBuscaEstruturaMeta('');
+    setMostrarListaEstruturaMeta(false);
+  };
+
   const carregarComparativo = async (filtros) => {
     setLoadComp(true);
     try {
@@ -1784,11 +1792,16 @@ const enviarArquivo = async (tipo) => {
               <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 break-words">{visaoMetas === 'estruturas' ? 'Metas por Estrutura' : 'Metas por Consultores'}</h1><p className="text-sm text-gray-400">{visaoMetas === 'estruturas' ? 'Visão consolidada por estrutura comercial.' : 'Resumo da estrutura selecionada e performance individual dos consultores.'}</p></div>
             </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              {visaoMetas === 'consultores' && (
+                <button
+                  type="button"
+                  onClick={voltarParaListaMetas}
+                  className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d8f0f1] px-4 py-2 rounded-lg font-black text-xs inline-flex items-center gap-2 transition-colors"
+                >
+                  <ChevronLeft size={18} /> Voltar
+                </button>
+              )}
               <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} />
-              <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
-                <button onClick={() => setVisaoMetas('estruturas')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoMetas === 'estruturas' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Estruturas"><Users size={18} /></button>
-                <button onClick={() => setVisaoMetas('consultores')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoMetas === 'consultores' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Consultores"><User size={18} /></button>
-              </div>
             </div>
           </div>
         </div>
@@ -1821,7 +1834,17 @@ const enviarArquivo = async (tipo) => {
           <>
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
               <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6 mb-6">
-                <div className="min-w-0"><h2 className="text-xl sm:text-2xl font-bold text-gray-700 break-words">{detalheMeta.estrutura}</h2><p className="text-sm text-gray-400 mt-1">Resumo da estrutura e resultado individual dos consultores.</p></div>
+                <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={voltarParaListaMetas}
+                    className="mb-3 bg-[#e6f6f7] text-[#048187] hover:bg-[#d8f0f1] px-4 py-2 rounded-lg font-black text-xs inline-flex items-center gap-2 transition-colors"
+                  >
+                    <ChevronLeft size={16} /> Voltar para estruturas
+                  </button>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-700 break-words">{detalheMeta.estrutura}</h2>
+                  <p className="text-sm text-gray-400 mt-1">Resumo da estrutura e resultado individual dos consultores.</p>
+                </div>
                 <div className="w-full xl:w-[420px] relative">
                   <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 tracking-wide">Filtro rápido de estrutura</label>
                   <div className="relative">
