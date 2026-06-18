@@ -79,6 +79,12 @@ const cicloFormVazio = { ciclo: '', data_inicio: '', data_fim: '', meta_ciclo: '
 const consultorVazio = { id_colaborador: '', nome: '', nome_social: '', estrutura: '', canal: 'ESPAÇO DO REVENDEDOR', status_consultor: 'ativo', peso_meta: 0 };
 
 const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(v || 0));
+const formatarNumeroBR = (v, casas = 0) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+const calcularUpa = (totalItens, atividadeRealizada) => {
+  const itens = Number(totalItens || 0);
+  const atividade = Number(atividadeRealizada || 0);
+  return atividade > 0 ? itens / atividade : 0;
+};
 const formatarAbrev = (v) => {
   const a = Math.abs(Number(v || 0)); const s = Number(v || 0) < 0 ? '-' : '';
   if (a >= 1000000) return `${s}R$${(a / 1000000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} Mi`;
@@ -691,7 +697,7 @@ export default function App() {
   const [carregandoDashboard, setCarregandoDashboard] = useState(false); const [carregandoMetas, setCarregandoMetas] = useState(false); const [carregandoDetalheMeta, setCarregandoDetalheMeta] = useState(false); const [erroMetas, setErroMetas] = useState('');
   
   const [modalDetalhes, setModalDetalhes] = useState(null); 
-  const [modalValorExpandido, setModalValorExpandido] = useState({ aberto: false, titulo: '', valorTexto: '', descricao: '' });
+  const [modalValorExpandido, setModalValorExpandido] = useState({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '' });
 
   const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState('');
 
@@ -1482,7 +1488,8 @@ const enviarArquivo = async (tipo) => {
   const abrirExcluirConsultor = (consultor) => { setConsultorParaExcluir(consultor); setModalExcluirConsultorAberto(true); };
   const confirmarExclusaoConsultor = async () => { if (!consultorParaExcluir) return; setErroGestaoConsultor(''); setMensagemConsultor(''); try { await axios.delete(`${API_URL}/consultores/${consultorParaExcluir.id}`); setModalExcluirConsultorAberto(false); setConsultorParaExcluir(null); setMensagemConsultor('Excluído.'); limparCachesDados(); await carregarListaConsultores(); } catch (erro) { setErroGestaoConsultor(erro.response?.data?.detail || 'Erro.'); } };
 
-  const abrirModalValExp = (tit, valStr, desc) => setModalValorExpandido({ aberto: true, titulo: tit, valorTexto: valStr, descricao: desc });
+  const abrirModalValExp = (tit, valStr, desc, detalhes = [], formula = '') => setModalValorExpandido({ aberto: true, titulo: tit, valorTexto: valStr, descricao: desc, detalhes, formula });
+  const fecharModalValExp = () => setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '' });
   
   const abrirDetRealizadoTotal = () => setModalDetalhes({ titulo: 'Realizado Total', subtitulo: 'Realizado vs Meta', tipo: 'padrao', itens: [{ label: 'Realizado', valor: formatarMoeda(dados?.valor_total) }, { label: 'Meta', valor: formatarMoeda(metaFaturamentoDashboard) }] });
   const abrirDetRealizadoDiario = () => setModalDetalhes({ titulo: 'Realizado Diário', subtitulo: 'Realizado Hoje', tipo: 'padrao', itens: [{ label: 'Realizado', valor: formatarMoeda(dados?.realizado_diario) }, { label: 'Meta Diária', valor: formatarMoeda(dados?.meta_diaria) }] });
@@ -1761,7 +1768,12 @@ const enviarArquivo = async (tipo) => {
 
     const rpaGeral = dadosMetas?.atividade_total_geral > 0 ? dadosMetas?.realizado_total_geral / dadosMetas?.atividade_total_geral : 0;
     const tktGeral = dadosMetas?.realizado_total_geral && dadosMetas.estruturas ? dadosMetas.realizado_total_geral / dadosMetas.estruturas.reduce((a,e)=>a+(e.quantidade_pedidos||0),0) : 0;
-    const upaGeral = dadosMetas?.atividade_total_geral > 0 ? dadosMetas.estruturas.reduce((a,e)=>a+(e.total_itens||0),0) / dadosMetas?.atividade_total_geral : 0;
+    const totalItensGeral = dadosMetas?.estruturas ? dadosMetas.estruturas.reduce((a,e)=>a+Number(e.total_itens||0),0) : 0;
+    const atividadeGeral = Number(dadosMetas?.atividade_total_geral || 0);
+    const upaGeral = calcularUpa(totalItensGeral, atividadeGeral);
+    const totalItensDetalhe = Number(detalheMeta?.total_itens || 0);
+    const atividadeDetalhe = Number(detalheMeta?.atividade_realizada || 0);
+    const upaDetalhe = calcularUpa(totalItensDetalhe, atividadeDetalhe);
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -1791,7 +1803,7 @@ const enviarArquivo = async (tipo) => {
           <CardMini titulo="CABELO Geral" valor={`${Number(dadosMetas?.percentual_cabelo_total_geral||0).toFixed(1)}%`} percentual={calcPerc(dadosMetas?.percentual_cabelo_total_geral, dadosMetas?.meta_cabelo_geral)} labelMeta="Meta CABELO:" valorMeta={`${Number(dadosMetas?.meta_cabelo_geral||0).toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO Geral', Number(dadosMetas?.cabelo_total_geral || 0).toLocaleString('pt-BR'), 'Total de ativados com a categoria CABELO.')} />
           <CardMini titulo="RPA Geral" valor={formatarMoeda(rpaGeral)} percentual={calcPerc(rpaGeral, dadosMetas?.meta_rpa_geral)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(dadosMetas?.meta_rpa_geral)} onClickExpandir={() => abrirModalValExp('RPA Geral', formatarMoeda(rpaGeral), 'Receita Por Ativo Geral.')} />
           <CardMini titulo="Ticket Médio" valor={formatarMoeda(tktGeral)} percentual={calcPerc(tktGeral, dadosMetas?.meta_tkt_medio_geral)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(dadosMetas?.meta_tkt_medio_geral)} onClickExpandir={() => abrirModalValExp('Ticket Médio', formatarMoeda(tktGeral), 'Ticket Médio Geral.')} />
-          <CardMini titulo="UPA Geral" valor={upaGeral.toFixed(1)} percentual={calcPerc(upaGeral, dadosMetas?.meta_upa_geral)} labelMeta="Meta UPA:" valorMeta={Number(dadosMetas?.meta_upa_geral||0).toFixed(1)} onClickExpandir={() => abrirModalValExp('UPA Geral', Number(upaGeral || 0).toFixed(2), 'Unidades Por Atendimento (Itens por pedido).')} />
+          <CardMini titulo="UPA Geral" valor={upaGeral.toFixed(1)} percentual={calcPerc(upaGeral, dadosMetas?.meta_upa_geral)} labelMeta="Meta UPA:" valorMeta={Number(dadosMetas?.meta_upa_geral||0).toFixed(1)} onClickExpandir={() => abrirModalValExp('UPA Geral', formatarNumeroBR(upaGeral, 2), 'UPA = total de itens vendidos dividido pelas revendedoras ativadas.', [{ label: 'Itens vendidos', valor: formatarNumeroBR(totalItensGeral, 0) }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta UPA', valor: formatarNumeroBR(dadosMetas?.meta_upa_geral || 0, 1) }], `${formatarNumeroBR(totalItensGeral, 0)} ÷ ${formatarNumeroBR(atividadeGeral, 0)} = ${formatarNumeroBR(upaGeral, 2)}`)} />
           </div>
         </div>
         )}
@@ -1855,12 +1867,12 @@ const enviarArquivo = async (tipo) => {
               <div className="overflow-x-auto pb-2 mb-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
                 <div className="grid grid-cols-7 gap-3 min-w-[1120px]">
                 <CardMetaNova titulo="Faturamento Estrutura" valor={formatarAbrev(detalheMeta.realizado)} percentual={calcPerc(detalheMeta.realizado, detalheMeta.meta?.receita)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(detalheMeta.meta?.receita)} onClickExpandir={() => abrirModalValExp(`Faturamento ${detalheMeta.estrutura}`, formatarMoeda(detalheMeta.realizado), 'Faturamento válido da estrutura.')} />
-                <CardMetaNova titulo="Atividade" valor={`${Number(detalheMeta.percentual_atividade||0).toFixed(1)}%`} percentual={calcPerc(detalheMeta.percentual_atividade, detalheMeta.meta?.atividade)} labelMeta="Meta Atividade:" valorMeta={`${Number(detalheMeta.meta?.atividade||0).toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade', Number(detalheMeta.atividade_realizada || 0).toLocaleString('pt-BR'), 'Total de revendedores ativados.')} />
+                <CardMetaNova titulo="Atividade" valor={`${Number(detalheMeta.percentual_atividade||0).toFixed(1)}%`} percentual={calcPerc(detalheMeta.percentual_atividade, detalheMeta.meta?.atividade)} labelMeta="Meta Atividade:" valorMeta={`${Number(detalheMeta.meta?.atividade||0).toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade', formatarNumeroBR(atividadeDetalhe, 0), 'Total de revendedoras únicas ativadas na estrutura selecionada.', [{ label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Base ativa', valor: formatarNumeroBR(detalheMeta.base_ativa || 0, 0) }, { label: '% Atividade', valor: `${formatarNumeroBR(detalheMeta.percentual_atividade || 0, 1)}%` }])} />
                 <CardMetaNova titulo="MAKE" valor={`${Number(detalheMeta.percentual_make||0).toFixed(1)}%`} percentual={calcPerc(detalheMeta.percentual_make, detalheMeta.meta?.make)} labelMeta="Meta MAKE:" valorMeta={`${Number(detalheMeta.meta?.make||0).toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE', Number(detalheMeta.make_realizado || 0).toLocaleString('pt-BR'), 'Ativados com MAKE.')} />
                 <CardMetaNova titulo="CABELO" valor={`${Number(detalheMeta.percentual_cabelo||0).toFixed(1)}%`} percentual={calcPerc(detalheMeta.percentual_cabelo, detalheMeta.meta?.cabelo)} labelMeta="Meta CABELO:" valorMeta={`${Number(detalheMeta.meta?.cabelo||0).toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO', Number(detalheMeta.cabelo_realizado || 0).toLocaleString('pt-BR'), 'Ativados com CABELO.')} />
                 <CardMetaNova titulo="RPA" valor={formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0)} percentual={calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.rpa)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(detalheMeta.meta?.rpa)} onClickExpandir={() => abrirModalValExp('RPA', formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0), 'Receita Por Ativo da estrutura.')} />
                 <CardMetaNova titulo="Ticket Médio" valor={formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0)} percentual={calcPerc(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0, detalheMeta.meta?.tkt_medio)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(detalheMeta.meta?.tkt_medio)} onClickExpandir={() => abrirModalValExp('Ticket Médio', formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0), 'Ticket Médio da estrutura.')} />
-                <CardMetaNova titulo="UPA" valor={Number(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.total_itens / detalheMeta?.atividade_realizada : 0).toFixed(1)} percentual={calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.total_itens / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.upa)} labelMeta="Meta UPA:" valorMeta={Number(detalheMeta.meta?.upa||0).toFixed(1)} onClickExpandir={() => abrirModalValExp('UPA', Number(detalheMeta?.atividade_realizada > 0 ? (detalheMeta.total_itens || 0) / detalheMeta.atividade_realizada : 0).toFixed(2), 'Unidades Por Atendimento (Itens por pedido).')} />
+                <CardMetaNova titulo="UPA" valor={upaDetalhe.toFixed(1)} percentual={calcPerc(upaDetalhe, detalheMeta.meta?.upa)} labelMeta="Meta UPA:" valorMeta={Number(detalheMeta.meta?.upa||0).toFixed(1)} onClickExpandir={() => abrirModalValExp('UPA', formatarNumeroBR(upaDetalhe, 2), 'UPA = total de itens vendidos dividido pelas revendedoras ativadas.', [{ label: 'Itens vendidos', valor: formatarNumeroBR(totalItensDetalhe, 0) }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta UPA', valor: formatarNumeroBR(detalheMeta.meta?.upa || 0, 1) }], `${formatarNumeroBR(totalItensDetalhe, 0)} ÷ ${formatarNumeroBR(atividadeDetalhe, 0)} = ${formatarNumeroBR(upaDetalhe, 2)}`)} />
                 </div>
               </div>
             </div>
@@ -2784,7 +2796,40 @@ const enviarArquivo = async (tipo) => {
       </div>
 
       {modalValorExpandido.aberto && (
-        <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4"><div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"><div className="flex items-center justify-between px-6 py-5 border-b border-gray-100"><div><h3 className="text-2xl font-bold text-gray-700">{modalValorExpandido.titulo}</h3>{modalValorExpandido.descricao && (<p className="mt-1 text-sm text-gray-400">{modalValorExpandido.descricao}</p>)}</div><button type="button" onClick={() => setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '' })} className="w-10 h-10 rounded-full hover:bg-gray-50 text-gray-400 flex items-center justify-center"><X size={20} /></button></div><div className="p-6"><div className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-6"><p className="text-sm font-bold uppercase tracking-wide text-gray-400">Valor completo</p><h4 className="mt-3 text-4xl font-extrabold text-[#048187] break-words">{modalValorExpandido.valorTexto}</h4></div></div><div className="px-6 pb-6"><button type="button" onClick={() => setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '' })} className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-bold py-3 transition">Fechar</button></div></div></div>
+        <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-700">{modalValorExpandido.titulo}</h3>
+                {modalValorExpandido.descricao && (<p className="mt-1 text-sm text-gray-400">{modalValorExpandido.descricao}</p>)}
+              </div>
+              <button type="button" onClick={fecharModalValExp} className="w-10 h-10 rounded-full hover:bg-gray-50 text-gray-400 flex items-center justify-center"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-6">
+                <p className="text-sm font-bold uppercase tracking-wide text-gray-400">Valor completo</p>
+                <h4 className="mt-3 text-4xl font-extrabold text-[#048187] break-words">{modalValorExpandido.valorTexto}</h4>
+              </div>
+              {Array.isArray(modalValorExpandido.detalhes) && modalValorExpandido.detalhes.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {modalValorExpandido.detalhes.map((item) => (
+                    <div key={item.label} className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+                      <p className="text-[10px] font-black uppercase text-gray-400 tracking-wide">{item.label}</p>
+                      <p className="mt-1 text-lg font-black text-gray-700">{item.valor}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {modalValorExpandido.formula && (
+                <div className="rounded-xl bg-[#e6f6f7] border border-[#ccecee] p-4">
+                  <p className="text-[10px] font-black uppercase text-[#048187] tracking-wide">Cálculo</p>
+                  <p className="mt-1 text-lg font-black text-[#048187] break-words">{modalValorExpandido.formula}</p>
+                </div>
+              )}
+            </div>
+            <div className="px-6 pb-6"><button type="button" onClick={fecharModalValExp} className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-bold py-3 transition">Fechar</button></div>
+          </div>
+        </div>
       )}
 
       {modalDetalhes && (
