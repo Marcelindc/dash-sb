@@ -22,9 +22,9 @@ const CORES_ESTRUTURA = ['#048187', '#15956B', '#5BB2B4', '#257B9C', '#56549E', 
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Cadastro', 'Base', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Cadastro', 'Perfil'],
-  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Perfil']
+  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Configurações', 'Perfil'],
+  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
+  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
 };
 
 const obterNomeAba = (nome) => ({
@@ -35,7 +35,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Revendedores', 'Cadastro', 'Base', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -56,6 +56,11 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
     const listaSalva = Array.isArray(permissoes?.[perfil]) ? permissoes[perfil] : [];
     const listaMigrada = listaSalva.map((aba) => aba === 'Consultores' ? 'Cadastro' : aba);
     normalizadas[perfil] = Array.from(new Set(listaMigrada.filter((aba) => ABAS_SISTEMA.includes(aba))));
+  });
+
+  // Garante que a nova aba Histórico apareça mesmo quando as permissões antigas já estavam salvas no banco.
+  PERFIS_SISTEMA.forEach((perfil) => {
+    if (!normalizadas[perfil].includes('Histórico')) normalizadas[perfil].push('Histórico');
   });
 
   // O admin nunca pode perder acesso à própria tela de configuração/perfil.
@@ -703,12 +708,21 @@ export default function App() {
   const [filtrosAtivos, setFiltrosAtivos] = useState(filtroVazio);
   const [buscaFiltros, setBuscaFiltros] = useState(buscaFiltrosVazia);
 
+  const [historicoCiclos, setHistoricoCiclos] = useState([]);
+  const [cicloHistoricoSelecionado, setCicloHistoricoSelecionado] = useState('');
+  const [dadosHistorico, setDadosHistorico] = useState({ resumo: null, estruturas: [], consultores: [], consultoresAtivos: [], metas: [] });
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
+  const [erroHistorico, setErroHistorico] = useState('');
+  const [mensagemHistorico, setMensagemHistorico] = useState('');
+  const [visaoHistorico, setVisaoHistorico] = useState('estruturas');
+  const [fechamentoHistorico, setFechamentoHistorico] = useState({ ciclo: '', observacao: '' });
+
   const promessasEmAndamentoRef = useRef({});
   const ultimoCarregamentoTelaRef = useRef('');
   const debounceFiltroRapidoRef = useRef(null);
 
   const itensMenuTopo = [
-    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
+    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
   ];
 
   const carregarPermissoesDoBanco = async () => {
@@ -1116,10 +1130,135 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao);
     if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
+    if (telaAtual === 'Histórico') return carregarHistoricoCiclos();
     if (telaAtual === 'Revendedores') return carregarRevendedores();
     if (telaAtual === 'Base') return carregarCiclos();
     if (telaAtual === 'Cadastro') return carregarListaConsultores();
     if (telaAtual === 'Configurações') return carregarUsuarios();
+  };
+
+  const carregarHistoricoCiclo = async (cicloParam = cicloHistoricoSelecionado) => {
+    const ciclo = String(cicloParam || '').trim();
+    if (!ciclo) {
+      setDadosHistorico({ resumo: null, estruturas: [], consultores: [], consultoresAtivos: [], metas: [] });
+      return;
+    }
+
+    setCarregandoHistorico(true);
+    setErroHistorico('');
+    setMensagemHistorico('');
+
+    try {
+      const [resumoResp, estruturasResp, consultoresResp, ativosResp, metasResp] = await Promise.allSettled([
+        axios.get(`${API_URL}/historico/resumo`, { params: { ciclo } }),
+        axios.get(`${API_URL}/historico/estruturas`, { params: { ciclo } }),
+        axios.get(`${API_URL}/historico/consultores`, { params: { ciclo } }),
+        axios.get(`${API_URL}/historico/consultores-ativos`, { params: { ciclo } }),
+        axios.get(`${API_URL}/historico/metas`, { params: { ciclo } })
+      ]);
+
+      const ler = (resp, campo, padrao) => resp.status === 'fulfilled' ? (resp.value?.data?.[campo] ?? padrao) : padrao;
+
+      setDadosHistorico({
+        resumo: ler(resumoResp, 'resumo', null),
+        estruturas: ler(estruturasResp, 'estruturas', []),
+        consultores: ler(consultoresResp, 'consultores', []),
+        consultoresAtivos: ler(ativosResp, 'consultores', []),
+        metas: ler(metasResp, 'metas', [])
+      });
+    } catch (erro) {
+      setErroHistorico(erro.response?.data?.detail || 'Erro ao carregar histórico do ciclo.');
+    } finally {
+      setCarregandoHistorico(false);
+    }
+  };
+
+  const carregarHistoricoCiclos = async () => {
+    if (!usuarioLogado) return;
+    setCarregandoHistorico(true);
+    setErroHistorico('');
+
+    try {
+      const { data } = await axios.get(`${API_URL}/historico/ciclos`);
+      const ciclosLista = data?.ciclos || [];
+      setHistoricoCiclos(ciclosLista);
+
+      const cicloParaAbrir = cicloHistoricoSelecionado || ciclosLista?.[0]?.ciclo || '';
+      if (cicloParaAbrir) {
+        setCicloHistoricoSelecionado(cicloParaAbrir);
+        await carregarHistoricoCiclo(cicloParaAbrir);
+      } else {
+        setDadosHistorico({ resumo: null, estruturas: [], consultores: [], consultoresAtivos: [], metas: [] });
+      }
+    } catch (erro) {
+      setErroHistorico(erro.response?.data?.detail || 'Erro ao carregar lista de ciclos históricos.');
+    } finally {
+      setCarregandoHistorico(false);
+    }
+  };
+
+  const fecharCicloHistorico = async () => {
+    const ciclo = String(fechamentoHistorico.ciclo || '').trim();
+    if (!ciclo) {
+      setErroHistorico('Informe o ciclo que deseja fechar. Ex.: 08/2026.');
+      return;
+    }
+
+    const confirmar = window.confirm(`Fechar e congelar o ciclo ${ciclo}? Isso salvará uma fotografia oficial do ciclo.`);
+    if (!confirmar) return;
+
+    setCarregandoHistorico(true);
+    setErroHistorico('');
+    setMensagemHistorico('');
+
+    try {
+      const { data } = await axios.post(`${API_URL}/historico/fechar-ciclo`, {
+        ciclo,
+        fechado_por: usuarioLogado?.nome || usuarioLogado?.email || 'Sistema',
+        observacao: fechamentoHistorico.observacao || `Fechamento histórico do ciclo ${ciclo}`,
+        substituir: true
+      });
+      setMensagemHistorico(data?.mensagem || `Ciclo ${ciclo} salvo no histórico.`);
+      setFechamentoHistorico({ ciclo: '', observacao: '' });
+      setCicloHistoricoSelecionado(ciclo);
+      await carregarHistoricoCiclos();
+      await carregarHistoricoCiclo(ciclo);
+    } catch (erro) {
+      setErroHistorico(erro.response?.data?.detail || 'Erro ao fechar ciclo.');
+    } finally {
+      setCarregandoHistorico(false);
+    }
+  };
+
+  const reprocessarCicloHistorico = async () => {
+    const ciclo = String(cicloHistoricoSelecionado || '').trim();
+    if (!ciclo) {
+      setErroHistorico('Selecione um ciclo para reprocessar.');
+      return;
+    }
+
+    const confirmar = window.confirm(`Reprocessar o histórico do ciclo ${ciclo}? O snapshot atual será substituído.`);
+    if (!confirmar) return;
+
+    setCarregandoHistorico(true);
+    setErroHistorico('');
+    setMensagemHistorico('');
+
+    try {
+      const { data } = await axios.post(`${API_URL}/historico/reprocessar`, {
+        ciclo,
+        fechado_por: usuarioLogado?.nome || usuarioLogado?.email || 'Sistema',
+        observacao: `Reprocessamento manual do ciclo ${ciclo}`,
+        substituir: true
+      });
+      setMensagemHistorico(data?.mensagem || `Histórico do ciclo ${ciclo} reprocessado.`);
+      await carregarHistoricoCiclos();
+      await carregarHistoricoCiclo(ciclo);
+    } catch (erro) {
+      setErroHistorico(erro.response?.data?.detail || 'Erro ao reprocessar ciclo.');
+    } finally {
+      setCarregandoHistorico(false);
+    }
   };
 
   useEffect(() => {
@@ -1304,6 +1443,7 @@ const carregarRevendedores = async () => {
     else tarefas.push(carregarDashboard(filtrosAtivos, true));
 
     if (telaAtual === 'Cadastro') tarefas.push(carregarListaConsultores());
+    if (telaAtual === 'Histórico') tarefas.push(carregarHistoricoCiclos());
     if (telaAtual === 'Base') tarefas.push(carregarCiclos());
     if (telaAtual === 'Configurações') tarefas.push(carregarUsuarios());
 
@@ -2253,6 +2393,165 @@ const enviarArquivo = async (tipo) => {
     </div>
   );
 
+  const renderTelaHistorico = () => {
+    const resumo = dadosHistorico?.resumo || null;
+    const estruturas = dadosHistorico?.estruturas || [];
+    const consultores = dadosHistorico?.consultores || [];
+    const consultoresAtivos = dadosHistorico?.consultoresAtivos || [];
+    const metas = dadosHistorico?.metas || [];
+    const fmtPerc = (v) => `${Number(v || 0).toFixed(1)}%`;
+    const fmtDataHora = (v) => {
+      if (!v) return '-';
+      const data = new Date(v);
+      if (Number.isNaN(data.getTime())) return String(v);
+      return data.toLocaleString('pt-BR');
+    };
+    const qtdEstruturasMeta = (meta) => {
+      const valor = meta?.estruturas_vinculadas;
+      if (Array.isArray(valor)) return valor.length;
+      if (typeof valor === 'string') {
+        try { const parsed = JSON.parse(valor); return Array.isArray(parsed) ? parsed.length : 0; } catch { return 0; }
+      }
+      return 0;
+    };
+
+    const abasHistorico = [
+      { id: 'estruturas', label: 'Estruturas', total: estruturas.length },
+      { id: 'consultores', label: 'Consultores', total: consultores.length },
+      { id: 'ativos', label: 'Consultores ativos', total: consultoresAtivos.length },
+      { id: 'metas', label: 'Metas salvas', total: metas.length }
+    ];
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Histórico de ciclos</h1>
+              <p className="text-sm text-gray-400 font-semibold max-w-3xl">Consulte a fotografia oficial de ciclos fechados: consultores ativos na época, metas cadastradas e performance congelada por estrutura e consultor.</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
+              <select
+                value={cicloHistoricoSelecionado}
+                onChange={(e) => { const ciclo = e.target.value; setCicloHistoricoSelecionado(ciclo); carregarHistoricoCiclo(ciclo); }}
+                className="border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 font-bold outline-none focus:border-[#048187] min-w-[180px]"
+              >
+                <option value="">Selecione o ciclo</option>
+                {historicoCiclos.map((c) => <option key={c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}
+              </select>
+              <button onClick={() => carregarHistoricoCiclo()} disabled={!cicloHistoricoSelecionado || carregandoHistorico} className="bg-[#e6f6f7] text-[#048187] font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2 disabled:opacity-60"><RefreshCcw size={18} /> Atualizar</button>
+              <button onClick={reprocessarCicloHistorico} disabled={!cicloHistoricoSelecionado || carregandoHistorico} className="bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2 disabled:opacity-60"><RefreshCcw size={18} /> Reprocessar</button>
+            </div>
+          </div>
+        </div>
+
+        {(erroHistorico || mensagemHistorico) && (
+          <div className={`rounded-xl px-4 py-3 text-sm font-bold border ${erroHistorico ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-700 border-green-100'}`}>{erroHistorico || mensagemHistorico}</div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Ciclo para fechar</label>
+                <input value={fechamentoHistorico.ciclo} onChange={(e) => setFechamentoHistorico({ ...fechamentoHistorico, ciclo: e.target.value })} placeholder="Ex.: 08/2026" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Observação</label>
+                <input value={fechamentoHistorico.observacao} onChange={(e) => setFechamentoHistorico({ ...fechamentoHistorico, observacao: e.target.value })} placeholder="Ex.: Fechamento oficial do ciclo" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" />
+              </div>
+            </div>
+            <button onClick={fecharCicloHistorico} disabled={carregandoHistorico} className="bg-[#111827] hover:bg-black text-white font-black rounded-lg px-5 py-3 inline-flex items-center justify-center gap-2 disabled:opacity-60"><Save size={18} /> Fechar ciclo</button>
+          </div>
+        </div>
+
+        {carregandoHistorico && !resumo ? <DashboardSkeletons /> : resumo ? (
+          <>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="font-black text-gray-700 text-lg">Ciclo {resumo.ciclo}</h2>
+                  <p className="text-xs text-gray-400 font-bold">Fechado em {fmtDataHora(resumo.fechado_em)} por {resumo.fechado_por || '-'}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="bg-[#e6f6f7] text-[#048187] rounded-full px-3 py-1 text-xs font-black">{resumo.qtd_estruturas || 0} estruturas</span>
+                  <span className="bg-[#e6f6f7] text-[#048187] rounded-full px-3 py-1 text-xs font-black">{resumo.qtd_consultores_ativos || 0} consultores ativos</span>
+                  <span className="bg-[#e6f6f7] text-[#048187] rounded-full px-3 py-1 text-xs font-black">{resumo.qtd_pedidos || 0} pedidos</span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto pb-2">
+                <div className="grid grid-cols-9 gap-3 min-w-[1350px]">
+                  <CardMini titulo="Faturamento" valor={formatarAbrev(resumo.faturamento_total)} percentual={resumo.percentual_faturamento} labelMeta="Meta" valorMeta={formatarMoeda(resumo.meta_faturamento_total)} />
+                  <CardMini titulo="Atividade" valor={Number(resumo.atividade_total || 0).toLocaleString('pt-BR')} percentual={resumo.percentual_atividade} labelMeta="Meta" valorMeta={Number(resumo.meta_atividade_total || 0).toLocaleString('pt-BR')} />
+                  <CardMini titulo="MAKE" valor={Number(resumo.make_total || 0).toLocaleString('pt-BR')} percentual={resumo.percentual_make} labelMeta="Meta" valorMeta={Number(resumo.meta_make_total || 0).toLocaleString('pt-BR')} />
+                  <CardMini titulo="CABELO" valor={Number(resumo.cabelo_total || 0).toLocaleString('pt-BR')} percentual={resumo.percentual_cabelo} labelMeta="Meta" valorMeta={Number(resumo.meta_cabelo_total || 0).toLocaleString('pt-BR')} />
+                  <CardMini titulo="RPA" valor={formatarAbrev(resumo.rpa_total)} labelMeta="Meta" valorMeta={formatarMoeda(resumo.meta_rpa_total)} />
+                  <CardMini titulo="Ticket médio" valor={formatarAbrev(resumo.ticket_medio_total)} labelMeta="Meta" valorMeta={formatarMoeda(resumo.meta_ticket_medio_total)} />
+                  <CardMini titulo="UPA" valor={Number(resumo.upa_total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} labelMeta="Meta" valorMeta={Number(resumo.meta_upa_total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} />
+                  <CardMini titulo="Pedidos" valor={Number(resumo.qtd_pedidos || 0).toLocaleString('pt-BR')} labelMeta="Cancelados" valorMeta={Number(estruturas.reduce((acc, e) => acc + Number(e.cancelados || 0), 0)).toLocaleString('pt-BR')} />
+                  <CardMini titulo="Revendedores" valor={Number(resumo.qtd_revendedores_ativos || 0).toLocaleString('pt-BR')} labelMeta="Consultores" valorMeta={Number(resumo.qtd_consultores || 0).toLocaleString('pt-BR')} />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-gray-700">Detalhamento do ciclo</h3>
+                  <p className="text-xs text-gray-400 font-bold">Dados salvos no fechamento do ciclo {resumo.ciclo}.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {abasHistorico.map((aba) => (
+                    <button key={aba.id} onClick={() => setVisaoHistorico(aba.id)} className={`px-3 py-2 rounded-lg text-xs font-black transition-colors ${visaoHistorico === aba.id ? 'bg-[#048187] text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>{aba.label} ({aba.total})</button>
+                  ))}
+                </div>
+              </div>
+
+              {visaoHistorico === 'estruturas' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[1250px]"><thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3">Rank</th><th className="px-5 py-3">Estrutura</th><th className="px-5 py-3 text-right">Realizado</th><th className="px-5 py-3 text-right">Meta</th><th className="px-5 py-3 text-right">% Fat.</th><th className="px-5 py-3 text-right">Pedidos</th><th className="px-5 py-3 text-right">Ativ.</th><th className="px-5 py-3 text-right">MAKE</th><th className="px-5 py-3 text-right">CABELO</th><th className="px-5 py-3 text-right">RPA</th><th className="px-5 py-3 text-right">Tkt</th><th className="px-5 py-3 text-right">UPA</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">{estruturas.map((e, i) => (<tr key={`${e.estrutura}-${i}`} className="hover:bg-[#f7fafb]"><td className="px-5 py-3 font-black text-[#048187]">#{e.ranking_faturamento || i + 1}</td><td className="px-5 py-3 font-black text-gray-700 max-w-[260px] truncate">{e.estrutura}</td><td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(e.realizado)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(e.meta_faturamento)}</td><td className="px-5 py-3 text-right font-black text-gray-700">{fmtPerc(e.percentual_realizado)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{e.pedidos || 0}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{e.atividade || 0}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{e.make || 0} <span className="text-gray-400">({fmtPerc(e.percentual_make)})</span></td><td className="px-5 py-3 text-right font-bold text-gray-600">{e.cabelo || 0} <span className="text-gray-400">({fmtPerc(e.percentual_cabelo)})</span></td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(e.rpa)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(e.ticket_medio)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(e.upa || 0).toFixed(2)}</td></tr>))}</tbody></table>
+                  {!estruturas.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma estrutura salva nesse ciclo.</div>}
+                </div>
+              )}
+
+              {visaoHistorico === 'consultores' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[1150px]"><thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3">Rank</th><th className="px-5 py-3">Consultor</th><th className="px-5 py-3">Estrutura</th><th className="px-5 py-3 text-right">Peso</th><th className="px-5 py-3 text-right">Meta</th><th className="px-5 py-3 text-right">Realizado</th><th className="px-5 py-3 text-right">% Fat.</th><th className="px-5 py-3 text-right">Ativ.</th><th className="px-5 py-3 text-right">MAKE</th><th className="px-5 py-3 text-right">CABELO</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">{consultores.map((c, i) => (<tr key={`${c.id_colaborador}-${c.estrutura}-${i}`} className="hover:bg-[#f7fafb]"><td className="px-5 py-3 font-black text-[#048187]">#{c.ranking_faturamento || i + 1}</td><td className="px-5 py-3"><p className="font-black text-gray-700 truncate max-w-[230px]">{c.nome_exibicao || c.nome_social || c.nome || '-'}</p><p className="text-[10px] text-gray-400 font-bold">ID {c.id_colaborador || '-'}</p></td><td className="px-5 py-3 font-bold text-gray-500 max-w-[250px] truncate">{c.estrutura || '-'}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_individual)}</td><td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(c.realizado)}</td><td className="px-5 py-3 text-right font-black text-gray-700">{fmtPerc(c.percentual_realizado)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{c.atividade || 0}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{c.make || 0} <span className="text-gray-400">({fmtPerc(c.percentual_make)})</span></td><td className="px-5 py-3 text-right font-bold text-gray-600">{c.cabelo || 0} <span className="text-gray-400">({fmtPerc(c.percentual_cabelo)})</span></td></tr>))}</tbody></table>
+                  {!consultores.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhum consultor com performance salva nesse ciclo.</div>}
+                </div>
+              )}
+
+              {visaoHistorico === 'ativos' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[850px]"><thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3">Consultor ativo no ciclo</th><th className="px-5 py-3">ID</th><th className="px-5 py-3">Estrutura</th><th className="px-5 py-3">Canal</th><th className="px-5 py-3 text-right">Peso Meta</th><th className="px-5 py-3">Status</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">{consultoresAtivos.map((c, i) => (<tr key={`${c.id_colaborador}-${c.estrutura}-${i}`} className="hover:bg-[#f7fafb]"><td className="px-5 py-3 font-black text-gray-700">{c.nome_exibicao || c.nome_social || c.nome || '-'}</td><td className="px-5 py-3 font-bold text-gray-500">{c.id_colaborador || '-'}</td><td className="px-5 py-3 font-bold text-gray-500">{c.estrutura || '-'}</td><td className="px-5 py-3 font-bold text-gray-500">{c.canal || '-'}</td><td className="px-5 py-3 text-right font-black text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="px-5 py-3"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${c.ativo_no_ciclo ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status || (c.ativo_no_ciclo ? 'ativo' : 'inativo')}</span></td></tr>))}</tbody></table>
+                  {!consultoresAtivos.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhum consultor ativo salvo nesse ciclo.</div>}
+                </div>
+              )}
+
+              {visaoHistorico === 'metas' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[1050px]"><thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3">Meta</th><th className="px-5 py-3">Tipo</th><th className="px-5 py-3 text-right">Faturamento</th><th className="px-5 py-3 text-right">Atividade</th><th className="px-5 py-3 text-right">MAKE</th><th className="px-5 py-3 text-right">CABELO</th><th className="px-5 py-3 text-right">RPA</th><th className="px-5 py-3 text-right">Tkt</th><th className="px-5 py-3 text-right">UPA</th><th className="px-5 py-3 text-right">Estruturas</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">{metas.map((m, i) => (<tr key={`${m.nome_meta}-${i}`} className="hover:bg-[#f7fafb]"><td className="px-5 py-3 font-black text-gray-700 max-w-[260px] truncate">{m.nome_meta}</td><td className="px-5 py-3 font-bold text-gray-500">{m.tipo_meta}</td><td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(m.meta_faturamento)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_atividade || 0).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_make || 0).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_cabelo || 0).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_rpa)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_ticket_medio)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_upa || 0).toFixed(2)}</td><td className="px-5 py-3 text-right font-black text-gray-700">{qtdEstruturasMeta(m)}</td></tr>))}</tbody></table>
+                  {!metas.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma meta real salva nesse ciclo.</div>}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
+            <CalendarDays size={42} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-500 font-black">Nenhum ciclo histórico selecionado.</p>
+            <p className="text-sm text-gray-400 mt-1">Feche um ciclo ou selecione um ciclo já salvo para visualizar a fotografia oficial.</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderContent = () => {
     if (telaAtual === 'Dashboard') return renderTelaDashboard();
     if (telaAtual === 'Metas') return renderTelaMetas();
@@ -2260,6 +2559,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'N2') return <TelaGestaoNucleo nucleo="N2" />;
     if (telaAtual === 'Ranking') return renderTelaRanking();
     if (telaAtual === 'Comparativo') return renderTelaComparativo();
+    if (telaAtual === 'Histórico') return renderTelaHistorico();
     if (telaAtual === 'Revendedores') return renderTelaRevendedores();
     if (telaAtual === 'Base') return renderTelaBase();
     if (telaAtual === 'Cadastro') return renderTelaCadastro();
