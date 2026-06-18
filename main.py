@@ -57,7 +57,28 @@ if load_dotenv:
             break
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-ALLOWED_ORIGINS = [origem.strip() for origem in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if origem.strip()]
+
+# CORS liberado para ambiente local, Vercel e Hugging Face.
+# Mesmo que ALLOWED_ORIGINS não esteja preenchido na hospedagem, estas origens essenciais entram como fallback.
+ORIGENS_PADRAO = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://dash-sb-two.vercel.app",
+    "https://xc3lin-dash-sb-api.hf.space",
+]
+ORIGENS_ENV = [
+    origem.strip()
+    for origem in os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if origem.strip()
+]
+ALLOWED_ORIGINS = list(dict.fromkeys(ORIGENS_PADRAO + ORIGENS_ENV))
+
+# Também permite previews/domínios automáticos da Vercel e o domínio público do Hugging Face Space.
+ALLOWED_ORIGIN_REGEX = os.getenv(
+    "ALLOWED_ORIGIN_REGEX",
+    r"https://.*\.vercel\.app|https://.*\.hf\.space"
+)
+
 JWT_SECRET = os.getenv("JWT_SECRET", "dash-sb-dev-secret-trocar-antes-de-publicar")
 JWT_EXPIRATION_MINUTES = int(os.getenv("JWT_EXPIRATION_MINUTES", "720"))
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
@@ -408,6 +429,8 @@ def aba_exigida_por_rota(method: str, path: str) -> str | None:
         return "N2"
     if path.startswith("/dashboard"):
         return "Dashboard"
+    if path.startswith("/metas-reais"):
+        return "Base"
     if path.startswith("/metas"):
         return "Metas"
     if path.startswith("/revendedores"):
@@ -437,6 +460,17 @@ def inicializar_tabela_usuarios():
         conn.execute(text("CREATE TABLE IF NOT EXISTS metas_gerenciais_nucleos (id BIGSERIAL PRIMARY KEY, ciclo TEXT NOT NULL, nucleo TEXT NOT NULL, meta_oficial DOUBLE PRECISION NOT NULL DEFAULT 0, meta_gerencial DOUBLE PRECISION NOT NULL DEFAULT 0, observacao TEXT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (ciclo, nucleo));"))
         conn.execute(text("CREATE TABLE IF NOT EXISTS metas_gerenciais_estruturas (id BIGSERIAL PRIMARY KEY, ciclo TEXT NOT NULL, nucleo TEXT NOT NULL, estrutura TEXT NOT NULL, peso DOUBLE PRECISION NOT NULL DEFAULT 0, meta_oficial DOUBLE PRECISION NOT NULL DEFAULT 0, meta_gerencial DOUBLE PRECISION NOT NULL DEFAULT 0, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (ciclo, nucleo, estrutura));"))
         conn.execute(text("CREATE TABLE IF NOT EXISTS metas_gerenciais_consultores (id BIGSERIAL PRIMARY KEY, ciclo TEXT NOT NULL, nucleo TEXT NOT NULL, estrutura TEXT NOT NULL, id_colaborador TEXT NOT NULL, consultor TEXT NOT NULL, peso DOUBLE PRECISION NOT NULL DEFAULT 0, meta_gerencial DOUBLE PRECISION NOT NULL DEFAULT 0, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (ciclo, nucleo, estrutura, id_colaborador));"))
+        # Cadastro de Meta Real/Oficial: separado das metas gerenciais N1/N2.
+        conn.execute(text("CREATE TABLE IF NOT EXISTS metas_reais (id BIGSERIAL PRIMARY KEY, ciclo TEXT NOT NULL, nome_meta TEXT NOT NULL, tipo_meta TEXT NOT NULL DEFAULT 'estrutura', meta_real NUMERIC(14,2) NOT NULL DEFAULT 0, regra_calculo TEXT NOT NULL DEFAULT 'somar_estruturas', status TEXT NOT NULL DEFAULT 'ativo', observacao TEXT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());"))
+        conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_atividade NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+        conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_make NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+        conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_cabelo NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+        conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_rpa NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+        conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_tkt_medio NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+        conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_upa NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+        conn.execute(text("CREATE TABLE IF NOT EXISTS metas_reais_estruturas (id BIGSERIAL PRIMARY KEY, meta_id BIGINT NOT NULL REFERENCES metas_reais(id) ON DELETE CASCADE, cod_estrutura TEXT, estrutura TEXT NOT NULL, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());"))
+        conn.execute(text("CREATE TABLE IF NOT EXISTS consultores_metas (id BIGSERIAL PRIMARY KEY, id_colaborador TEXT, nome TEXT, estrutura TEXT, canal TEXT, status_consultor TEXT DEFAULT 'ativo', peso_meta DOUBLE PRECISION DEFAULT 0, peso_meta_calculado DOUBLE PRECISION DEFAULT 0, criado_em TIMESTAMPTZ DEFAULT NOW());"))
+        conn.execute(text("ALTER TABLE consultores_metas ADD COLUMN IF NOT EXISTS nome_social TEXT;"))
         if not conn.execute(text("SELECT id FROM usuarios_sistema WHERE LOWER(email) = :email"), {"email": "marcelodc34@gmail.com"}).fetchone():
             sh, salt = criar_senha_hash(os.getenv("ADMIN_DEFAULT_PASSWORD", "123456"))
             conn.execute(text("INSERT INTO usuarios_sistema (nome, email, senha_hash, salt, perfil, status_usuario) VALUES (:n, :e, :sh, :s, :p, :st)"), {"n": "Marcelin Cabral", "e": "marcelodc34@gmail.com", "sh": sh, "s": salt, "p": "admin", "st": "ativo"})
@@ -452,9 +486,11 @@ app = FastAPI(title="Backend Gerenciador de Vendas", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 
@@ -743,8 +779,44 @@ class AlterarSenhaRequest(BaseModel): email: str; senha_atual: str; nova_senha: 
 class AtualizarUsuarioRequest(BaseModel): id: int; nome: str; perfil: str; status_usuario: str
 class CicloRequest(BaseModel): ciclo: str; data_inicio: str; data_fim: str; meta_ciclo: float; status_ciclo: str = "ativo"
 class AtualizarCicloRequest(BaseModel): ciclo: str; data_inicio: str; data_fim: str; meta_ciclo: float; status_ciclo: str
-class AtualizarConsultorRequest(BaseModel): nome: str; estrutura: str; canal: str; status_consultor: str; peso_meta: float
-class CriarConsultorRequest(BaseModel): id_colaborador: str; nome: str; estrutura: str; canal: str; status_consultor: str; peso_meta: float
+class AtualizarConsultorRequest(BaseModel):
+    id_colaborador: Optional[str] = None
+    nome: str
+    estrutura: str
+    canal: str
+    status_consultor: str
+    peso_meta: float
+    nome_social: Optional[str] = None
+
+class CriarConsultorRequest(BaseModel):
+    id_colaborador: str
+    nome: str
+    estrutura: str
+    canal: str
+    status_consultor: str
+    peso_meta: float
+    nome_social: Optional[str] = None
+
+class MetaRealEstruturaRequest(BaseModel):
+    cod_estrutura: Optional[str] = None
+    estrutura: str
+
+class MetaRealRequest(BaseModel):
+    ciclo: str
+    nome_meta: str
+    tipo_meta: str = "grupo_estruturas"
+    meta_real: float = 0
+    meta_atividade: float = 0
+    meta_make: float = 0
+    meta_cabelo: float = 0
+    meta_rpa: float = 0
+    meta_tkt_medio: float = 0
+    meta_upa: float = 0
+    regra_calculo: str = "somar_estruturas"
+    status: str = "ativo"
+    observacao: Optional[str] = None
+    estruturas: List[MetaRealEstruturaRequest] = []
+
 class PermissoesRequest(BaseModel): permissoes: dict
 class ArquivoLocalRequest(BaseModel):
     caminho: str
@@ -828,6 +900,12 @@ def inicializar_indices_performance():
                 criar_indice_se_coluna_existir(conn, "consulta_pedidos", "meio_captacao", "idx_consulta_pedidos_meio_captacao")
             if "metas_estruturas" in tables:
                 criar_indice_se_coluna_existir(conn, "metas_estruturas", "estrutura", "idx_metas_estruturas_estrutura")
+            if "metas_reais" in tables:
+                criar_indice_se_coluna_existir(conn, "metas_reais", "ciclo", "idx_metas_reais_ciclo")
+                criar_indice_se_coluna_existir(conn, "metas_reais", "status", "idx_metas_reais_status")
+            if "metas_reais_estruturas" in tables:
+                criar_indice_se_coluna_existir(conn, "metas_reais_estruturas", "meta_id", "idx_metas_reais_estruturas_meta_id")
+                criar_indice_se_coluna_existir(conn, "metas_reais_estruturas", "estrutura", "idx_metas_reais_estruturas_estrutura")
             if "consultores_metas" in tables:
                 criar_indice_se_coluna_existir(conn, "consultores_metas", "estrutura", "idx_consultores_metas_estrutura")
                 criar_indice_se_coluna_existir(conn, "consultores_metas", "id_colaborador", "idx_consultores_metas_id_colaborador")
@@ -928,6 +1006,26 @@ def verificar_senha(d, h, t): return secrets.compare_digest(gerar_hash_senha(d, 
 
 def calcular_percentual(p, t): return round((float(p)/float(t))*100, 2) if float(t)>0 else 0.0
 
+def somar_qtde_itens_pedidos_unicos(df: pd.DataFrame) -> int:
+    """
+    Soma QtdeItens no nível de pedido, protegendo o cálculo de UPA contra duplicidade.
+
+    A base consulta_pedidos é uma base de pedidos. Quando algum upload ou merge traz
+    linhas repetidas do mesmo pedido, somar diretamente qtde_itens infla a UPA.
+    Por isso, quando houver codigo_pedido, considera apenas uma linha por pedido
+    dentro da estrutura/pessoa filtrada.
+    """
+    if df is None or df.empty or "qtde_itens" not in df.columns:
+        return 0
+    base = df.copy()
+    base["qtde_itens"] = pd.to_numeric(base["qtde_itens"], errors="coerce").fillna(0)
+    chaves = [c for c in ["codigo_pedido", "estrutura", "pessoa"] if c in base.columns]
+    if "codigo_pedido" in chaves:
+        for coluna in chaves:
+            base[coluna] = base[coluna].fillna("").astype(str).str.strip()
+        base = base.drop_duplicates(subset=chaves, keep="first")
+    return int(base["qtde_itens"].sum())
+
 def peso_dia(d): return 1.0 if d.weekday() <= 4 else 0.5 if d.weekday() == 5 else 0.0
 def somar_dias_p(i, f):
     if not i or not f or i > f: return 0.0
@@ -969,7 +1067,12 @@ def preparar_dataframe_metas(df):
 def preparar_dataframe_consultores(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty: return df
     df = df.rename(columns=MAPA_COLUNAS_CONSULTORES)
+    if "nome_social" not in df.columns:
+        df["nome_social"] = ""
     df["id_colaborador"] = df["id_colaborador"].apply(normalizar_identificador)
+    df["nome"] = df["nome"].fillna("").astype(str).str.strip()
+    df["nome_social"] = df["nome_social"].fillna("").astype(str).str.strip()
+    df["nome_exibicao"] = df.apply(lambda r: str(r.get("nome_social") or "").strip() or str(r.get("nome") or "").strip(), axis=1)
     df["status_consultor"] = df["status_consultor"].fillna("ativo").astype(str).str.strip().str.lower()
     df["peso_meta"] = df["peso_meta"].apply(limpar_numero)
     return df.where(pd.notnull(df), None)
@@ -1091,22 +1194,63 @@ def preparar_dataframe_vendas_item(df: pd.DataFrame, nome_arquivo: str = "") -> 
     return df[df["codigo_produto_normalizado"] != ""]
 
 def obter_primeiros_pedidos_revendedores(df_validos: pd.DataFrame) -> pd.DataFrame:
-    if df_validos.empty: return pd.DataFrame()
+    """
+    Retorna a primeira ativação de cada revendedor DENTRO DE CADA ESTRUTURA.
+
+    Regra de negócio aplicada nos indicadores:
+    - Atividade não é global por pessoa no filtro Todos; ela precisa respeitar a estrutura.
+    - O denominador de MAKE/CABELO de uma estrutura é a quantidade de revendedoras
+      ativadas naquela estrutura.
+    - Portanto, no consolidado Todos/N1/N2, o correto é somar as ativações por
+      estrutura, e não deduplicar a pessoa no total geral.
+    """
+    if df_validos is None or df_validos.empty:
+        return pd.DataFrame()
     df = df_validos.copy()
-    df = df[df["pessoa"] != ""]
+    for coluna in ["pessoa", "estrutura", "data_captacao", "codigo_pedido", "cod_usuario_finalizacao"]:
+        if coluna not in df.columns:
+            df[coluna] = ""
+    df["pessoa"] = df["pessoa"].apply(normalizar_identificador)
+    df["estrutura"] = df["estrutura"].fillna("").astype(str).str.strip()
+    df = df[(df["pessoa"] != "") & (df["estrutura"] != "")].copy()
+    if df.empty:
+        return pd.DataFrame()
     df["dt"] = pd.to_datetime(df["data_captacao"], errors="coerce")
-    if "hora_pedido" not in df.columns: df["hora_pedido"] = ""
+    if "hora_pedido" not in df.columns:
+        df["hora_pedido"] = ""
     df["hora_pedido"] = df["hora_pedido"].fillna("").astype(str)
-    df = df.sort_values(by=["pessoa", "dt", "hora_pedido", "codigo_pedido"], ascending=True)
-    return df.drop_duplicates(subset=["pessoa"], keep="first")
+    df = df.sort_values(by=["estrutura", "pessoa", "dt", "hora_pedido", "codigo_pedido"], ascending=True)
+    return df.drop_duplicates(subset=["estrutura", "pessoa"], keep="first")
 
 def obter_primeiros_pedidos_indicador(df_indicador: pd.DataFrame) -> pd.DataFrame:
-    if df_indicador.empty: return pd.DataFrame()
+    """
+    Retorna a primeira ativação IAF de cada revendedor por estrutura.
+
+    Regra de MAKE/CABELO:
+    - Conta revendedor único, não quantidade de itens e não valor.
+    - Um revendedor com 5 SKUs válidos continua contando 1.
+    - A ativação vale para qualquer canal: APP, VD+, Portal, Omnichannel, consultora etc.
+    - Para consultor, a ativação fica atribuída ao usuário que finalizou o primeiro
+      pedido válido daquele indicador naquela estrutura.
+    """
+    if df_indicador is None or df_indicador.empty:
+        return pd.DataFrame()
     df = df_indicador.copy()
-    df = df[df["pessoa"] != ""]
+    for coluna in ["pessoa", "estrutura", "data_captacao", "codigo_pedido", "cod_usuario_finalizacao"]:
+        if coluna not in df.columns:
+            df[coluna] = ""
+    df["pessoa"] = df["pessoa"].apply(normalizar_identificador)
+    df["estrutura"] = df["estrutura"].fillna("").astype(str).str.strip()
+    df["cod_usuario_finalizacao"] = df["cod_usuario_finalizacao"].apply(normalizar_identificador)
+    df = df[(df["pessoa"] != "") & (df["estrutura"] != "")].copy()
+    if df.empty:
+        return pd.DataFrame()
     df["dt"] = pd.to_datetime(df["data_captacao"], errors="coerce")
-    df = df.sort_values(by=["pessoa", "dt", "codigo_pedido", "cod_usuario_finalizacao"], ascending=True)
-    return df.drop_duplicates(subset=["pessoa"], keep="first")
+    if "hora_pedido" not in df.columns:
+        df["hora_pedido"] = ""
+    df["hora_pedido"] = df["hora_pedido"].fillna("").astype(str)
+    df = df.sort_values(by=["estrutura", "pessoa", "dt", "hora_pedido", "codigo_pedido", "cod_usuario_finalizacao"], ascending=True)
+    return df.drop_duplicates(subset=["estrutura", "pessoa"], keep="first")
 
 def classificar_meio_captacao(valor):
     meio = normalizar_texto(valor)
@@ -1274,6 +1418,14 @@ def preparar_vendas_indicador_para_calculo(
 
     df["unidade"] = df["estrutura"].apply(lambda x: str(x).split("-")[0].strip() if "-" in str(x) else str(x).strip())
     df["estrutura_normalizada"] = df["estrutura"].apply(normalizar_texto)
+
+    # REGRA IAF MAKE/CABELO
+    # A ativação é por revendedor único + SKU válido + ciclo/filtro, independentemente do canal.
+    # Como as bases de itens nem sempre trazem a estrutura corretamente, primeiro resolvemos a
+    # estrutura pelo pedido/consultor e só depois aplicamos o filtro de N1/N2.
+    # Sem isso, N1 e N2 recebiam a mesma base global de MAKE/CABELO e o filtro "Todos" ficava distorcido.
+    if filtros and getattr(filtros, "nucleos", None):
+        df = aplicar_filtro_nucleo(df, filtros.nucleos)
 
     if filtros:
         if filtros.unidades:
@@ -2200,6 +2352,10 @@ def obter_resumo_metas(filtros: FiltrosRequest):
             df_make = ler_tabela_cacheada("vendas_make", conn) if "vendas_make" in tables else pd.DataFrame()
             df_cabelo = ler_tabela_cacheada("vendas_cabelo", conn) if "vendas_cabelo" in tables else pd.DataFrame()
             df_consultores_raw = ler_tabela_cacheada("consultores_metas", conn) if "consultores_metas" in tables else pd.DataFrame()
+            df_metas_reais = ler_tabela_cacheada("metas_reais", conn) if "metas_reais" in tables else pd.DataFrame()
+            df_metas_reais_estruturas = ler_tabela_cacheada("metas_reais_estruturas", conn) if "metas_reais_estruturas" in tables else pd.DataFrame()
+            ciclo_ativo_info = obter_ciclo_ativo(conn)
+            ciclo_atual = str((ciclo_ativo_info or {}).get("ciclo") or "").strip()
 
         df_consultores = aplicar_pesos_consultores(preparar_dataframe_consultores(df_consultores_raw))
         df_metas = preparar_dataframe_metas(df_metas)
@@ -2244,9 +2400,158 @@ def obter_resumo_metas(filtros: FiltrosRequest):
         p_make = calcular_primeiros_indicador_seguro(df_make, df_consultores, filtros, df_validos_base_ciclo, "MAKE")
         p_cabelo = calcular_primeiros_indicador_seguro(df_cabelo, df_consultores, filtros, df_validos_base_ciclo, "CABELO")
 
+        def codigo_da_estrutura_texto(valor):
+            return str(valor or "").split("-", 1)[0].strip()
+
+        def mask_estruturas_meta_real_resumo(df: pd.DataFrame, estruturas_lista: list[str], codigos_lista: list[str]) -> pd.Series:
+            """
+            Filtra por nome completo da estrutura primeiro.
+            Código só entra como fallback quando a meta foi cadastrada sem nome completo.
+            Isso evita misturar equipes que compartilham o mesmo prefixo/código, como 17325.
+            """
+            if df.empty:
+                return pd.Series([], dtype=bool)
+
+            mask = pd.Series(False, index=df.index)
+            estruturas_norm = {normalizar_texto(str(x or "").strip()) for x in estruturas_lista if str(x or "").strip()}
+            codigos_norm = {str(x or "").strip() for x in codigos_lista if str(x or "").strip()}
+
+            if "estrutura" in df.columns and estruturas_norm:
+                col_est_norm = df["estrutura"].fillna("").astype(str).str.strip().apply(normalizar_texto)
+                mask = mask | col_est_norm.isin(estruturas_norm)
+
+            if not mask.any() and codigos_norm:
+                if "cod_estrutura" in df.columns:
+                    mask = mask | df["cod_estrutura"].fillna("").astype(str).str.strip().isin(codigos_norm)
+                elif "estrutura" in df.columns and not estruturas_norm:
+                    mask = mask | df["estrutura"].fillna("").astype(str).str.strip().apply(codigo_da_estrutura_texto).isin(codigos_norm)
+
+            return mask
+
         res = []
+        estruturas_agrupadas_por_meta_real = set()
+
+        # =========================================================
+        # Metas Reais: agrupam uma ou mais estruturas em uma única linha.
+        # Ex.: EQUIPE GRAZIELLE = 13476 - EQUIPE GRAZIELLE + 17325 - EQUIPE GRAZIELLE
+        # =========================================================
+        if not df_metas_reais.empty and not df_metas_reais_estruturas.empty:
+            df_mr = df_metas_reais.copy()
+            df_mre = df_metas_reais_estruturas.copy()
+
+            for col in ["id", "ciclo", "nome_meta", "tipo_meta", "status"]:
+                if col in df_mr.columns:
+                    df_mr[col] = df_mr[col].fillna("").astype(str).str.strip()
+            for col in ["meta_id", "cod_estrutura", "estrutura"]:
+                if col in df_mre.columns:
+                    df_mre[col] = df_mre[col].fillna("").astype(str).str.strip()
+
+            for campo_meta_real in ["meta_real", "meta_atividade", "meta_make", "meta_cabelo", "meta_rpa", "meta_tkt_medio", "meta_upa"]:
+                if campo_meta_real in df_mr.columns:
+                    df_mr[campo_meta_real] = df_mr[campo_meta_real].apply(limpar_numero)
+                else:
+                    df_mr[campo_meta_real] = 0.0
+
+            if "cod_estrutura" not in df_mre.columns:
+                df_mre["cod_estrutura"] = ""
+
+            if "status" in df_mr.columns:
+                df_mr = df_mr[df_mr["status"].apply(normalizar_texto) == "ativo"].copy()
+            ciclo_filtro_meta_real = str(ciclo_atual or "").strip()
+            if ciclo_filtro_meta_real and "ciclo" in df_mr.columns:
+                df_mr_ciclo = df_mr[df_mr["ciclo"].astype(str).str.strip() == ciclo_filtro_meta_real].copy()
+                if not df_mr_ciclo.empty:
+                    df_mr = df_mr_ciclo
+
+            # Aplica filtros do usuário na Meta Real olhando suas estruturas vinculadas.
+            for _, mr in df_mr.iterrows():
+                meta_id = str(mr.get("id") or "").strip()
+                if not meta_id:
+                    continue
+
+                vinc = df_mre[df_mre["meta_id"].astype(str).str.strip() == meta_id].copy()
+                if vinc.empty:
+                    continue
+
+                estruturas_vinculadas = sorted({str(x or "").strip() for x in vinc.get("estrutura", pd.Series(dtype=str)).tolist() if str(x or "").strip()})
+                codigos_vinculados = sorted({str(x or "").strip() for x in vinc.get("cod_estrutura", pd.Series(dtype=str)).tolist() if str(x or "").strip() and not str(x or "").strip() in [codigo_da_estrutura_texto(e) for e in estruturas_vinculadas]})
+
+                # Se o usuário filtrou por N1/N2, df_metas já está restrita ao núcleo.
+                # A Meta Real só entra na lista se pelo menos uma estrutura vinculada
+                # também existir nesse recorte de estruturas.
+                if filtros.nucleos and not df_metas.empty:
+                    estruturas_permitidas_nucleo = {normalizar_texto(e) for e in df_metas.get("estrutura", pd.Series(dtype=str)).fillna("").astype(str).tolist()}
+                    if not any(normalizar_texto(e) in estruturas_permitidas_nucleo for e in estruturas_vinculadas):
+                        continue
+
+                if filtros.estruturas:
+                    filtro_norm = {normalizar_texto(e) for e in filtros.estruturas}
+                    if not any(normalizar_texto(e) in filtro_norm for e in estruturas_vinculadas):
+                        continue
+                if filtros.unidades:
+                    unidades_meta = {codigo_da_estrutura_texto(e) for e in estruturas_vinculadas}
+                    if not unidades_meta.intersection(set(filtros.unidades)):
+                        continue
+
+                for e in estruturas_vinculadas:
+                    estruturas_agrupadas_por_meta_real.add(normalizar_texto(e))
+
+                mb = float(mr.get("meta_real") or 0)
+                nome_meta = str(mr.get("nome_meta") or "").strip() or "Meta Real"
+
+                df_e = df_validos[mask_estruturas_meta_real_resumo(df_validos, estruturas_vinculadas, codigos_vinculados)].copy() if not df_validos.empty else pd.DataFrame()
+                df_primeiros_e = primeiros_pedidos[mask_estruturas_meta_real_resumo(primeiros_pedidos, estruturas_vinculadas, codigos_vinculados)].copy() if not primeiros_pedidos.empty else pd.DataFrame()
+                p_make_e = p_make[mask_estruturas_meta_real_resumo(p_make, estruturas_vinculadas, codigos_vinculados)].copy() if not p_make.empty else pd.DataFrame()
+                p_cabelo_e = p_cabelo[mask_estruturas_meta_real_resumo(p_cabelo, estruturas_vinculadas, codigos_vinculados)].copy() if not p_cabelo.empty else pd.DataFrame()
+
+                bb = 0
+                if not df_base.empty:
+                    df_base_e = df_base[mask_estruturas_meta_real_resumo(df_base, estruturas_vinculadas, codigos_vinculados)].copy()
+                    if not df_base_e.empty and "base_ativa" in df_base_e.columns:
+                        bb = int(pd.to_numeric(df_base_e["base_ativa"], errors="coerce").fillna(0).sum())
+
+                rlz = float(df_e["valor_praticado"].sum()) if not df_e.empty else 0.0
+                qtd = int(len(df_e)) if not df_e.empty else 0
+                t_itens = somar_qtde_itens_pedidos_unicos(df_e)
+                ativ = int(len(df_primeiros_e)) if not df_primeiros_e.empty else 0
+                mk = int(len(p_make_e)) if not p_make_e.empty else 0
+                cb = int(len(p_cabelo_e)) if not p_cabelo_e.empty else 0
+
+                res.append({
+                    "estrutura": nome_meta,
+                    "nome_meta_real": nome_meta,
+                    "meta_origem": "metas_reais",
+                    "estruturas_vinculadas": estruturas_vinculadas,
+                    "codigos_estruturas_vinculadas": codigos_vinculados,
+                    "receita": mb,
+                    "meta_atividade": float(mr.get("meta_atividade") or 0),
+                    "meta_make": float(mr.get("meta_make") or 0),
+                    "meta_cabelo": float(mr.get("meta_cabelo") or 0),
+                    "meta_rpa": float(mr.get("meta_rpa") or 0),
+                    "meta_tkt_medio": float(mr.get("meta_tkt_medio") or 0),
+                    "meta_upa": float(mr.get("meta_upa") or 0),
+                    "atividade_realizada": ativ,
+                    "base_ativa": bb,
+                    "percentual_atividade": calcular_percentual(ativ, bb),
+                    "make_realizado": mk,
+                    "percentual_make": calcular_percentual(mk, ativ),
+                    "cabelo_realizado": cb,
+                    "percentual_cabelo": calcular_percentual(cb, ativ),
+                    "realizado": rlz,
+                    "percentual": round((rlz / mb) * 100, 2) if mb > 0 else 0.0,
+                    "quantidade_pedidos": qtd,
+                    "total_itens": t_itens,
+                })
+
+        # =========================================================
+        # Metas antigas por estrutura: mantém somente estruturas que NÃO fazem parte de uma Meta Real.
+        # =========================================================
         for _, m in df_metas.iterrows():
-            est = m["estrutura"]; mb = float(m["receita"] or 0); bb = obter_base_ativa_estrutura(df_base, est)
+            est = m["estrutura"]
+            if normalizar_texto(est) in estruturas_agrupadas_por_meta_real:
+                continue
+
+            mb = float(m["receita"] or 0); bb = obter_base_ativa_estrutura(df_base, est)
             
             if filtros.consultores and not df_consultores.empty:
                 c_est = df_consultores[df_consultores["estrutura"] == est]
@@ -2261,7 +2566,7 @@ def obter_resumo_metas(filtros: FiltrosRequest):
 
             if not df_validos.empty:
                 df_e = df_validos[df_validos["estrutura"] == est]
-                rlz = float(df_e["valor_praticado"].sum()); qtd = int(len(df_e)); t_itens = int(df_e["qtde_itens"].sum())
+                rlz = float(df_e["valor_praticado"].sum()); qtd = int(len(df_e)); t_itens = somar_qtde_itens_pedidos_unicos(df_e)
             else:
                 rlz = 0.0; qtd = 0; t_itens = 0
 
@@ -2284,7 +2589,9 @@ def obter_resumo_metas(filtros: FiltrosRequest):
             for _, c in c_filt_global.iterrows():
                 idc = str(c["id_colaborador"])
                 est_c = c["estrutura"]
-                nome_c = c["nome"]
+                nome_cadastral = str(c.get("nome") or "").strip()
+                nome_social = str(c.get("nome_social") or "").strip()
+                nome_c = str(c.get("nome_exibicao") or nome_social or nome_cadastral).strip()
                 peso = float(c.get("peso_meta_calculado") or 0)
                 
                 m_linha = df_metas[df_metas["estrutura"] == est_c]
@@ -2298,7 +2605,7 @@ def obter_resumo_metas(filtros: FiltrosRequest):
                     df_c_v = df_validos[df_validos["cod_usuario_finalizacao"] == idc]
                     rlz_c = float(df_c_v["valor_praticado"].sum())
                     qtd_c = int(len(df_c_v))
-                    t_itens_c = int(df_c_v["qtde_itens"].sum())
+                    t_itens_c = somar_qtde_itens_pedidos_unicos(df_c_v)
                 else:
                     rlz_c = 0.0; qtd_c = 0; t_itens_c = 0
                 
@@ -2309,6 +2616,9 @@ def obter_resumo_metas(filtros: FiltrosRequest):
                 ranking_consultores.append({
                     "id_colaborador": idc,
                     "nome": nome_c,
+                    "nome_cadastral": nome_cadastral,
+                    "nome_social": nome_social,
+                    "nome_exibicao": nome_c,
                     "estrutura": est_c,
                     "meta_individual": m_ind,
                     "realizado": rlz_c,
@@ -2352,24 +2662,43 @@ def obter_resumo_metas(filtros: FiltrosRequest):
 
 @app.post("/metas/estrutura/{estrutura}")
 def obter_detalhes_meta_estrutura(estrutura: str, filtros: FiltrosRequest):
+    """
+    Detalhe da aba Metas Estruturas / Metas por Consultores.
+
+    Regra corrigida:
+    - Se existir Meta Real ativa para o ciclo atual contendo a estrutura selecionada,
+      usa a META REAL cadastrada em metas_reais.
+    - Se essa meta real tiver várias estruturas vinculadas, o realizado e os indicadores
+      são calculados pela soma dessas estruturas.
+    - A divisão da meta individual vem do Peso Meta da aba Consultores.
+    - Se não existir meta real cadastrada, mantém o comportamento antigo pela tabela metas_estruturas.
+    """
     try:
         est = unquote(estrutura).strip()
+
         with database_engine.connect() as conn:
             tables = get_all_tables(conn)
-            if "metas_estruturas" not in tables: raise HTTPException(status_code=404, detail="Tabela não encontrada.")
-            
-            df_metas = ler_tabela_cacheada("metas_estruturas", conn)
+            if "metas_estruturas" not in tables and "metas_reais" not in tables:
+                raise HTTPException(status_code=404, detail="Tabela de metas não encontrada.")
+
+            ciclo_ativo = obter_ciclo_ativo(conn)
+            ciclo_atual = str((ciclo_ativo or {}).get("ciclo") or "").strip()
+
+            df_metas = ler_tabela_cacheada("metas_estruturas", conn) if "metas_estruturas" in tables else pd.DataFrame()
             df_pedidos = ler_tabela_cacheada("consulta_pedidos", conn) if "consulta_pedidos" in tables else pd.DataFrame()
             df_base = ler_tabela_cacheada("base_ativa_revendedores", conn) if "base_ativa_revendedores" in tables else pd.DataFrame()
             df_make = ler_tabela_cacheada("vendas_make", conn) if "vendas_make" in tables else pd.DataFrame()
             df_cabelo = ler_tabela_cacheada("vendas_cabelo", conn) if "vendas_cabelo" in tables else pd.DataFrame()
             df_consultores_raw = ler_tabela_cacheada("consultores_metas", conn) if "consultores_metas" in tables else pd.DataFrame()
-            
+            df_metas_reais = ler_tabela_cacheada("metas_reais", conn) if "metas_reais" in tables else pd.DataFrame()
+            df_metas_reais_estruturas = ler_tabela_cacheada("metas_reais_estruturas", conn) if "metas_reais_estruturas" in tables else pd.DataFrame()
+
         df_consultores = aplicar_pesos_consultores(preparar_dataframe_consultores(df_consultores_raw))
         df_metas = preparar_dataframe_metas(df_metas)
         df_pedidos = preparar_dataframe_pedidos(df_pedidos)
         df_base = preparar_dataframe_base_ativa(df_base)
 
+        # Filtros por núcleo continuam sendo respeitados.
         if filtros.nucleos:
             df_metas = aplicar_filtro_nucleo(df_metas, filtros.nucleos)
             df_pedidos = aplicar_filtro_nucleo(df_pedidos, filtros.nucleos)
@@ -2378,80 +2707,452 @@ def obter_detalhes_meta_estrutura(estrutura: str, filtros: FiltrosRequest):
             df_cabelo = aplicar_filtro_nucleo(df_cabelo, filtros.nucleos)
             df_consultores = aplicar_filtro_nucleo(df_consultores, filtros.nucleos)
 
+        def codigo_da_estrutura_texto(valor):
+            return str(valor or "").split("-", 1)[0].strip()
+
+        def mask_estruturas(df: pd.DataFrame, estruturas_lista: list[str], codigos_lista: list[str]) -> pd.Series:
+            if df.empty:
+                return pd.Series([], dtype=bool)
+            mask = pd.Series(False, index=df.index)
+            estruturas_norm = {str(x or "").strip() for x in estruturas_lista if str(x or "").strip()}
+            codigos_norm = {str(x or "").strip() for x in codigos_lista if str(x or "").strip()}
+            if "estrutura" in df.columns and estruturas_norm:
+                col_est = df["estrutura"].fillna("").astype(str).str.strip()
+                mask = mask | col_est.isin(estruturas_norm)
+                if codigos_norm:
+                    mask = mask | col_est.apply(codigo_da_estrutura_texto).isin(codigos_norm)
+            if "cod_estrutura" in df.columns and codigos_norm:
+                mask = mask | df["cod_estrutura"].fillna("").astype(str).str.strip().isin(codigos_norm)
+            return mask
+
+        def mask_estruturas_meta_real(df: pd.DataFrame, estruturas_lista: list[str], codigos_lista: list[str]) -> pd.Series:
+            """
+            Máscara mais rígida para Meta Real.
+
+            Motivo: no Dash SB, o prefixo/código da estrutura pode se repetir em várias equipes
+            diferentes, por exemplo:
+              17325 - EQUIPE ALCÂNTARA
+              17325 - EQUIPE ER SANTA HELENA
+              17325 - EQUIPE PINHEIRO
+
+            Portanto, quando a Meta Real tem o nome completo da estrutura vinculado,
+            o cálculo NÃO pode filtrar só pelo código 17325, senão puxa consultores
+            e vendas de outras equipes.
+            """
+            if df.empty:
+                return pd.Series([], dtype=bool)
+
+            mask = pd.Series(False, index=df.index)
+            estruturas_norm = {normalizar_texto(str(x or "").strip()) for x in estruturas_lista if str(x or "").strip()}
+            codigos_norm = {str(x or "").strip() for x in codigos_lista if str(x or "").strip()}
+
+            # 1) Prioridade absoluta: nome completo da estrutura.
+            if "estrutura" in df.columns and estruturas_norm:
+                col_est_norm = df["estrutura"].fillna("").astype(str).str.strip().apply(normalizar_texto)
+                mask = mask | col_est_norm.isin(estruturas_norm)
+
+            # 2) Fallback por código somente quando a tabela não possui estrutura
+            # ou quando a meta foi cadastrada sem nome completo de estrutura.
+            if not mask.any() and codigos_norm:
+                if "cod_estrutura" in df.columns:
+                    mask = mask | df["cod_estrutura"].fillna("").astype(str).str.strip().isin(codigos_norm)
+                elif "estrutura" in df.columns and not estruturas_norm:
+                    mask = mask | df["estrutura"].fillna("").astype(str).str.strip().apply(codigo_da_estrutura_texto).isin(codigos_norm)
+
+            return mask
+
+        # Prepara pedidos válidos respeitando datas/filtros existentes.
         if not df_pedidos.empty:
             df_pedidos_sem_data = aplicar_filtros_pedidos_sem_data(df_pedidos, filtros)
             df_pedidos = aplicar_filtros_data_pedidos(df_pedidos_sem_data, filtros)
             df_validos_base_ciclo = df_pedidos_sem_data[df_pedidos_sem_data["situacao_normalizada"].isin(STATUS_VALIDOS_REALIZADO)].copy() if not df_pedidos_sem_data.empty else pd.DataFrame()
             df_validos = df_pedidos[df_pedidos["situacao_normalizada"].isin(STATUS_VALIDOS_REALIZADO)].copy()
-            df_e = df_validos[df_validos["estrutura"] == est].copy()
             primeiros = obter_primeiros_pedidos_revendedores(df_validos)
         else:
-            df_validos = pd.DataFrame(); df_validos_base_ciclo = pd.DataFrame(); df_e = pd.DataFrame(); primeiros = pd.DataFrame()
+            df_validos = pd.DataFrame()
+            df_validos_base_ciclo = pd.DataFrame()
+            primeiros = pd.DataFrame()
 
+        # =========================================================
+        # 1) Tenta localizar uma META REAL ativa contendo a estrutura selecionada.
+        # =========================================================
+        codigo_est = codigo_da_estrutura_texto(est)
+        meta_real_row = None
+        estruturas_meta_real = []
+
+        if not df_metas_reais.empty and not df_metas_reais_estruturas.empty:
+            df_mr = df_metas_reais.copy()
+            df_mre = df_metas_reais_estruturas.copy()
+
+            for col in ["id", "meta_id", "ciclo", "status", "nome_meta", "tipo_meta", "regra_calculo", "observacao"]:
+                if col in df_mr.columns:
+                    df_mr[col] = df_mr[col].fillna("").astype(str).str.strip()
+                if col in df_mre.columns:
+                    df_mre[col] = df_mre[col].fillna("").astype(str).str.strip()
+
+            for campo_meta_real in ["meta_real", "meta_atividade", "meta_make", "meta_cabelo", "meta_rpa", "meta_tkt_medio", "meta_upa"]:
+                if campo_meta_real in df_mr.columns:
+                    df_mr[campo_meta_real] = df_mr[campo_meta_real].apply(limpar_numero)
+                else:
+                    df_mr[campo_meta_real] = 0.0
+
+            if "estrutura" in df_mre.columns:
+                df_mre["estrutura"] = df_mre["estrutura"].fillna("").astype(str).str.strip()
+            if "cod_estrutura" in df_mre.columns:
+                df_mre["cod_estrutura"] = df_mre["cod_estrutura"].fillna("").astype(str).str.strip()
+            else:
+                df_mre["cod_estrutura"] = df_mre["estrutura"].apply(codigo_da_estrutura_texto)
+
+            # Só usa metas ativas. Se houver ciclo ativo cadastrado, prioriza o ciclo atual.
+            if "status" in df_mr.columns:
+                df_mr = df_mr[df_mr["status"].apply(normalizar_texto) == "ativo"].copy()
+            if ciclo_atual and "ciclo" in df_mr.columns:
+                df_mr_ciclo = df_mr[df_mr["ciclo"].astype(str).str.strip() == ciclo_atual].copy()
+                if not df_mr_ciclo.empty:
+                    df_mr = df_mr_ciclo
+
+            ids_validos = set(df_mr["id"].astype(str).tolist()) if "id" in df_mr.columns else set()
+            df_mre = df_mre[df_mre["meta_id"].astype(str).isin(ids_validos)].copy() if ids_validos else pd.DataFrame()
+
+            if not df_mre.empty:
+                # Primeiro tenta localizar pelo NOME DA META REAL, porque na listagem
+                # /metas/resumo as estruturas agrupadas aparecem como uma única linha
+                # com o nome da meta, ex.: EQUIPE GRAZIELLE.
+                linha_meta_por_nome = pd.DataFrame()
+                if "nome_meta" in df_mr.columns:
+                    linha_meta_por_nome = df_mr[df_mr["nome_meta"].astype(str).apply(normalizar_texto) == normalizar_texto(est)].copy()
+
+                if not linha_meta_por_nome.empty:
+                    meta_id = str(linha_meta_por_nome.iloc[0]["id"])
+                    meta_real_row = linha_meta_por_nome.iloc[0].to_dict()
+                    estruturas_meta_real = df_mre[df_mre["meta_id"].astype(str) == meta_id].to_dict(orient="records")
+                else:
+                    # Depois tenta encontrar pela estrutura completa exata.
+                    # IMPORTANTE: não usa mais o código como fallback quando o usuário
+                    # selecionou uma estrutura completa, porque o mesmo código pode existir
+                    # em equipes diferentes e isso inflava Atividade, Total de Itens e UPA.
+                    est_normalizado = normalizar_texto(est)
+                    match = df_mre[df_mre["estrutura"].astype(str).str.strip().apply(normalizar_texto) == est_normalizado].copy()
+
+                    # Fallback por código somente quando a estrutura cadastrada na meta real
+                    # está vazia e o usuário pesquisou apenas pelo código. Ex.: "13476".
+                    if match.empty and est.strip() == codigo_est:
+                        match = df_mre[
+                            (df_mre["estrutura"].fillna("").astype(str).str.strip() == "")
+                            & (df_mre["cod_estrutura"].astype(str).str.strip() == codigo_est)
+                        ].copy()
+                    if not match.empty:
+                        meta_id = str(match.iloc[0]["meta_id"])
+                        linha_meta = df_mr[df_mr["id"].astype(str) == meta_id]
+                        if not linha_meta.empty:
+                            meta_real_row = linha_meta.iloc[0].to_dict()
+                            estruturas_meta_real = df_mre[df_mre["meta_id"].astype(str) == meta_id].to_dict(orient="records")
+
+        usar_meta_real = meta_real_row is not None and len(estruturas_meta_real) > 0
+
+        if usar_meta_real:
+            estruturas_vinculadas = [str(e.get("estrutura") or "").strip() for e in estruturas_meta_real if str(e.get("estrutura") or "").strip()]
+            # Não extrai automaticamente o código do texto da estrutura.
+            # O código 17325, por exemplo, se repete em várias equipes e causava
+            # mistura de consultores/vendas de outras estruturas.
+            # Só usa cod_estrutura como fallback quando a meta foi cadastrada sem estrutura completa.
+            codigos_vinculados = [
+                str(e.get("cod_estrutura") or "").strip()
+                for e in estruturas_meta_real
+                if str(e.get("cod_estrutura") or "").strip() and not str(e.get("estrutura") or "").strip()
+            ]
+            codigos_vinculados = sorted({c for c in codigos_vinculados if c})
+            estruturas_vinculadas = sorted({e for e in estruturas_vinculadas if e})
+
+            mb = float(meta_real_row.get("meta_real") or 0)
+            meta_nome = str(meta_real_row.get("nome_meta") or est).strip()
+            meta_origem = "metas_reais"
+
+            df_e = df_validos[mask_estruturas_meta_real(df_validos, estruturas_vinculadas, codigos_vinculados)].copy() if not df_validos.empty else pd.DataFrame()
+            df_primeiros_e = primeiros[mask_estruturas_meta_real(primeiros, estruturas_vinculadas, codigos_vinculados)].copy() if not primeiros.empty else pd.DataFrame()
+
+            bb = 0
+            if not df_base.empty:
+                df_base_e = df_base[mask_estruturas_meta_real(df_base, estruturas_vinculadas, codigos_vinculados)].copy()
+                if not df_base_e.empty and "base_ativa" in df_base_e.columns:
+                    bb = int(pd.to_numeric(df_base_e["base_ativa"], errors="coerce").fillna(0).sum())
+
+            c_est = df_consultores[mask_estruturas_meta_real(df_consultores, estruturas_vinculadas, codigos_vinculados)].copy() if not df_consultores.empty else pd.DataFrame()
+            if filtros.consultores and not c_est.empty:
+                c_est = c_est[c_est["nome"].isin(filtros.consultores) | c_est["id_colaborador"].isin(filtros.consultores) | c_est["nome_exibicao"].isin(filtros.consultores)]
+
+            # Deduplica consultores que apareçam em mais de uma estrutura da mesma meta.
+            # O peso usado é o maior peso cadastrado para evitar duplicar meta quando a mesma pessoa tem 2 estruturas.
+            if not c_est.empty:
+                linhas_dedup = []
+                for idc, grupo in c_est.groupby("id_colaborador", dropna=False):
+                    base = grupo.iloc[0].to_dict()
+                    base["peso_meta_calculado"] = float(pd.to_numeric(grupo.get("peso_meta_calculado"), errors="coerce").fillna(0).max())
+                    base["peso_meta"] = float(pd.to_numeric(grupo.get("peso_meta"), errors="coerce").fillna(0).max())
+                    base["estruturas_vinculadas_consultor"] = sorted(set(grupo["estrutura"].fillna("").astype(str).str.strip().tolist()))
+                    linhas_dedup.append(base)
+                c_est = pd.DataFrame(linhas_dedup)
+
+            p_make = calcular_primeiros_indicador_seguro(df_make, df_consultores, filtros, df_validos_base_ciclo, "MAKE")
+            p_cabelo = calcular_primeiros_indicador_seguro(df_cabelo, df_consultores, filtros, df_validos_base_ciclo, "CABELO")
+            p_make_e = p_make[mask_estruturas_meta_real(p_make, estruturas_vinculadas, codigos_vinculados)].copy() if not p_make.empty else pd.DataFrame()
+            p_cabelo_e = p_cabelo[mask_estruturas_meta_real(p_cabelo, estruturas_vinculadas, codigos_vinculados)].copy() if not p_cabelo.empty else pd.DataFrame()
+
+            rlz = float(df_e["valor_praticado"].sum()) if not df_e.empty else 0.0
+            t_itens = somar_qtde_itens_pedidos_unicos(df_e)
+            qtd = int(len(df_e)) if not df_e.empty else 0
+            ativ = int(len(df_primeiros_e)) if not df_primeiros_e.empty else 0
+            mk = int(len(p_make_e)) if not p_make_e.empty else 0
+            cb = int(len(p_cabelo_e)) if not p_cabelo_e.empty else 0
+
+            c_res = []
+            ids_c = []
+            for _, c in c_est.iterrows():
+                idc = str(c.get("id_colaborador") or "").strip()
+                if not idc:
+                    continue
+                ids_c.append(idc)
+                peso = float(c.get("peso_meta_calculado") or c.get("peso_meta") or 0)
+                m_ind = mb * (peso / 100)
+                b_ind = round(bb * (peso / 100), 2)
+
+                nome_cadastral = str(c.get("nome") or "").strip()
+                nome_social = str(c.get("nome_social") or "").strip()
+                nome_exibicao = str(c.get("nome_exibicao") or nome_social or nome_cadastral).strip()
+
+                nomes_consultor_norm = {
+                    normalizar_texto(nome_cadastral),
+                    normalizar_texto(nome_social),
+                    normalizar_texto(nome_exibicao),
+                }
+                nomes_consultor_norm = {n for n in nomes_consultor_norm if n}
+
+                def mascara_consultor_df(df_ref: pd.DataFrame) -> pd.Series:
+                    """
+                    Identifica vendas do consultor de forma robusta.
+
+                    Em algumas bases, o campo Cód Usuário Finalização não vem igual ao
+                    id_colaborador cadastrado na aba Consultores. Nesses casos, o Excel mostra
+                    a venda pelo campo Usuário de Finalização. Por isso usamos: ID oficial OU
+                    nome de finalização normalizado.
+                    """
+                    if df_ref.empty:
+                        return pd.Series([], dtype=bool)
+
+                    mask_c = pd.Series(False, index=df_ref.index)
+
+                    if "cod_usuario_finalizacao" in df_ref.columns and idc:
+                        mask_c = mask_c | (
+                            df_ref["cod_usuario_finalizacao"]
+                            .fillna("")
+                            .astype(str)
+                            .str.strip()
+                            .apply(normalizar_identificador) == idc
+                        )
+
+                    for col_nome in [
+                        "usuario_finalizacao",
+                        "usuario_finalizacao_pedido",
+                        "nome_consultor",
+                        "nome_exibicao",
+                    ]:
+                        if col_nome in df_ref.columns and nomes_consultor_norm:
+                            mask_c = mask_c | df_ref[col_nome].fillna("").astype(str).apply(normalizar_texto).isin(nomes_consultor_norm)
+
+                    return mask_c
+
+                # Realizado individual por consultor:
+                # - consultores exibidos: somente os cadastrados na estrutura EXATA da Meta Real;
+                # - realizado: vendas da(s) estrutura(s) vinculada(s), atribuídas por ID OU por nome de finalização.
+                # Isso evita puxar consultores de outras estruturas 17325 e também evita zerar quando
+                # o pedido vem com Cód Usuário Finalização diferente, mas com Usuário de Finalização correto.
+                df_c = df_e[mascara_consultor_df(df_e)].copy() if not df_e.empty else pd.DataFrame()
+                rlz_c = float(df_c["valor_praticado"].sum()) if not df_c.empty else 0.0
+                qtd_c = int(len(df_c)) if not df_c.empty else 0
+                t_itens_c = somar_qtde_itens_pedidos_unicos(df_c) if not df_c.empty and "qtde_itens" in df_c.columns else 0
+
+                ativ_c = int(len(df_primeiros_e[mascara_consultor_df(df_primeiros_e)])) if not df_primeiros_e.empty else 0
+                mk_c = int(len(p_make_e[mascara_consultor_df(p_make_e)])) if not p_make_e.empty else 0
+                cb_c = int(len(p_cabelo_e[mascara_consultor_df(p_cabelo_e)])) if not p_cabelo_e.empty else 0
+
+                c_res.append({
+                    "id_colaborador": idc,
+                    "nome": nome_exibicao,
+                    "nome_cadastral": nome_cadastral,
+                    "nome_social": nome_social,
+                    "nome_exibicao": nome_exibicao,
+                    "estrutura": str(c.get("estrutura") or ""),
+                    "estruturas_vinculadas_consultor": c.get("estruturas_vinculadas_consultor", []),
+                    "canal": str(c.get("canal") or ""),
+                    "status_consultor": str(c.get("status_consultor") or ""),
+                    "peso_meta": peso,
+                    "meta_individual": m_ind,
+                    "base_ativa_individual": b_ind,
+                    "realizado": rlz_c,
+                    "percentual": round((rlz_c / m_ind) * 100, 2) if m_ind > 0 else 0.0,
+                    "quantidade_pedidos": qtd_c,
+                    "atividade_realizada": ativ_c,
+                    "percentual_atividade": calcular_percentual(ativ_c, b_ind),
+                    "make_realizado": mk_c,
+                    "percentual_make": calcular_percentual(mk_c, ativ_c),
+                    "cabelo_realizado": cb_c,
+                    "percentual_cabelo": calcular_percentual(cb_c, ativ_c),
+                    "total_itens": t_itens_c,
+                })
+
+            v_fora = []
+            if not df_validos.empty and ids_c:
+                df_f = df_validos[(df_validos["cod_usuario_finalizacao"].astype(str).isin(ids_c)) & (~mask_estruturas_meta_real(df_validos, estruturas_vinculadas, codigos_vinculados))].copy()
+                if not df_f.empty:
+                    mapa = {str(i["id_colaborador"]): (i.get("nome_exibicao") or i.get("nome") or "") for i in c_res}
+                    df_f["nome_consultor"] = df_f["cod_usuario_finalizacao"].astype(str).map(mapa)
+                    v_fora = df_f.groupby(["cod_usuario_finalizacao", "nome_consultor", "estrutura", "cod_estrutura"]).agg(
+                        quantidade_pedidos=("codigo_pedido", "count"),
+                        valor_praticado=("valor_praticado", "sum")
+                    ).reset_index().sort_values("valor_praticado", ascending=False).to_dict(orient="records")
+
+            return {
+                "estrutura": est,
+                "nome_meta_real": meta_nome,
+                "meta_origem": meta_origem,
+                "estruturas_vinculadas": estruturas_vinculadas,
+                "codigos_estruturas_vinculadas": codigos_vinculados,
+                "meta": {
+                    "receita": mb,
+                    "atividade": float(meta_real_row.get("meta_atividade") or 46.0),
+                    "rpa": float(meta_real_row.get("meta_rpa") or 1500.0),
+                    "tkt_medio": float(meta_real_row.get("meta_tkt_medio") or 800.0),
+                    "upa": float(meta_real_row.get("meta_upa") or 15.0),
+                    "make": float(meta_real_row.get("meta_make") or 40.0),
+                    "cabelo": float(meta_real_row.get("meta_cabelo") or 40.0),
+                },
+                "realizado": rlz,
+                "percentual": round((rlz / mb) * 100, 2) if mb > 0 else 0.0,
+                "quantidade_pedidos": qtd,
+                "atividade_realizada": ativ,
+                "base_ativa": bb,
+                "percentual_atividade": calcular_percentual(ativ, bb),
+                "make_realizado": mk,
+                "percentual_make": calcular_percentual(mk, ativ),
+                "cabelo_realizado": cb,
+                "percentual_cabelo": calcular_percentual(cb, ativ),
+                "consultores": sorted(c_res, key=lambda x: x["realizado"], reverse=True),
+                "vendas_fora_estrutura": v_fora,
+                "total_itens": t_itens,
+                "upa_realizada": round(t_itens / ativ, 2) if ativ > 0 else 0.0,
+                "calculo_upa": {
+                    "total_itens": t_itens,
+                    "atividade_realizada": ativ,
+                    "resultado": round(t_itens / ativ, 2) if ativ > 0 else 0.0,
+                },
+            }
+
+        # =========================================================
+        # 2) Fallback antigo: usa metas_estruturas quando não há meta real cadastrada.
+        # =========================================================
+        if df_metas.empty:
+            raise HTTPException(status_code=404, detail="Meta não encontrada.")
+
+        df_e = df_validos[df_validos["estrutura"] == est].copy() if not df_validos.empty else pd.DataFrame()
         m_linha = df_metas[df_metas["estrutura"] == est]
-        if m_linha.empty: raise HTTPException(status_code=404, detail="Meta não encontrada.")
-        
+        if m_linha.empty:
+            raise HTTPException(status_code=404, detail="Meta não encontrada.")
+
         mb = float(m_linha.iloc[0]["receita"] or 0)
         bb = obter_base_ativa_estrutura(df_base, est)
 
         if filtros.consultores and not df_consultores.empty:
             c_est = df_consultores[df_consultores["estrutura"] == est]
-            c_filt = c_est[c_est["nome"].isin(filtros.consultores) | c_est["id_colaborador"].isin(filtros.consultores)]
-            mr = 0; ba = 0
+            c_filt = c_est[c_est["nome"].isin(filtros.consultores) | c_est["id_colaborador"].isin(filtros.consultores) | c_est["nome_exibicao"].isin(filtros.consultores)]
+            mr = 0
+            ba = 0
             for _, c in c_filt.iterrows():
                 p = float(c.get("peso_meta_calculado") or 0)
-                mr += mb * (p / 100); ba += bb * (p / 100)
+                mr += mb * (p / 100)
+                ba += bb * (p / 100)
             ba = int(round(ba, 0))
         else:
-            mr = mb; ba = bb
+            mr = mb
+            ba = bb
 
         p_make = calcular_primeiros_indicador_seguro(df_make, df_consultores, filtros, df_validos_base_ciclo, "MAKE")
         p_cabelo = calcular_primeiros_indicador_seguro(df_cabelo, df_consultores, filtros, df_validos_base_ciclo, "CABELO")
 
         rlz = float(df_e["valor_praticado"].sum()) if not df_e.empty else 0.0
-        t_itens = int(df_e["qtde_itens"].sum()) if not df_e.empty else 0
+        t_itens = somar_qtde_itens_pedidos_unicos(df_e)
         qtd = int(len(df_e)) if not df_e.empty else 0
         ativ = int(len(primeiros[primeiros["estrutura"] == est])) if not primeiros.empty else 0
         mk = int(len(p_make[p_make["estrutura"] == est])) if not p_make.empty else 0
         cb = int(len(p_cabelo[p_cabelo["estrutura"] == est])) if not p_cabelo.empty else 0
-        
-        c_est = df_consultores[df_consultores["estrutura"] == est].copy() if not df_consultores.empty else pd.DataFrame()
-        if filtros.consultores: c_est = c_est[c_est["nome"].isin(filtros.consultores) | c_est["id_colaborador"].isin(filtros.consultores)]
 
-        c_res = []; ids_c = []
+        c_est = df_consultores[df_consultores["estrutura"] == est].copy() if not df_consultores.empty else pd.DataFrame()
+        if filtros.consultores:
+            c_est = c_est[c_est["nome"].isin(filtros.consultores) | c_est["id_colaborador"].isin(filtros.consultores) | c_est["nome_exibicao"].isin(filtros.consultores)]
+
+        c_res = []
+        ids_c = []
         for _, c in c_est.iterrows():
-            idc = str(c["id_colaborador"]); ids_c.append(idc)
+            idc = str(c["id_colaborador"])
+            ids_c.append(idc)
             peso = float(c.get("peso_meta_calculado") or 0)
-            m_ind = mb * (peso / 100); b_ind = round(bb * (peso / 100), 2)
+            m_ind = mb * (peso / 100)
+            b_ind = round(bb * (peso / 100), 2)
 
             if not df_e.empty:
                 df_c = df_e[df_e["cod_usuario_finalizacao"] == idc]
-                rlz_c = float(df_c["valor_praticado"].sum()); qtd_c = int(len(df_c)); t_itens_c = int(df_c["qtde_itens"].sum())
+                rlz_c = float(df_c["valor_praticado"].sum())
+                qtd_c = int(len(df_c))
+                t_itens_c = somar_qtde_itens_pedidos_unicos(df_c)
             else:
-                rlz_c = 0.0; qtd_c = 0; t_itens_c = 0
-            
+                rlz_c = 0.0
+                qtd_c = 0
+                t_itens_c = 0
+
             ativ_c = int(len(primeiros[(primeiros["estrutura"] == est) & (primeiros["cod_usuario_finalizacao"] == idc)])) if not primeiros.empty else 0
             mk_c = int(len(p_make[(p_make["estrutura"] == est) & (p_make["cod_usuario_finalizacao"] == idc)])) if not p_make.empty else 0
             cb_c = int(len(p_cabelo[(p_cabelo["estrutura"] == est) & (p_cabelo["cod_usuario_finalizacao"] == idc)])) if not p_cabelo.empty else 0
-            
+
+            nome_cadastral = str(c.get("nome") or "").strip()
+            nome_social = str(c.get("nome_social") or "").strip()
+            nome_exibicao = str(c.get("nome_exibicao") or nome_social or nome_cadastral).strip()
             c_res.append({
-                "id_colaborador": idc, "nome": c["nome"], "estrutura": c["estrutura"], "canal": c["canal"], "status_consultor": c["status_consultor"], 
-                "peso_meta": peso, "meta_individual": m_ind, "base_ativa_individual": b_ind, "realizado": rlz_c, "percentual": round((rlz_c / m_ind) * 100, 2) if m_ind > 0 else 0.0, 
-                "quantidade_pedidos": qtd_c, "atividade_realizada": ativ_c, "percentual_atividade": calcular_percentual(ativ_c, b_ind), 
-                "make_realizado": mk_c, "percentual_make": calcular_percentual(mk_c, ativ_c), "cabelo_realizado": cb_c, "percentual_cabelo": calcular_percentual(cb_c, ativ_c),
-                "total_itens": t_itens_c
+                "id_colaborador": idc,
+                "nome": nome_exibicao,
+                "nome_cadastral": nome_cadastral,
+                "nome_social": nome_social,
+                "nome_exibicao": nome_exibicao,
+                "estrutura": c["estrutura"],
+                "canal": c["canal"],
+                "status_consultor": c["status_consultor"],
+                "peso_meta": peso,
+                "meta_individual": m_ind,
+                "base_ativa_individual": b_ind,
+                "realizado": rlz_c,
+                "percentual": round((rlz_c / m_ind) * 100, 2) if m_ind > 0 else 0.0,
+                "quantidade_pedidos": qtd_c,
+                "atividade_realizada": ativ_c,
+                "percentual_atividade": calcular_percentual(ativ_c, b_ind),
+                "make_realizado": mk_c,
+                "percentual_make": calcular_percentual(mk_c, ativ_c),
+                "cabelo_realizado": cb_c,
+                "percentual_cabelo": calcular_percentual(cb_c, ativ_c),
+                "total_itens": t_itens_c,
             })
-        
+
         v_fora = []
         if not df_validos.empty and ids_c:
             df_f = df_validos[(df_validos["cod_usuario_finalizacao"].isin(ids_c)) & (df_validos["estrutura"] != est)].copy()
             if not df_f.empty:
-                mapa = {str(i["id_colaborador"]): i["nome"] for i in c_res}
+                mapa = {str(i["id_colaborador"]): (i.get("nome_exibicao") or i.get("nome") or "") for i in c_res}
                 df_f["nome_consultor"] = df_f["cod_usuario_finalizacao"].map(mapa)
-                v_fora = df_f.groupby(["cod_usuario_finalizacao", "nome_consultor", "estrutura", "cod_estrutura"]).agg(quantidade_pedidos=("codigo_pedido", "count"), valor_praticado=("valor_praticado", "sum")).reset_index().sort_values("valor_praticado", ascending=False).to_dict(orient="records")
+                v_fora = df_f.groupby(["cod_usuario_finalizacao", "nome_consultor", "estrutura", "cod_estrutura"]).agg(
+                    quantidade_pedidos=("codigo_pedido", "count"),
+                    valor_praticado=("valor_praticado", "sum")
+                ).reset_index().sort_values("valor_praticado", ascending=False).to_dict(orient="records")
 
         return {
-            "estrutura": est, 
+            "estrutura": est,
+            "meta_origem": "metas_estruturas",
             "meta": {
                 "receita": mr,
                 "atividade": float(m_linha.iloc[0].get("atividade", 0) or 0),
@@ -2459,15 +3160,33 @@ def obter_detalhes_meta_estrutura(estrutura: str, filtros: FiltrosRequest):
                 "tkt_medio": float(m_linha.iloc[0].get("tkt_medio", 0) or 0),
                 "upa": float(m_linha.iloc[0].get("upa", 0) or 0),
                 "make": float(m_linha.iloc[0].get("pen_make", 0) or 0),
-                "cabelo": float(m_linha.iloc[0].get("pen_cabelos", 0) or 0)
+                "cabelo": float(m_linha.iloc[0].get("pen_cabelos", 0) or 0),
             },
-            "realizado": rlz, "percentual": round((rlz / mr) * 100, 2) if mr > 0 else 0.0,
-            "quantidade_pedidos": qtd, "atividade_realizada": ativ, "base_ativa": ba, "percentual_atividade": calcular_percentual(ativ, ba), 
-            "make_realizado": mk, "percentual_make": calcular_percentual(mk, ativ), "cabelo_realizado": cb, "percentual_cabelo": calcular_percentual(cb, ativ), 
-            "consultores": sorted(c_res, key=lambda x: x["realizado"], reverse=True), "vendas_fora_estrutura": v_fora, "total_itens": t_itens
+            "realizado": rlz,
+            "percentual": round((rlz / mr) * 100, 2) if mr > 0 else 0.0,
+            "quantidade_pedidos": qtd,
+            "atividade_realizada": ativ,
+            "base_ativa": ba,
+            "percentual_atividade": calcular_percentual(ativ, ba),
+            "make_realizado": mk,
+            "percentual_make": calcular_percentual(mk, ativ),
+            "cabelo_realizado": cb,
+            "percentual_cabelo": calcular_percentual(cb, ativ),
+            "consultores": sorted(c_res, key=lambda x: x["realizado"], reverse=True),
+            "vendas_fora_estrutura": v_fora,
+            "total_itens": t_itens,
+            "upa_realizada": round(t_itens / ativ, 2) if ativ > 0 else 0.0,
+            "calculo_upa": {
+                "total_itens": t_itens,
+                "atividade_realizada": ativ,
+                "resultado": round(t_itens / ativ, 2) if ativ > 0 else 0.0,
+            },
         }
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
-
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def normalizar_nucleo_param(nucleo: str) -> str:
@@ -2550,8 +3269,10 @@ def obter_gestao_nucleo(nucleo: str, ciclo: Optional[str] = None, estrutura: Opt
                 filtros_indicador_nucleo = FiltrosRequest(nucleos=[nucleo_norm])
                 if df_make is not None and not df_make.empty:
                     df_make_preparado = preparar_vendas_indicador_para_calculo(df_make, df_consultores, filtros_indicador_nucleo, df_pedidos)
+                    df_make_preparado = obter_primeiros_pedidos_indicador(df_make_preparado)
                 if df_cabelo is not None and not df_cabelo.empty:
                     df_cabelo_preparado = preparar_vendas_indicador_para_calculo(df_cabelo, df_consultores, filtros_indicador_nucleo, df_pedidos)
+                    df_cabelo_preparado = obter_primeiros_pedidos_indicador(df_cabelo_preparado)
             except Exception as erro_indicador_gestao:
                 print(f"Aviso gestao nucleos indicadores: {erro_indicador_gestao}")
                 df_make_preparado = pd.DataFrame()
@@ -2589,6 +3310,14 @@ def obter_gestao_nucleo(nucleo: str, ciclo: Optional[str] = None, estrutura: Opt
                     realizado = float(pedidos_est["valor_praticado"].sum()) if not pedidos_est.empty else 0.0
                     qtd = int(len(pedidos_est)) if not pedidos_est.empty else 0
                     ativ = int(pedidos_est["pessoa"].nunique()) if not pedidos_est.empty and "pessoa" in pedidos_est.columns else 0
+                    make_est = 0
+                    cabelo_est = 0
+                    if df_make_preparado is not None and not df_make_preparado.empty:
+                        make_base_est = df_make_preparado[df_make_preparado["estrutura"].astype(str).str.strip() == est]
+                        make_est = int(make_base_est["pessoa"].nunique()) if "pessoa" in make_base_est.columns else int(len(make_base_est))
+                    if df_cabelo_preparado is not None and not df_cabelo_preparado.empty:
+                        cabelo_base_est = df_cabelo_preparado[df_cabelo_preparado["estrutura"].astype(str).str.strip() == est]
+                        cabelo_est = int(cabelo_base_est["pessoa"].nunique()) if "pessoa" in cabelo_base_est.columns else int(len(cabelo_base_est))
                     estruturas.append({
                         "estrutura": est,
                         "peso": round(peso, 2),
@@ -2605,10 +3334,10 @@ def obter_gestao_nucleo(nucleo: str, ciclo: Optional[str] = None, estrutura: Opt
                         "rpa": round(realizado / ativ, 2) if ativ > 0 else 0,
                         "tkt_medio": round(realizado / qtd, 2) if qtd > 0 else 0,
                         "upa": round(float(pedidos_est["qtde_itens"].sum()) / qtd, 2) if qtd > 0 and "qtde_itens" in pedidos_est.columns else 0,
-                        "make_realizado": 0,
-                        "percentual_make": 0,
-                        "cabelo_realizado": 0,
-                        "percentual_cabelo": 0
+                        "make_realizado": make_est,
+                        "percentual_make": calcular_percentual(make_est, ativ),
+                        "cabelo_realizado": cabelo_est,
+                        "percentual_cabelo": calcular_percentual(cabelo_est, ativ)
                     })
             estruturas = sorted(estruturas, key=lambda x: x["realizado"], reverse=True)
 
@@ -2786,26 +3515,438 @@ def salvar_gestao_nucleo(nucleo: str, dados: SalvarMetaGerencialRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+def garantir_tabelas_metas_reais(conn):
+    """Garante que o cadastro de Meta Real exista na DigitalOcean/PostgreSQL."""
+    conn.execute(text("CREATE TABLE IF NOT EXISTS metas_reais (id BIGSERIAL PRIMARY KEY, ciclo TEXT NOT NULL, nome_meta TEXT NOT NULL, tipo_meta TEXT NOT NULL DEFAULT 'estrutura', meta_real NUMERIC(14,2) NOT NULL DEFAULT 0, regra_calculo TEXT NOT NULL DEFAULT 'somar_estruturas', status TEXT NOT NULL DEFAULT 'ativo', observacao TEXT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());"))
+    conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_atividade NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_make NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_cabelo NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_rpa NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_tkt_medio NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE metas_reais ADD COLUMN IF NOT EXISTS meta_upa NUMERIC(14,2) NOT NULL DEFAULT 0;"))
+    conn.execute(text("CREATE TABLE IF NOT EXISTS metas_reais_estruturas (id BIGSERIAL PRIMARY KEY, meta_id BIGINT NOT NULL REFERENCES metas_reais(id) ON DELETE CASCADE, cod_estrutura TEXT, estrutura TEXT NOT NULL, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW());"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_metas_reais_ciclo ON metas_reais (ciclo);"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_metas_reais_status ON metas_reais (status);"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_metas_reais_estruturas_meta_id ON metas_reais_estruturas (meta_id);"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_metas_reais_estruturas_estrutura ON metas_reais_estruturas (estrutura);"))
+    conn.execute(text("CREATE TABLE IF NOT EXISTS consultores_metas (id BIGSERIAL PRIMARY KEY, id_colaborador TEXT, nome TEXT, estrutura TEXT, canal TEXT, status_consultor TEXT DEFAULT 'ativo', peso_meta DOUBLE PRECISION DEFAULT 0, peso_meta_calculado DOUBLE PRECISION DEFAULT 0, criado_em TIMESTAMPTZ DEFAULT NOW());"))
+    conn.execute(text("ALTER TABLE consultores_metas ADD COLUMN IF NOT EXISTS nome_social TEXT;"))
+
+
+def _extrair_codigo_estrutura(estrutura: str) -> str:
+    texto_estrutura = str(estrutura or "").strip()
+    if "-" in texto_estrutura:
+        return texto_estrutura.split("-", 1)[0].strip()
+    return texto_estrutura.strip()
+
+
+def _consultor_para_json(row):
+    item = dict(row)
+    nome_social = str(item.get("nome_social") or "").strip()
+    nome = str(item.get("nome") or "").strip()
+    item["nome_cadastral"] = nome
+    item["nome_exibicao"] = nome_social if nome_social else nome
+    return item
+
+
+def montar_meta_real_com_calculo(conn, meta_row):
+    meta = dict(meta_row)
+    for campo_meta_indicador in [
+        "meta_real", "meta_atividade", "meta_make", "meta_cabelo",
+        "meta_rpa", "meta_tkt_medio", "meta_upa"
+    ]:
+        try:
+            meta[campo_meta_indicador] = float(meta.get(campo_meta_indicador) or 0)
+        except Exception:
+            meta[campo_meta_indicador] = 0.0
+    estruturas = [dict(e) for e in conn.execute(text("""
+        SELECT id, meta_id, cod_estrutura, estrutura
+        FROM metas_reais_estruturas
+        WHERE meta_id = :id
+        ORDER BY estrutura ASC
+    """), {"id": meta["id"]}).mappings().all()]
+
+    nomes_estruturas = [str(e.get("estrutura") or "").strip() for e in estruturas if str(e.get("estrutura") or "").strip()]
+    codigos_estruturas = [str(e.get("cod_estrutura") or "").strip() for e in estruturas if str(e.get("cod_estrutura") or "").strip()]
+
+    realizado = 0.0
+    pedidos = 0
+    ativos = 0
+    consultores_meta = []
+
+    if nomes_estruturas or codigos_estruturas:
+        realizado_row = conn.execute(text("""
+            SELECT
+                COALESCE(SUM(COALESCE(valor_praticado, 0)), 0) AS realizado,
+                COUNT(*) AS pedidos,
+                COUNT(DISTINCT pessoa) AS ativos
+            FROM consulta_pedidos
+            WHERE (:ciclo = '' OR ciclo_captacao = :ciclo)
+              AND (
+                estrutura = ANY(:estruturas)
+                OR cod_estrutura::text = ANY(:codigos)
+              )
+              AND LOWER(COALESCE(situacao_comercial, '')) NOT LIKE '%cancel%'
+        """), {"ciclo": meta.get("ciclo") or "", "estruturas": nomes_estruturas, "codigos": codigos_estruturas}).mappings().first()
+        if realizado_row:
+            realizado = float(realizado_row.get("realizado") or 0)
+            pedidos = int(realizado_row.get("pedidos") or 0)
+            ativos = int(realizado_row.get("ativos") or 0)
+
+    meta_real = float(meta.get("meta_real") or 0)
+    percentual = calcular_percentual(realizado, meta_real)
+    gap = round(max(meta_real - realizado, 0), 2)
+
+    if nomes_estruturas or codigos_estruturas:
+        # Para dividir a meta entre consultores, usa a estrutura EXATA cadastrada na aba Consultores.
+        # Não pode usar apenas o código 17325, pois esse código pode aparecer em várias equipes diferentes.
+        try:
+            rows_cons = conn.execute(text("""
+                SELECT *
+                FROM consultores_metas
+                WHERE estrutura = ANY(:estruturas)
+                ORDER BY nome ASC
+            """), {"estruturas": nomes_estruturas}).mappings().all()
+        except Exception:
+            rows_cons = []
+
+        # Fallback somente se a meta foi cadastrada sem nome de estrutura completo.
+        if not rows_cons and not nomes_estruturas and codigos_estruturas:
+            rows_cons = conn.execute(text("""
+                SELECT *
+                FROM consultores_metas
+                WHERE split_part(estrutura, '-', 1) = ANY(:codigos)
+                ORDER BY nome ASC
+            """), {"codigos": codigos_estruturas}).mappings().all()
+
+        consultores = [_consultor_para_json(r) for r in rows_cons]
+        total_peso = sum(float(c.get("peso_meta") or c.get("peso_meta_calculado") or 0) for c in consultores)
+        peso_padrao = (100 / len(consultores)) if consultores and total_peso <= 0 else 0
+
+        for c in consultores:
+            peso = float(c.get("peso_meta") or c.get("peso_meta_calculado") or 0)
+            if total_peso <= 0:
+                peso = peso_padrao
+            meta_individual = meta_real * (peso / 100)
+            idc = str(c.get("id_colaborador") or "").strip()
+            est = str(c.get("estrutura") or "").strip()
+            realizado_c = 0.0
+            pedidos_c = 0
+            ativos_c = 0
+
+            nome_cadastral = str(c.get("nome") or "").strip()
+            nome_social = str(c.get("nome_social") or "").strip()
+            nome_exibicao = str(c.get("nome_exibicao") or nome_social or nome_cadastral).strip()
+            idc_norm = normalizar_identificador(idc)
+            nomes_norm = sorted({
+                normalizar_texto(nome_cadastral),
+                normalizar_texto(nome_social),
+                normalizar_texto(nome_exibicao),
+            } - {""})
+
+            if idc_norm or nomes_norm:
+                try:
+                    # Realizado individual da Meta Real:
+                    # - os consultores exibidos vêm da estrutura EXATA cadastrada na aba Consultores;
+                    # - o realizado precisa considerar vendas atribuídas pelo ID OU pelo nome de finalização;
+                    # - o filtro de estrutura continua usando o nome completo vinculado à meta para não puxar outras equipes 17325.
+                    row_c = conn.execute(text("""
+                        SELECT
+                            COALESCE(SUM(COALESCE(valor_praticado, 0)), 0) AS realizado,
+                            COUNT(*) AS pedidos,
+                            COUNT(DISTINCT pessoa) AS ativos
+                        FROM consulta_pedidos
+                        WHERE (:ciclo = '' OR ciclo_captacao = :ciclo)
+                          AND LOWER(COALESCE(situacao_comercial, '')) NOT LIKE '%cancel%'
+                          AND (
+                            estrutura = ANY(:estruturas)
+                            OR (:usar_codigo = true AND cod_estrutura::text = ANY(:codigos))
+                          )
+                          AND (
+                            (:idc <> '' AND regexp_replace(COALESCE(cod_usuario_finalizacao::text, ''), '[^0-9]', '', 'g') = :idc)
+                            OR regexp_replace(upper(COALESCE(usuario_finalizacao, '')), '[^A-Z0-9]', '', 'g') = ANY(:nomes)
+                          )
+                    """), {
+                        "ciclo": meta.get("ciclo") or "",
+                        "estruturas": nomes_estruturas,
+                        "codigos": codigos_estruturas,
+                        "usar_codigo": False if nomes_estruturas else True,
+                        "idc": idc_norm,
+                        "nomes": nomes_norm,
+                    }).mappings().first()
+                    if row_c:
+                        realizado_c = float(row_c.get("realizado") or 0)
+                        pedidos_c = int(row_c.get("pedidos") or 0)
+                        ativos_c = int(row_c.get("ativos") or 0)
+                except Exception:
+                    traceback.print_exc()
+
+            consultores_meta.append({
+                "id": c.get("id"),
+                "id_colaborador": idc,
+                "nome": c.get("nome") or "",
+                "nome_social": c.get("nome_social") or "",
+                "nome_exibicao": c.get("nome_exibicao") or c.get("nome") or "",
+                "estrutura": est,
+                "canal": c.get("canal") or "",
+                "status_consultor": c.get("status_consultor") or "ativo",
+                "peso_meta": round(peso, 2),
+                "meta_individual": round(meta_individual, 2),
+                "realizado": round(realizado_c, 2),
+                "percentual": calcular_percentual(realizado_c, meta_individual),
+                "gap": round(max(meta_individual - realizado_c, 0), 2),
+                "pedidos": pedidos_c,
+                "ativos": ativos_c,
+            })
+
+    meta["meta_real"] = round(meta_real, 2)
+    meta["estruturas"] = estruturas
+    meta["realizado"] = round(realizado, 2)
+    meta["percentual"] = percentual
+    meta["gap"] = gap
+    meta["pedidos"] = pedidos
+    meta["ativos"] = ativos
+    meta["consultores"] = consultores_meta
+    return meta
+
+
+@app.get("/metas-reais/estruturas-opcoes")
+def listar_estruturas_opcoes_meta_real(ciclo: Optional[str] = None):
+    try:
+        with database_engine.begin() as conn:
+            garantir_tabelas_metas_reais(conn)
+            estruturas = []
+            if "consulta_pedidos" in get_all_tables(conn):
+                rows = conn.execute(text("""
+                    SELECT DISTINCT
+                        COALESCE(cod_estrutura::text, split_part(estrutura, '-', 1)) AS cod_estrutura,
+                        estrutura
+                    FROM consulta_pedidos
+                    WHERE COALESCE(estrutura, '') <> ''
+                      AND (:ciclo = '' OR ciclo_captacao = :ciclo)
+                    ORDER BY estrutura ASC
+                """), {"ciclo": ciclo or ""}).mappings().all()
+                estruturas = [dict(r) for r in rows]
+            if not estruturas and "consultores_metas" in get_all_tables(conn):
+                rows = conn.execute(text("""
+                    SELECT DISTINCT
+                        split_part(estrutura, '-', 1) AS cod_estrutura,
+                        estrutura
+                    FROM consultores_metas
+                    WHERE COALESCE(estrutura, '') <> ''
+                    ORDER BY estrutura ASC
+                """)).mappings().all()
+                estruturas = [dict(r) for r in rows]
+            return {"status": "sucesso", "estruturas": estruturas}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/metas-reais")
+def listar_metas_reais(ciclo: Optional[str] = None, status_meta: Optional[str] = None):
+    try:
+        with database_engine.begin() as conn:
+            garantir_tabelas_metas_reais(conn)
+            filtros = []
+            params = {}
+            if ciclo:
+                filtros.append("ciclo = :ciclo")
+                params["ciclo"] = ciclo
+            if status_meta:
+                filtros.append("status = :status")
+                params["status"] = status_meta
+            where = "WHERE " + " AND ".join(filtros) if filtros else ""
+            rows = conn.execute(text(f"""
+                SELECT *
+                FROM metas_reais
+                {where}
+                ORDER BY ciclo DESC, nome_meta ASC, id DESC
+            """), params).mappings().all()
+            metas = [montar_meta_real_com_calculo(conn, r) for r in rows]
+            return {"status": "sucesso", "metas": metas}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/metas-reais")
+def criar_meta_real(dados: MetaRealRequest):
+    try:
+        if not dados.ciclo.strip():
+            raise HTTPException(status_code=400, detail="Informe o ciclo da meta real.")
+        if not dados.nome_meta.strip():
+            raise HTTPException(status_code=400, detail="Informe o nome da meta real.")
+        if not dados.estruturas:
+            raise HTTPException(status_code=400, detail="Vincule pelo menos uma estrutura à meta.")
+        if float(dados.meta_real or 0) <= 0:
+            raise HTTPException(status_code=400, detail="Informe uma meta real maior que zero.")
+        with database_engine.begin() as conn:
+            garantir_tabelas_metas_reais(conn)
+            row = conn.execute(text("""
+                INSERT INTO metas_reais (
+                    ciclo, nome_meta, tipo_meta, meta_real, meta_atividade, meta_make, meta_cabelo,
+                    meta_rpa, meta_tkt_medio, meta_upa, regra_calculo, status, observacao, atualizado_em
+                )
+                VALUES (
+                    :ciclo, :nome_meta, :tipo_meta, :meta_real, :meta_atividade, :meta_make, :meta_cabelo,
+                    :meta_rpa, :meta_tkt_medio, :meta_upa, :regra_calculo, :status, :observacao, NOW()
+                )
+                RETURNING id
+            """), {
+                "ciclo": dados.ciclo.strip(),
+                "nome_meta": dados.nome_meta.strip(),
+                "tipo_meta": dados.tipo_meta.strip() or "grupo_estruturas",
+                "meta_real": float(dados.meta_real or 0),
+                "meta_atividade": float(dados.meta_atividade or 0),
+                "meta_make": float(dados.meta_make or 0),
+                "meta_cabelo": float(dados.meta_cabelo or 0),
+                "meta_rpa": float(dados.meta_rpa or 0),
+                "meta_tkt_medio": float(dados.meta_tkt_medio or 0),
+                "meta_upa": float(dados.meta_upa or 0),
+                "regra_calculo": dados.regra_calculo.strip() or "somar_estruturas",
+                "status": dados.status.strip().lower() or "ativo",
+                "observacao": dados.observacao or "",
+            }).mappings().first()
+            meta_id = row["id"]
+            for e in dados.estruturas:
+                estrutura = str(e.estrutura or "").strip()
+                if not estrutura:
+                    continue
+                cod = str(e.cod_estrutura or "").strip() or _extrair_codigo_estrutura(estrutura)
+                conn.execute(text("""
+                    INSERT INTO metas_reais_estruturas (meta_id, cod_estrutura, estrutura)
+                    VALUES (:meta_id, :cod, :estrutura)
+                """), {"meta_id": meta_id, "cod": cod, "estrutura": estrutura})
+        limpar_cache_tabelas()
+        return {"status": "sucesso", "mensagem": "Meta real cadastrada com sucesso.", "id": meta_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/metas-reais/{meta_id}")
+def editar_meta_real(meta_id: int, dados: MetaRealRequest):
+    try:
+        if not dados.estruturas:
+            raise HTTPException(status_code=400, detail="Vincule pelo menos uma estrutura à meta.")
+        if float(dados.meta_real or 0) <= 0:
+            raise HTTPException(status_code=400, detail="Informe uma meta real maior que zero.")
+        with database_engine.begin() as conn:
+            garantir_tabelas_metas_reais(conn)
+            existe = conn.execute(text("SELECT id FROM metas_reais WHERE id = :id"), {"id": meta_id}).fetchone()
+            if not existe:
+                raise HTTPException(status_code=404, detail="Meta real não encontrada.")
+            conn.execute(text("""
+                UPDATE metas_reais
+                SET ciclo=:ciclo, nome_meta=:nome_meta, tipo_meta=:tipo_meta, meta_real=:meta_real,
+                    meta_atividade=:meta_atividade, meta_make=:meta_make, meta_cabelo=:meta_cabelo,
+                    meta_rpa=:meta_rpa, meta_tkt_medio=:meta_tkt_medio, meta_upa=:meta_upa,
+                    regra_calculo=:regra_calculo, status=:status, observacao=:observacao, atualizado_em=NOW()
+                WHERE id=:id
+            """), {
+                "id": meta_id,
+                "ciclo": dados.ciclo.strip(),
+                "nome_meta": dados.nome_meta.strip(),
+                "tipo_meta": dados.tipo_meta.strip() or "grupo_estruturas",
+                "meta_real": float(dados.meta_real or 0),
+                "meta_atividade": float(dados.meta_atividade or 0),
+                "meta_make": float(dados.meta_make or 0),
+                "meta_cabelo": float(dados.meta_cabelo or 0),
+                "meta_rpa": float(dados.meta_rpa or 0),
+                "meta_tkt_medio": float(dados.meta_tkt_medio or 0),
+                "meta_upa": float(dados.meta_upa or 0),
+                "regra_calculo": dados.regra_calculo.strip() or "somar_estruturas",
+                "status": dados.status.strip().lower() or "ativo",
+                "observacao": dados.observacao or "",
+            })
+            conn.execute(text("DELETE FROM metas_reais_estruturas WHERE meta_id = :id"), {"id": meta_id})
+            for e in dados.estruturas:
+                estrutura = str(e.estrutura or "").strip()
+                if not estrutura:
+                    continue
+                cod = str(e.cod_estrutura or "").strip() or _extrair_codigo_estrutura(estrutura)
+                conn.execute(text("""
+                    INSERT INTO metas_reais_estruturas (meta_id, cod_estrutura, estrutura)
+                    VALUES (:meta_id, :cod, :estrutura)
+                """), {"meta_id": meta_id, "cod": cod, "estrutura": estrutura})
+        limpar_cache_tabelas()
+        return {"status": "sucesso", "mensagem": "Meta real atualizada com sucesso."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/metas-reais/{meta_id}")
+def excluir_meta_real(meta_id: int):
+    try:
+        with database_engine.begin() as conn:
+            garantir_tabelas_metas_reais(conn)
+            conn.execute(text("DELETE FROM metas_reais WHERE id = :id"), {"id": meta_id})
+        limpar_cache_tabelas()
+        return {"status": "sucesso", "mensagem": "Meta real excluída com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/consultores")
 def criar_consultor(dados: CriarConsultorRequest):
     try:
         with database_engine.begin() as conn:
-            conn.execute(text("INSERT INTO consultores_metas (id_colaborador, nome, estrutura, canal, status_consultor, peso_meta, peso_meta_calculado) VALUES (:id_col, :nome, :estrutura, :canal, :status_col, :peso, :peso)"), {"id_col": dados.id_colaborador.strip(), "nome": dados.nome.strip(), "estrutura": dados.estrutura.strip(), "canal": dados.canal.strip(), "status_col": dados.status_consultor.strip().lower(), "peso": float(dados.peso_meta or 0)})
+            garantir_tabelas_metas_reais(conn)
+            conn.execute(text("""
+                INSERT INTO consultores_metas
+                  (id_colaborador, nome, nome_social, estrutura, canal, status_consultor, peso_meta, peso_meta_calculado)
+                VALUES
+                  (:id_col, :nome, :nome_social, :estrutura, :canal, :status_col, :peso, :peso)
+            """), {
+                "id_col": dados.id_colaborador.strip(),
+                "nome": dados.nome.strip(),
+                "nome_social": (dados.nome_social or "").strip(),
+                "estrutura": dados.estrutura.strip(),
+                "canal": dados.canal.strip(),
+                "status_col": dados.status_consultor.strip().lower(),
+                "peso": float(dados.peso_meta or 0)
+            })
+        limpar_cache_tabelas()
         return {"status": "sucesso"}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/consultores/listar")
 def listar_todos_consultores():
     try:
-        with database_engine.connect() as conn: 
+        with database_engine.begin() as conn:
+            garantir_tabelas_metas_reais(conn)
             if not "consultores_metas" in get_all_tables(conn): return {"status": "sucesso", "consultores": []}
-            return {"status": "sucesso", "consultores": [dict(c) for c in conn.execute(text("SELECT * FROM consultores_metas ORDER BY nome ASC")).mappings().all()]}
+            consultores = [_consultor_para_json(c) for c in conn.execute(text("SELECT * FROM consultores_metas ORDER BY nome ASC")).mappings().all()]
+            return {"status": "sucesso", "consultores": consultores}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/consultores/{id_consultor}")
 def editar_consultor(id_consultor: int, dados: AtualizarConsultorRequest):
     try:
-        with database_engine.begin() as conn: conn.execute(text("UPDATE consultores_metas SET nome=:nome, estrutura=:estrutura, canal=:canal, status_consultor=:status_consultor, peso_meta=:peso_meta, peso_meta_calculado=:peso_meta WHERE id=:id"), {"id": id_consultor, "nome": dados.nome.strip(), "estrutura": dados.estrutura.strip(), "canal": dados.canal.strip(), "status_consultor": dados.status_consultor.strip().lower(), "peso_meta": float(dados.peso_meta or 0)})
+        with database_engine.begin() as conn:
+            garantir_tabelas_metas_reais(conn)
+            conn.execute(text("""
+                UPDATE consultores_metas
+                SET id_colaborador=:id_colaborador, nome=:nome, nome_social=:nome_social, estrutura=:estrutura, canal=:canal,
+                    status_consultor=:status_consultor, peso_meta=:peso_meta, peso_meta_calculado=:peso_meta
+                WHERE id=:id
+            """), {
+                "id": id_consultor,
+                "id_colaborador": str(dados.id_colaborador or "").strip(),
+                "nome": dados.nome.strip(),
+                "nome_social": (dados.nome_social or "").strip(),
+                "estrutura": dados.estrutura.strip(),
+                "canal": dados.canal.strip(),
+                "status_consultor": dados.status_consultor.strip().lower(),
+                "peso_meta": float(dados.peso_meta or 0)
+            })
+        limpar_cache_tabelas()
         return {"status": "sucesso"}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -2815,6 +3956,782 @@ def apagar_consultor(id_consultor: int):
         with database_engine.begin() as conn: conn.execute(text("DELETE FROM consultores_metas WHERE id = :id"), {"id": id_consultor})
         return {"status": "sucesso"}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+
+# =========================================================
+# HISTÓRICO POR CICLO - ETAPA 2
+# Snapshot oficial do ciclo para BI/auditoria.
+# =========================================================
+
+class FecharCicloHistoricoRequest(BaseModel):
+    ciclo: str
+    data_inicio: Optional[str] = None
+    data_fim: Optional[str] = None
+    fechado_por: Optional[str] = None
+    observacao: Optional[str] = None
+    substituir: bool = True
+
+
+def _json_safe(valor):
+    try:
+        if isinstance(valor, (datetime, date)):
+            return valor.isoformat()
+        if pd.isna(valor):
+            return None
+    except Exception:
+        pass
+    try:
+        import numpy as np
+        if isinstance(valor, (np.integer,)):
+            return int(valor)
+        if isinstance(valor, (np.floating,)):
+            return float(valor)
+    except Exception:
+        pass
+    return valor
+
+
+def _json_dumps_safe(obj) -> str:
+    return json.dumps(obj, ensure_ascii=False, default=_json_safe)
+
+
+def _to_float(v, padrao: float = 0.0) -> float:
+    try:
+        if v is None:
+            return padrao
+        if isinstance(v, str) and not v.strip():
+            return padrao
+        return float(v)
+    except Exception:
+        try:
+            return float(limpar_numero(v))
+        except Exception:
+            return padrao
+
+
+def _to_int(v, padrao: int = 0) -> int:
+    try:
+        return int(round(float(v or 0)))
+    except Exception:
+        return padrao
+
+
+def _codigo_estrutura(valor) -> str:
+    return str(valor or "").split("-", 1)[0].strip()
+
+
+def _normalizar_lista_estruturas(lista) -> set:
+    return {normalizar_texto(str(x or "").strip()) for x in (lista or []) if str(x or "").strip()}
+
+
+def _mascara_por_estruturas(df: pd.DataFrame, estruturas: list[str], codigos: list[str]) -> pd.Series:
+    """
+    Filtra usando nome completo da estrutura como prioridade.
+    Código entra apenas como fallback quando não existir nome completo.
+    Isso evita misturar equipes que compartilham o mesmo prefixo/código.
+    """
+    if df is None or df.empty:
+        return pd.Series([], dtype=bool)
+    mask = pd.Series(False, index=df.index)
+    estruturas_norm = _normalizar_lista_estruturas(estruturas)
+    codigos_set = {str(x or "").strip() for x in (codigos or []) if str(x or "").strip()}
+    if "estrutura" in df.columns and estruturas_norm:
+        mask = mask | df["estrutura"].fillna("").astype(str).str.strip().apply(normalizar_texto).isin(estruturas_norm)
+    if not mask.any() and codigos_set:
+        if "cod_estrutura" in df.columns:
+            mask = mask | df["cod_estrutura"].fillna("").astype(str).str.strip().isin(codigos_set)
+        elif "estrutura" in df.columns:
+            mask = mask | df["estrutura"].fillna("").astype(str).str.strip().apply(_codigo_estrutura).isin(codigos_set)
+    return mask
+
+
+def _mascara_consultor_por_id_ou_nome(df: pd.DataFrame, id_colaborador: str, nomes: list[str]) -> pd.Series:
+    if df is None or df.empty:
+        return pd.Series([], dtype=bool)
+    mask = pd.Series(False, index=df.index)
+    id_norm = normalizar_identificador(id_colaborador)
+    nomes_norm = {normalizar_texto(n) for n in nomes if str(n or "").strip()}
+    if id_norm and "cod_usuario_finalizacao" in df.columns:
+        mask = mask | (df["cod_usuario_finalizacao"].fillna("").astype(str).apply(normalizar_identificador) == id_norm)
+    for col in ["usuario_finalizacao", "usuario_finalizacao_pedido", "nome_consultor", "nome_exibicao"]:
+        if col in df.columns and nomes_norm:
+            mask = mask | df[col].fillna("").astype(str).apply(normalizar_texto).isin(nomes_norm)
+    return mask
+
+
+def _obter_periodo_ciclo_historico(conn, ciclo: str, data_inicio: Optional[str] = None, data_fim: Optional[str] = None):
+    ciclo_txt = str(ciclo or "").strip()
+    di = converter_data_brasileira(data_inicio) if data_inicio else None
+    dfim = converter_data_brasileira(data_fim) if data_fim else None
+    try:
+        row = conn.execute(text("""
+            SELECT data_inicio, data_fim
+            FROM ciclos_comerciais
+            WHERE ciclo = :ciclo
+            ORDER BY id DESC
+            LIMIT 1
+        """), {"ciclo": ciclo_txt}).mappings().fetchone()
+        if row:
+            di = di or converter_data_brasileira(row.get("data_inicio"))
+            dfim = dfim or converter_data_brasileira(row.get("data_fim"))
+    except Exception:
+        pass
+    return di, dfim
+
+
+def _filtrar_df_por_ciclo_ou_periodo(df: pd.DataFrame, ciclo: str, data_inicio: Optional[date], data_fim: Optional[date]) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    r = df.copy()
+    ciclo_txt = str(ciclo or "").strip()
+    if ciclo_txt and "ciclo_captacao" in r.columns:
+        r_ciclo = r[r["ciclo_captacao"].fillna("").astype(str).str.strip() == ciclo_txt].copy()
+        if not r_ciclo.empty:
+            return r_ciclo
+    if "data_captacao" in r.columns and (data_inicio or data_fim):
+        r["data_captacao"] = r["data_captacao"].apply(converter_data_brasileira)
+        if data_inicio:
+            r = r[r["data_captacao"] >= data_inicio]
+        if data_fim:
+            r = r[r["data_captacao"] <= data_fim]
+    return r.copy()
+
+
+def garantir_tabelas_historico(conn):
+    """Proteção extra caso o SQL da etapa 1 ainda não tenha sido rodado em algum ambiente."""
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS historico_ciclos (
+          id BIGSERIAL PRIMARY KEY,
+          ciclo TEXT NOT NULL UNIQUE,
+          status TEXT NOT NULL DEFAULT 'fechado',
+          data_inicio DATE,
+          data_fim DATE,
+          fechado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          fechado_por TEXT,
+          reprocessado_em TIMESTAMPTZ,
+          reprocessado_por TEXT,
+          observacao TEXT,
+          qtd_estruturas INTEGER NOT NULL DEFAULT 0,
+          qtd_consultores INTEGER NOT NULL DEFAULT 0,
+          qtd_consultores_ativos INTEGER NOT NULL DEFAULT 0,
+          qtd_pedidos INTEGER NOT NULL DEFAULT 0,
+          qtd_revendedores_ativos INTEGER NOT NULL DEFAULT 0,
+          faturamento_total NUMERIC(16,2) NOT NULL DEFAULT 0,
+          meta_faturamento_total NUMERIC(16,2) NOT NULL DEFAULT 0,
+          percentual_faturamento NUMERIC(10,4) NOT NULL DEFAULT 0,
+          atividade_total NUMERIC(14,4) NOT NULL DEFAULT 0,
+          meta_atividade_total NUMERIC(14,4) NOT NULL DEFAULT 0,
+          percentual_atividade NUMERIC(10,4) NOT NULL DEFAULT 0,
+          make_total NUMERIC(14,4) NOT NULL DEFAULT 0,
+          meta_make_total NUMERIC(14,4) NOT NULL DEFAULT 0,
+          percentual_make NUMERIC(10,4) NOT NULL DEFAULT 0,
+          cabelo_total NUMERIC(14,4) NOT NULL DEFAULT 0,
+          meta_cabelo_total NUMERIC(14,4) NOT NULL DEFAULT 0,
+          percentual_cabelo NUMERIC(10,4) NOT NULL DEFAULT 0,
+          rpa_total NUMERIC(16,2) NOT NULL DEFAULT 0,
+          meta_rpa_total NUMERIC(16,2) NOT NULL DEFAULT 0,
+          ticket_medio_total NUMERIC(16,2) NOT NULL DEFAULT 0,
+          meta_ticket_medio_total NUMERIC(16,2) NOT NULL DEFAULT 0,
+          upa_total NUMERIC(16,4) NOT NULL DEFAULT 0,
+          meta_upa_total NUMERIC(16,4) NOT NULL DEFAULT 0,
+          dados_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+          criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS historico_ciclos_log (
+          id BIGSERIAL PRIMARY KEY,
+          ciclo TEXT NOT NULL,
+          acao TEXT NOT NULL,
+          executado_por TEXT,
+          executado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          mensagem TEXT,
+          dados_json JSONB NOT NULL DEFAULT '{}'::jsonb
+        )
+    """))
+    # As tabelas detalhadas já devem existir pela etapa 1. Mantemos validação leve.
+
+
+def montar_snapshot_historico_ciclo(ciclo: str, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> dict:
+    ciclo_txt = str(ciclo or "").strip()
+    if not ciclo_txt:
+        raise HTTPException(status_code=400, detail="Informe o ciclo, exemplo: 08/2026.")
+
+    with database_engine.connect() as conn:
+        garantir_tabelas_historico(conn)
+        tables = get_all_tables(conn)
+        di, dfim = _obter_periodo_ciclo_historico(conn, ciclo_txt, data_inicio, data_fim)
+
+        df_pedidos = ler_tabela_cacheada("consulta_pedidos", conn) if "consulta_pedidos" in tables else pd.DataFrame()
+        df_consultores_raw = ler_tabela_cacheada("consultores_metas", conn) if "consultores_metas" in tables else pd.DataFrame()
+        df_base = ler_tabela_cacheada("base_ativa_revendedores", conn) if "base_ativa_revendedores" in tables else pd.DataFrame()
+        df_make = ler_tabela_cacheada("vendas_make", conn) if "vendas_make" in tables else pd.DataFrame()
+        df_cabelo = ler_tabela_cacheada("vendas_cabelo", conn) if "vendas_cabelo" in tables else pd.DataFrame()
+        df_metas_estruturas = ler_tabela_cacheada("metas_estruturas", conn) if "metas_estruturas" in tables else pd.DataFrame()
+        df_metas_reais = ler_tabela_cacheada("metas_reais", conn) if "metas_reais" in tables else pd.DataFrame()
+        df_metas_reais_estruturas = ler_tabela_cacheada("metas_reais_estruturas", conn) if "metas_reais_estruturas" in tables else pd.DataFrame()
+
+    df_consultores = aplicar_pesos_consultores(preparar_dataframe_consultores(df_consultores_raw)) if not df_consultores_raw.empty else pd.DataFrame()
+    df_pedidos = preparar_dataframe_pedidos(df_pedidos) if not df_pedidos.empty else pd.DataFrame()
+    df_base = preparar_dataframe_base_ativa(df_base) if not df_base.empty else pd.DataFrame()
+    df_metas_estruturas = preparar_dataframe_metas(df_metas_estruturas) if not df_metas_estruturas.empty else pd.DataFrame()
+
+    df_pedidos_ciclo = _filtrar_df_por_ciclo_ou_periodo(df_pedidos, ciclo_txt, di, dfim)
+    if not df_pedidos_ciclo.empty:
+        df_validos = df_pedidos_ciclo[df_pedidos_ciclo["situacao_normalizada"].isin(STATUS_VALIDOS_REALIZADO)].copy()
+        primeiros = obter_primeiros_pedidos_revendedores(df_validos)
+    else:
+        df_validos = pd.DataFrame()
+        primeiros = pd.DataFrame()
+
+    df_make_ciclo = _filtrar_df_por_ciclo_ou_periodo(df_make, ciclo_txt, di, dfim) if not df_make.empty else pd.DataFrame()
+    df_cabelo_ciclo = _filtrar_df_por_ciclo_ou_periodo(df_cabelo, ciclo_txt, di, dfim) if not df_cabelo.empty else pd.DataFrame()
+    filtros_periodo = FiltrosRequest(
+        data_inicio=di.isoformat() if di else None,
+        data_fim=dfim.isoformat() if dfim else None,
+    )
+    p_make = calcular_primeiros_indicador_seguro(df_make_ciclo, df_consultores, filtros_periodo, df_validos, "MAKE")
+    p_cabelo = calcular_primeiros_indicador_seguro(df_cabelo_ciclo, df_consultores, filtros_periodo, df_validos, "CABELO")
+
+    grupos = []
+    metas_snapshot = []
+
+    if not df_metas_reais.empty:
+        df_mr = df_metas_reais.copy()
+        for col in ["id", "ciclo", "nome_meta", "tipo_meta", "regra_calculo", "status", "observacao"]:
+            if col in df_mr.columns:
+                df_mr[col] = df_mr[col].fillna("").astype(str).str.strip()
+        for col in ["meta_real", "meta_atividade", "meta_make", "meta_cabelo", "meta_rpa", "meta_tkt_medio", "meta_upa"]:
+            if col not in df_mr.columns:
+                df_mr[col] = 0
+            df_mr[col] = df_mr[col].apply(_to_float)
+        if "ciclo" in df_mr.columns:
+            df_mr = df_mr[df_mr["ciclo"] == ciclo_txt].copy()
+        if "status" in df_mr.columns:
+            df_mr = df_mr[df_mr["status"].apply(normalizar_texto).isin(["ativo", ""])].copy()
+
+        df_mre = df_metas_reais_estruturas.copy() if not df_metas_reais_estruturas.empty else pd.DataFrame()
+        if not df_mre.empty:
+            for col in ["meta_id", "cod_estrutura", "estrutura"]:
+                if col not in df_mre.columns:
+                    df_mre[col] = ""
+                df_mre[col] = df_mre[col].fillna("").astype(str).str.strip()
+
+        for _, meta in df_mr.iterrows():
+            meta_id = str(meta.get("id") or "")
+            vinculos = df_mre[df_mre["meta_id"].astype(str) == meta_id].copy() if not df_mre.empty else pd.DataFrame()
+            estruturas = vinculos["estrutura"].dropna().astype(str).str.strip().tolist() if not vinculos.empty else []
+            codigos = vinculos["cod_estrutura"].dropna().astype(str).str.strip().tolist() if not vinculos.empty else []
+            if not estruturas and str(meta.get("nome_meta") or "").strip():
+                estruturas = [str(meta.get("nome_meta") or "").strip()]
+                codigos = [_codigo_estrutura(estruturas[0])]
+            nome_meta = str(meta.get("nome_meta") or "").strip()
+            grupos.append({
+                "estrutura_saida": nome_meta,
+                "nome_meta": nome_meta,
+                "tipo_meta": str(meta.get("tipo_meta") or "estrutura"),
+                "estruturas": estruturas,
+                "codigos": codigos,
+                "meta_faturamento": _to_float(meta.get("meta_real")),
+                "meta_atividade": _to_float(meta.get("meta_atividade")),
+                "meta_make": _to_float(meta.get("meta_make")),
+                "meta_cabelo": _to_float(meta.get("meta_cabelo")),
+                "meta_rpa": _to_float(meta.get("meta_rpa")),
+                "meta_ticket_medio": _to_float(meta.get("meta_tkt_medio")),
+                "meta_upa": _to_float(meta.get("meta_upa")),
+                "dados_meta": meta.to_dict(),
+                "estruturas_vinculadas": vinculos.to_dict(orient="records") if not vinculos.empty else [],
+            })
+            metas_snapshot.append(grupos[-1])
+
+    if not grupos and not df_metas_estruturas.empty:
+        for _, meta in df_metas_estruturas.iterrows():
+            est = str(meta.get("estrutura") or "").strip()
+            if not est:
+                continue
+            grupos.append({
+                "estrutura_saida": est,
+                "nome_meta": est,
+                "tipo_meta": "estrutura",
+                "estruturas": [est],
+                "codigos": [_codigo_estrutura(est)],
+                "meta_faturamento": _to_float(meta.get("receita")),
+                "meta_atividade": _to_float(meta.get("atividade")),
+                "meta_make": _to_float(meta.get("pen_make")),
+                "meta_cabelo": _to_float(meta.get("pen_cabelos")),
+                "meta_rpa": _to_float(meta.get("rpa")),
+                "meta_ticket_medio": _to_float(meta.get("tkt_medio")),
+                "meta_upa": _to_float(meta.get("upa")),
+                "dados_meta": meta.to_dict(),
+                "estruturas_vinculadas": [{"estrutura": est, "cod_estrutura": _codigo_estrutura(est)}],
+            })
+
+    estruturas_perf = []
+    consultores_perf = []
+
+    for grupo in grupos:
+        estruturas = grupo["estruturas"]
+        codigos = grupo["codigos"]
+        mask_v = _mascara_por_estruturas(df_validos, estruturas, codigos) if not df_validos.empty else pd.Series([], dtype=bool)
+        df_e = df_validos[mask_v].copy() if not df_validos.empty else pd.DataFrame()
+        mask_primeiros = _mascara_por_estruturas(primeiros, estruturas, codigos) if not primeiros.empty else pd.Series([], dtype=bool)
+        primeiros_e = primeiros[mask_primeiros].copy() if not primeiros.empty else pd.DataFrame()
+        mask_base = _mascara_por_estruturas(df_base, estruturas, codigos) if not df_base.empty else pd.Series([], dtype=bool)
+        base_e = df_base[mask_base].copy() if not df_base.empty else pd.DataFrame()
+        mask_make = _mascara_por_estruturas(p_make, estruturas, codigos) if not p_make.empty else pd.Series([], dtype=bool)
+        make_e = p_make[mask_make].copy() if not p_make.empty else pd.DataFrame()
+        mask_cab = _mascara_por_estruturas(p_cabelo, estruturas, codigos) if not p_cabelo.empty else pd.Series([], dtype=bool)
+        cabelo_e = p_cabelo[mask_cab].copy() if not p_cabelo.empty else pd.DataFrame()
+
+        realizado = float(df_e["valor_praticado"].sum()) if not df_e.empty else 0.0
+        pedidos = int(len(df_e)) if not df_e.empty else 0
+        atividade = int(len(primeiros_e)) if not primeiros_e.empty else 0
+        base_ativa = float(base_e["base_ativa"].sum()) if not base_e.empty and "base_ativa" in base_e.columns else 0.0
+        make = int(len(make_e)) if not make_e.empty else 0
+        cabelo = int(len(cabelo_e)) if not cabelo_e.empty else 0
+        total_itens = float(df_e["qtde_itens"].sum()) if not df_e.empty and "qtde_itens" in df_e.columns else 0.0
+        meta_fat = _to_float(grupo.get("meta_faturamento"))
+
+        est_reg = {
+            "ciclo": ciclo_txt,
+            "estrutura": grupo["estrutura_saida"],
+            "cod_estrutura": _codigo_estrutura(grupo["estrutura_saida"]),
+            "nome_meta": grupo.get("nome_meta"),
+            "tipo_meta": grupo.get("tipo_meta"),
+            "meta_faturamento": round(meta_fat, 2),
+            "realizado": round(realizado, 2),
+            "percentual_realizado": calcular_percentual(realizado, meta_fat),
+            "pedidos": pedidos,
+            "cancelados": 0,
+            "atividade": atividade,
+            "meta_atividade": _to_float(grupo.get("meta_atividade")),
+            "percentual_atividade": calcular_percentual(atividade, base_ativa),
+            "make": make,
+            "meta_make": _to_float(grupo.get("meta_make")),
+            "percentual_make": calcular_percentual(make, atividade),
+            "cabelo": cabelo,
+            "meta_cabelo": _to_float(grupo.get("meta_cabelo")),
+            "percentual_cabelo": calcular_percentual(cabelo, atividade),
+            "rpa": round(realizado / atividade, 2) if atividade > 0 else 0.0,
+            "meta_rpa": _to_float(grupo.get("meta_rpa")),
+            "ticket_medio": round(realizado / pedidos, 2) if pedidos > 0 else 0.0,
+            "meta_ticket_medio": _to_float(grupo.get("meta_ticket_medio")),
+            "upa": round(total_itens / pedidos, 2) if pedidos > 0 else 0.0,
+            "meta_upa": _to_float(grupo.get("meta_upa")),
+            "dados_json": {
+                "base_ativa": base_ativa,
+                "total_itens": total_itens,
+                "estruturas_vinculadas": grupo.get("estruturas_vinculadas", []),
+            }
+        }
+        estruturas_perf.append(est_reg)
+
+        if not df_consultores.empty:
+            c_est = df_consultores[_mascara_por_estruturas(df_consultores, estruturas, codigos)].copy()
+        else:
+            c_est = pd.DataFrame()
+
+        for _, c in c_est.iterrows():
+            idc = normalizar_identificador(c.get("id_colaborador"))
+            nome_cadastral = str(c.get("nome") or "").strip()
+            nome_social = str(c.get("nome_social") or "").strip()
+            nome_exibicao = str(c.get("nome_exibicao") or nome_social or nome_cadastral).strip()
+            nomes = [nome_cadastral, nome_social, nome_exibicao]
+            peso = _to_float(c.get("peso_meta_calculado", c.get("peso_meta", 0)))
+            meta_individual = meta_fat * (peso / 100.0)
+            mask_cons_v = _mascara_consultor_por_id_ou_nome(df_e, idc, nomes) if not df_e.empty else pd.Series([], dtype=bool)
+            df_c = df_e[mask_cons_v].copy() if not df_e.empty else pd.DataFrame()
+            mask_cons_primeiros = _mascara_consultor_por_id_ou_nome(primeiros_e, idc, nomes) if not primeiros_e.empty else pd.Series([], dtype=bool)
+            primeiros_c = primeiros_e[mask_cons_primeiros].copy() if not primeiros_e.empty else pd.DataFrame()
+            mask_cons_make = _mascara_consultor_por_id_ou_nome(make_e, idc, nomes) if not make_e.empty else pd.Series([], dtype=bool)
+            make_c = make_e[mask_cons_make].copy() if not make_e.empty else pd.DataFrame()
+            mask_cons_cab = _mascara_consultor_por_id_ou_nome(cabelo_e, idc, nomes) if not cabelo_e.empty else pd.Series([], dtype=bool)
+            cab_c = cabelo_e[mask_cons_cab].copy() if not cabelo_e.empty else pd.DataFrame()
+            realizado_c = float(df_c["valor_praticado"].sum()) if not df_c.empty else 0.0
+            pedidos_c = int(len(df_c)) if not df_c.empty else 0
+            atividade_c = int(len(primeiros_c)) if not primeiros_c.empty else 0
+            make_qtd = int(len(make_c)) if not make_c.empty else 0
+            cab_qtd = int(len(cab_c)) if not cab_c.empty else 0
+            total_itens_c = float(df_c["qtde_itens"].sum()) if not df_c.empty and "qtde_itens" in df_c.columns else 0.0
+            consultores_perf.append({
+                "ciclo": ciclo_txt,
+                "id_colaborador": idc,
+                "nome": nome_cadastral,
+                "nome_social": nome_social,
+                "nome_exibicao": nome_exibicao,
+                "estrutura": grupo["estrutura_saida"],
+                "cod_estrutura": _codigo_estrutura(grupo["estrutura_saida"]),
+                "canal": str(c.get("canal") or ""),
+                "status": str(c.get("status_consultor") or c.get("status") or ""),
+                "peso_meta": round(peso, 4),
+                "meta_individual": round(meta_individual, 2),
+                "realizado": round(realizado_c, 2),
+                "percentual_realizado": calcular_percentual(realizado_c, meta_individual),
+                "pedidos": pedidos_c,
+                "atividade": atividade_c,
+                "percentual_atividade": calcular_percentual(atividade_c, base_ativa * (peso / 100.0)),
+                "make": make_qtd,
+                "percentual_make": calcular_percentual(make_qtd, atividade_c),
+                "cabelo": cab_qtd,
+                "percentual_cabelo": calcular_percentual(cab_qtd, atividade_c),
+                "rpa": round(realizado_c / atividade_c, 2) if atividade_c > 0 else 0.0,
+                "ticket_medio": round(realizado_c / pedidos_c, 2) if pedidos_c > 0 else 0.0,
+                "upa": round(total_itens_c / pedidos_c, 2) if pedidos_c > 0 else 0.0,
+                "dados_json": {"base_ativa_individual": round(base_ativa * (peso / 100.0), 2), "total_itens": total_itens_c}
+            })
+
+    estruturas_perf = sorted(estruturas_perf, key=lambda x: x["realizado"], reverse=True)
+    for idx, item in enumerate(estruturas_perf, start=1):
+        item["ranking_faturamento"] = idx
+    estruturas_por_percentual = sorted(estruturas_perf, key=lambda x: x["percentual_realizado"], reverse=True)
+    for idx, item in enumerate(estruturas_por_percentual, start=1):
+        item["ranking_percentual"] = idx
+
+    consultores_perf = sorted(consultores_perf, key=lambda x: x["realizado"], reverse=True)
+    for idx, item in enumerate(consultores_perf, start=1):
+        item["ranking_faturamento"] = idx
+    consultores_por_percentual = sorted(consultores_perf, key=lambda x: x["percentual_realizado"], reverse=True)
+    for idx, item in enumerate(consultores_por_percentual, start=1):
+        item["ranking_percentual"] = idx
+
+    consultores_snapshot = []
+    if not df_consultores.empty:
+        for _, c in df_consultores.iterrows():
+            nome_cadastral = str(c.get("nome") or "").strip()
+            nome_social = str(c.get("nome_social") or "").strip()
+            nome_exibicao = str(c.get("nome_exibicao") or nome_social or nome_cadastral).strip()
+            status_cons = str(c.get("status_consultor") or c.get("status") or "").strip()
+            consultores_snapshot.append({
+                "ciclo": ciclo_txt,
+                "id_colaborador": normalizar_identificador(c.get("id_colaborador")),
+                "nome": nome_cadastral,
+                "nome_social": nome_social,
+                "nome_exibicao": nome_exibicao,
+                "estrutura": str(c.get("estrutura") or "").strip(),
+                "cod_estrutura": _codigo_estrutura(c.get("estrutura")),
+                "canal": str(c.get("canal") or ""),
+                "status": status_cons,
+                "peso_meta": _to_float(c.get("peso_meta_calculado", c.get("peso_meta", 0))),
+                "ativo_no_ciclo": normalizar_texto(status_cons) not in ["inativo", "desligado", "bloqueado", "cancelado"],
+                "dados_json": c.to_dict(),
+            })
+
+    total_fat = sum(_to_float(i.get("realizado")) for i in estruturas_perf)
+    meta_fat_total = sum(_to_float(i.get("meta_faturamento")) for i in estruturas_perf)
+    total_pedidos = sum(_to_int(i.get("pedidos")) for i in estruturas_perf)
+    total_atividade = sum(_to_int(i.get("atividade")) for i in estruturas_perf)
+    total_make = sum(_to_int(i.get("make")) for i in estruturas_perf)
+    total_cabelo = sum(_to_int(i.get("cabelo")) for i in estruturas_perf)
+    total_itens_geral = sum(_to_float((i.get("dados_json") or {}).get("total_itens")) for i in estruturas_perf)
+
+    ciclo_resumo = {
+        "ciclo": ciclo_txt,
+        "status": "fechado",
+        "data_inicio": di,
+        "data_fim": dfim,
+        "qtd_estruturas": len(estruturas_perf),
+        "qtd_consultores": len(consultores_snapshot),
+        "qtd_consultores_ativos": sum(1 for c in consultores_snapshot if c.get("ativo_no_ciclo")),
+        "qtd_pedidos": total_pedidos,
+        "qtd_revendedores_ativos": total_atividade,
+        "faturamento_total": round(total_fat, 2),
+        "meta_faturamento_total": round(meta_fat_total, 2),
+        "percentual_faturamento": calcular_percentual(total_fat, meta_fat_total),
+        "atividade_total": total_atividade,
+        "meta_atividade_total": round(sum(_to_float(i.get("meta_atividade")) for i in estruturas_perf) / max(len(estruturas_perf), 1), 2) if estruturas_perf else 0,
+        "percentual_atividade": round(sum(_to_float(i.get("percentual_atividade")) for i in estruturas_perf) / max(len(estruturas_perf), 1), 2) if estruturas_perf else 0,
+        "make_total": total_make,
+        "meta_make_total": round(sum(_to_float(i.get("meta_make")) for i in estruturas_perf) / max(len(estruturas_perf), 1), 2) if estruturas_perf else 0,
+        "percentual_make": calcular_percentual(total_make, total_atividade),
+        "cabelo_total": total_cabelo,
+        "meta_cabelo_total": round(sum(_to_float(i.get("meta_cabelo")) for i in estruturas_perf) / max(len(estruturas_perf), 1), 2) if estruturas_perf else 0,
+        "percentual_cabelo": calcular_percentual(total_cabelo, total_atividade),
+        "rpa_total": round(total_fat / total_atividade, 2) if total_atividade > 0 else 0,
+        "meta_rpa_total": round(sum(_to_float(i.get("meta_rpa")) for i in estruturas_perf) / max(len(estruturas_perf), 1), 2) if estruturas_perf else 0,
+        "ticket_medio_total": round(total_fat / total_pedidos, 2) if total_pedidos > 0 else 0,
+        "meta_ticket_medio_total": round(sum(_to_float(i.get("meta_ticket_medio")) for i in estruturas_perf) / max(len(estruturas_perf), 1), 2) if estruturas_perf else 0,
+        "upa_total": round(total_itens_geral / total_pedidos, 2) if total_pedidos > 0 else 0,
+        "meta_upa_total": round(sum(_to_float(i.get("meta_upa")) for i in estruturas_perf) / max(len(estruturas_perf), 1), 2) if estruturas_perf else 0,
+        "dados_json": {
+            "gerado_em": datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat(),
+            "fonte": "snapshot_backend",
+            "observacao": "Snapshot calculado a partir das tabelas operacionais no momento do fechamento.",
+        }
+    }
+
+    return {
+        "ciclo": ciclo_resumo,
+        "consultores_snapshot": consultores_snapshot,
+        "metas_snapshot": metas_snapshot,
+        "estruturas_perf": estruturas_perf,
+        "consultores_perf": consultores_perf,
+    }
+
+
+def salvar_snapshot_historico_ciclo(snapshot: dict, fechado_por: str = "Sistema", observacao: str = "", substituir: bool = True, reprocessar: bool = False):
+    ciclo = snapshot["ciclo"]["ciclo"]
+    with database_engine.begin() as conn:
+        garantir_tabelas_historico(conn)
+        if substituir:
+            for tabela in [
+                "historico_consultores_ciclo",
+                "historico_metas_reais_ciclo",
+                "historico_performance_consultor_ciclo",
+                "historico_performance_estrutura_ciclo",
+            ]:
+                conn.execute(text(f"DELETE FROM {tabela} WHERE ciclo = :ciclo"), {"ciclo": ciclo})
+            conn.execute(text("DELETE FROM historico_ciclos WHERE ciclo = :ciclo"), {"ciclo": ciclo})
+
+        c = snapshot["ciclo"]
+        conn.execute(text("""
+            INSERT INTO historico_ciclos (
+              ciclo, status, data_inicio, data_fim, fechado_por, observacao,
+              qtd_estruturas, qtd_consultores, qtd_consultores_ativos, qtd_pedidos, qtd_revendedores_ativos,
+              faturamento_total, meta_faturamento_total, percentual_faturamento,
+              atividade_total, meta_atividade_total, percentual_atividade,
+              make_total, meta_make_total, percentual_make,
+              cabelo_total, meta_cabelo_total, percentual_cabelo,
+              rpa_total, meta_rpa_total, ticket_medio_total, meta_ticket_medio_total, upa_total, meta_upa_total,
+              dados_json, atualizado_em
+            ) VALUES (
+              :ciclo, :status, :data_inicio, :data_fim, :fechado_por, :observacao,
+              :qtd_estruturas, :qtd_consultores, :qtd_consultores_ativos, :qtd_pedidos, :qtd_revendedores_ativos,
+              :faturamento_total, :meta_faturamento_total, :percentual_faturamento,
+              :atividade_total, :meta_atividade_total, :percentual_atividade,
+              :make_total, :meta_make_total, :percentual_make,
+              :cabelo_total, :meta_cabelo_total, :percentual_cabelo,
+              :rpa_total, :meta_rpa_total, :ticket_medio_total, :meta_ticket_medio_total, :upa_total, :meta_upa_total,
+              CAST(:dados_json AS jsonb), NOW()
+            )
+        """), {
+            **{k: c.get(k) for k in c.keys() if k != "dados_json"},
+            "status": "reprocessado" if reprocessar else "fechado",
+            "fechado_por": fechado_por or "Sistema",
+            "observacao": observacao or c.get("observacao") or "",
+            "dados_json": _json_dumps_safe(c.get("dados_json") or {}),
+        })
+
+        for item in snapshot.get("consultores_snapshot", []):
+            conn.execute(text("""
+                INSERT INTO historico_consultores_ciclo
+                (ciclo, id_colaborador, nome, nome_social, nome_exibicao, estrutura, cod_estrutura, canal, status, peso_meta, ativo_no_ciclo, dados_json)
+                VALUES (:ciclo, :id_colaborador, :nome, :nome_social, :nome_exibicao, :estrutura, :cod_estrutura, :canal, :status, :peso_meta, :ativo_no_ciclo, CAST(:dados_json AS jsonb))
+            """), {**{k: item.get(k) for k in item if k != "dados_json"}, "dados_json": _json_dumps_safe(item.get("dados_json") or {})})
+
+        for item in snapshot.get("metas_snapshot", []):
+            dados_meta = item.get("dados_meta") or {}
+            conn.execute(text("""
+                INSERT INTO historico_metas_reais_ciclo
+                (ciclo, meta_original_id, nome_meta, tipo_meta, regra_calculo, status, observacao,
+                 meta_faturamento, meta_atividade, meta_make, meta_cabelo, meta_rpa, meta_ticket_medio, meta_upa,
+                 estruturas_vinculadas, dados_json)
+                VALUES (:ciclo, :meta_original_id, :nome_meta, :tipo_meta, :regra_calculo, :status, :observacao,
+                        :meta_faturamento, :meta_atividade, :meta_make, :meta_cabelo, :meta_rpa, :meta_ticket_medio, :meta_upa,
+                        CAST(:estruturas_vinculadas AS jsonb), CAST(:dados_json AS jsonb))
+            """), {
+                "ciclo": ciclo,
+                "meta_original_id": _to_int(dados_meta.get("id"), None) if str(dados_meta.get("id") or "").strip().isdigit() else None,
+                "nome_meta": item.get("nome_meta") or item.get("estrutura_saida") or "SEM NOME",
+                "tipo_meta": item.get("tipo_meta") or "estrutura",
+                "regra_calculo": dados_meta.get("regra_calculo") or "somar_estruturas",
+                "status": dados_meta.get("status") or "ativo",
+                "observacao": dados_meta.get("observacao") or "",
+                "meta_faturamento": item.get("meta_faturamento") or 0,
+                "meta_atividade": item.get("meta_atividade") or 0,
+                "meta_make": item.get("meta_make") or 0,
+                "meta_cabelo": item.get("meta_cabelo") or 0,
+                "meta_rpa": item.get("meta_rpa") or 0,
+                "meta_ticket_medio": item.get("meta_ticket_medio") or 0,
+                "meta_upa": item.get("meta_upa") or 0,
+                "estruturas_vinculadas": _json_dumps_safe(item.get("estruturas_vinculadas") or []),
+                "dados_json": _json_dumps_safe(dados_meta),
+            })
+
+        for item in snapshot.get("estruturas_perf", []):
+            conn.execute(text("""
+                INSERT INTO historico_performance_estrutura_ciclo
+                (ciclo, estrutura, cod_estrutura, nome_meta, tipo_meta, meta_faturamento, realizado, percentual_realizado,
+                 pedidos, cancelados, atividade, meta_atividade, percentual_atividade, make, meta_make, percentual_make,
+                 cabelo, meta_cabelo, percentual_cabelo, rpa, meta_rpa, ticket_medio, meta_ticket_medio, upa, meta_upa,
+                 ranking_faturamento, ranking_percentual, dados_json)
+                VALUES (:ciclo, :estrutura, :cod_estrutura, :nome_meta, :tipo_meta, :meta_faturamento, :realizado, :percentual_realizado,
+                        :pedidos, :cancelados, :atividade, :meta_atividade, :percentual_atividade, :make, :meta_make, :percentual_make,
+                        :cabelo, :meta_cabelo, :percentual_cabelo, :rpa, :meta_rpa, :ticket_medio, :meta_ticket_medio, :upa, :meta_upa,
+                        :ranking_faturamento, :ranking_percentual, CAST(:dados_json AS jsonb))
+            """), {**{k: item.get(k) for k in item if k != "dados_json"}, "dados_json": _json_dumps_safe(item.get("dados_json") or {})})
+
+        for item in snapshot.get("consultores_perf", []):
+            conn.execute(text("""
+                INSERT INTO historico_performance_consultor_ciclo
+                (ciclo, id_colaborador, nome, nome_social, nome_exibicao, estrutura, cod_estrutura, canal, status, peso_meta,
+                 meta_individual, realizado, percentual_realizado, pedidos, atividade, percentual_atividade,
+                 make, percentual_make, cabelo, percentual_cabelo, rpa, ticket_medio, upa,
+                 ranking_faturamento, ranking_percentual, dados_json)
+                VALUES (:ciclo, :id_colaborador, :nome, :nome_social, :nome_exibicao, :estrutura, :cod_estrutura, :canal, :status, :peso_meta,
+                        :meta_individual, :realizado, :percentual_realizado, :pedidos, :atividade, :percentual_atividade,
+                        :make, :percentual_make, :cabelo, :percentual_cabelo, :rpa, :ticket_medio, :upa,
+                        :ranking_faturamento, :ranking_percentual, CAST(:dados_json AS jsonb))
+            """), {**{k: item.get(k) for k in item if k != "dados_json"}, "dados_json": _json_dumps_safe(item.get("dados_json") or {})})
+
+        conn.execute(text("""
+            INSERT INTO historico_ciclos_log (ciclo, acao, executado_por, mensagem, dados_json)
+            VALUES (:ciclo, :acao, :executado_por, :mensagem, CAST(:dados_json AS jsonb))
+        """), {
+            "ciclo": ciclo,
+            "acao": "REPROCESSAR_CICLO" if reprocessar else "FECHAR_CICLO",
+            "executado_por": fechado_por or "Sistema",
+            "mensagem": "Snapshot histórico salvo com sucesso.",
+            "dados_json": _json_dumps_safe({"qtd_estruturas": len(snapshot.get("estruturas_perf", [])), "qtd_consultores": len(snapshot.get("consultores_perf", []))}),
+        })
+
+
+@app.post("/historico/fechar-ciclo")
+def fechar_ciclo_historico(dados: FecharCicloHistoricoRequest):
+    try:
+        snapshot = montar_snapshot_historico_ciclo(dados.ciclo, dados.data_inicio, dados.data_fim)
+        salvar_snapshot_historico_ciclo(
+            snapshot,
+            fechado_por=dados.fechado_por or "Sistema",
+            observacao=dados.observacao or "",
+            substituir=dados.substituir,
+            reprocessar=False,
+        )
+        limpar_cache_tabelas()
+        return {
+            "status": "sucesso",
+            "mensagem": f"Ciclo {dados.ciclo} fechado e salvo no histórico.",
+            "resumo": snapshot.get("ciclo"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/historico/reprocessar")
+def reprocessar_ciclo_historico(dados: FecharCicloHistoricoRequest):
+    try:
+        snapshot = montar_snapshot_historico_ciclo(dados.ciclo, dados.data_inicio, dados.data_fim)
+        salvar_snapshot_historico_ciclo(
+            snapshot,
+            fechado_por=dados.fechado_por or "Sistema",
+            observacao=dados.observacao or "Reprocessamento manual",
+            substituir=True,
+            reprocessar=True,
+        )
+        limpar_cache_tabelas()
+        return {
+            "status": "sucesso",
+            "mensagem": f"Histórico do ciclo {dados.ciclo} reprocessado com sucesso.",
+            "resumo": snapshot.get("ciclo"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/historico/ciclos")
+def listar_historico_ciclos():
+    try:
+        with database_engine.connect() as conn:
+            garantir_tabelas_historico(conn)
+            rows = conn.execute(text("""
+                SELECT *
+                FROM historico_ciclos
+                ORDER BY fechado_em DESC, ciclo DESC
+            """)).mappings().all()
+        return {"status": "sucesso", "ciclos": [dict(r) for r in rows]}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/historico/resumo")
+def obter_historico_resumo(ciclo: str):
+    try:
+        with database_engine.connect() as conn:
+            row = conn.execute(text("SELECT * FROM historico_ciclos WHERE ciclo = :ciclo"), {"ciclo": ciclo}).mappings().fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Ciclo não encontrado no histórico.")
+        return {"status": "sucesso", "resumo": dict(row)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/historico/estruturas")
+def obter_historico_estruturas(ciclo: str):
+    try:
+        with database_engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT *
+                FROM historico_performance_estrutura_ciclo
+                WHERE ciclo = :ciclo
+                ORDER BY ranking_faturamento NULLS LAST, realizado DESC
+            """), {"ciclo": ciclo}).mappings().all()
+        return {"status": "sucesso", "estruturas": [dict(r) for r in rows]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/historico/consultores")
+def obter_historico_consultores(ciclo: str, somente_ativos: bool = False):
+    try:
+        with database_engine.connect() as conn:
+            query = """
+                SELECT *
+                FROM historico_performance_consultor_ciclo
+                WHERE ciclo = :ciclo
+                ORDER BY ranking_faturamento NULLS LAST, realizado DESC
+            """
+            rows = conn.execute(text(query), {"ciclo": ciclo}).mappings().all()
+            consultores = [dict(r) for r in rows]
+            if somente_ativos:
+                ativos_rows = conn.execute(text("""
+                    SELECT id_colaborador, estrutura
+                    FROM historico_consultores_ciclo
+                    WHERE ciclo = :ciclo AND ativo_no_ciclo = true
+                """), {"ciclo": ciclo}).mappings().all()
+                chaves_ativas = {(str(r["id_colaborador"]), str(r["estrutura"])) for r in ativos_rows}
+                consultores = [c for c in consultores if (str(c.get("id_colaborador")), str(c.get("estrutura"))) in chaves_ativas]
+        return {"status": "sucesso", "consultores": consultores}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/historico/consultores-ativos")
+def obter_historico_consultores_ativos(ciclo: str):
+    try:
+        with database_engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT *
+                FROM historico_consultores_ciclo
+                WHERE ciclo = :ciclo
+                ORDER BY estrutura, nome_exibicao
+            """), {"ciclo": ciclo}).mappings().all()
+        return {"status": "sucesso", "consultores": [dict(r) for r in rows]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/historico/metas")
+def obter_historico_metas(ciclo: str):
+    try:
+        with database_engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT *
+                FROM historico_metas_reais_ciclo
+                WHERE ciclo = :ciclo
+                ORDER BY nome_meta
+            """), {"ciclo": ciclo}).mappings().all()
+        return {"status": "sucesso", "metas": [dict(r) for r in rows]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8001)
