@@ -8,6 +8,7 @@ import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
+const APP_NAME = 'DASH COMERCIAL SB';
 
 const aplicarTokenAxios = (token) => {
   if (token) axios.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -726,6 +727,27 @@ export default function App() {
   
   const [modalDetalhes, setModalDetalhes] = useState(null); 
   const [modalValorExpandido, setModalValorExpandido] = useState({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '' });
+
+  useEffect(() => {
+    document.title = APP_NAME;
+
+    let favicon = document.querySelector("link[rel~='icon']");
+    if (!favicon) {
+      favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      document.head.appendChild(favicon);
+    }
+    favicon.type = 'image/png';
+    favicon.href = logoEmpresa;
+
+    let appleIcon = document.querySelector("link[rel='apple-touch-icon']");
+    if (!appleIcon) {
+      appleIcon = document.createElement('link');
+      appleIcon.rel = 'apple-touch-icon';
+      document.head.appendChild(appleIcon);
+    }
+    appleIcon.href = logoEmpresa;
+  }, []);
 
   const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState('');
 
@@ -3355,7 +3377,7 @@ const enviarArquivo = async (tipo) => {
             <div className="bg-white rounded-[26px] shadow-2xl px-8 py-8 sm:px-9 sm:py-9 border border-white/80">
               <div className="flex justify-center mb-7">
                 <div className="bg-[#048187] text-white rounded-md px-4 py-2 shadow-sm">
-                  <span className="text-base sm:text-lg font-black tracking-[0.10em] uppercase whitespace-nowrap">Dash Comercial</span>
+                  <span className="text-base sm:text-lg font-black tracking-[0.10em] uppercase whitespace-nowrap">DASH COMERCIAL SB</span>
                 </div>
               </div>
 
@@ -3426,7 +3448,22 @@ const enviarArquivo = async (tipo) => {
       <div className="h-[100dvh] bg-[#f7fafb] flex overflow-hidden">
         <aside className={`${sidebarExpandida ? 'w-64' : 'w-20'} hidden md:flex bg-[#111827] text-white transition-all duration-300 flex-col relative shrink-0`}>
           <button onClick={() => setSidebarExpandida(!sidebarExpandida)} className="absolute -right-3 top-9 bg-[#5bb2b4] rounded-full p-1 z-30"><ChevronLeft size={14} className={sidebarExpandida ? '' : 'rotate-180'} /></button>
-          <div className="h-28 flex items-center justify-center border-b border-white/10 px-4"><img src={logoEmpresa} alt="Logo" className={`${sidebarExpandida ? 'h-14' : 'h-10'} object-contain`} /></div>
+          <div className={`${sidebarExpandida ? 'justify-start gap-3 px-5' : 'justify-center px-3'} h-28 flex items-center border-b border-white/10`}>
+            <div className={`${sidebarExpandida ? 'w-14 h-14' : 'w-11 h-11'} rounded-2xl bg-white/5 flex items-center justify-center shrink-0 overflow-hidden`}>
+              <img
+                src={logoEmpresa}
+                alt={APP_NAME}
+                className="w-full h-full object-contain p-1"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            </div>
+            {sidebarExpandida && (
+              <div className="min-w-0 leading-tight">
+                <p className="text-[13px] font-black tracking-[0.12em] text-white truncate">DASH COMERCIAL</p>
+                <p className="text-[18px] font-black tracking-[0.16em] text-[#5bb2b4] truncate">SB</p>
+              </div>
+            )}
+          </div>
           <nav className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} flex-1 overflow-y-auto`}>
             {itensMenuTopo.map((item) => {
               if (!usuarioPodeAcessar(item.nome)) return null;
