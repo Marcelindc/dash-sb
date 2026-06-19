@@ -1341,7 +1341,7 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Revendedores') return carregarRevendedores();
     if (telaAtual === 'Base') return carregarCiclos();
     if (telaAtual === 'Cadastro') return carregarListaConsultores();
-    if (telaAtual === 'Loja') return Promise.resolve();
+    if (telaAtual === 'Loja' || telaAtual === 'LojaVisaoGeral') return carregarDashboard(filtros, forcarAtualizacao);
     if (telaAtual === 'Configurações') return carregarUsuarios();
   };
 
@@ -3527,6 +3527,16 @@ const enviarArquivo = async (tipo) => {
       { nome: 'ELIANA MARIA FONSECA CABRAL', pvd: '20228', meta: 26286, realizado: 4088.80, boleto: 448.14, itens: 4.83 },
     ].map((item) => ({ ...item, percentual: calcPerc(item.realizado, item.meta) }));
 
+    const vendasDiaLoja = [
+      { dia: '15/06', realizado: 8200, meta: 7000 },
+      { dia: '16/06', realizado: 10450, meta: 7000 },
+      { dia: '17/06', realizado: 12100, meta: 7000 },
+      { dia: '18/06', realizado: 9800, meta: 7000 },
+      { dia: '19/06', realizado: 13520, meta: 7000 },
+      { dia: '20/06', realizado: 11680, meta: 7000 },
+      { dia: '21/06', realizado: 14240, meta: 7000 },
+    ];
+
     const resumo = {
       metaCiclo: pvdLoja.reduce((acc, item) => acc + item.meta, 0),
       realizado: pvdLoja.reduce((acc, item) => acc + item.realizado, 0),
@@ -3575,26 +3585,6 @@ const enviarArquivo = async (tipo) => {
 
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-7">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0">
-                <IconeCanalLoja size={30} />
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-black text-gray-700">LOJA • Visão Geral</h1>
-                <p className="text-sm text-gray-400 mt-1 max-w-3xl">
-                  Protótipo inicial com indicadores de loja: meta do ciclo, realizado, déficit, itens por boleto, boleto médio, skin e serviços.
-                </p>
-              </div>
-            </div>
-            <div className="bg-[#fcfbf7] border border-gray-100 rounded-2xl px-4 py-3">
-              <p className="text-[10px] uppercase font-black text-gray-400">Status do modelo</p>
-              <p className="text-sm font-black text-[#048187] mt-1">Layout conceitual com dados exemplo</p>
-            </div>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <CardLoja titulo="Meta Ciclo" valor={formatarMoeda(resumo.realizado)} meta={formatarMoeda(resumo.metaCiclo)} percentual={resumo.percentual} icone={BadgeDollarSign} subtitulo={`Déficit: ${formatarMoeda(resumo.deficit)}`} />
           <CardLoja titulo="Itens por Boleto" valor={formatarNumeroBR(resumo.itensPorBoletoReal, 2)} meta={formatarNumeroBR(resumo.itensPorBoletoMeta, 0)} percentual={calcPerc(resumo.itensPorBoletoReal, resumo.itensPorBoletoMeta)} icone={FileSpreadsheet} subtitulo="Acompanha quantidade média de itens por boleto." />
@@ -3606,23 +3596,27 @@ const enviarArquivo = async (tipo) => {
           <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
-                <h2 className="text-lg font-black text-gray-700">Realizado por PVD</h2>
-                <p className="text-xs text-gray-400 font-bold">Comparativo entre meta, realizado e déficit.</p>
+                <h2 className="text-lg font-black text-gray-700">Vendas por dia</h2>
+                <p className="text-xs text-gray-400 font-bold">Exemplo de evolução diária do canal loja.</p>
               </div>
-              <span className="text-xs font-black text-[#048187]">{pvdLoja.length} PVDs</span>
+              <span className="text-xs font-black text-[#048187]">Exemplo</span>
             </div>
             <div className="h-[300px] min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pvdLoja} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
+                <AreaChart data={vendasDiaLoja} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradVendasLojaDia" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#048187" stopOpacity={0.28} />
+                      <stop offset="95%" stopColor="#048187" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f4" />
-                  <XAxis dataKey="pvd" tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 700 }} />
+                  <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 700 }} />
                   <YAxis tickFormatter={(v) => `R$${Math.round(v / 1000)}k`} tick={{ fontSize: 11, fill: '#6b7280' }} />
                   <Tooltip formatter={(v) => formatarMoeda(v)} />
-                  <Bar dataKey="realizado" name="Realizado" fill="#048187" radius={[8, 8, 0, 0]}>
-                    <LabelList dataKey="percentual" position="top" formatter={(v) => `${formatarNumeroBR(v, 1)}%`} fontSize={10} fill="#048187" />
-                  </Bar>
-                  <Bar dataKey="deficit" name="Déficit" fill="#7c1f31" radius={[8, 8, 0, 0]} />
-                </BarChart>
+                  <Area type="monotone" dataKey="realizado" name="Realizado" stroke="#048187" strokeWidth={3} fill="url(#gradVendasLojaDia)" dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Area type="monotone" dataKey="meta" name="Meta diária" stroke="#7c1f31" strokeWidth={2} strokeDasharray="5 5" fill="transparent" dot={false} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -3739,6 +3733,11 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'Perfil') return renderTelaPerfil();
     return null;
   };
+
+  const cicloTopoAtual = dados?.ciclo_atual
+    || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
+    || ciclos?.[0]?.ciclo
+    || '';
 
   if (!usuarioLogado) {
     return (
@@ -4013,7 +4012,7 @@ const enviarArquivo = async (tipo) => {
           <div className="p-4 sm:p-6 xl:p-8 pb-24 md:pb-8">
             <header className="mb-6 xl:mb-8 w-full bg-[#5bb2b4] min-h-12 rounded-full flex justify-between items-center px-4 sm:px-6 text-white shadow-sm gap-4">
               <span className="bg-white text-[#048187] font-extrabold text-xs sm:text-sm px-4 py-1 rounded-full uppercase tracking-wide whitespace-nowrap">
-                {dados?.ciclo_atual ? `CICLO ${dados.ciclo_atual}` : 'SEM CICLO'}
+                {cicloTopoAtual ? `CICLO ${cicloTopoAtual}` : 'SEM CICLO'}
               </span>
               <div className="flex items-center gap-3 sm:gap-5 min-w-0">
                 {(telaAtual === 'Dashboard' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores') && (
