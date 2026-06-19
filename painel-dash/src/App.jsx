@@ -2042,17 +2042,17 @@ const enviarArquivo = async (tipo) => {
       ? 'Resumo da estrutura e resultado individual dos consultores.'
       : 'Resumo da estrutura e resultado consolidado da equipe.';
     const IndicadorMetaRealizado = ({ titulo, meta, realizado, corRealizado = 'text-gray-700', rodape = '' }) => (
-      <div className="bg-white border border-gray-100 rounded-xl p-3 min-w-[160px]">
-        <p className="text-[10px] uppercase font-black tracking-wide text-gray-400">{titulo}</p>
+      <div className="w-[92px] sm:w-[96px] shrink-0">
+        <p className="text-[10px] uppercase font-black tracking-wide text-gray-400 truncate">{titulo}</p>
+        <div className="mt-1">
+          <p className="text-[9px] uppercase font-black text-gray-400">Meta</p>
+          <p className="text-[12px] sm:text-[13px] font-black text-gray-700 leading-tight mt-0.5 break-words">{meta}</p>
+        </div>
         <div className="mt-2">
-          <p className="text-[10px] uppercase font-black text-gray-400">Meta</p>
-          <p className="text-sm font-black text-gray-700 leading-tight mt-1">{meta}</p>
+          <p className="text-[9px] uppercase font-black text-gray-400">Realizado</p>
+          <p className={`text-[12px] sm:text-[13px] font-black leading-tight mt-0.5 break-words ${corRealizado}`}>{realizado}</p>
         </div>
-        <div className="mt-2 pt-2 border-t border-gray-100">
-          <p className="text-[10px] uppercase font-black text-gray-400">Realizado</p>
-          <p className={`text-sm font-black leading-tight mt-1 ${corRealizado}`}>{realizado}</p>
-        </div>
-        {rodape ? <p className="text-[10px] font-bold text-gray-400 mt-2 leading-tight">{rodape}</p> : null}
+        {rodape ? <p className="text-[9px] font-bold text-gray-400 mt-1.5 leading-tight">{rodape}</p> : null}
       </div>
     );
 
@@ -2412,7 +2412,8 @@ const enviarArquivo = async (tipo) => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                      <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#e5e7eb transparent' }}>
+                        <div className="flex items-start gap-4 min-w-max text-xs">
                         <IndicadorMetaRealizado
                           titulo="Faturamento"
                           meta={formatarAbrev(faturamentoMeta)}
@@ -2462,6 +2463,7 @@ const enviarArquivo = async (tipo) => {
                           corRealizado="text-gray-700"
                           rodape={`${formatarNumeroBR(calcPerc(upaRealizadoItem, Number(detalheMeta?.meta?.upa || 0)), 1)}% da meta`}
                         />
+                        </div>
                       </div>
                     </div>
                   );
