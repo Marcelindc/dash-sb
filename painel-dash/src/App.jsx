@@ -409,6 +409,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const [mensagem, setMensagem] = useState('');
   const [erro, setErro] = useState('');
   const [avisoEstrutura, setAvisoEstrutura] = useState(null);
+  const [mostrarListaEstruturasMeta, setMostrarListaEstruturasMeta] = useState(false);
 
   const cicloConsulta = form.ciclo || cicloPadrao || '';
 
@@ -453,6 +454,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     setForm({ ...metaRealVazia, ciclo: cicloManter || cicloPadrao || form.ciclo || '' });
     setBusca('');
     setAvisoEstrutura(null);
+    setMostrarListaEstruturasMeta(false);
   };
 
   const normalizarEstruturaMeta = (valor) => String(valor || '').trim().toLowerCase();
@@ -506,6 +508,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       estruturas: [...atual.estruturas, { cod_estrutura: cod, estrutura }]
     }));
     setBusca('');
+    setMostrarListaEstruturasMeta(false);
     notificarEstruturaAdicionada(estrutura);
   };
 
@@ -613,10 +616,10 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const estruturasFiltradas = estruturas
     .filter((e) => {
       const termo = busca.toLowerCase().trim();
-      if (!termo) return false;
+      if (!termo) return true;
       return String(e.estrutura || '').toLowerCase().includes(termo) || String(e.cod_estrutura || '').toLowerCase().includes(termo);
     })
-    .slice(0, 8);
+    .slice(0, 40);
 
   if (!aberto) return null;
 
@@ -692,28 +695,52 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
             <div>
               <label className="text-xs font-black text-gray-400 uppercase block mb-1">Estruturas vinculadas</label>
-              <div className="relative">
+              <div
+                className="relative"
+                onBlur={() => {
+                  setTimeout(() => setMostrarListaEstruturasMeta(false), 180);
+                }}
+              >
                 <Search size={16} className="absolute left-3 top-3.5 text-gray-400" />
-                <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código ou nome da estrutura" className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]" />
-                {busca && estruturasFiltradas.length > 0 && (
-                  <div className="absolute z-10 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
-                    {estruturasFiltradas.map((e) => {
-                      const estrutura = String(e.estrutura || '').trim();
-                      const cod = String(e.cod_estrutura || estrutura.split('-')[0] || '').trim();
-                      const jaCadastrada = estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod);
+                <input
+                  value={busca}
+                  onFocus={() => setMostrarListaEstruturasMeta(true)}
+                  onClick={() => setMostrarListaEstruturasMeta(true)}
+                  onChange={(e) => {
+                    setBusca(e.target.value);
+                    setMostrarListaEstruturasMeta(true);
+                  }}
+                  placeholder="Buscar por código ou nome da estrutura"
+                  className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]"
+                />
+                {mostrarListaEstruturasMeta && (
+                  <div className="absolute z-10 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
+                    {estruturasFiltradas.length > 0 ? (
+                      estruturasFiltradas.map((e) => {
+                        const estrutura = String(e.estrutura || '').trim();
+                        const cod = String(e.cod_estrutura || estrutura.split('-')[0] || '').trim();
+                        const jaCadastrada = estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod);
 
-                      return (
-                        <button
-                          key={`${e.cod_estrutura}-${e.estrutura}`}
-                          type="button"
-                          onClick={() => adicionarEstrutura(e)}
-                          className={`w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] font-bold flex items-center justify-between gap-3 ${jaCadastrada ? 'text-[#7c1f31] bg-[#7c1f31]/5' : 'text-gray-600'}`}
-                        >
-                          <span className="truncate">{e.estrutura}</span>
-                          {jaCadastrada && <span className="shrink-0 text-[10px] font-black uppercase bg-[#7c1f31] text-white rounded-full px-2 py-1">Já cadastrada</span>}
-                        </button>
-                      );
-                    })}
+                        return (
+                          <button
+                            key={`${e.cod_estrutura}-${e.estrutura}`}
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => adicionarEstrutura(e)}
+                            className={`w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] font-bold flex items-center justify-between gap-3 ${jaCadastrada ? 'text-[#7c1f31] bg-[#7c1f31]/5' : 'text-gray-600'}`}
+                          >
+                            <span className="truncate">{e.estrutura}</span>
+                            <span className={`shrink-0 text-[10px] font-black uppercase rounded-full px-2 py-1 ${jaCadastrada ? 'bg-[#7c1f31] text-white' : 'bg-[#048187] text-white'}`}>
+                              {jaCadastrada ? 'Já cadastrada' : 'Disponível'}
+                            </span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-4 py-3 text-sm font-bold text-gray-400">
+                        Nenhuma estrutura encontrada.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
