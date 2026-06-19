@@ -11,6 +11,7 @@ const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
 const TELA_ATUAL_STORAGE_KEY = 'dashSbTelaAtual';
 const VISAO_METAS_STORAGE_KEY = 'dashSbVisaoMetas';
 const ESTRUTURA_META_STORAGE_KEY = 'dashSbEstruturaMeta';
+const CANAL_ATUAL_STORAGE_KEY = 'dashSbCanalAtual';
 const APP_NAME = 'DASH COMERCIAL SB';
 
 const aplicarTokenAxios = (token) => {
@@ -26,9 +27,9 @@ const CORES_ESTRUTURA = ['#048187', '#15956B', '#5BB2B4', '#257B9C', '#56549E', 
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
-  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
+  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'Configurações', 'Perfil'],
+  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Loja', 'Perfil'],
+  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Loja', 'Perfil']
 };
 
 const obterNomeAba = (nome) => ({
@@ -36,10 +37,11 @@ const obterNomeAba = (nome) => ({
   Metas: 'Metas Estruturas',
   N1: 'N1',
   N2: 'N2',
+  Loja: 'LOJA',
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -715,6 +717,10 @@ export default function App() {
   const [telaAtual, setTelaAtual] = useState(() => {
     const telaSalva = localStorage.getItem(TELA_ATUAL_STORAGE_KEY);
     return telaSalva && ABAS_SISTEMA.includes(telaSalva) ? telaSalva : 'Dashboard';
+  });
+  const [canalAtual, setCanalAtual] = useState(() => {
+    const canalSalvo = localStorage.getItem(CANAL_ATUAL_STORAGE_KEY);
+    return ['VD', 'LOJA'].includes(canalSalvo) ? canalSalvo : 'VD';
   }); const [sidebarExpandida, setSidebarExpandida] = useState(true); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => localStorage.getItem(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   
@@ -767,6 +773,11 @@ export default function App() {
 
   useEffect(() => {
     if (!usuarioLogado) return;
+    localStorage.setItem(CANAL_ATUAL_STORAGE_KEY, canalAtual);
+  }, [usuarioLogado, canalAtual]);
+
+  useEffect(() => {
+    if (!usuarioLogado) return;
     localStorage.setItem(VISAO_METAS_STORAGE_KEY, visaoMetas);
   }, [usuarioLogado, visaoMetas]);
 
@@ -811,6 +822,23 @@ export default function App() {
   const itensMenuTopo = [
     { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
   ];
+
+  const itensMenuVD = itensMenuTopo;
+
+  const navegarParaTelaVD = (nomeTela) => {
+    setCanalAtual('VD');
+    setTelaAtual(nomeTela);
+  };
+
+  const navegarParaLoja = () => {
+    setCanalAtual('LOJA');
+    setTelaAtual('Loja');
+  };
+
+  const abrirCanalVD = () => {
+    setCanalAtual('VD');
+    if (telaAtual === 'Loja') setTelaAtual('Dashboard');
+  };
 
   const carregarPermissoesDoBanco = async () => {
     try {
@@ -1148,6 +1176,7 @@ const carregarRevendedores = async () => {
           localStorage.removeItem(TELA_ATUAL_STORAGE_KEY);
           localStorage.removeItem(VISAO_METAS_STORAGE_KEY);
           localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
+          localStorage.removeItem(CANAL_ATUAL_STORAGE_KEY);
           aplicarTokenAxios(null);
           setUsuarioLogado(null);
           setTokenAuth('');
@@ -1237,6 +1266,7 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Revendedores') return carregarRevendedores();
     if (telaAtual === 'Base') return carregarCiclos();
     if (telaAtual === 'Cadastro') return carregarListaConsultores();
+    if (telaAtual === 'Loja') return Promise.resolve();
     if (telaAtual === 'Configurações') return carregarUsuarios();
   };
 
@@ -1397,9 +1427,11 @@ const carregarRevendedores = async () => {
       localStorage.setItem('usuarioLogado', JSON.stringify(usuario));
       localStorage.setItem(TOKEN_STORAGE_KEY, token);
       localStorage.setItem(TELA_ATUAL_STORAGE_KEY, 'Dashboard');
+      localStorage.setItem(CANAL_ATUAL_STORAGE_KEY, 'VD');
       localStorage.setItem(VISAO_METAS_STORAGE_KEY, 'estruturas');
       localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
       await carregarPermissoesDoBanco();
+      setCanalAtual('VD');
       setTelaAtual('Dashboard');
       setVisaoMetas('estruturas');
       setEstruturaSelecionada('');
@@ -1416,9 +1448,11 @@ const carregarRevendedores = async () => {
     localStorage.removeItem(TELA_ATUAL_STORAGE_KEY);
     localStorage.removeItem(VISAO_METAS_STORAGE_KEY);
     localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
+    localStorage.removeItem(CANAL_ATUAL_STORAGE_KEY);
     aplicarTokenAxios(null);
     setTokenAuth('');
     setUsuarioLogado(null);
+    setCanalAtual('VD');
     setTelaAtual('Dashboard');
     setVisaoMetas('estruturas');
     setEstruturaSelecionada('');
@@ -3400,6 +3434,29 @@ const enviarArquivo = async (tipo) => {
     );
   };
 
+  const renderTelaLoja = () => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 sm:p-10">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div>
+          <div className="w-14 h-14 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center mb-4">
+            <LayoutDashboard size={28} />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-gray-700">LOJA</h1>
+          <p className="text-sm text-gray-400 mt-2 max-w-2xl">
+            Área reservada para os dashboards e rotinas do canal Loja. As abas internas deste módulo serão criadas no próximo passo.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={abrirCanalVD}
+          className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:bg-[#036b70] transition-colors"
+        >
+          Voltar para VD
+        </button>
+      </div>
+    </div>
+  );
+
   const renderContent = () => {
     if (telaAtual === 'Dashboard') return renderTelaDashboard();
     if (telaAtual === 'Metas') return renderTelaMetas();
@@ -3411,6 +3468,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'Revendedores') return renderTelaRevendedores();
     if (telaAtual === 'Base') return renderTelaBase();
     if (telaAtual === 'Cadastro') return renderTelaCadastro();
+    if (telaAtual === 'Loja') return renderTelaLoja();
     if (telaAtual === 'Configurações') return renderTelaConfiguracoes();
     if (telaAtual === 'Perfil') return renderTelaPerfil();
     return null;
@@ -3521,21 +3579,50 @@ const enviarArquivo = async (tipo) => {
             )}
           </div>
           <nav className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} flex-1 overflow-y-auto`}>
-            {itensMenuTopo.map((item) => {
-              if (!usuarioPodeAcessar(item.nome)) return null;
-              const Icone = item.icone; const ativo = telaAtual === item.nome;
-              return (
-                <button
-                  key={item.nome}
-                  onClick={() => setTelaAtual(item.nome)}
-                  title={obterNomeAba(item.nome)}
-                  className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
-                >
-                  <Icone size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                  {sidebarExpandida && <span>{obterNomeAba(item.nome)}</span>}
-                </button>
-              );
-            })}
+            <div className={`${sidebarExpandida ? 'space-y-2' : 'space-y-2'}`}>
+              <button
+                type="button"
+                onClick={abrirCanalVD}
+                title="VD"
+                className={`${sidebarExpandida ? 'w-full justify-between gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-black transition-colors ${canalAtual === 'VD' ? 'bg-[#048187] text-white shadow-lg shadow-[#048187]/20' : 'text-gray-300 hover:bg-white/10'}`}
+              >
+                <span className="flex items-center gap-3 min-w-0">
+                  <BarChart2 size={sidebarExpandida ? 20 : 22} />
+                  {sidebarExpandida && <span>VD</span>}
+                </span>
+                {sidebarExpandida && <ChevronRight size={16} className={`${canalAtual === 'VD' ? 'rotate-90' : ''} transition-transform`} />}
+              </button>
+
+              <button
+                type="button"
+                onClick={navegarParaLoja}
+                title="LOJA"
+                className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-black transition-colors ${canalAtual === 'LOJA' || telaAtual === 'Loja' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+              >
+                <LayoutDashboard size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+                {sidebarExpandida && <span>LOJA</span>}
+              </button>
+            </div>
+
+            {canalAtual === 'VD' && (
+              <div className={`${sidebarExpandida ? 'mt-3 pl-2 space-y-2 border-l border-white/10' : 'mt-3 space-y-2'}`}>
+                {itensMenuVD.map((item) => {
+                  if (!usuarioPodeAcessar(item.nome)) return null;
+                  const Icone = item.icone; const ativo = telaAtual === item.nome;
+                  return (
+                    <button
+                      key={item.nome}
+                      onClick={() => navegarParaTelaVD(item.nome)}
+                      title={obterNomeAba(item.nome)}
+                      className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                    >
+                      <Icone size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+                      {sidebarExpandida && <span>{obterNomeAba(item.nome)}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </nav>
           <div className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} border-t border-white/10`}>
             <button
@@ -3569,10 +3656,10 @@ const enviarArquivo = async (tipo) => {
 
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-white/10 z-40 px-2 py-2">
           <div className="flex items-center justify-around gap-1">
-            {[...itensMenuTopo, { nome: 'Perfil', icone: User }].map((item) => {
+            {[...itensMenuVD, { nome: 'Loja', icone: LayoutDashboard }, { nome: 'Perfil', icone: User }].map((item) => {
               if (!usuarioPodeAcessar(item.nome)) return null;
               const Icone = item.icone; const ativo = telaAtual === item.nome;
-              return (<button key={item.nome} onClick={() => setTelaAtual(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}><Icone size={18} /><span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
+              return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}><Icone size={18} /><span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
             })}
           </div>
         </div>
