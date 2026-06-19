@@ -150,13 +150,15 @@ const TooltipGrafico = ({ active, payload }) => {
 };
 
 const CardMetaNova = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpandir }) => {
-  const percFix = Math.min(Number(percentual || 0), 100);
+  const percentualNumero = Number(percentual || 0);
+  const percFix = Math.min(percentualNumero, 100);
+  const corDesempenho = percentual !== undefined ? corPorFaixaMeta(percentualNumero) : '#048187';
   return (
     <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full min-w-0 transition-all hover:shadow-md">
       <div className="min-w-0">
         <div className="flex items-center justify-between mb-1 min-w-0"><h3 className="text-[10px] sm:text-[11px] font-bold uppercase text-gray-400 truncate pr-1 tracking-wide">{titulo}</h3>{onClickExpandir && (<button type="button" onClick={onClickExpandir} className="text-[#048187] hover:text-[#036b70] bg-[#e6f6f7] p-1.5 rounded-full shrink-0 transition-colors"><Eye size={14} /></button>)}</div>
-        <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#048187] tracking-tighter truncate leading-tight mt-1">{valor}</p>
-        {percentual !== undefined && (<div className="mt-2"><p className="text-[10px] sm:text-[11px] font-bold text-[#048187] truncate mb-1.5">{Number(percentual || 0).toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span></p><div className="w-full bg-gray-100 h-1.5 rounded-full"><div className="bg-[#048187] h-1.5 rounded-full" style={{ width: `${percFix}%` }} /></div></div>)}
+        <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tighter truncate leading-tight mt-1" style={{ color: corDesempenho }}>{valor}</p>
+        {percentual !== undefined && (<div className="mt-2"><p className="text-[10px] sm:text-[11px] font-bold truncate mb-1.5" style={{ color: corDesempenho }}>{percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span></p><div className="w-full bg-gray-100 h-1.5 rounded-full"><div className="h-1.5 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} /></div></div>)}
       </div>
       <div className="mt-4 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-3"><p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p><p className="text-xs sm:text-sm font-bold text-gray-700 truncate">{valorMeta}</p></div>
     </div>
@@ -164,13 +166,18 @@ const CardMetaNova = ({ titulo, valor, percentual, labelMeta, valorMeta, onClick
 };
 
 const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpandir, isTendencia, tendenciaIcon: TIcon, tendenciaStatus }) => {
-  const percFix = Math.min(Number(percentual || 0), 100);
+  const percentualNumero = Number(percentual || 0);
+  const percFix = Math.min(percentualNumero, 100);
+  const corDesempenho = isTendencia
+    ? (percentualNumero >= 100 ? '#16a34a' : '#ef4444')
+    : (percentual !== undefined ? corPorFaixaMeta(percentualNumero) : '#048187');
+
   return (
     <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full min-w-0 transition-all hover:shadow-md">
       <div className="min-w-0">
         <div className="flex items-center justify-between mb-0.5 min-w-0"><h3 className="text-[10px] font-bold uppercase text-gray-500 truncate pr-1">{titulo}</h3>{onClickExpandir && <button type="button" onClick={onClickExpandir} className="text-[#048187] hover:text-[#036b70] shrink-0"><Eye size={14} /></button>}</div>
-        <div className="flex items-center gap-1 min-w-0"><p className={`text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tighter truncate leading-tight ${isTendencia ? (percentual >= 100 ? 'text-green-600' : 'text-red-500') : 'text-[#048187]'}`}>{valor}</p>{isTendencia && TIcon && <TIcon size={16} className={`shrink-0 ${percentual >= 100 ? 'text-green-600' : 'text-red-500'}`} />}</div>
-        {percentual !== undefined && (<div className="mt-1">{isTendencia ? (<p className={`text-[9px] font-bold truncate mb-1 ${percentual >= 100 ? 'text-green-600' : 'text-red-500'}`}>{tendenciaStatus}</p>) : (<p className="text-[9px] font-bold text-[#048187] truncate mb-1">{Number(percentual || 0).toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span></p>)}<div className="w-full bg-gray-100 h-1 rounded-full"><div className={`h-1 rounded-full ${isTendencia ? (percentual >= 100 ? 'bg-green-600' : 'bg-red-500') : 'bg-[#048187]'}`} style={{ width: `${percFix}%` }} /></div></div>)}
+        <div className="flex items-center gap-1 min-w-0"><p className="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tighter truncate leading-tight" style={{ color: corDesempenho }}>{valor}</p>{isTendencia && TIcon && <TIcon size={16} className="shrink-0" style={{ color: corDesempenho }} />}</div>
+        {percentual !== undefined && (<div className="mt-1">{isTendencia ? (<p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{tendenciaStatus}</p>) : (<p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span></p>)}<div className="w-full bg-gray-100 h-1 rounded-full"><div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} /></div></div>)}
       </div>
       <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-2"><p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p><p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta}</p></div>
     </div>
@@ -1793,6 +1800,16 @@ const enviarArquivo = async (tipo) => {
     if (carregandoDashboard && !dados) return <DashboardSkeletons />;
     if (!dados) return (<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8"><p className="text-gray-400">Nenhum dado carregado.</p></div>);
     const pTot = calcPerc(dados.valor_total, metaFaturamentoDashboard); const pDia = Number(dados.percentual_meta_diaria || 0); const pMk = Number(dados.percentual_make || 0); const pCb = Number(dados.percentual_cabelo || 0); const tPos = Number(dados.gap_tendencia || 0) >= 0;
+    const corMakeDashboard = corPorFaixaMeta(pMk);
+    const corCabeloDashboard = corPorFaixaMeta(pCb);
+    const corAtividadeDashboard = corPorFaixaMeta(Number(dados.percentual_atividade_geral || 0));
+    const rpaDashboard = dados.revendedores_ativados > 0 ? dados.valor_total / dados.revendedores_ativados : 0;
+    const tktDashboard = dados.total_pedidos > 0 ? dados.valor_total / dados.total_pedidos : 0;
+    const upaDashboard = dados.revendedores_ativados > 0 ? (dados.total_itens || 0) / dados.revendedores_ativados : 0;
+    const resumoMetasDashboard = obterResumoMetasAtual();
+    const corRpaDashboard = corPorFaixaMeta(calcPerc(rpaDashboard, resumoMetasDashboard?.meta_rpa_geral));
+    const corTktDashboard = corPorFaixaMeta(calcPerc(tktDashboard, resumoMetasDashboard?.meta_tkt_medio_geral));
+    const corUpaDashboard = corPorFaixaMeta(calcPerc(upaDashboard, resumoMetasDashboard?.meta_upa_geral));
     const mCap = [...(dados.meios_captacao || [])].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)); const rMar = [...(dados.realizado_por_marca || [])].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)); const rEst = [...(dados.realizado_por_estrutura || [])].sort((a, b) => Number(b.ValorPraticado || 0) - Number(a.ValorPraticado || 0)); const vCan = [...(dados.vendas_por_canal || [])].sort((a, b) => Number(b.receita_total || 0) - Number(a.receita_total || 0));
     const tCap = mCap.reduce((acc, curr) => acc + Number(curr.value || 0), 0); const altEst = Math.max(300, rEst.length * 48);
     const consDataDash = [...(dados.realizado_por_consultor || [])].sort((a, b) => Number(b.ValorPraticado || 0) - Number(a.ValorPraticado || 0));
@@ -1814,17 +1831,17 @@ const enviarArquivo = async (tipo) => {
           <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-transform hover:shadow-md">
             <h3 className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Indicadores</h3>
             <div className="space-y-1.5">
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('MAKE')} className="w-full bg-[#048187] text-white rounded px-2 py-1 flex justify-between items-center hover:bg-[#036b70] transition-colors min-w-0"><span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMk.toFixed(1)}%</span></button>
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('CABELO')} className="w-full bg-[#712231] text-white rounded px-2 py-1 flex justify-between items-center hover:bg-[#5d1b28] transition-colors min-w-0"><span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pCb.toFixed(1)}%</span></button>
-              <button type="button" onClick={abrirDetAtiv} className="w-full bg-[#F97316] text-white rounded px-2 py-1 flex justify-between items-center hover:bg-orange-600 transition-colors min-w-0"><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></button>
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('MAKE')} className="w-full text-white rounded px-2 py-1 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMakeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMk.toFixed(1)}%</span></button>
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('CABELO')} className="w-full text-white rounded px-2 py-1 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corCabeloDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pCb.toFixed(1)}%</span></button>
+              <button type="button" onClick={abrirDetAtiv} className="w-full text-white rounded px-2 py-1 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corAtividadeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></button>
             </div>
           </div>
           <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-transform hover:shadow-md">
             <h3 className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Desempenho</h3>
             <div className="space-y-1.5">
-              <button type="button" onClick={() => abrirDetDesempenhoDashboard('RPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">RPA</span><span className="text-[9px] sm:text-[10px] font-bold text-[#048187] shrink-0">{formatarMoeda(dados.revendedores_ativados > 0 ? dados.valor_total / dados.revendedores_ativados : 0)}</span></button>
-              <button type="button" onClick={() => abrirDetDesempenhoDashboard('TKT')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">TKT MÉD.</span><span className="text-[9px] sm:text-[10px] font-bold text-[#048187] shrink-0">{formatarMoeda(dados.total_pedidos > 0 ? dados.valor_total / dados.total_pedidos : 0)}</span></button>
-              <button type="button" onClick={() => abrirDetDesempenhoDashboard('UPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">UPA</span><span className="text-[9px] sm:text-[10px] font-bold text-[#048187] shrink-0">{Number(dados.revendedores_ativados > 0 ? (dados.total_itens || 0) / dados.revendedores_ativados : 0).toFixed(1)}</span></button>
+              <button type="button" onClick={() => abrirDetDesempenhoDashboard('RPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">RPA</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corRpaDashboard }}>{formatarMoeda(rpaDashboard)}</span></button>
+              <button type="button" onClick={() => abrirDetDesempenhoDashboard('TKT')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">TKT MÉD.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corTktDashboard }}>{formatarMoeda(tktDashboard)}</span></button>
+              <button type="button" onClick={() => abrirDetDesempenhoDashboard('UPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">UPA</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corUpaDashboard }}>{Number(upaDashboard).toFixed(1)}</span></button>
             </div>
           </div>
         </div>
