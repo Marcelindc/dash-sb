@@ -70,9 +70,9 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Loja', 'Perfil'],
-  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Loja', 'Perfil']
+  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'Configurações', 'Perfil'],
+  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Loja', 'LojaVisaoGeral', 'Perfil'],
+  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Loja', 'LojaVisaoGeral', 'Perfil']
 };
 
 const obterNomeAba = (nome) => ({
@@ -81,10 +81,11 @@ const obterNomeAba = (nome) => ({
   N1: 'N1',
   N2: 'N2',
   Loja: 'LOJA',
+  LojaVisaoGeral: 'Visão Geral',
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -875,7 +876,9 @@ export default function App() {
   ];
 
   const itensMenuVD = itensMenuTopo;
-  const itensMenuLoja = [];
+  const itensMenuLoja = [
+    { nome: 'LojaVisaoGeral', icone: LayoutDashboard }
+  ];
 
   const navegarParaTelaVD = (nomeTela) => {
     setCanalAtual('VD');
@@ -888,7 +891,7 @@ export default function App() {
     setCanalAtual('LOJA');
     setMenuLojaExpandido(true);
     setMenuVDExpandido(false);
-    setTelaAtual('Loja');
+    setTelaAtual('LojaVisaoGeral');
   };
 
   const alternarCanalVD = () => {
@@ -902,7 +905,7 @@ export default function App() {
     setCanalAtual('LOJA');
     setMenuLojaExpandido((atual) => !atual);
     setMenuVDExpandido(false);
-    setTelaAtual('Loja');
+    setTelaAtual('LojaVisaoGeral');
   };
 
   const abrirCanalVD = () => {
@@ -3506,28 +3509,219 @@ const enviarArquivo = async (tipo) => {
     );
   };
 
-  const renderTelaLoja = () => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 sm:p-10">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-        <div>
-          <div className="w-14 h-14 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center mb-4">
-            <IconeCanalLoja size={30} />
+  const renderTelaLoja = () => {
+    const pvdLoja = [
+      { pvd: '9071', meta: 74937, realizado: 8117.7, deficit: 66819.3, itens: 4, boleto: 260, skinMeta: 1874, skinReal: 0, servMes: 14 },
+      { pvd: '9151', meta: 48985, realizado: 8038.52, deficit: 40946.48, itens: 4, boleto: 230, skinMeta: 1224.87, skinReal: 0, servMes: 16 },
+      { pvd: '17322', meta: 117263, realizado: 19936.93, deficit: 97326.07, itens: 4, boleto: 279, skinMeta: 2931.55, skinReal: 0, servMes: 19 },
+      { pvd: '17324', meta: 56234, realizado: 9249.99, deficit: 46984.01, itens: 4, boleto: 276, skinMeta: 1405.86, skinReal: 0, servMes: 14 },
+      { pvd: '20228', meta: 52572, realizado: 8760.01, deficit: 43811.99, itens: 4, boleto: 267, skinMeta: 1314.30, skinReal: 0, servMes: 9 },
+    ].map((item) => ({ ...item, percentual: calcPerc(item.realizado, item.meta) }));
+
+    const consultoresLoja = [
+      { nome: 'MANUELA LOPES COSTA', pvd: '9071', meta: 24979, realizado: 2421.47, boleto: 269.05, itens: 2.67 },
+      { nome: 'LAYNE RAQUEL MENDONÇA PINHEIRO', pvd: '9071', meta: 24979, realizado: 3476.60, boleto: 434.57, itens: 6.62 },
+      { nome: 'NANES GOMES DOS SANTOS', pvd: '9151', meta: 16331.66, realizado: 2391.39, boleto: 239.14, itens: 2.90 },
+      { nome: 'JOSÉ GABRIEL PINHEIRO PEREIRA', pvd: '17322', meta: 22807, realizado: 4935.21, boleto: 548.76, itens: 6.11 },
+      { nome: 'ADRAYLLENA TEIXEIRA CORREA', pvd: '17322', meta: 7036, realizado: 1098.50, boleto: 366.17, itens: 2.27 },
+      { nome: 'ELIANA MARIA FONSECA CABRAL', pvd: '20228', meta: 26286, realizado: 4088.80, boleto: 448.14, itens: 4.83 },
+    ].map((item) => ({ ...item, percentual: calcPerc(item.realizado, item.meta) }));
+
+    const resumo = {
+      metaCiclo: pvdLoja.reduce((acc, item) => acc + item.meta, 0),
+      realizado: pvdLoja.reduce((acc, item) => acc + item.realizado, 0),
+      deficit: pvdLoja.reduce((acc, item) => acc + item.deficit, 0),
+      itensPorBoletoMeta: 4,
+      itensPorBoletoReal: 4.15,
+      boletoMedioMeta: 262.40,
+      boletoMedioReal: 285.90,
+      skinMeta: pvdLoja.reduce((acc, item) => acc + item.skinMeta, 0),
+      skinReal: pvdLoja.reduce((acc, item) => acc + item.skinReal, 0),
+      servicosMetaMes: 25,
+      servicosRealMes: pvdLoja.reduce((acc, item) => acc + item.servMes, 0),
+    };
+    resumo.percentual = calcPerc(resumo.realizado, resumo.metaCiclo);
+    resumo.percentualSkin = calcPerc(resumo.skinReal, resumo.skinMeta);
+    resumo.percentualServicos = calcPerc(resumo.servicosRealMes, resumo.servicosMetaMes * pvdLoja.length);
+
+    const CardLoja = ({ titulo, valor, meta, percentual, icone: Icone, subtitulo }) => {
+      const cor = corPorFaixaMeta(percentual);
+      return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 truncate">{titulo}</p>
+              <p className="text-xl sm:text-2xl font-black mt-2 truncate" style={{ color: cor }}>{valor}</p>
+            </div>
+            {Icone && (
+              <div className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0">
+                <Icone size={18} />
+              </div>
+            )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-gray-700">LOJA</h1>
-          <p className="text-sm text-gray-400 mt-2 max-w-2xl">
-            Área reservada para os dashboards e rotinas do canal Loja. As abas internas deste módulo serão criadas no próximo passo.
-          </p>
+          <div className="mt-3">
+            <div className="flex items-center justify-between gap-2 text-[10px] font-bold">
+              <span style={{ color: cor }}>{formatarNumeroBR(percentual, 1)}% da meta</span>
+              {meta && <span className="text-gray-400 truncate">Meta: {meta}</span>}
+            </div>
+            <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${Math.min(Number(percentual || 0), 100)}%`, backgroundColor: cor }} />
+            </div>
+          </div>
+          {subtitulo && <p className="text-[11px] text-gray-400 font-bold mt-3 leading-relaxed">{subtitulo}</p>}
         </div>
-        <button
-          type="button"
-          onClick={abrirCanalVD}
-          className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:bg-[#036b70] transition-colors"
-        >
-          Voltar para VD
-        </button>
+      );
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-7">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0">
+                <IconeCanalLoja size={30} />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-black text-gray-700">LOJA • Visão Geral</h1>
+                <p className="text-sm text-gray-400 mt-1 max-w-3xl">
+                  Protótipo inicial com indicadores de loja: meta do ciclo, realizado, déficit, itens por boleto, boleto médio, skin e serviços.
+                </p>
+              </div>
+            </div>
+            <div className="bg-[#fcfbf7] border border-gray-100 rounded-2xl px-4 py-3">
+              <p className="text-[10px] uppercase font-black text-gray-400">Status do modelo</p>
+              <p className="text-sm font-black text-[#048187] mt-1">Layout conceitual com dados exemplo</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <CardLoja titulo="Meta Ciclo" valor={formatarMoeda(resumo.realizado)} meta={formatarMoeda(resumo.metaCiclo)} percentual={resumo.percentual} icone={BadgeDollarSign} subtitulo={`Déficit: ${formatarMoeda(resumo.deficit)}`} />
+          <CardLoja titulo="Itens por Boleto" valor={formatarNumeroBR(resumo.itensPorBoletoReal, 2)} meta={formatarNumeroBR(resumo.itensPorBoletoMeta, 0)} percentual={calcPerc(resumo.itensPorBoletoReal, resumo.itensPorBoletoMeta)} icone={FileSpreadsheet} subtitulo="Acompanha quantidade média de itens por boleto." />
+          <CardLoja titulo="Boleto Médio" valor={formatarMoeda(resumo.boletoMedioReal)} meta={formatarMoeda(resumo.boletoMedioMeta)} percentual={calcPerc(resumo.boletoMedioReal, resumo.boletoMedioMeta)} icone={Trophy} subtitulo="Valor médio realizado por boleto." />
+          <CardLoja titulo="Meta Skin" valor={formatarMoeda(resumo.skinReal)} meta={formatarMoeda(resumo.skinMeta)} percentual={resumo.percentualSkin} icone={Sparkles} subtitulo={`Faltam ${formatarMoeda(Math.max(resumo.skinMeta - resumo.skinReal, 0))}`} />
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-lg font-black text-gray-700">Realizado por PVD</h2>
+                <p className="text-xs text-gray-400 font-bold">Comparativo entre meta, realizado e déficit.</p>
+              </div>
+              <span className="text-xs font-black text-[#048187]">{pvdLoja.length} PVDs</span>
+            </div>
+            <div className="h-[300px] min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={pvdLoja} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f4" />
+                  <XAxis dataKey="pvd" tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 700 }} />
+                  <YAxis tickFormatter={(v) => `R$${Math.round(v / 1000)}k`} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                  <Tooltip formatter={(v) => formatarMoeda(v)} />
+                  <Bar dataKey="realizado" name="Realizado" fill="#048187" radius={[8, 8, 0, 0]}>
+                    <LabelList dataKey="percentual" position="top" formatter={(v) => `${formatarNumeroBR(v, 1)}%`} fontSize={10} fill="#048187" />
+                  </Bar>
+                  <Bar dataKey="deficit" name="Déficit" fill="#7c1f31" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+            <h2 className="text-lg font-black text-gray-700">Serviços</h2>
+            <p className="text-xs text-gray-400 font-bold mt-1">Meta mensal por PVD e realizado consolidado.</p>
+            <div className="mt-5 bg-[#fcfbf7] rounded-2xl p-5 border border-gray-100">
+              <p className="text-[10px] uppercase font-black text-gray-400">Realizado mês</p>
+              <p className="text-3xl font-black mt-2" style={{ color: corPorFaixaMeta(resumo.percentualServicos) }}>{formatarNumeroBR(resumo.servicosRealMes, 0)}</p>
+              <p className="text-xs font-bold text-gray-400 mt-1">Meta: {formatarNumeroBR(resumo.servicosMetaMes * pvdLoja.length, 0)} serviços</p>
+              <div className="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${Math.min(resumo.percentualServicos, 100)}%`, backgroundColor: corPorFaixaMeta(resumo.percentualServicos) }} />
+              </div>
+              <p className="text-xs font-black mt-3" style={{ color: corPorFaixaMeta(resumo.percentualServicos) }}>{formatarNumeroBR(resumo.percentualServicos, 1)}% da meta</p>
+            </div>
+            <div className="mt-4 space-y-2">
+              {pvdLoja.map((item) => (
+                <div key={item.pvd} className="flex items-center justify-between gap-3 text-xs border-b border-gray-50 pb-2 last:border-0">
+                  <span className="font-black text-gray-500">PVD {item.pvd}</span>
+                  <span className="font-black text-[#048187]">{item.servMes} serviços</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-lg font-black text-gray-700">Resumo por PVD</h2>
+              <p className="text-xs text-gray-400 font-bold">Base visual para transformar a planilha em dashboard.</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase text-gray-400 border-b border-gray-100">
+                  <th className="py-3 px-2">PVD</th>
+                  <th className="py-3 px-2 text-right">Meta ciclo</th>
+                  <th className="py-3 px-2 text-right">Realizado</th>
+                  <th className="py-3 px-2 text-right">Déficit</th>
+                  <th className="py-3 px-2 text-right">% Meta</th>
+                  <th className="py-3 px-2 text-right">Itens/Boleto</th>
+                  <th className="py-3 px-2 text-right">Boleto médio</th>
+                  <th className="py-3 px-2 text-right">Meta Skin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pvdLoja.map((item) => (
+                  <tr key={item.pvd} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]">
+                    <td className="py-3 px-2 font-black text-gray-700">{item.pvd}</td>
+                    <td className="py-3 px-2 text-right font-bold text-gray-600">{formatarMoeda(item.meta)}</td>
+                    <td className="py-3 px-2 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td>
+                    <td className="py-3 px-2 text-right font-black text-[#7c1f31]">{formatarMoeda(item.deficit)}</td>
+                    <td className="py-3 px-2 text-right font-black" style={{ color: corPorFaixaMeta(item.percentual) }}>{formatarNumeroBR(item.percentual, 1)}%</td>
+                    <td className="py-3 px-2 text-right font-bold">{formatarNumeroBR(item.itens, 0)}</td>
+                    <td className="py-3 px-2 text-right font-bold">{formatarMoeda(item.boleto)}</td>
+                    <td className="py-3 px-2 text-right font-bold">{formatarMoeda(item.skinMeta)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+          <h2 className="text-lg font-black text-gray-700 mb-4">Consultoras destaque</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {consultoresLoja.map((item) => (
+              <div key={`${item.pvd}-${item.nome}`} className="border border-gray-100 rounded-2xl p-4 bg-[#fcfbf7]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="font-black text-gray-700 truncate">{item.nome}</h3>
+                    <p className="text-xs text-gray-400 font-bold mt-1">PVD {item.pvd} • Itens por boleto: {formatarNumeroBR(item.itens, 2)}</p>
+                  </div>
+                  <span className="text-sm font-black" style={{ color: corPorFaixaMeta(item.percentual) }}>{formatarNumeroBR(item.percentual, 1)}%</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
+                  <div>
+                    <p className="uppercase text-[10px] font-black text-gray-400">Meta</p>
+                    <p className="font-black text-gray-700 mt-1">{formatarMoeda(item.meta)}</p>
+                  </div>
+                  <div>
+                    <p className="uppercase text-[10px] font-black text-gray-400">Realizado</p>
+                    <p className="font-black text-[#048187] mt-1">{formatarMoeda(item.realizado)}</p>
+                  </div>
+                  <div>
+                    <p className="uppercase text-[10px] font-black text-gray-400">Boleto médio</p>
+                    <p className="font-black text-gray-700 mt-1">{formatarMoeda(item.boleto)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderContent = () => {
     if (telaAtual === 'Dashboard') return renderTelaDashboard();
@@ -3540,7 +3734,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'Revendedores') return renderTelaRevendedores();
     if (telaAtual === 'Base') return renderTelaBase();
     if (telaAtual === 'Cadastro') return renderTelaCadastro();
-    if (telaAtual === 'Loja') return renderTelaLoja();
+    if (telaAtual === 'Loja' || telaAtual === 'LojaVisaoGeral') return renderTelaLoja();
     if (telaAtual === 'Configurações') return renderTelaConfiguracoes();
     if (telaAtual === 'Perfil') return renderTelaPerfil();
     return null;
