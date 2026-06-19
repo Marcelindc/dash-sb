@@ -1955,7 +1955,8 @@ const enviarArquivo = async (tipo) => {
     if (carregandoMetas && !dadosMetas) return <DashboardSkeletons />;
     const ests = [...(dadosMetas?.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
     const estruturasFiltradasBuscaMeta = ests.filter((item) => String(item.estrutura || '').toLowerCase().includes(String(buscaEstruturaMeta || '').toLowerCase())).slice(0, 12);
-    const cons = [...(detalheMeta?.consultores || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
+    const consOriginais = [...(detalheMeta?.consultores || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
+    const possuiConsultoresDetalhados = consOriginais.length > 0;
     const vFora = detalheMeta?.vendas_fora_estrutura || [];
 
     const rpaGeral = dadosMetas?.atividade_total_geral > 0 ? dadosMetas?.realizado_total_geral / dadosMetas?.atividade_total_geral : 0;
@@ -2001,6 +2002,59 @@ const enviarArquivo = async (tipo) => {
 
     const textoFaltaMoeda = (valor) => Number(valor || 0) > 0 ? formatarMoeda(valor) : 'Meta batida';
     const textoFaltaQtd = (valor) => Number(valor || 0) > 0 ? formatarNumeroBR(valor, 0) : 'Meta batida';
+    const calcularMetaDistribuida = (metaTotal, peso, casas = 0) => {
+      const valor = Number(metaTotal || 0) * (Number(peso || 0) / 100);
+      if (casas === 0) return Math.round(valor);
+      return Number(valor.toFixed(casas));
+    };
+    const obterPesoRanking = (item) => {
+      const pesoInformado = Number(item?.peso_meta || 0);
+      if (pesoInformado > 0) return pesoInformado;
+      if (consOriginais.length > 0) return 100 / consOriginais.length;
+      return 100;
+    };
+    const nomeEquipeFallback = detalheMeta?.estrutura
+      ? (String(detalheMeta.estrutura).toUpperCase().startsWith('EQUIPE') ? String(detalheMeta.estrutura) : `EQUIPE ${detalheMeta.estrutura}`)
+      : 'EQUIPE';
+    const cons = consOriginais.length > 0
+      ? consOriginais
+      : (detalheMeta ? [{
+          id_colaborador: `estrutura-${String(detalheMeta.estrutura || 'equipe').replace(/\s+/g, '-').toLowerCase()}`,
+          nome: nomeEquipeFallback,
+          nome_exibicao: nomeEquipeFallback,
+          estrutura: detalheMeta.estrutura,
+          peso_meta: 100,
+          quantidade_pedidos: Number(detalheMeta?.quantidade_pedidos || 0),
+          meta_individual: Number(detalheMeta?.meta?.receita || 0),
+          realizado: Number(detalheMeta?.realizado || 0),
+          percentual: calcPerc(Number(detalheMeta?.realizado || 0), Number(detalheMeta?.meta?.receita || 0)),
+          atividade_realizada: atividadeDetalhe,
+          percentual_atividade: percentualAtividadeDetalhe,
+          total_itens: totalItensDetalhe,
+          make_realizado: makeDetalhe,
+          percentual_make: percentualMakeDetalhe,
+          cabelo_realizado: cabeloDetalhe,
+          percentual_cabelo: percentualCabeloDetalhe,
+          tipo_fallback_estrutura: true,
+        }]
+      : []);
+    const descricaoResumoDetalhe = possuiConsultoresDetalhados
+      ? 'Resumo da estrutura e resultado individual dos consultores.'
+      : 'Resumo da estrutura e resultado consolidado da equipe.';
+    const IndicadorMetaRealizado = ({ titulo, meta, realizado, corRealizado = 'text-gray-700', rodape = '' }) => (
+      <div className="bg-white border border-gray-100 rounded-xl p-3 min-w-[160px]">
+        <p className="text-[10px] uppercase font-black tracking-wide text-gray-400">{titulo}</p>
+        <div className="mt-2">
+          <p className="text-[10px] uppercase font-black text-gray-400">Meta</p>
+          <p className="text-sm font-black text-gray-700 leading-tight mt-1">{meta}</p>
+        </div>
+        <div className="mt-2 pt-2 border-t border-gray-100">
+          <p className="text-[10px] uppercase font-black text-gray-400">Realizado</p>
+          <p className={`text-sm font-black leading-tight mt-1 ${corRealizado}`}>{realizado}</p>
+        </div>
+        {rodape ? <p className="text-[10px] font-bold text-gray-400 mt-2 leading-tight">{rodape}</p> : null}
+      </div>
+    );
 
     const abrirDetalheFaturamentoGeralMetas = () => {
       const realizado = Number(dadosMetas?.realizado_total_geral || 0);
@@ -2258,7 +2312,7 @@ const enviarArquivo = async (tipo) => {
                     <ChevronLeft size={16} /> Voltar para estruturas
                   </button>
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-700 break-words">{detalheMeta.estrutura}</h2>
-                  <p className="text-sm text-gray-400 mt-1">Resumo da estrutura e resultado individual dos consultores.</p>
+                  <p className="text-sm text-gray-400 mt-1">{descricaoResumoDetalhe}</p>
                 </div>
                 <div className="w-full xl:w-[420px] relative">
                   <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 tracking-wide">Filtro rápido de estrutura</label>
@@ -2320,33 +2374,94 @@ const enviarArquivo = async (tipo) => {
               <div className="space-y-4">
                 {cons.map((c, idx) => {
                   const trend = obterTendenciaVisual(c.id_colaborador);
+                  const pesoConsultor = obterPesoRanking(c);
+                  const faturamentoRealizado = Number(c.realizado || 0);
+                  const faturamentoMeta = Number(c.meta_individual || 0);
+                  const atividadeRealizadaItem = Number(c.atividade_realizada || 0);
+                  const percentualAtividadeItem = Number(c.percentual_atividade || 0);
+                  const metaAtividadeItem = c.tipo_fallback_estrutura ? qtdMetaAtividadeDetalhe : calcularMetaDistribuida(qtdMetaAtividadeDetalhe, pesoConsultor, 0);
+                  const percentualMetaAtividadeItem = metaAtividadeDetalhePercentual;
+                  const makeRealizadoItem = Number(c.make_realizado || 0);
+                  const percentualMakeItem = Number(c.percentual_make || 0);
+                  const metaMakeItem = c.tipo_fallback_estrutura ? qtdMetaMakeDetalhe : calcularMetaDistribuida(qtdMetaMakeDetalhe, pesoConsultor, 0);
+                  const percentualMetaMakeItem = metaMakeDetalhePercentual;
+                  const cabeloRealizadoItem = Number(c.cabelo_realizado || 0);
+                  const percentualCabeloItem = Number(c.percentual_cabelo || 0);
+                  const metaCabeloItem = c.tipo_fallback_estrutura ? qtdMetaCabeloDetalhe : calcularMetaDistribuida(qtdMetaCabeloDetalhe, pesoConsultor, 0);
+                  const percentualMetaCabeloItem = metaCabeloDetalhePercentual;
+                  const rpaRealizadoItem = atividadeRealizadaItem > 0 ? faturamentoRealizado / atividadeRealizadaItem : 0;
+                  const ticketRealizadoItem = Number(c.quantidade_pedidos || 0) > 0 ? faturamentoRealizado / Number(c.quantidade_pedidos || 0) : 0;
+                  const upaRealizadoItem = calcularUpa(Number(c.total_itens || 0), atividadeRealizadaItem);
                   return (
                     <div key={`${c.id_colaborador}-${idx}`} className="border border-gray-100 rounded-xl p-4 bg-[#fcfbf7] min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-3 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4 min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="w-7 h-7 rounded-full bg-[#048187] text-white text-xs font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
-                          <div className="min-w-0"><h3 className="text-sm font-bold text-gray-700 truncate">{obterNomeExibicaoConsultor(c)}</h3><p className="text-xs text-gray-400 truncate">ID: {c.id_colaborador} • Peso: {Number(c.peso_meta || 0).toFixed(2)}% • Pedidos: {c.quantidade_pedidos}</p></div>
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-gray-700 truncate">{obterNomeExibicaoConsultor(c)}</h3>
+                            <p className="text-xs text-gray-400 truncate">
+                              {c.tipo_fallback_estrutura
+                                ? `Resultado consolidado da equipe • Pedidos: ${c.quantidade_pedidos || 0}`
+                                : `ID: ${c.id_colaborador} • Peso: ${Number(c.peso_meta || 0).toFixed(2)}% • Pedidos: ${c.quantidade_pedidos}`}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <p className="text-lg font-bold text-[#048187] whitespace-nowrap">{Number(c.percentual || 0).toFixed(2)}%</p>
-                          {trend.val > 0 && (trend.up ? <ArrowUpRight size={18} className="text-green-500" /> : <ArrowDownRight size={18} className="text-red-500" />)}
+                          {!c.tipo_fallback_estrutura && trend.val > 0 && (trend.up ? <ArrowUpRight size={18} className="text-green-500" /> : <ArrowDownRight size={18} className="text-red-500" />)}
                         </div>
                       </div>
-                      
-                      <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#e5e7eb transparent' }}>
-                        <div className="flex items-center gap-4 min-w-max text-xs">
-                          <div className="w-24"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">Meta</p><p className="font-bold text-gray-700 truncate">{formatarAbrev(c.meta_individual)}</p></div>
-                          <div className="w-24"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">Realizado</p><p className="font-bold text-[#048187] truncate">{formatarAbrev(c.realizado)}</p></div>
-                          <div className="w-20"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">Atividade</p><p className="font-bold text-[#048187] truncate">{c.atividade_realizada || 0}</p></div>
-                          <div className="w-20"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">% Ativ.</p><p className="font-bold text-[#F97316] truncate">{Number(c.percentual_atividade || 0).toFixed(2)}%</p></div>
-                          <div className="w-24"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">RPA</p><p className="font-bold text-gray-700 truncate">{formatarMoeda(c.atividade_realizada > 0 ? c.realizado / c.atividade_realizada : 0)}</p></div>
-                          <div className="w-24"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">Tkt Médio</p><p className="font-bold text-gray-700 truncate">{formatarMoeda(c.quantidade_pedidos > 0 ? c.realizado / c.quantidade_pedidos : 0)}</p></div>
-                          <div className="w-20"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">UPA</p><p className="font-bold text-gray-700 truncate">{Number(c.atividade_realizada > 0 ? (c.total_itens || 0) / c.atividade_realizada : 0).toFixed(1)}</p></div>
-                          <div className="w-20"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">MAKE</p><p className="font-bold text-[#048187] truncate">{c.make_realizado || 0}</p></div>
-                          <div className="w-20"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">% Make</p><p className="font-bold text-[#F97316] truncate">{Number(c.percentual_make || 0).toFixed(2)}%</p></div>
-                          <div className="w-20"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">CABELO</p><p className="font-bold text-[#712231] truncate">{c.cabelo_realizado || 0}</p></div>
-                          <div className="w-20"><p className="text-[10px] uppercase font-bold text-gray-400 truncate">% Cabelo</p><p className="font-bold text-[#712231] truncate">{Number(c.percentual_cabelo || 0).toFixed(2)}%</p></div>
-                        </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                        <IndicadorMetaRealizado
+                          titulo="Faturamento"
+                          meta={formatarAbrev(faturamentoMeta)}
+                          realizado={formatarAbrev(faturamentoRealizado)}
+                          corRealizado="text-[#048187]"
+                          rodape={`${Number(c.percentual || 0).toFixed(2)}% da meta`}
+                        />
+                        <IndicadorMetaRealizado
+                          titulo="Atividade"
+                          meta={`${formatarNumeroBR(metaAtividadeItem, 0)} rev. • ${formatarNumeroBR(percentualMetaAtividadeItem, 1)}%`}
+                          realizado={`${formatarNumeroBR(atividadeRealizadaItem, 0)} rev. • ${formatarNumeroBR(percentualAtividadeItem, 1)}%`}
+                          corRealizado="text-[#F97316]"
+                          rodape={`${formatarNumeroBR(calcPerc(percentualAtividadeItem, percentualMetaAtividadeItem), 1)}% da meta`}
+                        />
+                        <IndicadorMetaRealizado
+                          titulo="MAKE"
+                          meta={`${formatarNumeroBR(metaMakeItem, 0)} rev. • ${formatarNumeroBR(percentualMetaMakeItem, 1)}%`}
+                          realizado={`${formatarNumeroBR(makeRealizadoItem, 0)} rev. • ${formatarNumeroBR(percentualMakeItem, 1)}%`}
+                          corRealizado="text-[#048187]"
+                          rodape={`${formatarNumeroBR(calcPerc(percentualMakeItem, percentualMetaMakeItem), 1)}% da meta`}
+                        />
+                        <IndicadorMetaRealizado
+                          titulo="Cabelo"
+                          meta={`${formatarNumeroBR(metaCabeloItem, 0)} rev. • ${formatarNumeroBR(percentualMetaCabeloItem, 1)}%`}
+                          realizado={`${formatarNumeroBR(cabeloRealizadoItem, 0)} rev. • ${formatarNumeroBR(percentualCabeloItem, 1)}%`}
+                          corRealizado="text-[#712231]"
+                          rodape={`${formatarNumeroBR(calcPerc(percentualCabeloItem, percentualMetaCabeloItem), 1)}% da meta`}
+                        />
+                        <IndicadorMetaRealizado
+                          titulo="RPA"
+                          meta={formatarMoeda(Number(detalheMeta?.meta?.rpa || 0))}
+                          realizado={formatarMoeda(rpaRealizadoItem)}
+                          corRealizado="text-gray-700"
+                          rodape={`${formatarNumeroBR(calcPerc(rpaRealizadoItem, Number(detalheMeta?.meta?.rpa || 0)), 1)}% da meta`}
+                        />
+                        <IndicadorMetaRealizado
+                          titulo="Ticket Médio"
+                          meta={formatarMoeda(Number(detalheMeta?.meta?.tkt_medio || 0))}
+                          realizado={formatarMoeda(ticketRealizadoItem)}
+                          corRealizado="text-gray-700"
+                          rodape={`${formatarNumeroBR(calcPerc(ticketRealizadoItem, Number(detalheMeta?.meta?.tkt_medio || 0)), 1)}% da meta`}
+                        />
+                        <IndicadorMetaRealizado
+                          titulo="UPA"
+                          meta={formatarNumeroBR(Number(detalheMeta?.meta?.upa || 0), 1)}
+                          realizado={formatarNumeroBR(upaRealizadoItem, 1)}
+                          corRealizado="text-gray-700"
+                          rodape={`${formatarNumeroBR(calcPerc(upaRealizadoItem, Number(detalheMeta?.meta?.upa || 0)), 1)}% da meta`}
+                        />
                       </div>
                     </div>
                   );
