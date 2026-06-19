@@ -408,6 +408,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState('');
   const [erro, setErro] = useState('');
+  const [avisoEstrutura, setAvisoEstrutura] = useState(null);
 
   const cicloConsulta = form.ciclo || cicloPadrao || '';
 
@@ -441,23 +442,71 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     carregarEstruturas();
   }, [aberto]);
 
+  useEffect(() => {
+    if (!avisoEstrutura) return;
+    const timer = setTimeout(() => setAvisoEstrutura(null), 3500);
+    return () => clearTimeout(timer);
+  }, [avisoEstrutura]);
+
   const limparForm = (cicloManter = null) => {
     setEditandoId(null);
     setForm({ ...metaRealVazia, ciclo: cicloManter || cicloPadrao || form.ciclo || '' });
     setBusca('');
+    setAvisoEstrutura(null);
   };
 
-  const estruturaJaSelecionada = (estrutura) => form.estruturas.some((e) => String(e.estrutura).trim() === String(estrutura).trim());
+  const normalizarEstruturaMeta = (valor) => String(valor || '').trim().toLowerCase();
+  const estruturaJaSelecionada = (estrutura) => form.estruturas.some((e) => normalizarEstruturaMeta(e.estrutura) === normalizarEstruturaMeta(estrutura));
+
+  const estruturaJaCadastradaEmMeta = (estrutura, codEstrutura = '') => {
+    const estruturaNormalizada = normalizarEstruturaMeta(estrutura);
+    const codNormalizado = normalizarEstruturaMeta(codEstrutura || String(estrutura || '').split('-')[0]);
+
+    return metas.some((meta) => {
+      if (editandoId && String(meta.id) === String(editandoId)) return false;
+
+      return (meta.estruturas || []).some((item) => {
+        const estruturaItem = normalizarEstruturaMeta(item.estrutura);
+        const codItem = normalizarEstruturaMeta(item.cod_estrutura || String(item.estrutura || '').split('-')[0]);
+
+        return estruturaItem === estruturaNormalizada || (!!codNormalizado && codItem === codNormalizado);
+      });
+    });
+  };
+
+  const notificarEstruturaDuplicada = (estrutura = '') => {
+    setAvisoEstrutura({
+      tipo: 'erro',
+      texto: 'Estrutura já está cadastrada!',
+      detalhe: estrutura ? `A estrutura ${estrutura} já está vinculada em uma meta real deste ciclo.` : ''
+    });
+  };
+
+  const notificarEstruturaAdicionada = (estrutura = '') => {
+    setAvisoEstrutura({
+      tipo: 'sucesso',
+      texto: 'Estrutura cadastrada!',
+      detalhe: estrutura ? `${estrutura} foi vinculada à nova meta.` : ''
+    });
+  };
 
   const adicionarEstrutura = (item) => {
     const estrutura = String(item.estrutura || '').trim();
-    if (!estrutura || estruturaJaSelecionada(estrutura)) return;
     const cod = String(item.cod_estrutura || estrutura.split('-')[0] || '').trim();
+
+    if (!estrutura) return;
+
+    if (estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod)) {
+      notificarEstruturaDuplicada(estrutura);
+      return;
+    }
+
     setForm((atual) => ({
       ...atual,
       estruturas: [...atual.estruturas, { cod_estrutura: cod, estrutura }]
     }));
     setBusca('');
+    notificarEstruturaAdicionada(estrutura);
   };
 
   const removerEstrutura = (estrutura) => {
@@ -648,14 +697,32 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                 <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código ou nome da estrutura" className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]" />
                 {busca && estruturasFiltradas.length > 0 && (
                   <div className="absolute z-10 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
-                    {estruturasFiltradas.map((e) => (
-                      <button key={`${e.cod_estrutura}-${e.estrutura}`} type="button" onClick={() => adicionarEstrutura(e)} className="w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] text-gray-600 font-bold">
-                        {e.estrutura}
-                      </button>
-                    ))}
+                    {estruturasFiltradas.map((e) => {
+                      const estrutura = String(e.estrutura || '').trim();
+                      const cod = String(e.cod_estrutura || estrutura.split('-')[0] || '').trim();
+                      const jaCadastrada = estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod);
+
+                      return (
+                        <button
+                          key={`${e.cod_estrutura}-${e.estrutura}`}
+                          type="button"
+                          onClick={() => adicionarEstrutura(e)}
+                          className={`w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] font-bold flex items-center justify-between gap-3 ${jaCadastrada ? 'text-[#7c1f31] bg-[#7c1f31]/5' : 'text-gray-600'}`}
+                        >
+                          <span className="truncate">{e.estrutura}</span>
+                          {jaCadastrada && <span className="shrink-0 text-[10px] font-black uppercase bg-[#7c1f31] text-white rounded-full px-2 py-1">Já cadastrada</span>}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
+              {avisoEstrutura && (
+                <div className={`mt-3 rounded-2xl px-4 py-3 text-white shadow-sm ${avisoEstrutura.tipo === 'erro' ? 'bg-[#7c1f31]' : 'bg-[#048187]'}`}>
+                  <p className="font-black text-sm">{avisoEstrutura.texto}</p>
+                  {avisoEstrutura.detalhe && <p className="text-xs font-semibold text-white/85 mt-1">{avisoEstrutura.detalhe}</p>}
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {form.estruturas.map((e) => (
                   <span key={e.estrutura} className="inline-flex items-center gap-2 bg-[#e6f6f7] text-[#048187] rounded-full px-3 py-1.5 text-xs font-black">
