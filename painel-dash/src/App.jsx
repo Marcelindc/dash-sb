@@ -2041,20 +2041,45 @@ const enviarArquivo = async (tipo) => {
     const descricaoResumoDetalhe = possuiConsultoresDetalhados
       ? 'Resumo da estrutura e resultado individual dos consultores.'
       : 'Resumo da estrutura e resultado consolidado da equipe.';
-    const IndicadorMetaRealizado = ({ titulo, meta, realizado, corRealizado = 'text-gray-700', rodape = '' }) => (
-      <div className="w-[92px] sm:w-[96px] shrink-0">
-        <p className="text-[10px] uppercase font-black tracking-wide text-gray-400 truncate">{titulo}</p>
-        <div className="mt-1">
-          <p className="text-[9px] uppercase font-black text-gray-400">Meta</p>
-          <p className="text-[12px] sm:text-[13px] font-black text-gray-700 leading-tight mt-0.5 break-words">{meta}</p>
+    const CardIndicadorRanking = ({ titulo, meta, realizado, percentualMeta, corRealizado = 'text-[#048187]', corBarra = '#048187', onClickExpandir }) => {
+      const percentualSeguro = Number(percentualMeta || 0);
+      const percentualBarra = Math.max(0, Math.min(percentualSeguro, 100));
+      const faltaPercentual = Math.max(100 - percentualSeguro, 0);
+      return (
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] uppercase font-black tracking-wide text-gray-500">{titulo}:</p>
+            <button
+              type="button"
+              onClick={onClickExpandir}
+              className="text-[#048187] hover:text-[#026a6e] transition-colors"
+              title={`Ver detalhes de ${titulo}`}
+            >
+              <Eye size={16} />
+            </button>
+          </div>
+          <div className="mt-3 space-y-2">
+            <div>
+              <p className="text-[11px] uppercase font-black text-gray-400">Meta:</p>
+              <p className="text-[13px] sm:text-[14px] font-black text-gray-700 mt-0.5 break-words leading-tight">{meta}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase font-black text-gray-400">Realizado:</p>
+              <p className={`text-[13px] sm:text-[14px] font-black mt-0.5 break-words leading-tight ${corRealizado}`}>{realizado}</p>
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-center justify-between gap-3 text-[11px] font-semibold flex-wrap">
+              <span className="text-[#048187]">{formatarNumeroBR(percentualSeguro, 1)}% da meta</span>
+              <span className="text-red-500">{percentualSeguro >= 100 ? 'Meta batida' : `Falta ${formatarNumeroBR(faltaPercentual, 1)}%`}</span>
+            </div>
+            <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-300" style={{ width: `${percentualBarra}%`, backgroundColor: corBarra }} />
+            </div>
+          </div>
         </div>
-        <div className="mt-2">
-          <p className="text-[9px] uppercase font-black text-gray-400">Realizado</p>
-          <p className={`text-[12px] sm:text-[13px] font-black leading-tight mt-0.5 break-words ${corRealizado}`}>{realizado}</p>
-        </div>
-        {rodape ? <p className="text-[9px] font-bold text-gray-400 mt-1.5 leading-tight">{rodape}</p> : null}
-      </div>
-    );
+      );
+    };
 
     const abrirDetalheFaturamentoGeralMetas = () => {
       const realizado = Number(dadosMetas?.realizado_total_geral || 0);
@@ -2392,6 +2417,148 @@ const enviarArquivo = async (tipo) => {
                   const rpaRealizadoItem = atividadeRealizadaItem > 0 ? faturamentoRealizado / atividadeRealizadaItem : 0;
                   const ticketRealizadoItem = Number(c.quantidade_pedidos || 0) > 0 ? faturamentoRealizado / Number(c.quantidade_pedidos || 0) : 0;
                   const upaRealizadoItem = calcularUpa(Number(c.total_itens || 0), atividadeRealizadaItem);
+                  const percentualFaturamentoItem = calcPerc(faturamentoRealizado, faturamentoMeta);
+                  const faltaFaturamentoItem = Math.max(faturamentoMeta - faturamentoRealizado, 0);
+                  const percentualMetaAtividadeAtingido = calcPerc(percentualAtividadeItem, percentualMetaAtividadeItem);
+                  const faltamAtivarItem = Math.max(metaAtividadeItem - atividadeRealizadaItem, 0);
+                  const percentualMetaMakeAtingido = calcPerc(percentualMakeItem, percentualMetaMakeItem);
+                  const faltamMakeItem = Math.max(metaMakeItem - makeRealizadoItem, 0);
+                  const percentualMetaCabeloAtingido = calcPerc(percentualCabeloItem, percentualMetaCabeloItem);
+                  const faltamCabeloItem = Math.max(metaCabeloItem - cabeloRealizadoItem, 0);
+                  const metaRpaItem = Number(detalheMeta?.meta?.rpa || 0);
+                  const percentualMetaRpaAtingido = calcPerc(rpaRealizadoItem, metaRpaItem);
+                  const faturamentoNecessarioRpaItem = metaRpaItem * atividadeRealizadaItem;
+                  const faltamFaturarRpaItem = Math.max(faturamentoNecessarioRpaItem - faturamentoRealizado, 0);
+                  const metaTicketItem = Number(detalheMeta?.meta?.tkt_medio || 0);
+                  const percentualMetaTicketAtingido = calcPerc(ticketRealizadoItem, metaTicketItem);
+                  const faturamentoNecessarioTicketItem = metaTicketItem * Number(c.quantidade_pedidos || 0);
+                  const faltamFaturarTicketItem = Math.max(faturamentoNecessarioTicketItem - faturamentoRealizado, 0);
+                  const metaUpaItem = Number(detalheMeta?.meta?.upa || 0);
+                  const percentualMetaUpaAtingido = calcPerc(upaRealizadoItem, metaUpaItem);
+                  const itensNecessariosUpaItem = metaUpaItem * atividadeRealizadaItem;
+                  const faltamItensUpaItem = Math.max(itensNecessariosUpaItem - Number(c.total_itens || 0), 0);
+
+                  const abrirDetalheFaturamentoRanking = () => abrirModalValExp(
+                    `Faturamento ${obterNomeExibicaoConsultor(c)}`,
+                    formatarMoeda(faturamentoRealizado),
+                    'Detalhamento do faturamento realizado versus a meta individual.',
+                    [
+                      { label: 'Meta faturamento', valor: formatarMoeda(faturamentoMeta) },
+                      { label: 'Realizado', valor: formatarMoeda(faturamentoRealizado) },
+                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualFaturamentoItem, 1)}%` },
+                      { label: 'Faltam faturar', valor: faltaFaturamentoItem > 0 ? formatarMoeda(faltaFaturamentoItem) : 'Meta batida' },
+                    ],
+                    `${formatarMoeda(faturamentoRealizado)} ÷ ${formatarMoeda(faturamentoMeta)} = ${formatarNumeroBR(percentualFaturamentoItem, 1)}% da meta`
+                  );
+
+                  const abrirDetalheAtividadeRanking = () => abrirModalValExp(
+                    `Atividade ${obterNomeExibicaoConsultor(c)}`,
+                    `${formatarNumeroBR(percentualAtividadeItem, 1)}%`,
+                    'Atividade calculada com base na meta percentual, na base ativa da estrutura e na distribuição individual pelo peso do consultor quando aplicável.',
+                    [
+                      { label: 'Base ativa da estrutura', valor: formatarNumeroBR(baseAtivaDetalhe, 0) },
+                      { label: 'Meta atividade da estrutura', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` },
+                      { label: 'Meta em revendedores da estrutura', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) },
+                      { label: c.tipo_fallback_estrutura ? 'Meta da equipe' : 'Peso do consultor', valor: c.tipo_fallback_estrutura ? '100,00%' : `${formatarNumeroBR(pesoConsultor, 2)}%` },
+                      { label: 'Meta individual em revendedores', valor: formatarNumeroBR(metaAtividadeItem, 0) },
+                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
+                      { label: '% atividade realizado', valor: `${formatarNumeroBR(percentualAtividadeItem, 1)}%` },
+                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaAtividadeAtingido, 1)}%` },
+                      { label: 'Faltam ativar', valor: faltamAtivarItem > 0 ? `${formatarNumeroBR(faltamAtivarItem, 0)} revendedores` : 'Meta batida' },
+                    ],
+                    c.tipo_fallback_estrutura
+                      ? `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedores necessários`
+                      : `Meta individual: ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} × ${formatarNumeroBR(pesoConsultor, 2)}% = ${formatarNumeroBR(metaAtividadeItem, 0)} revendedores`
+                  );
+
+                  const abrirDetalheMakeRanking = () => abrirModalValExp(
+                    `MAKE ${obterNomeExibicaoConsultor(c)}`,
+                    `${formatarNumeroBR(percentualMakeItem, 1)}%`,
+                    'MAKE calculado pela penetração do indicador sobre os ativados, considerando a meta da estrutura e a distribuição individual quando aplicável.',
+                    [
+                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
+                      { label: 'Meta MAKE da estrutura', valor: `${formatarNumeroBR(percentualMetaMakeItem, 1)}%` },
+                      { label: 'Meta em revendedores da estrutura', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) },
+                      { label: c.tipo_fallback_estrutura ? 'Meta da equipe' : 'Peso do consultor', valor: c.tipo_fallback_estrutura ? '100,00%' : `${formatarNumeroBR(pesoConsultor, 2)}%` },
+                      { label: 'Meta individual com MAKE', valor: formatarNumeroBR(metaMakeItem, 0) },
+                      { label: 'Revendedores com MAKE', valor: formatarNumeroBR(makeRealizadoItem, 0) },
+                      { label: '% MAKE realizado', valor: `${formatarNumeroBR(percentualMakeItem, 1)}%` },
+                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaMakeAtingido, 1)}%` },
+                      { label: 'Faltam incluir MAKE', valor: faltamMakeItem > 0 ? `${formatarNumeroBR(faltamMakeItem, 0)} revendedores` : 'Meta batida' },
+                    ],
+                    c.tipo_fallback_estrutura
+                      ? `${formatarNumeroBR(atividadeRealizadaItem, 0)} ativados × ${formatarNumeroBR(percentualMetaMakeItem, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedores necessários com MAKE`
+                      : `Meta individual: ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} × ${formatarNumeroBR(pesoConsultor, 2)}% = ${formatarNumeroBR(metaMakeItem, 0)} revendedores com MAKE`
+                  );
+
+                  const abrirDetalheCabeloRanking = () => abrirModalValExp(
+                    `CABELO ${obterNomeExibicaoConsultor(c)}`,
+                    `${formatarNumeroBR(percentualCabeloItem, 1)}%`,
+                    'CABELO calculado pela penetração do indicador sobre os ativados, considerando a meta da estrutura e a distribuição individual quando aplicável.',
+                    [
+                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
+                      { label: 'Meta CABELO da estrutura', valor: `${formatarNumeroBR(percentualMetaCabeloItem, 1)}%` },
+                      { label: 'Meta em revendedores da estrutura', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) },
+                      { label: c.tipo_fallback_estrutura ? 'Meta da equipe' : 'Peso do consultor', valor: c.tipo_fallback_estrutura ? '100,00%' : `${formatarNumeroBR(pesoConsultor, 2)}%` },
+                      { label: 'Meta individual com CABELO', valor: formatarNumeroBR(metaCabeloItem, 0) },
+                      { label: 'Revendedores com CABELO', valor: formatarNumeroBR(cabeloRealizadoItem, 0) },
+                      { label: '% CABELO realizado', valor: `${formatarNumeroBR(percentualCabeloItem, 1)}%` },
+                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaCabeloAtingido, 1)}%` },
+                      { label: 'Faltam incluir CABELO', valor: faltamCabeloItem > 0 ? `${formatarNumeroBR(faltamCabeloItem, 0)} revendedores` : 'Meta batida' },
+                    ],
+                    c.tipo_fallback_estrutura
+                      ? `${formatarNumeroBR(atividadeRealizadaItem, 0)} ativados × ${formatarNumeroBR(percentualMetaCabeloItem, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedores necessários com CABELO`
+                      : `Meta individual: ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} × ${formatarNumeroBR(pesoConsultor, 2)}% = ${formatarNumeroBR(metaCabeloItem, 0)} revendedores com CABELO`
+                  );
+
+                  const abrirDetalheRpaRanking = () => abrirModalValExp(
+                    `RPA ${obterNomeExibicaoConsultor(c)}`,
+                    formatarMoeda(rpaRealizadoItem),
+                    'RPA calculado pelo faturamento realizado dividido pelos revendedores ativados.',
+                    [
+                      { label: 'Meta RPA', valor: formatarMoeda(metaRpaItem) },
+                      { label: 'RPA realizado', valor: formatarMoeda(rpaRealizadoItem) },
+                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaRpaAtingido, 1)}%` },
+                      { label: 'Faturamento realizado', valor: formatarMoeda(faturamentoRealizado) },
+                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
+                      { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessarioRpaItem) },
+                      { label: 'Faltam faturar', valor: faltamFaturarRpaItem > 0 ? formatarMoeda(faltamFaturarRpaItem) : 'Meta batida' },
+                    ],
+                    `${formatarMoeda(faturamentoRealizado)} ÷ ${formatarNumeroBR(atividadeRealizadaItem, 0)} = ${formatarMoeda(rpaRealizadoItem)} | Meta: ${formatarNumeroBR(atividadeRealizadaItem, 0)} × ${formatarMoeda(metaRpaItem)} = ${formatarMoeda(faturamentoNecessarioRpaItem)}`
+                  );
+
+                  const abrirDetalheTicketRanking = () => abrirModalValExp(
+                    `Ticket Médio ${obterNomeExibicaoConsultor(c)}`,
+                    formatarMoeda(ticketRealizadoItem),
+                    'Ticket médio calculado pelo faturamento realizado dividido pela quantidade de pedidos.',
+                    [
+                      { label: 'Meta ticket médio', valor: formatarMoeda(metaTicketItem) },
+                      { label: 'Ticket médio realizado', valor: formatarMoeda(ticketRealizadoItem) },
+                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaTicketAtingido, 1)}%` },
+                      { label: 'Faturamento realizado', valor: formatarMoeda(faturamentoRealizado) },
+                      { label: 'Quantidade de pedidos', valor: formatarNumeroBR(Number(c.quantidade_pedidos || 0), 0) },
+                      { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessarioTicketItem) },
+                      { label: 'Faltam faturar', valor: faltamFaturarTicketItem > 0 ? formatarMoeda(faltamFaturarTicketItem) : 'Meta batida' },
+                    ],
+                    `${formatarMoeda(faturamentoRealizado)} ÷ ${formatarNumeroBR(Number(c.quantidade_pedidos || 0), 0)} = ${formatarMoeda(ticketRealizadoItem)} | Meta: ${formatarNumeroBR(Number(c.quantidade_pedidos || 0), 0)} × ${formatarMoeda(metaTicketItem)} = ${formatarMoeda(faturamentoNecessarioTicketItem)}`
+                  );
+
+                  const abrirDetalheUpaRanking = () => abrirModalValExp(
+                    `UPA ${obterNomeExibicaoConsultor(c)}`,
+                    formatarNumeroBR(upaRealizadoItem, 1),
+                    'UPA calculado pelo total de itens vendidos dividido pelos revendedores ativados.',
+                    [
+                      { label: 'Meta UPA', valor: formatarNumeroBR(metaUpaItem, 1) },
+                      { label: 'UPA realizado', valor: formatarNumeroBR(upaRealizadoItem, 1) },
+                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaUpaAtingido, 1)}%` },
+                      { label: 'Itens vendidos', valor: formatarNumeroBR(Number(c.total_itens || 0), 0) },
+                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
+                      { label: 'Itens necessários', valor: formatarNumeroBR(itensNecessariosUpaItem, 0) },
+                      { label: 'Faltam itens', valor: faltamItensUpaItem > 0 ? formatarNumeroBR(faltamItensUpaItem, 0) : 'Meta batida' },
+                    ],
+                    `${formatarNumeroBR(Number(c.total_itens || 0), 0)} ÷ ${formatarNumeroBR(atividadeRealizadaItem, 0)} = ${formatarNumeroBR(upaRealizadoItem, 1)} | Meta: ${formatarNumeroBR(atividadeRealizadaItem, 0)} × ${formatarNumeroBR(metaUpaItem, 1)} = ${formatarNumeroBR(itensNecessariosUpaItem, 0)} itens`
+                  );
+
                   return (
                     <div key={`${c.id_colaborador}-${idx}`} className="border border-gray-100 rounded-xl p-4 bg-[#fcfbf7] min-w-0">
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4 min-w-0">
@@ -2412,58 +2579,70 @@ const enviarArquivo = async (tipo) => {
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#e5e7eb transparent' }}>
-                        <div className="flex items-start gap-4 min-w-max text-xs">
-                        <IndicadorMetaRealizado
+                      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+                        <CardIndicadorRanking
                           titulo="Faturamento"
                           meta={formatarAbrev(faturamentoMeta)}
                           realizado={formatarAbrev(faturamentoRealizado)}
+                          percentualMeta={percentualFaturamentoItem}
                           corRealizado="text-[#048187]"
-                          rodape={`${Number(c.percentual || 0).toFixed(2)}% da meta`}
+                          corBarra="#048187"
+                          onClickExpandir={abrirDetalheFaturamentoRanking}
                         />
-                        <IndicadorMetaRealizado
+                        <CardIndicadorRanking
                           titulo="Atividade"
                           meta={`${formatarNumeroBR(metaAtividadeItem, 0)} rev. • ${formatarNumeroBR(percentualMetaAtividadeItem, 1)}%`}
                           realizado={`${formatarNumeroBR(atividadeRealizadaItem, 0)} rev. • ${formatarNumeroBR(percentualAtividadeItem, 1)}%`}
+                          percentualMeta={percentualMetaAtividadeAtingido}
                           corRealizado="text-[#F97316]"
-                          rodape={`${formatarNumeroBR(calcPerc(percentualAtividadeItem, percentualMetaAtividadeItem), 1)}% da meta`}
+                          corBarra="#F97316"
+                          onClickExpandir={abrirDetalheAtividadeRanking}
                         />
-                        <IndicadorMetaRealizado
+                        <CardIndicadorRanking
                           titulo="MAKE"
                           meta={`${formatarNumeroBR(metaMakeItem, 0)} rev. • ${formatarNumeroBR(percentualMetaMakeItem, 1)}%`}
                           realizado={`${formatarNumeroBR(makeRealizadoItem, 0)} rev. • ${formatarNumeroBR(percentualMakeItem, 1)}%`}
+                          percentualMeta={percentualMetaMakeAtingido}
                           corRealizado="text-[#048187]"
-                          rodape={`${formatarNumeroBR(calcPerc(percentualMakeItem, percentualMetaMakeItem), 1)}% da meta`}
+                          corBarra="#048187"
+                          onClickExpandir={abrirDetalheMakeRanking}
                         />
-                        <IndicadorMetaRealizado
+                        <CardIndicadorRanking
                           titulo="Cabelo"
                           meta={`${formatarNumeroBR(metaCabeloItem, 0)} rev. • ${formatarNumeroBR(percentualMetaCabeloItem, 1)}%`}
                           realizado={`${formatarNumeroBR(cabeloRealizadoItem, 0)} rev. • ${formatarNumeroBR(percentualCabeloItem, 1)}%`}
+                          percentualMeta={percentualMetaCabeloAtingido}
                           corRealizado="text-[#712231]"
-                          rodape={`${formatarNumeroBR(calcPerc(percentualCabeloItem, percentualMetaCabeloItem), 1)}% da meta`}
+                          corBarra="#712231"
+                          onClickExpandir={abrirDetalheCabeloRanking}
                         />
-                        <IndicadorMetaRealizado
+                        <CardIndicadorRanking
                           titulo="RPA"
-                          meta={formatarMoeda(Number(detalheMeta?.meta?.rpa || 0))}
+                          meta={formatarMoeda(metaRpaItem)}
                           realizado={formatarMoeda(rpaRealizadoItem)}
+                          percentualMeta={percentualMetaRpaAtingido}
                           corRealizado="text-gray-700"
-                          rodape={`${formatarNumeroBR(calcPerc(rpaRealizadoItem, Number(detalheMeta?.meta?.rpa || 0)), 1)}% da meta`}
+                          corBarra="#257B9C"
+                          onClickExpandir={abrirDetalheRpaRanking}
                         />
-                        <IndicadorMetaRealizado
+                        <CardIndicadorRanking
                           titulo="Ticket Médio"
-                          meta={formatarMoeda(Number(detalheMeta?.meta?.tkt_medio || 0))}
+                          meta={formatarMoeda(metaTicketItem)}
                           realizado={formatarMoeda(ticketRealizadoItem)}
+                          percentualMeta={percentualMetaTicketAtingido}
                           corRealizado="text-gray-700"
-                          rodape={`${formatarNumeroBR(calcPerc(ticketRealizadoItem, Number(detalheMeta?.meta?.tkt_medio || 0)), 1)}% da meta`}
+                          corBarra="#257B9C"
+                          onClickExpandir={abrirDetalheTicketRanking}
                         />
-                        <IndicadorMetaRealizado
+                        <CardIndicadorRanking
                           titulo="UPA"
-                          meta={formatarNumeroBR(Number(detalheMeta?.meta?.upa || 0), 1)}
+                          meta={formatarNumeroBR(metaUpaItem, 1)}
                           realizado={formatarNumeroBR(upaRealizadoItem, 1)}
+                          percentualMeta={percentualMetaUpaAtingido}
                           corRealizado="text-gray-700"
-                          rodape={`${formatarNumeroBR(calcPerc(upaRealizadoItem, Number(detalheMeta?.meta?.upa || 0)), 1)}% da meta`}
+                          corBarra="#257B9C"
+                          onClickExpandir={abrirDetalheUpaRanking}
                         />
-                        </div>
                       </div>
                     </div>
                   );
