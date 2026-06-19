@@ -8,6 +8,9 @@ import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
+const TELA_ATUAL_STORAGE_KEY = 'dashSbTelaAtual';
+const VISAO_METAS_STORAGE_KEY = 'dashSbVisaoMetas';
+const ESTRUTURA_META_STORAGE_KEY = 'dashSbEstruturaMeta';
 const APP_NAME = 'DASH COMERCIAL SB';
 
 const aplicarTokenAxios = (token) => {
@@ -709,11 +712,17 @@ export default function App() {
   const [tokenAuth, setTokenAuth] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || '');
   const [emailLogin, setEmailLogin] = useState(''); const [senhaLogin, setSenhaLogin] = useState(''); const [mostrarSenha, setMostrarSenha] = useState(false); const [erroLogin, setErroLogin] = useState(''); const [carregandoLogin, setCarregandoLogin] = useState(false);
   
-  const [telaAtual, setTelaAtual] = useState('Dashboard'); const [sidebarExpandida, setSidebarExpandida] = useState(true); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
-  const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
+  const [telaAtual, setTelaAtual] = useState(() => {
+    const telaSalva = localStorage.getItem(TELA_ATUAL_STORAGE_KEY);
+    return telaSalva && ABAS_SISTEMA.includes(telaSalva) ? telaSalva : 'Dashboard';
+  }); const [sidebarExpandida, setSidebarExpandida] = useState(true); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
+  const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => localStorage.getItem(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   
   const [visaoRanking, setVisaoRanking] = useState('consultores');
-  const [visaoMetas, setVisaoMetas] = useState('estruturas');
+  const [visaoMetas, setVisaoMetas] = useState(() => {
+    const visaoSalva = localStorage.getItem(VISAO_METAS_STORAGE_KEY);
+    return ['estruturas', 'consultores'].includes(visaoSalva) ? visaoSalva : 'estruturas';
+  });
   const [buscaEstruturaMeta, setBuscaEstruturaMeta] = useState(''); const [mostrarListaEstruturaMeta, setMostrarListaEstruturaMeta] = useState(false); 
   const [dadosComp, setDadosComp] = useState(null); const [loadComp, setLoadComp] = useState(false);
 
@@ -748,6 +757,28 @@ export default function App() {
     }
     appleIcon.href = logoEmpresa;
   }, []);
+
+  useEffect(() => {
+    if (!usuarioLogado) return;
+    if (ABAS_SISTEMA.includes(telaAtual)) {
+      localStorage.setItem(TELA_ATUAL_STORAGE_KEY, telaAtual);
+    }
+  }, [usuarioLogado, telaAtual]);
+
+  useEffect(() => {
+    if (!usuarioLogado) return;
+    localStorage.setItem(VISAO_METAS_STORAGE_KEY, visaoMetas);
+  }, [usuarioLogado, visaoMetas]);
+
+  useEffect(() => {
+    if (!usuarioLogado) return;
+    if (estruturaSelecionada) {
+      localStorage.setItem(ESTRUTURA_META_STORAGE_KEY, estruturaSelecionada);
+    } else {
+      localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
+    }
+  }, [usuarioLogado, estruturaSelecionada]);
+
 
   const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState('');
 
@@ -1053,6 +1084,8 @@ export default function App() {
 
   const voltarParaListaMetas = () => {
     setVisaoMetas('estruturas');
+    localStorage.setItem(VISAO_METAS_STORAGE_KEY, 'estruturas');
+    localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
     setDetalheMeta(null);
     setEstruturaSelecionada('');
     setBuscaEstruturaMeta('');
@@ -1112,6 +1145,9 @@ const carregarRevendedores = async () => {
         if (erro?.response?.status === 401) {
           localStorage.removeItem('usuarioLogado');
           localStorage.removeItem(TOKEN_STORAGE_KEY);
+          localStorage.removeItem(TELA_ATUAL_STORAGE_KEY);
+          localStorage.removeItem(VISAO_METAS_STORAGE_KEY);
+          localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
           aplicarTokenAxios(null);
           setUsuarioLogado(null);
           setTokenAuth('');
@@ -1336,6 +1372,16 @@ const carregarRevendedores = async () => {
     carregarTelaAtual(filtrosAtivos, false);
   }, [usuarioLogado, telaAtual]);
 
+  useEffect(() => {
+    if (!usuarioLogado || telaAtual !== 'Metas' || visaoMetas !== 'consultores' || detalheMeta) return;
+    const estruturaSalva = localStorage.getItem(ESTRUTURA_META_STORAGE_KEY);
+    if (!estruturaSalva) {
+      setVisaoMetas('estruturas');
+      return;
+    }
+    carregarDetalheMeta(estruturaSalva, filtrosAtivos, false);
+  }, [usuarioLogado, telaAtual, visaoMetas, detalheMeta]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setErroLogin('');
@@ -1350,8 +1396,13 @@ const carregarRevendedores = async () => {
       setUsuarioLogado(usuario);
       localStorage.setItem('usuarioLogado', JSON.stringify(usuario));
       localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      localStorage.setItem(TELA_ATUAL_STORAGE_KEY, 'Dashboard');
+      localStorage.setItem(VISAO_METAS_STORAGE_KEY, 'estruturas');
+      localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
       await carregarPermissoesDoBanco();
       setTelaAtual('Dashboard');
+      setVisaoMetas('estruturas');
+      setEstruturaSelecionada('');
     } catch (erro) {
       setErroLogin(erro.response?.data?.detail || 'Erro ao realizar login.');
     } finally {
@@ -1362,10 +1413,15 @@ const carregarRevendedores = async () => {
   const handleLogout = () => {
     localStorage.removeItem('usuarioLogado');
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(TELA_ATUAL_STORAGE_KEY);
+    localStorage.removeItem(VISAO_METAS_STORAGE_KEY);
+    localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
     aplicarTokenAxios(null);
     setTokenAuth('');
     setUsuarioLogado(null);
     setTelaAtual('Dashboard');
+    setVisaoMetas('estruturas');
+    setEstruturaSelecionada('');
     limparCachesDados();
   };
 
