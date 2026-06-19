@@ -721,6 +721,14 @@ export default function App() {
   const [canalAtual, setCanalAtual] = useState(() => {
     const canalSalvo = localStorage.getItem(CANAL_ATUAL_STORAGE_KEY);
     return ['VD', 'LOJA'].includes(canalSalvo) ? canalSalvo : 'VD';
+  });
+  const [menuVDExpandido, setMenuVDExpandido] = useState(() => {
+    const canalSalvo = localStorage.getItem(CANAL_ATUAL_STORAGE_KEY);
+    return canalSalvo !== 'LOJA';
+  });
+  const [menuLojaExpandido, setMenuLojaExpandido] = useState(() => {
+    const canalSalvo = localStorage.getItem(CANAL_ATUAL_STORAGE_KEY);
+    return canalSalvo === 'LOJA';
   }); const [sidebarExpandida, setSidebarExpandida] = useState(true); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => localStorage.getItem(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   
@@ -824,19 +832,40 @@ export default function App() {
   ];
 
   const itensMenuVD = itensMenuTopo;
+  const itensMenuLoja = [];
 
   const navegarParaTelaVD = (nomeTela) => {
     setCanalAtual('VD');
+    setMenuVDExpandido(true);
+    setMenuLojaExpandido(false);
     setTelaAtual(nomeTela);
   };
 
   const navegarParaLoja = () => {
     setCanalAtual('LOJA');
+    setMenuLojaExpandido(true);
+    setMenuVDExpandido(false);
+    setTelaAtual('Loja');
+  };
+
+  const alternarCanalVD = () => {
+    setCanalAtual('VD');
+    setMenuVDExpandido((atual) => !atual);
+    setMenuLojaExpandido(false);
+    if (telaAtual === 'Loja') setTelaAtual('Dashboard');
+  };
+
+  const alternarCanalLoja = () => {
+    setCanalAtual('LOJA');
+    setMenuLojaExpandido((atual) => !atual);
+    setMenuVDExpandido(false);
     setTelaAtual('Loja');
   };
 
   const abrirCanalVD = () => {
     setCanalAtual('VD');
+    setMenuVDExpandido(true);
+    setMenuLojaExpandido(false);
     if (telaAtual === 'Loja') setTelaAtual('Dashboard');
   };
 
@@ -3578,11 +3607,11 @@ const enviarArquivo = async (tipo) => {
               </div>
             )}
           </div>
-          <nav className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} flex-1 overflow-y-auto`}>
-            <div className={`${sidebarExpandida ? 'space-y-2' : 'space-y-2'}`}>
+          <nav className={`${sidebarExpandida ? 'p-4 space-y-2' : 'p-3 space-y-2'} flex-1 overflow-y-auto`}>
+            <div>
               <button
                 type="button"
-                onClick={abrirCanalVD}
+                onClick={alternarCanalVD}
                 title="VD"
                 className={`${sidebarExpandida ? 'w-full justify-between gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-black transition-colors ${canalAtual === 'VD' ? 'bg-[#048187] text-white shadow-lg shadow-[#048187]/20' : 'text-gray-300 hover:bg-white/10'}`}
               >
@@ -3590,39 +3619,73 @@ const enviarArquivo = async (tipo) => {
                   <BarChart2 size={sidebarExpandida ? 20 : 22} />
                   {sidebarExpandida && <span>VD</span>}
                 </span>
-                {sidebarExpandida && <ChevronRight size={16} className={`${canalAtual === 'VD' ? 'rotate-90' : ''} transition-transform`} />}
+                {sidebarExpandida && <ChevronRight size={16} className={`${menuVDExpandido ? 'rotate-90' : ''} transition-transform`} />}
               </button>
 
-              <button
-                type="button"
-                onClick={navegarParaLoja}
-                title="LOJA"
-                className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-black transition-colors ${canalAtual === 'LOJA' || telaAtual === 'Loja' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
-              >
-                <LayoutDashboard size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                {sidebarExpandida && <span>LOJA</span>}
-              </button>
+              {menuVDExpandido && (
+                <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
+                  {itensMenuVD.map((item) => {
+                    if (!usuarioPodeAcessar(item.nome)) return null;
+                    const Icone = item.icone;
+                    const ativo = canalAtual === 'VD' && telaAtual === item.nome;
+                    return (
+                      <button
+                        key={item.nome}
+                        onClick={() => navegarParaTelaVD(item.nome)}
+                        title={obterNomeAba(item.nome)}
+                        className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-2.5 rounded-lg text-sm' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                      >
+                        <Icone size={sidebarExpandida ? 18 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+                        {sidebarExpandida && <span>{obterNomeAba(item.nome)}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {canalAtual === 'VD' && (
-              <div className={`${sidebarExpandida ? 'mt-3 pl-2 space-y-2 border-l border-white/10' : 'mt-3 space-y-2'}`}>
-                {itensMenuVD.map((item) => {
-                  if (!usuarioPodeAcessar(item.nome)) return null;
-                  const Icone = item.icone; const ativo = telaAtual === item.nome;
-                  return (
-                    <button
-                      key={item.nome}
-                      onClick={() => navegarParaTelaVD(item.nome)}
-                      title={obterNomeAba(item.nome)}
-                      className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
-                    >
-                      <Icone size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                      {sidebarExpandida && <span>{obterNomeAba(item.nome)}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <div>
+              <button
+                type="button"
+                onClick={alternarCanalLoja}
+                title="LOJA"
+                className={`${sidebarExpandida ? 'w-full justify-between gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-black transition-colors ${canalAtual === 'LOJA' || telaAtual === 'Loja' ? 'bg-[#048187] text-white shadow-lg shadow-[#048187]/20' : 'text-gray-300 hover:bg-white/10'}`}
+              >
+                <span className="flex items-center gap-3 min-w-0">
+                  <LayoutDashboard size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+                  {sidebarExpandida && <span>LOJA</span>}
+                </span>
+                {sidebarExpandida && <ChevronRight size={16} className={`${menuLojaExpandido ? 'rotate-90' : ''} transition-transform`} />}
+              </button>
+
+              {menuLojaExpandido && (
+                <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
+                  {itensMenuLoja.length > 0 ? (
+                    itensMenuLoja.map((item) => {
+                      const Icone = item.icone;
+                      const ativo = canalAtual === 'LOJA' && telaAtual === item.nome;
+                      return (
+                        <button
+                          key={item.nome}
+                          onClick={() => { setCanalAtual('LOJA'); setTelaAtual(item.nome); }}
+                          title={obterNomeAba(item.nome)}
+                          className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-2.5 rounded-lg text-sm' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                        >
+                          <Icone size={sidebarExpandida ? 18 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+                          {sidebarExpandida && <span>{obterNomeAba(item.nome)}</span>}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    sidebarExpandida && (
+                      <div className="px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-[11px] leading-relaxed text-gray-400 font-bold">
+                        Subabas da LOJA serão adicionadas no próximo passo.
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
           </nav>
           <div className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} border-t border-white/10`}>
             <button
