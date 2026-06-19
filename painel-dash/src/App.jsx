@@ -103,6 +103,12 @@ const calcPerc = (r, m) => {
   if (!meta || meta <= 0) return 0;
   return (Number(r || 0) / meta) * 100;
 };
+const corPorFaixaMeta = (percentual) => {
+  const valor = Number(percentual || 0);
+  if (valor < 70) return '#7c1f31';
+  if (valor < 91) return '#ff6f03';
+  return '#048187';
+};
 const calcularQtdMetaAtividade = (baseAtiva, metaPercentual) => {
   const base = Number(baseAtiva || 0);
   const meta = Number(metaPercentual || 0);
