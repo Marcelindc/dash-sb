@@ -860,7 +860,10 @@ export default function App() {
           ? { ...resMetas.value.data, estruturas: [...(resMetas.value.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0)) }
           : cacheMetas;
 
-        if (resMetas.status === 'fulfilled') setCacheMetas(resumoMetas);
+        if (resMetas.status === 'fulfilled') {
+          setCacheMetas(resumoMetas);
+          setDadosMetas(resumoMetas);
+        }
         if (resDados.status !== 'fulfilled') throw resDados.reason;
 
         const metaCalculada = calcularMetaDashboardPelosFiltros(resumoMetas, filtros);
@@ -1617,7 +1620,141 @@ const enviarArquivo = async (tipo) => {
       plano
     });
   };
-  const abrirDetAtiv = () => setModalDetalhes({ titulo: 'Atividade', subtitulo: 'Ativados no ciclo', tipo: 'padrao', itens: [{ label: 'Ativados', valor: dados?.revendedores_ativados }] });
+  const obterResumoMetasAtual = () => dadosMetas || cacheMetas || {};
+
+  const abrirDetAtiv = () => {
+    const resumoMetas = obterResumoMetasAtual();
+    const ativados = Number(dados?.revendedores_ativados || resumoMetas?.atividade_total_geral || 0);
+    const percentualAtual = Number(dados?.percentual_atividade_geral || resumoMetas?.percentual_atividade_total_geral || 0);
+    const baseAtivaCalculada = percentualAtual > 0 && ativados > 0 ? Math.round(ativados / (percentualAtual / 100)) : 0;
+    const baseAtiva = Number(resumoMetas?.base_ativa_total_geral || baseAtivaCalculada || 0);
+    const metaAtividade = Number(resumoMetas?.meta_atividade_geral || 0);
+    const metaEmRevendedores = calcularQtdMetaAtividade(baseAtiva, metaAtividade);
+    const faltamAtivar = calcularFaltamAtivar(ativados, baseAtiva, metaAtividade);
+    const percentualDaMeta = calcPerc(percentualAtual, metaAtividade);
+
+    abrirModalValExp(
+      'Atividade Geral',
+      `${formatarNumeroBR(percentualAtual, 1)}%`,
+      'Atividade = revendedores ativados dividido pela base ativa.',
+      [
+        { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
+        { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtual, 1)}%` },
+        { label: '% da meta', valor: `${formatarNumeroBR(percentualDaMeta, 1)}%` },
+        { label: 'Base ativa', valor: formatarNumeroBR(baseAtiva, 0) },
+        { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividade, 1)}%` },
+        { label: 'Meta em revendedores', valor: formatarNumeroBR(metaEmRevendedores, 0) },
+        { label: 'Faltam ativar', valor: formatarFaltamAtivar(faltamAtivar) }
+      ],
+      `${formatarNumeroBR(baseAtiva, 0)} × ${formatarNumeroBR(metaAtividade, 1)}% = ${formatarNumeroBR(metaEmRevendedores, 0)} revendedores necessários`
+    );
+  };
+
+  const abrirDetIndicadorDashboard = (tipo) => {
+    const resumoMetas = obterResumoMetasAtual();
+    const tipoNormalizado = String(tipo || '').toUpperCase();
+    const ehMake = tipoNormalizado === 'MAKE';
+    const titulo = ehMake ? 'MAKE Geral' : 'CABELO Geral';
+    const realizados = Number((ehMake ? dados?.revendedores_make : dados?.revendedores_cabelo) || 0);
+    const percentualAtual = Number((ehMake ? dados?.percentual_make : dados?.percentual_cabelo) || 0);
+    const metaPercentual = Number((ehMake ? resumoMetas?.meta_make_geral : resumoMetas?.meta_cabelo_geral) || 0);
+    const ativados = Number(dados?.revendedores_ativados || resumoMetas?.atividade_total_geral || 0);
+    const metaEmRevendedores = calcularQtdMetaAtividade(ativados, metaPercentual);
+    const faltamIncluir = Math.max(metaEmRevendedores - realizados, 0);
+    const percentualDaMeta = calcPerc(percentualAtual, metaPercentual);
+
+    abrirModalValExp(
+      titulo,
+      `${formatarNumeroBR(percentualAtual, 1)}%`,
+      `${tipoNormalizado} = revendedores ativados que compraram/incluíram itens de ${tipoNormalizado} dividido pelo total de revendedores ativados.`,
+      [
+        { label: `Revendedores com ${tipoNormalizado}`, valor: formatarNumeroBR(realizados, 0) },
+        { label: `% ${tipoNormalizado} atual`, valor: `${formatarNumeroBR(percentualAtual, 1)}%` },
+        { label: '% da meta', valor: `${formatarNumeroBR(percentualDaMeta, 1)}%` },
+        { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
+        { label: `Meta ${tipoNormalizado}`, valor: `${formatarNumeroBR(metaPercentual, 1)}%` },
+        { label: 'Meta em revendedores', valor: formatarNumeroBR(metaEmRevendedores, 0) },
+        { label: `Faltam incluir ${tipoNormalizado}`, valor: formatarFaltamAtivar(faltamIncluir) }
+      ],
+      `${formatarNumeroBR(ativados, 0)} revendedores ativados × ${formatarNumeroBR(metaPercentual, 1)}% = ${formatarNumeroBR(metaEmRevendedores, 0)} revendedores necessários com ${tipoNormalizado}`
+    );
+  };
+
+  const abrirDetDesempenhoDashboard = (tipo) => {
+    const resumoMetas = obterResumoMetasAtual();
+    const tipoNormalizado = String(tipo || '').toUpperCase();
+    const valorTotal = Number(dados?.valor_total || 0);
+    const pedidos = Number(dados?.total_pedidos || 0);
+    const ativados = Number(dados?.revendedores_ativados || 0);
+    const totalItens = Number(dados?.total_itens || 0);
+
+    if (tipoNormalizado === 'RPA') {
+      const rpa = ativados > 0 ? valorTotal / ativados : 0;
+      const meta = Number(resumoMetas?.meta_rpa_geral || 0);
+      const faturamentoNecessario = ativados * meta;
+      const faltaFaturamento = Math.max(faturamentoNecessario - valorTotal, 0);
+      abrirModalValExp(
+        'RPA Geral',
+        formatarMoeda(rpa),
+        'RPA = faturamento realizado dividido por revendedores ativados.',
+        [
+          { label: 'RPA atual', valor: formatarMoeda(rpa) },
+          { label: 'Meta RPA', valor: formatarMoeda(meta) },
+          { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(rpa, meta), 1)}%` },
+          { label: 'Faturamento realizado', valor: formatarMoeda(valorTotal) },
+          { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
+          { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessario) },
+          { label: 'Faltam faturar', valor: faltaFaturamento > 0 ? formatarMoeda(faltaFaturamento) : 'Meta batida' }
+        ],
+        `${formatarMoeda(valorTotal)} ÷ ${formatarNumeroBR(ativados, 0)} = ${formatarMoeda(rpa)} | Meta: ${formatarNumeroBR(ativados, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
+      );
+      return;
+    }
+
+    if (tipoNormalizado === 'TKT') {
+      const tkt = pedidos > 0 ? valorTotal / pedidos : 0;
+      const meta = Number(resumoMetas?.meta_tkt_medio_geral || 0);
+      const faturamentoNecessario = pedidos * meta;
+      const faltaFaturamento = Math.max(faturamentoNecessario - valorTotal, 0);
+      abrirModalValExp(
+        'Ticket Médio Geral',
+        formatarMoeda(tkt),
+        'Ticket médio = faturamento realizado dividido pelo total de pedidos.',
+        [
+          { label: 'Ticket médio atual', valor: formatarMoeda(tkt) },
+          { label: 'Meta ticket médio', valor: formatarMoeda(meta) },
+          { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(tkt, meta), 1)}%` },
+          { label: 'Faturamento realizado', valor: formatarMoeda(valorTotal) },
+          { label: 'Total de pedidos', valor: formatarNumeroBR(pedidos, 0) },
+          { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessario) },
+          { label: 'Faltam faturar', valor: faltaFaturamento > 0 ? formatarMoeda(faltaFaturamento) : 'Meta batida' }
+        ],
+        `${formatarMoeda(valorTotal)} ÷ ${formatarNumeroBR(pedidos, 0)} = ${formatarMoeda(tkt)} | Meta: ${formatarNumeroBR(pedidos, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
+      );
+      return;
+    }
+
+    const upa = calcularUpa(totalItens, ativados);
+    const meta = Number(resumoMetas?.meta_upa_geral || 0);
+    const itensNecessarios = Math.ceil(ativados * meta);
+    const faltamItens = Math.max(itensNecessarios - totalItens, 0);
+    abrirModalValExp(
+      'UPA Geral',
+      formatarNumeroBR(upa, 2),
+      'UPA = total de itens vendidos dividido por revendedores ativados.',
+      [
+        { label: 'UPA atual', valor: formatarNumeroBR(upa, 2) },
+        { label: 'Meta UPA', valor: formatarNumeroBR(meta, 1) },
+        { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(upa, meta), 1)}%` },
+        { label: 'Itens vendidos', valor: formatarNumeroBR(totalItens, 0) },
+        { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
+        { label: 'Itens necessários', valor: formatarNumeroBR(itensNecessarios, 0) },
+        { label: 'Faltam itens', valor: faltamItens > 0 ? formatarNumeroBR(faltamItens, 0) : 'Meta batida' }
+      ],
+      `${formatarNumeroBR(totalItens, 0)} ÷ ${formatarNumeroBR(ativados, 0)} = ${formatarNumeroBR(upa, 2)} | Meta: ${formatarNumeroBR(ativados, 0)} × ${formatarNumeroBR(meta, 1)} = ${formatarNumeroBR(itensNecessarios, 0)} itens`
+    );
+  };
+
   const abrirDetCancelados = () => setModalDetalhes({ titulo: 'Cancelados', subtitulo: 'Pedidos Cancelados', tipo: 'cancelados', itens: [{ label: 'Quantidade', valor: dados?.total_cancelados }], motivos_cancelamento: dados?.motivos_cancelamento });
 
   const renderTelaDashboard = () => {
@@ -1645,17 +1782,17 @@ const enviarArquivo = async (tipo) => {
           <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-transform hover:shadow-md">
             <h3 className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Indicadores</h3>
             <div className="space-y-1.5">
-              <button onClick={() => setModalDetalhes({titulo:'Detalhes MAKE', subtitulo:'Make', tipo:'padrao', itens:[{label:'Revendedoras ativadas', valor:Number(dados?.revendedores_make || 0).toLocaleString('pt-BR')}]})} className="w-full bg-[#048187] text-white rounded px-2 py-1 flex justify-between items-center hover:bg-[#036b70] transition-colors min-w-0"><span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMk.toFixed(1)}%</span></button>
-              <button onClick={() => setModalDetalhes({titulo:'Detalhes CABELO', subtitulo:'Cabelo', tipo:'padrao', itens:[{label:'Revendedoras ativadas', valor:Number(dados?.revendedores_cabelo || 0).toLocaleString('pt-BR')}]})} className="w-full bg-[#712231] text-white rounded px-2 py-1 flex justify-between items-center hover:bg-[#5d1b28] transition-colors min-w-0"><span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pCb.toFixed(1)}%</span></button>
-              <div className="w-full bg-[#F97316] text-white rounded px-2 py-1 flex justify-between items-center min-w-0"><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></div>
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('MAKE')} className="w-full bg-[#048187] text-white rounded px-2 py-1 flex justify-between items-center hover:bg-[#036b70] transition-colors min-w-0"><span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMk.toFixed(1)}%</span></button>
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('CABELO')} className="w-full bg-[#712231] text-white rounded px-2 py-1 flex justify-between items-center hover:bg-[#5d1b28] transition-colors min-w-0"><span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pCb.toFixed(1)}%</span></button>
+              <button type="button" onClick={abrirDetAtiv} className="w-full bg-[#F97316] text-white rounded px-2 py-1 flex justify-between items-center hover:bg-orange-600 transition-colors min-w-0"><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></button>
             </div>
           </div>
           <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-transform hover:shadow-md">
             <h3 className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Desempenho</h3>
             <div className="space-y-1.5">
-              <div className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">RPA</span><span className="text-[9px] sm:text-[10px] font-bold text-[#048187] shrink-0">{formatarMoeda(dados.revendedores_ativados > 0 ? dados.valor_total / dados.revendedores_ativados : 0)}</span></div>
-              <div className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">TKT MÉD.</span><span className="text-[9px] sm:text-[10px] font-bold text-[#048187] shrink-0">{formatarMoeda(dados.total_pedidos > 0 ? dados.valor_total / dados.total_pedidos : 0)}</span></div>
-              <div className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">UPA</span><span className="text-[9px] sm:text-[10px] font-bold text-[#048187] shrink-0">{Number(dados.revendedores_ativados > 0 ? (dados.total_itens || 0) / dados.revendedores_ativados : 0).toFixed(1)}</span></div>
+              <button type="button" onClick={() => abrirDetDesempenhoDashboard('RPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">RPA</span><span className="text-[9px] sm:text-[10px] font-bold text-[#048187] shrink-0">{formatarMoeda(dados.revendedores_ativados > 0 ? dados.valor_total / dados.revendedores_ativados : 0)}</span></button>
+              <button type="button" onClick={() => abrirDetDesempenhoDashboard('TKT')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">TKT MÉD.</span><span className="text-[9px] sm:text-[10px] font-bold text-[#048187] shrink-0">{formatarMoeda(dados.total_pedidos > 0 ? dados.valor_total / dados.total_pedidos : 0)}</span></button>
+              <button type="button" onClick={() => abrirDetDesempenhoDashboard('UPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">UPA</span><span className="text-[9px] sm:text-[10px] font-bold text-[#048187] shrink-0">{Number(dados.revendedores_ativados > 0 ? (dados.total_itens || 0) / dados.revendedores_ativados : 0).toFixed(1)}</span></button>
             </div>
           </div>
         </div>
@@ -1810,22 +1947,22 @@ const enviarArquivo = async (tipo) => {
     const makeGeral = Number(dadosMetas?.make_total_geral || 0);
     const percentualMakeGeral = Number(dadosMetas?.percentual_make_total_geral || 0);
     const metaMakeGeralPercentual = Number(dadosMetas?.meta_make_geral || 0);
-    const qtdMetaMakeGeral = calcularQtdMetaAtividade(baseAtivaGeral, metaMakeGeralPercentual);
+    const qtdMetaMakeGeral = calcularQtdMetaAtividade(atividadeGeral, metaMakeGeralPercentual);
     const faltamMakeGeral = Math.max(qtdMetaMakeGeral - makeGeral, 0);
     const cabeloGeral = Number(dadosMetas?.cabelo_total_geral || 0);
     const percentualCabeloGeral = Number(dadosMetas?.percentual_cabelo_total_geral || 0);
     const metaCabeloGeralPercentual = Number(dadosMetas?.meta_cabelo_geral || 0);
-    const qtdMetaCabeloGeral = calcularQtdMetaAtividade(baseAtivaGeral, metaCabeloGeralPercentual);
+    const qtdMetaCabeloGeral = calcularQtdMetaAtividade(atividadeGeral, metaCabeloGeralPercentual);
     const faltamCabeloGeral = Math.max(qtdMetaCabeloGeral - cabeloGeral, 0);
     const makeDetalhe = Number(detalheMeta?.make_realizado || 0);
     const percentualMakeDetalhe = Number(detalheMeta?.percentual_make || 0);
     const metaMakeDetalhePercentual = Number(detalheMeta?.meta?.make || 0);
-    const qtdMetaMakeDetalhe = calcularQtdMetaAtividade(baseAtivaDetalhe, metaMakeDetalhePercentual);
+    const qtdMetaMakeDetalhe = calcularQtdMetaAtividade(atividadeDetalhe, metaMakeDetalhePercentual);
     const faltamMakeDetalhe = Math.max(qtdMetaMakeDetalhe - makeDetalhe, 0);
     const cabeloDetalhe = Number(detalheMeta?.cabelo_realizado || 0);
     const percentualCabeloDetalhe = Number(detalheMeta?.percentual_cabelo || 0);
     const metaCabeloDetalhePercentual = Number(detalheMeta?.meta?.cabelo || 0);
-    const qtdMetaCabeloDetalhe = calcularQtdMetaAtividade(baseAtivaDetalhe, metaCabeloDetalhePercentual);
+    const qtdMetaCabeloDetalhe = calcularQtdMetaAtividade(atividadeDetalhe, metaCabeloDetalhePercentual);
     const faltamCabeloDetalhe = Math.max(qtdMetaCabeloDetalhe - cabeloDetalhe, 0);
 
     return (
@@ -1857,8 +1994,8 @@ const enviarArquivo = async (tipo) => {
           <CardMini titulo="Faturamento Geral" valor={formatarAbrev(dadosMetas?.realizado_total_geral)} percentual={calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(dadosMetas?.meta_total_geral)} onClickExpandir={() => abrirModalValExp('Faturamento Geral', formatarMoeda(dadosMetas?.realizado_total_geral), 'Soma da receita válida de todas as estruturas.')} />
           <CardMini titulo="Realizado Diário" valor={formatarAbrev(dados?.realizado_diario)} percentual={calcPerc(dados?.realizado_diario, dados?.meta_diaria)} labelMeta="Meta Diária:" valorMeta={formatarAbrev(dados?.meta_diaria)} onClickExpandir={() => abrirModalValExp('Realizado Diário', formatarMoeda(dados?.realizado_diario), 'Receita total do dia atual.')} />
           <CardMini titulo="Atividade Geral" valor={`${percentualAtividadeGeral.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade Geral', `${formatarNumeroBR(percentualAtividadeGeral, 1)}%`, 'Atividade = revendedores ativados dividido pela base ativa.', [{ label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeGeral, 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaGeral, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%` }, { label: 'Meta em revendedores', valor: formatarNumeroBR(qtdMetaAtividadeGeral, 0) }, { label: 'Faltam ativar', valor: formatarFaltamAtivar(faltamAtivarGeral) }], `${formatarNumeroBR(baseAtivaGeral, 0)} × ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeGeral, 0)} revendedores necessários`)} />
-          <CardMini titulo="MAKE Geral" valor={`${percentualMakeGeral.toFixed(1)}%`} percentual={calcPerc(percentualMakeGeral, metaMakeGeralPercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE Geral', `${formatarNumeroBR(percentualMakeGeral, 1)}%`, 'MAKE = revendedoras que compraram/incluíram itens de MAKE dividido pela base ativa.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeGeral, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeGeral, 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaGeral, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeGeral, 0) }, { label: 'Faltam incluir MAKE', valor: formatarFaltamAtivar(faltamMakeGeral) }], `${formatarNumeroBR(baseAtivaGeral, 0)} × ${formatarNumeroBR(metaMakeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeGeral, 0)} revendedoras necessárias com MAKE`)} />
-          <CardMini titulo="CABELO Geral" valor={`${percentualCabeloGeral.toFixed(1)}%`} percentual={calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO Geral', `${formatarNumeroBR(percentualCabeloGeral, 1)}%`, 'CABELO = revendedoras que compraram/incluíram itens de CABELO dividido pela base ativa.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloGeral, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloGeral, 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaGeral, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloGeral, 0) }, { label: 'Faltam incluir CABELO', valor: formatarFaltamAtivar(faltamCabeloGeral) }], `${formatarNumeroBR(baseAtivaGeral, 0)} × ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloGeral, 0)} revendedoras necessárias com CABELO`)} />
+          <CardMini titulo="MAKE Geral" valor={`${percentualMakeGeral.toFixed(1)}%`} percentual={calcPerc(percentualMakeGeral, metaMakeGeralPercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE Geral', `${formatarNumeroBR(percentualMakeGeral, 1)}%`, 'MAKE = revendedoras ativadas que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeGeral, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeGeral, 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeGeral, 0) }, { label: 'Faltam incluir MAKE', valor: formatarFaltamAtivar(faltamMakeGeral) }], `${formatarNumeroBR(atividadeGeral, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeGeral, 0)} revendedoras necessárias com MAKE`)} />
+          <CardMini titulo="CABELO Geral" valor={`${percentualCabeloGeral.toFixed(1)}%`} percentual={calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO Geral', `${formatarNumeroBR(percentualCabeloGeral, 1)}%`, 'CABELO = revendedoras ativadas que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloGeral, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloGeral, 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloGeral, 0) }, { label: 'Faltam incluir CABELO', valor: formatarFaltamAtivar(faltamCabeloGeral) }], `${formatarNumeroBR(atividadeGeral, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloGeral, 0)} revendedoras necessárias com CABELO`)} />
           <CardMini titulo="RPA Geral" valor={formatarMoeda(rpaGeral)} percentual={calcPerc(rpaGeral, dadosMetas?.meta_rpa_geral)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(dadosMetas?.meta_rpa_geral)} onClickExpandir={() => abrirModalValExp('RPA Geral', formatarMoeda(rpaGeral), 'Receita Por Ativo Geral.')} />
           <CardMini titulo="Ticket Médio" valor={formatarMoeda(tktGeral)} percentual={calcPerc(tktGeral, dadosMetas?.meta_tkt_medio_geral)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(dadosMetas?.meta_tkt_medio_geral)} onClickExpandir={() => abrirModalValExp('Ticket Médio', formatarMoeda(tktGeral), 'Ticket Médio Geral.')} />
           <CardMini titulo="UPA Geral" valor={upaGeral.toFixed(1)} percentual={calcPerc(upaGeral, dadosMetas?.meta_upa_geral)} labelMeta="Meta UPA:" valorMeta={Number(dadosMetas?.meta_upa_geral||0).toFixed(1)} onClickExpandir={() => abrirModalValExp('UPA Geral', formatarNumeroBR(upaGeral, 2), 'UPA = total de itens vendidos dividido pelas revendedoras ativadas.', [{ label: 'Itens vendidos', valor: formatarNumeroBR(totalItensGeral, 0) }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta UPA', valor: formatarNumeroBR(dadosMetas?.meta_upa_geral || 0, 1) }], `${formatarNumeroBR(totalItensGeral, 0)} ÷ ${formatarNumeroBR(atividadeGeral, 0)} = ${formatarNumeroBR(upaGeral, 2)}`)} />
@@ -1936,8 +2073,8 @@ const enviarArquivo = async (tipo) => {
                 <div className="grid grid-cols-7 gap-3 min-w-[1120px]">
                 <CardMetaNova titulo="Faturamento Estrutura" valor={formatarAbrev(detalheMeta.realizado)} percentual={calcPerc(detalheMeta.realizado, detalheMeta.meta?.receita)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(detalheMeta.meta?.receita)} onClickExpandir={() => abrirModalValExp(`Faturamento ${detalheMeta.estrutura}`, formatarMoeda(detalheMeta.realizado), 'Faturamento válido da estrutura.')} />
                 <CardMetaNova titulo="Atividade" valor={`${percentualAtividadeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade', `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%`, 'Atividade = revendedoras ativadas dividido pela base ativa da estrutura.', [{ label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) }, { label: 'Faltam ativar', valor: formatarFaltamAtivar(faltamAtivarDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedoras necessárias`)} />
-                <CardMetaNova titulo="MAKE" valor={`${percentualMakeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE', `${formatarNumeroBR(percentualMakeDetalhe, 1)}%`, 'MAKE = revendedoras da estrutura que compraram/incluíram itens de MAKE dividido pela base ativa da estrutura.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeDetalhe, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) }, { label: 'Faltam incluir MAKE', valor: formatarFaltamAtivar(faltamMakeDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedoras necessárias com MAKE`)} />
-                <CardMetaNova titulo="CABELO" valor={`${percentualCabeloDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO', `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%`, 'CABELO = revendedoras da estrutura que compraram/incluíram itens de CABELO dividido pela base ativa da estrutura.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloDetalhe, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) }, { label: 'Faltam incluir CABELO', valor: formatarFaltamAtivar(faltamCabeloDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedoras necessárias com CABELO`)} />
+                <CardMetaNova titulo="MAKE" valor={`${percentualMakeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE', `${formatarNumeroBR(percentualMakeDetalhe, 1)}%`, 'MAKE = revendedoras ativadas da estrutura que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeDetalhe, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) }, { label: 'Faltam incluir MAKE', valor: formatarFaltamAtivar(faltamMakeDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedoras necessárias com MAKE`)} />
+                <CardMetaNova titulo="CABELO" valor={`${percentualCabeloDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO', `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%`, 'CABELO = revendedoras ativadas da estrutura que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloDetalhe, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) }, { label: 'Faltam incluir CABELO', valor: formatarFaltamAtivar(faltamCabeloDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedoras necessárias com CABELO`)} />
                 <CardMetaNova titulo="RPA" valor={formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0)} percentual={calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.rpa)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(detalheMeta.meta?.rpa)} onClickExpandir={() => abrirModalValExp('RPA', formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0), 'Receita Por Ativo da estrutura.')} />
                 <CardMetaNova titulo="Ticket Médio" valor={formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0)} percentual={calcPerc(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0, detalheMeta.meta?.tkt_medio)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(detalheMeta.meta?.tkt_medio)} onClickExpandir={() => abrirModalValExp('Ticket Médio', formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0), 'Ticket Médio da estrutura.')} />
                 <CardMetaNova titulo="UPA" valor={upaDetalhe.toFixed(1)} percentual={calcPerc(upaDetalhe, detalheMeta.meta?.upa)} labelMeta="Meta UPA:" valorMeta={Number(detalheMeta.meta?.upa||0).toFixed(1)} onClickExpandir={() => abrirModalValExp('UPA', formatarNumeroBR(upaDetalhe, 2), 'UPA = total de itens vendidos dividido pelas revendedoras ativadas.', [{ label: 'Itens vendidos', valor: formatarNumeroBR(totalItensDetalhe, 0) }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta UPA', valor: formatarNumeroBR(detalheMeta.meta?.upa || 0, 1) }], `${formatarNumeroBR(totalItensDetalhe, 0)} ÷ ${formatarNumeroBR(atividadeDetalhe, 0)} = ${formatarNumeroBR(upaDetalhe, 2)}`)} />
