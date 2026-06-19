@@ -24,6 +24,49 @@ aplicarTokenAxios(tokenInicial);
 const CORES_GRAFICO = ['#048187', '#712231', '#F97316', '#FACC15', '#A3E635', '#257B9C'];
 const CORES_ESTRUTURA = ['#048187', '#15956B', '#5BB2B4', '#257B9C', '#56549E', '#712231', '#F97316'];
 
+const IconeCanalVD = ({ size = 22, className = '' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M32 8L49 17.5V36.5L32 46L15 36.5V17.5L32 8Z" stroke="currentColor" strokeWidth="4" strokeLinejoin="round" />
+    <path d="M15.5 18L32 27.5L48.5 18" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M32 27.5V46" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    <path d="M32 46V52" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    <path d="M32 52C26 52 22 55 22 60H42C42 55 38 52 32 52Z" stroke="currentColor" strokeWidth="4" strokeLinejoin="round" />
+    <path d="M18 42L10 50" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    <path d="M10 50C5 50 2 53 2 60H18C18 53 15 50 10 50Z" stroke="currentColor" strokeWidth="4" strokeLinejoin="round" />
+    <path d="M46 42L54 50" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    <path d="M54 50C49 50 46 53 46 60H62C62 53 59 50 54 50Z" stroke="currentColor" strokeWidth="4" strokeLinejoin="round" />
+  </svg>
+);
+
+const IconeCanalLoja = ({ size = 22, className = '' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M10 26H54L50 14H14L10 26Z" stroke="currentColor" strokeWidth="4" strokeLinejoin="round" />
+    <path d="M12 26V56H42" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M52 26V40" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    <path d="M18 56V36H34V56" stroke="currentColor" strokeWidth="4" strokeLinejoin="round" />
+    <path d="M10 26C10 31 14 34 18 34C22 34 26 31 26 26C26 31 30 34 34 34C38 34 42 31 42 26C42 31 46 34 50 34C54 34 56 31 56 26" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    <rect x="42" y="42" width="18" height="14" rx="3" stroke="currentColor" strokeWidth="4" />
+    <path d="M46 49H56" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+  </svg>
+);
+
+
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
@@ -3468,7 +3511,7 @@ const enviarArquivo = async (tipo) => {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
         <div>
           <div className="w-14 h-14 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center mb-4">
-            <LayoutDashboard size={28} />
+            <IconeCanalLoja size={30} />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-gray-700">LOJA</h1>
           <p className="text-sm text-gray-400 mt-2 max-w-2xl">
@@ -3616,7 +3659,7 @@ const enviarArquivo = async (tipo) => {
                 className={`${sidebarExpandida ? 'w-full justify-between gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-black transition-colors ${canalAtual === 'VD' ? 'bg-[#048187] text-white shadow-lg shadow-[#048187]/20' : 'text-gray-300 hover:bg-white/10'}`}
               >
                 <span className="flex items-center gap-3 min-w-0">
-                  <BarChart2 size={sidebarExpandida ? 20 : 22} />
+                  <IconeCanalVD size={sidebarExpandida ? 22 : 24} />
                   {sidebarExpandida && <span>VD</span>}
                 </span>
                 {sidebarExpandida && <ChevronRight size={16} className={`${menuVDExpandido ? 'rotate-90' : ''} transition-transform`} />}
@@ -3652,7 +3695,7 @@ const enviarArquivo = async (tipo) => {
                 className={`${sidebarExpandida ? 'w-full justify-between gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-black transition-colors ${canalAtual === 'LOJA' || telaAtual === 'Loja' ? 'bg-[#048187] text-white shadow-lg shadow-[#048187]/20' : 'text-gray-300 hover:bg-white/10'}`}
               >
                 <span className="flex items-center gap-3 min-w-0">
-                  <LayoutDashboard size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+                  <IconeCanalLoja size={sidebarExpandida ? 22 : 24} />
                   {sidebarExpandida && <span>LOJA</span>}
                 </span>
                 {sidebarExpandida && <ChevronRight size={16} className={`${menuLojaExpandido ? 'rotate-90' : ''} transition-transform`} />}
@@ -3722,7 +3765,7 @@ const enviarArquivo = async (tipo) => {
             {[...itensMenuVD, { nome: 'Loja', icone: LayoutDashboard }, { nome: 'Perfil', icone: User }].map((item) => {
               if (!usuarioPodeAcessar(item.nome)) return null;
               const Icone = item.icone; const ativo = telaAtual === item.nome;
-              return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}><Icone size={18} /><span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
+              return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}>{item.nome === 'Loja' ? <IconeCanalLoja size={18} /> : <Icone size={18} />}<span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
             })}
           </div>
         </div>
