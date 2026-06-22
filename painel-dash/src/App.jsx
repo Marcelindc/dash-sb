@@ -299,11 +299,10 @@ const CompUpload = ({ titulo, desc, arq, arqs, setArq, setArqs, onEnv, icone: Ic
 );
 
 const FormCiclo = ({ form, setForm, onSub, txtBtn }) => (
-  <form onSubmit={onSub} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
-    <input type="text" placeholder="Ciclo. Ex: 08/2026" value={form.ciclo} onChange={(e) => setForm({ ...form, ciclo: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+  <form onSubmit={onSub} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+    <input type="text" placeholder="Ciclo. Ex: 09/2026" value={form.ciclo} onChange={(e) => setForm({ ...form, ciclo: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
     <input type="date" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
     <input type="date" value={form.data_fim} onChange={(e) => setForm({ ...form, data_fim: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
-    <input type="number" placeholder="Meta do ciclo" value={form.meta_ciclo} onChange={(e) => setForm({ ...form, meta_ciclo: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
     <select value={form.status_ciclo} onChange={(e) => setForm({ ...form, status_ciclo: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select>
     <button type="submit" className="bg-[#048187] text-white font-bold rounded-lg py-3 hover:bg-[#036b70] flex items-center justify-center gap-2"><Save size={18} />{txtBtn}</button>
   </form>
@@ -1222,7 +1221,7 @@ export default function App() {
 
   const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState('');
 
-  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false);
+  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
 
@@ -1795,7 +1794,7 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Histórico') return carregarHistoricoCiclos();
     if (telaAtual === 'Revendedores') return carregarRevendedores();
     if (telaAtual === 'Base') return carregarCiclos();
-    if (telaAtual === 'Cadastro') return Promise.allSettled([carregarListaConsultores(), carregarEstruturasConfig()]);
+    if (telaAtual === 'Cadastro') return Promise.allSettled([carregarCiclos(), carregarListaConsultores(), carregarEstruturasConfig()]);
     if (telaAtual === 'Loja' || telaAtual === 'LojaVisaoGeral') return carregarDashboard(filtros, forcarAtualizacao);
     if (telaAtual === 'Configurações') return carregarUsuarios();
   };
@@ -2130,7 +2129,7 @@ const carregarRevendedores = async () => {
     else if (telaAtual === 'Comparativo') tarefas.push(carregarComparativo(filtrosAtivos));
     else tarefas.push(carregarDashboard(filtrosAtivos, true));
 
-    if (telaAtual === 'Cadastro') { tarefas.push(carregarListaConsultores()); tarefas.push(carregarEstruturasConfig()); }
+    if (telaAtual === 'Cadastro') { tarefas.push(carregarCiclos()); tarefas.push(carregarListaConsultores()); tarefas.push(carregarEstruturasConfig()); }
     if (telaAtual === 'Histórico') tarefas.push(carregarHistoricoCiclos());
     if (telaAtual === 'Base') tarefas.push(carregarCiclos());
     if (telaAtual === 'Configurações') tarefas.push(carregarUsuarios());
@@ -3715,7 +3714,7 @@ const enviarArquivo = async (tipo) => {
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Base de dados</h1>
-        <p className="text-sm text-gray-400 font-semibold">Uploads de bases operacionais. Cadastros manuais agora ficam na aba Cadastro.</p>
+        <p className="text-sm text-gray-400 font-semibold">Uploads de bases operacionais. Ciclos, metas, estruturas e consultores agora ficam concentrados na aba Cadastro.</p>
       </div>
       {(mensagemUpload || erroUpload) && (<div className={`rounded-xl p-4 font-bold text-sm ${mensagemUpload ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemUpload || erroUpload}</div>)}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 xl:gap-6">
@@ -3725,19 +3724,6 @@ const enviarArquivo = async (tipo) => {
         <CompUpload titulo="SKUS IAF" desc="Abas MAKE e CABELO." arq={arquivoSkusIaf} setArq={setArquivoSkusIaf} onEnv={() => enviarArquivo('skusIaf')} icone={Sparkles} load={carregandoUpload} />
         <CompUpload titulo="Vendas MAKE" desc="5 planilhas MAKE." arquivos={arquivosVendasMake} setArqs={setArquivosVendasMake} onEnv={() => enviarArquivo('vendasMake')} icone={Upload} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaMake} acaoExtraLoad={carregandoAutomacaoMake} />
         <CompUpload titulo="Vendas CABELO" desc="Planilhas Cabelo." arquivos={arquivosVendasCabelo} setArqs={setArquivosVendasCabelo} onEnv={() => enviarArquivo('vendasCabelo')} icone={Scissors} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaCabelo} acaoExtraLoad={carregandoAutomacaoCabelo} />
-      </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-6"><div className="flex items-start sm:items-center gap-3"><div className="w-11 h-11 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><CalendarDays size={22} /></div><div><h2 className="text-lg sm:text-xl font-bold text-gray-700">Ciclos</h2></div></div><button onClick={carregarCiclos} className="bg-[#048187] text-white font-bold px-4 py-3 rounded-lg hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><RefreshCcw size={17} />Atualizar</button></div>
-        {(mensagemCiclo || erroCiclo) && (<div className={`rounded-xl p-4 font-bold text-sm mb-5 ${mensagemCiclo ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemCiclo || erroCiclo}</div>)}
-        <FormCiclo form={cicloForm} setForm={setCicloForm} onSub={criarCiclo} txtBtn="Cadastrar" />
-        <div className="mt-8">
-          <h3 className="text-lg font-bold text-gray-700 mb-4">Ciclos cadastrados</h3>
-          {carregandoCiclos ? (<p className="text-[#048187] font-bold">Carregando ciclos...</p>) : (
-            <div className="overflow-x-auto"><table className="w-full text-sm min-w-[760px]"><thead><tr className="text-left text-gray-500 border-b border-gray-100"><th className="py-3 px-2">Ciclo</th><th className="py-3 px-2">Início</th><th className="py-3 px-2">Fim</th><th className="py-3 px-2 text-right">Meta</th><th className="py-3 px-2 text-center">Status</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>
-              {ciclos.map((c) => (<tr key={c.id} className="border-b border-gray-50"><td className="py-4 px-2 font-bold text-gray-700">{c.ciclo}</td><td className="py-4 px-2 text-gray-500">{formatarDataBR(c.data_inicio)}</td><td className="py-4 px-2 text-gray-500">{formatarDataBR(c.data_fim)}</td><td className="py-4 px-2 text-right font-bold text-[#048187]">{formatarMoeda(c.meta_ciclo)}</td><td className="py-4 px-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${c.status_ciclo === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_ciclo}</span></td><td className="py-4 px-2 text-right"><button onClick={() => abrirEditarCiclo(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirCiclo(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>))}
-            </tbody></table></div>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -3833,25 +3819,165 @@ const enviarArquivo = async (tipo) => {
     );
   };
 
-  const renderTelaCadastro = () => (
-    <div className="space-y-6 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+  const renderBlocoCiclosCadastro = () => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-6">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><CalendarDays size={22} /></div>
+          <div>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-700">Ciclos</h2>
+            <p className="text-sm text-gray-400 font-semibold mt-1">Cadastre o período de cada ciclo. As metas detalhadas ficam salvas em Metas por Ciclo.</p>
+          </div>
+        </div>
+        <button onClick={carregarCiclos} className="bg-[#048187] text-white font-bold px-4 py-3 rounded-lg hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><RefreshCcw size={17} />Atualizar</button>
+      </div>
+
+      {(mensagemCiclo || erroCiclo) && (<div className={`rounded-xl p-4 font-bold text-sm mb-5 ${mensagemCiclo ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemCiclo || erroCiclo}</div>)}
+      <FormCiclo form={cicloForm} setForm={setCicloForm} onSub={criarCiclo} txtBtn="Cadastrar" />
+
+      <div className="mt-8">
+        <h3 className="text-lg font-bold text-gray-700 mb-4">Ciclos cadastrados</h3>
+        {carregandoCiclos ? (<p className="text-[#048187] font-bold">Carregando ciclos...</p>) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[680px]">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="py-3 px-2">Ciclo</th>
+                  <th className="py-3 px-2">Início</th>
+                  <th className="py-3 px-2">Fim</th>
+                  <th className="py-3 px-2 text-center">Status</th>
+                  <th className="py-3 px-2 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ciclos.map((c) => (
+                  <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50/60">
+                    <td className="py-4 px-2 font-bold text-gray-700">{c.ciclo}</td>
+                    <td className="py-4 px-2 text-gray-500">{formatarDataBR(c.data_inicio)}</td>
+                    <td className="py-4 px-2 text-gray-500">{formatarDataBR(c.data_fim)}</td>
+                    <td className="py-4 px-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${c.status_ciclo === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_ciclo}</span></td>
+                    <td className="py-4 px-2 text-right">
+                      <button onClick={() => abrirEditarCiclo(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button>
+                      <button onClick={() => abrirExcluirCiclo(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!ciclos.length && <div className="py-8 text-center text-gray-400 font-bold">Nenhum ciclo cadastrado ainda.</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const CardOpcaoCadastro = ({ titulo, descricao, icone: Icone, onClick, destaque }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md ${destaque ? 'bg-[#048187] border-[#048187] text-white' : 'bg-white border-gray-100 text-gray-700 hover:border-[#048187]/40'}`}
+    >
+      <div className={`w-11 h-11 rounded-full flex items-center justify-center mb-4 ${destaque ? 'bg-white/15 text-white' : 'bg-[#e6f6f7] text-[#048187]'}`}>
+        <Icone size={22} />
+      </div>
+      <h3 className="font-black text-base mb-1">{titulo}</h3>
+      <p className={`text-sm font-semibold leading-relaxed ${destaque ? 'text-white/80' : 'text-gray-400'}`}>{descricao}</p>
+    </button>
+  );
+
+  const CabecalhoSubCadastro = ({ titulo, descricao }) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+      <button
+        type="button"
+        onClick={() => setVisaoCadastro('geral')}
+        className="mb-4 inline-flex items-center gap-2 text-[#048187] font-black text-sm bg-[#e6f6f7] hover:bg-[#d0f0f1] rounded-lg px-4 py-2"
+      >
+        <ChevronLeft size={18} /> Voltar
+      </button>
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">{titulo}</h1>
+      <p className="text-sm text-gray-400 font-semibold">{descricao}</p>
+    </div>
+  );
+
+  const renderTelaCadastro = () => {
+    if (visaoCadastro === 'estruturas') {
+      return (
+        <div className="space-y-6 animate-fade-in">
+          <CabecalhoSubCadastro titulo="Estruturas e Núcleos" descricao="Configure N1, N2, N3, canal, tipo e status de cada estrutura." />
+          {renderTelaEstruturasConfig()}
+        </div>
+      );
+    }
+
+    if (visaoCadastro === 'consultores') {
+      return (
+        <div className="space-y-6 animate-fade-in">
+          <CabecalhoSubCadastro titulo="Consultores" descricao="Cadastre nomes sociais, status, estrutura e peso de meta dos consultores." />
+          {renderTelaConsultores()}
+        </div>
+      );
+    }
+
+    if (visaoCadastro === 'metas') {
+      return (
+        <div className="space-y-6 animate-fade-in">
+          <CabecalhoSubCadastro titulo="Metas por Ciclo" descricao="Abra a tabela de metas para cadastrar, editar, apagar e dividir metas por consultor." />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-gray-700">Tabela de metas do ciclo</h2>
+                <p className="text-sm text-gray-400 font-semibold mt-1">Use o botão abaixo para abrir a planilha interna de metas, com Ver + por estrutura, edição e exclusão.</p>
+              </div>
+              <button onClick={() => setModalMetasReaisAberto(true)} className="bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-5 py-3 inline-flex items-center justify-center gap-2">
+                <Plus size={16} /> Abrir metas reais
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Cadastro</h1>
             <p className="text-sm text-gray-400 font-semibold">Cadastre ciclos, metas reais, estruturas por núcleo, consultores, nomes sociais e pesos de meta. Tudo fica salvo para histórico e comparação entre ciclos.</p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button onClick={() => setModalMetasReaisAberto(true)} className="bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2">
-              <Plus size={16} /> Cadastrar / Ver metas reais
-            </button>
+        </div>
+
+        {renderBlocoCiclosCadastro()}
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+          <div className="mb-5">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-700">Módulos de cadastro</h2>
+            <p className="text-sm text-gray-400 font-semibold mt-1">Escolha uma opção para editar. Use o botão Voltar para retornar a esta tela.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <CardOpcaoCadastro
+              titulo="Metas por Ciclo"
+              descricao="Tabela estilo planilha para receita, atividade, RPA, ticket, UPA, Make, Cabelo e divisão por consultor."
+              icone={BadgeDollarSign}
+              destaque
+              onClick={() => setVisaoCadastro('metas')}
+            />
+            <CardOpcaoCadastro
+              titulo="Estruturas e Núcleos"
+              descricao="Defina N1, N2 ou N3, canal, tipo e status de cada estrutura."
+              icone={Target}
+              onClick={() => setVisaoCadastro('estruturas')}
+            />
+            <CardOpcaoCadastro
+              titulo="Consultores"
+              descricao="Gerencie nome social, status, estrutura e peso de meta dos consultores."
+              icone={Users}
+              onClick={() => setVisaoCadastro('consultores')}
+            />
           </div>
         </div>
       </div>
-      {renderTelaEstruturasConfig()}
-      {renderTelaConsultores()}
-    </div>
-  );
+    );
+  };
 
   const renderTelaConsultores = () => {
     const cFilt = listaConsultores.filter(c => String(c.nome || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.nome_social || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.id_colaborador).includes(buscaConsultor));
@@ -4645,7 +4771,7 @@ const enviarArquivo = async (tipo) => {
       )}
       
       {modalEditarCicloAberto && cicloEditando && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Editar ciclo</h2></div><button onClick={() => setModalEditarCicloAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><div className="p-6"><form onSubmit={salvarEdicaoCiclo} className="space-y-4"><input type="text" value={cicloEditando.ciclo} onChange={e=>setCicloEditando({...cicloEditando, ciclo: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-[#048187]" required /><div className="grid grid-cols-2 gap-4"><input type="date" value={cicloEditando.data_inicio} onChange={e=>setCicloEditando({...cicloEditando, data_inicio: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-[#048187]" required /><input type="date" value={cicloEditando.data_fim} onChange={e=>setCicloEditando({...cicloEditando, data_fim: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-[#048187]" required /></div><div className="grid grid-cols-2 gap-4"><input type="number" value={cicloEditando.meta_ciclo} onChange={e=>setCicloEditando({...cicloEditando, meta_ciclo: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-[#048187]" required /><select value={cicloEditando.status_ciclo} onChange={e=>setCicloEditando({...cicloEditando, status_ciclo: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div><div className="flex justify-end gap-3 pt-4"><button type="submit" className="bg-[#048187] text-white px-5 py-2 rounded-lg font-bold">Salvar alterações</button></div></form></div></div></div>
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Editar ciclo</h2></div><button onClick={() => setModalEditarCicloAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><div className="p-6"><form onSubmit={salvarEdicaoCiclo} className="space-y-4"><input type="text" value={cicloEditando.ciclo} onChange={e=>setCicloEditando({...cicloEditando, ciclo: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-[#048187]" required /><div className="grid grid-cols-2 gap-4"><input type="date" value={cicloEditando.data_inicio} onChange={e=>setCicloEditando({...cicloEditando, data_inicio: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-[#048187]" required /><input type="date" value={cicloEditando.data_fim} onChange={e=>setCicloEditando({...cicloEditando, data_fim: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-[#048187]" required /></div><div><select value={cicloEditando.status_ciclo} onChange={e=>setCicloEditando({...cicloEditando, status_ciclo: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div><div className="flex justify-end gap-3 pt-4"><button type="submit" className="bg-[#048187] text-white px-5 py-2 rounded-lg font-bold">Salvar alterações</button></div></form></div></div></div>
       )}
 
       {modalExcluirCicloAberto && cicloParaExcluir && (
