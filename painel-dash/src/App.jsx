@@ -70,9 +70,9 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Loja', 'LojaVisaoGeral', 'Perfil'],
-  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Loja', 'LojaVisaoGeral', 'Perfil']
+  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'Configurações', 'Perfil'],
+  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Loja', 'LojaVisaoGeral', 'Perfil'],
+  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Loja', 'LojaVisaoGeral', 'Perfil']
 };
 
 const obterNomeAba = (nome) => ({
@@ -85,7 +85,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -133,6 +133,7 @@ const filtroVazio = { nucleos: [], unidades: [], estruturas: [], consultores: []
 const buscaFiltrosVazia = { nucleos: '', unidades: '', estruturas: '', consultores: '', situacoes: '' };
 const cicloFormVazio = { ciclo: '', data_inicio: '', data_fim: '', meta_ciclo: '', status_ciclo: 'ativo' };
 const consultorVazio = { id_colaborador: '', nome: '', nome_social: '', estrutura: '', canal: 'ESPAÇO DO REVENDEDOR', status_consultor: 'ativo', peso_meta: 0 };
+const estruturaConfigVazia = { cod_estrutura: '', estrutura: '', canal: 'VD', nucleo: 'NUCLEO 1', tipo_estrutura: 'estrutura', status: 'ativo' };
 
 const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(v || 0));
 const formatarNumeroBR = (v, casas = 0) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
@@ -322,23 +323,34 @@ const GrupoFiltro = ({ cat, tit, busca, setBusca, opc, ativos, toggle }) => {
   );
 };
 
-const FiltroRapidoNucleos = ({ filtrosAtivos, onSelecionar }) => {
+const FiltroRapidoNucleos = ({ filtrosAtivos, onSelecionar, opcoesNucleos = [] }) => {
   const nucleosSelecionados = filtrosAtivos?.nucleos || [];
   const filtroSelecionado = nucleosSelecionados.length === 1 ? nucleosSelecionados[0] : 'TODOS';
+  const normalizarBotaoNucleo = (valor) => {
+    const texto = String(valor || '').toUpperCase().replace('Ú', 'U').trim();
+    const match = texto.match(/(\d+)/);
+    return match ? `N${match[1]}` : texto;
+  };
+  const nucleosDisponiveis = Array.from(new Set([...(opcoesNucleos || []), 'NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3']))
+    .filter(Boolean)
+    .sort((a, b) => {
+      const na = Number(String(a).match(/\d+/)?.[0] || 99);
+      const nb = Number(String(b).match(/\d+/)?.[0] || 99);
+      return na - nb;
+    });
   const botoes = [
     { label: 'TODOS', valor: 'TODOS' },
-    { label: 'N1', valor: 'NUCLEO 1' },
-    { label: 'N2', valor: 'NUCLEO 2' }
+    ...nucleosDisponiveis.map((n) => ({ label: normalizarBotaoNucleo(n), valor: n }))
   ];
 
   return (
-    <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
+    <div className="flex bg-gray-100 p-1 rounded-lg shrink-0 overflow-x-auto max-w-full">
       {botoes.map((botao) => (
         <button
           key={botao.valor}
           type="button"
           onClick={() => onSelecionar(botao.valor)}
-          className={`px-4 sm:px-5 py-2 rounded-md text-xs font-black transition-colors ${filtroSelecionado === botao.valor ? 'bg-[#048187] text-white shadow' : 'text-[#048187] hover:bg-white hover:text-[#036b70]'}`}
+          className={`px-4 sm:px-5 py-2 rounded-md text-xs font-black transition-colors whitespace-nowrap ${filtroSelecionado === botao.valor ? 'bg-[#048187] text-white shadow' : 'text-[#048187] hover:bg-white hover:text-[#036b70]'}`}
         >
           {botao.label}
         </button>
@@ -999,11 +1011,12 @@ export default function App() {
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
 
   const [listaConsultores, setListaConsultores] = useState([]); const [carregandoListaConsultores, setCarregandoListaConsultores] = useState(false); const [buscaConsultor, setBuscaConsultor] = useState(''); const [novoConsultor, setNovoConsultor] = useState(consultorVazio); const [modalCriarConsultorAberto, setModalCriarConsultorAberto] = useState(false); const [consultorEditando, setConsultorEditando] = useState(null); const [modalEditarConsultorAberto, setModalEditarConsultorAberto] = useState(false); const [consultorParaExcluir, setConsultorParaExcluir] = useState(null); const [modalExcluirConsultorAberto, setModalExcluirConsultorAberto] = useState(false); const [mensagemConsultor, setMensagemConsultor] = useState(''); const [erroGestaoConsultor, setErroGestaoConsultor] = useState('');
+  const [listaEstruturasConfig, setListaEstruturasConfig] = useState([]); const [carregandoEstruturasConfig, setCarregandoEstruturasConfig] = useState(false); const [buscaEstruturaConfig, setBuscaEstruturaConfig] = useState(''); const [estruturaConfigForm, setEstruturaConfigForm] = useState(estruturaConfigVazia); const [estruturaConfigEditando, setEstruturaConfigEditando] = useState(null); const [mensagemEstruturaConfig, setMensagemEstruturaConfig] = useState(''); const [erroEstruturaConfig, setErroEstruturaConfig] = useState('');
 
   const [dadosRevendedores, setDadosRevendedores] = useState(null); const [carregandoRevendedores, setCarregandoRevendedores] = useState(false); const [erroRevendedores, setErroRevendedores] = useState(''); const [buscaRevendedores, setBuscaRevendedores] = useState('');
   const [filtrosRevendedores, setFiltrosRevendedores] = useState({ estruturas: [], cidades: [], atividades: [], papeis: [], inadimplentes: [] }); const [buscaFiltrosRevendedores, setBuscaFiltrosRevendedores] = useState({ estruturas: '', cidades: '', atividades: '', papeis: '', inadimplentes: '' });
 
-  const [opcoesFiltros, setOpcFiltros] = useState({ nucleos: ['NUCLEO 1', 'NUCLEO 2'], unidades: [], estruturas: [], consultores: [], situacoes: [] });
+  const [opcoesFiltros, setOpcFiltros] = useState({ nucleos: ['NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'], unidades: [], estruturas: [], consultores: [], situacoes: [] });
   const [filtrosAtivos, setFiltrosAtivos] = useState(filtroVazio);
   const [buscaFiltros, setBuscaFiltros] = useState(buscaFiltrosVazia);
 
@@ -1021,7 +1034,7 @@ export default function App() {
   const debounceFiltroRapidoRef = useRef(null);
 
   const itensMenuTopo = [
-    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
+    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'N3', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
   ];
 
   const itensMenuVD = itensMenuTopo;
@@ -1122,6 +1135,7 @@ export default function App() {
       .then((resposta) => {
         setOpcFiltros(prev => ({
           ...prev,
+          nucleos: resposta.data.nucleos || prev.nucleos || ['NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'],
           unidades: resposta.data.unidades || [],
           estruturas: resposta.data.estruturas || [],
           consultores: resposta.data.consultores || [],
@@ -1369,6 +1383,82 @@ export default function App() {
     try { const resposta = await axios.get(`${API_URL}/consultores/listar`); setListaConsultores(resposta.data.consultores || []); } catch (erro) { setErroGestaoConsultor('Erro consultores.'); } finally { setCarregandoListaConsultores(false); }
   };
 
+
+  const carregarEstruturasConfig = async () => {
+    setCarregandoEstruturasConfig(true); setErroEstruturaConfig('');
+    try {
+      const resposta = await axios.get(`${API_URL}/estruturas-config`);
+      setListaEstruturasConfig(resposta.data.estruturas || []);
+      if (resposta.data.nucleos?.length) setOpcFiltros((prev) => ({ ...prev, nucleos: resposta.data.nucleos }));
+    } catch (erro) {
+      setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao carregar estruturas e núcleos.');
+    } finally {
+      setCarregandoEstruturasConfig(false);
+    }
+  };
+
+  const sincronizarEstruturasConfig = async () => {
+    setErroEstruturaConfig(''); setMensagemEstruturaConfig(''); setCarregandoEstruturasConfig(true);
+    try {
+      const resposta = await axios.post(`${API_URL}/estruturas-config/sincronizar-pedidos`);
+      setMensagemEstruturaConfig(resposta.data?.mensagem || 'Estruturas sincronizadas com as bases.');
+      await carregarEstruturasConfig();
+      await carregarOpcoesFiltros(true);
+    } catch (erro) {
+      setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao sincronizar estruturas.');
+    } finally {
+      setCarregandoEstruturasConfig(false);
+    }
+  };
+
+  const limparFormEstruturaConfig = () => {
+    setEstruturaConfigEditando(null);
+    setEstruturaConfigForm(estruturaConfigVazia);
+  };
+
+  const salvarEstruturaConfig = async (e) => {
+    e.preventDefault(); setErroEstruturaConfig(''); setMensagemEstruturaConfig('');
+    try {
+      const payload = { ...estruturaConfigForm, nucleo: estruturaConfigForm.nucleo || 'NUCLEO 1' };
+      if (estruturaConfigEditando?.id) await axios.put(`${API_URL}/estruturas-config/${estruturaConfigEditando.id}`, payload);
+      else await axios.post(`${API_URL}/estruturas-config`, payload);
+      setMensagemEstruturaConfig(estruturaConfigEditando?.id ? 'Estrutura atualizada.' : 'Estrutura cadastrada.');
+      limparFormEstruturaConfig();
+      limparCachesDados();
+      await carregarEstruturasConfig();
+      await carregarOpcoesFiltros(true);
+    } catch (erro) {
+      setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao salvar estrutura.');
+    }
+  };
+
+  const editarEstruturaConfig = (item) => {
+    setEstruturaConfigEditando(item);
+    setEstruturaConfigForm({
+      cod_estrutura: item.cod_estrutura || '',
+      estrutura: item.estrutura || '',
+      canal: item.canal || 'VD',
+      nucleo: item.nucleo || 'NUCLEO 1',
+      tipo_estrutura: item.tipo_estrutura || 'estrutura',
+      status: item.status || 'ativo'
+    });
+  };
+
+  const excluirEstruturaConfig = async (item) => {
+    const ok = window.confirm(`Remover a estrutura "${item.estrutura}" do cadastro de núcleos?`);
+    if (!ok) return;
+    setErroEstruturaConfig(''); setMensagemEstruturaConfig('');
+    try {
+      await axios.delete(`${API_URL}/estruturas-config/${item.id}`);
+      setMensagemEstruturaConfig('Estrutura removida.');
+      limparCachesDados();
+      await carregarEstruturasConfig();
+      await carregarOpcoesFiltros(true);
+    } catch (erro) {
+      setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao remover estrutura.');
+    }
+  };
+
 const carregarRevendedores = async () => {
   setCarregandoRevendedores(true);
   setErroRevendedores('');
@@ -1439,7 +1529,7 @@ const carregarRevendedores = async () => {
       if (data.acao === 'AUTOMACAO_MAKE_INICIADA') {
         setCarregandoAutomacaoMake(true);
         setErroUpload('');
-        setMensagemUpload(data.mensagem || 'Automação MAKE iniciada. Aguarde o download dos 3 relatórios no SGI.');
+        setMensagemUpload(data.mensagem || 'Automação MAKE iniciada. Aguarde o download dos 5 relatórios no SGI.');
       }
 
       if (data.acao === 'UPLOAD_MAKE_SUCESSO') {
@@ -1489,7 +1579,7 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Histórico') return carregarHistoricoCiclos();
     if (telaAtual === 'Revendedores') return carregarRevendedores();
     if (telaAtual === 'Base') return carregarCiclos();
-    if (telaAtual === 'Cadastro') return carregarListaConsultores();
+    if (telaAtual === 'Cadastro') return Promise.allSettled([carregarListaConsultores(), carregarEstruturasConfig()]);
     if (telaAtual === 'Loja' || telaAtual === 'LojaVisaoGeral') return carregarDashboard(filtros, forcarAtualizacao);
     if (telaAtual === 'Configurações') return carregarUsuarios();
   };
@@ -1824,7 +1914,7 @@ const carregarRevendedores = async () => {
     else if (telaAtual === 'Comparativo') tarefas.push(carregarComparativo(filtrosAtivos));
     else tarefas.push(carregarDashboard(filtrosAtivos, true));
 
-    if (telaAtual === 'Cadastro') tarefas.push(carregarListaConsultores());
+    if (telaAtual === 'Cadastro') { tarefas.push(carregarListaConsultores()); tarefas.push(carregarEstruturasConfig()); }
     if (telaAtual === 'Histórico') tarefas.push(carregarHistoricoCiclos());
     if (telaAtual === 'Base') tarefas.push(carregarCiclos());
     if (telaAtual === 'Configurações') tarefas.push(carregarUsuarios());
@@ -2160,7 +2250,7 @@ const enviarArquivo = async (tipo) => {
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} />
+          <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
           <p className="text-xs font-medium text-gray-400 text-left sm:text-right">{dados.ultima_atualizacao_pedidos ? `Última atualização (Base Pedidos): ${dados.ultima_atualizacao_pedidos}` : 'Nenhum upload de Pedidos'}</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 xl:gap-5">
@@ -2664,7 +2754,7 @@ const enviarArquivo = async (tipo) => {
                   <ChevronLeft size={18} /> Voltar
                 </button>
               )}
-              <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} />
+              <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
             </div>
           </div>
         </div>
@@ -3072,7 +3162,7 @@ const enviarArquivo = async (tipo) => {
             <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 truncate">Ranking e Gamificação</h1><p className="text-sm text-gray-400 truncate">Top 5 de alta performance da equipe</p></div>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} />
+            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
             <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
               <button onClick={() => setVisaoRanking('consultores')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'consultores' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Consultores"><User size={18} /></button>
               <button onClick={() => setVisaoRanking('estruturas')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'estruturas' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Estruturas"><Users size={18} /></button>
@@ -3417,7 +3507,7 @@ const enviarArquivo = async (tipo) => {
         <CompUpload titulo="Base Ativa" desc="Base de revendedores." arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload} />
         <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload} />
         <CompUpload titulo="SKUS IAF" desc="Abas MAKE e CABELO." arq={arquivoSkusIaf} setArq={setArquivoSkusIaf} onEnv={() => enviarArquivo('skusIaf')} icone={Sparkles} load={carregandoUpload} />
-        <CompUpload titulo="Vendas MAKE" desc="Boticário, Eudora, QDB." arquivos={arquivosVendasMake} setArqs={setArquivosVendasMake} onEnv={() => enviarArquivo('vendasMake')} icone={Upload} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaMake} acaoExtraLoad={carregandoAutomacaoMake} />
+        <CompUpload titulo="Vendas MAKE" desc="5 planilhas MAKE." arquivos={arquivosVendasMake} setArqs={setArquivosVendasMake} onEnv={() => enviarArquivo('vendasMake')} icone={Upload} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaMake} acaoExtraLoad={carregandoAutomacaoMake} />
         <CompUpload titulo="Vendas CABELO" desc="Planilhas Cabelo." arquivos={arquivosVendasCabelo} setArqs={setArquivosVendasCabelo} onEnv={() => enviarArquivo('vendasCabelo')} icone={Scissors} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaCabelo} acaoExtraLoad={carregandoAutomacaoCabelo} />
       </div>
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
@@ -3436,13 +3526,104 @@ const enviarArquivo = async (tipo) => {
     </div>
   );
 
+  const renderTelaEstruturasConfig = () => {
+    const lista = listaEstruturasConfig.filter((item) => {
+      const termo = buscaEstruturaConfig.toLowerCase().trim();
+      if (!termo) return true;
+      return String(item.estrutura || '').toLowerCase().includes(termo) || String(item.cod_estrutura || '').toLowerCase().includes(termo) || String(item.nucleo || '').toLowerCase().includes(termo);
+    });
+    const resumo = listaEstruturasConfig.reduce((acc, item) => {
+      const nucleo = item.nucleo || 'SEM NÚCLEO';
+      acc[nucleo] = (acc[nucleo] || 0) + 1;
+      return acc;
+    }, {});
+
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-xl font-black text-gray-700">Estruturas e Núcleos</h2>
+            <p className="text-sm text-gray-400 font-semibold mt-1">Defina a qual núcleo cada estrutura pertence. Isso alimenta os botões Todos, N1, N2, N3 e o painel de filtros.</p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {Object.entries(resumo).map(([nucleo, total]) => <span key={nucleo} className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{String(nucleo).replace('NUCLEO', 'NÚCLEO')} • {total}</span>)}
+              {!Object.keys(resumo).length && <span className="text-xs font-bold text-gray-400">Nenhuma estrutura configurada ainda.</span>}
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
+            <button onClick={sincronizarEstruturasConfig} className="bg-[#e6f6f7] text-[#048187] font-black px-4 py-3 rounded-lg hover:bg-[#d0f0f1] inline-flex items-center justify-center gap-2 text-sm"><RefreshCcw size={16} /> Sincronizar bases</button>
+            <button onClick={carregarEstruturasConfig} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-3 rounded-lg hover:bg-gray-50 inline-flex items-center justify-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button>
+          </div>
+        </div>
+
+        {(mensagemEstruturaConfig || erroEstruturaConfig) && (<div className={`rounded-xl p-4 font-bold text-sm mb-5 ${mensagemEstruturaConfig ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemEstruturaConfig || erroEstruturaConfig}</div>)}
+
+        <form onSubmit={salvarEstruturaConfig} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3 mb-6 bg-[#f7fafb] border border-gray-100 rounded-2xl p-4">
+          <input value={estruturaConfigForm.cod_estrutura} onChange={(e) => setEstruturaConfigForm({ ...estruturaConfigForm, cod_estrutura: e.target.value })} placeholder="Código" className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" />
+          <input value={estruturaConfigForm.estrutura} onChange={(e) => setEstruturaConfigForm({ ...estruturaConfigForm, estrutura: e.target.value })} placeholder="Nome da estrutura" className="md:col-span-2 border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+          <select value={estruturaConfigForm.nucleo} onChange={(e) => setEstruturaConfigForm({ ...estruturaConfigForm, nucleo: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]">
+            <option value="NUCLEO 1">N1</option>
+            <option value="NUCLEO 2">N2</option>
+            <option value="NUCLEO 3">N3</option>
+          </select>
+          <select value={estruturaConfigForm.tipo_estrutura} onChange={(e) => setEstruturaConfigForm({ ...estruturaConfigForm, tipo_estrutura: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]">
+            <option value="estrutura">Estrutura</option>
+            <option value="er">ER</option>
+            <option value="grupo">Grupo</option>
+            <option value="loja">Loja</option>
+          </select>
+          <select value={estruturaConfigForm.status} onChange={(e) => setEstruturaConfigForm({ ...estruturaConfigForm, status: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]">
+            <option value="ativo">Ativo</option>
+            <option value="inativo">Inativo</option>
+          </select>
+          <div className="flex gap-2">
+            <button type="submit" className="flex-1 bg-[#048187] text-white font-black rounded-lg px-4 py-3 hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><Save size={16} /> {estruturaConfigEditando ? 'Salvar' : 'Adicionar'}</button>
+            {estruturaConfigEditando && <button type="button" onClick={limparFormEstruturaConfig} className="px-3 rounded-lg border border-gray-200 text-gray-500 font-black hover:bg-white"><X size={16} /></button>}
+          </div>
+        </form>
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div className="relative w-full sm:w-96">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={buscaEstruturaConfig} onChange={(e) => setBuscaEstruturaConfig(e.target.value)} placeholder="Buscar estrutura, código ou núcleo..." className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" />
+          </div>
+          <div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{lista.length} Estruturas</div>
+        </div>
+
+        {carregandoEstruturasConfig ? <div className="py-10 text-center text-[#048187] font-bold">Carregando estruturas...</div> : (
+          <div className="overflow-x-auto">
+            <div className="max-h-[420px] overflow-y-auto pr-2">
+              <table className="w-full text-sm min-w-[900px]">
+                <thead className="sticky top-0 bg-white z-10">
+                  <tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">Código</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Núcleo</th><th className="py-3 px-2">Tipo</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr>
+                </thead>
+                <tbody>
+                  {lista.map((item) => (
+                    <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-3 px-2 font-black text-[#048187]">{item.cod_estrutura || '-'}</td>
+                      <td className="py-3 px-2 font-bold text-gray-700">{item.estrutura}</td>
+                      <td className="py-3 px-2"><span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-xs font-black">{String(item.nucleo || '').replace('NUCLEO', 'NÚCLEO')}</span></td>
+                      <td className="py-3 px-2 text-gray-500 font-bold uppercase text-xs">{item.tipo_estrutura || '-'}</td>
+                      <td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${item.status === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{item.status}</span></td>
+                      <td className="py-3 px-2 text-right whitespace-nowrap"><button onClick={() => editarEstruturaConfig(item)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => excluirEstruturaConfig(item)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!lista.length && <div className="py-10 text-center text-gray-400 font-bold">Nenhuma estrutura encontrada. Clique em Sincronizar bases para carregar as estruturas existentes.</div>}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderTelaCadastro = () => (
     <div className="space-y-6 animate-fade-in">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Cadastro</h1>
-            <p className="text-sm text-gray-400 font-semibold">Cadastre e mantenha consultores, nomes sociais, pesos de meta e metas reais.</p>
+            <p className="text-sm text-gray-400 font-semibold">Cadastre ciclos, metas reais, estruturas por núcleo, consultores, nomes sociais e pesos de meta. Tudo fica salvo para histórico e comparação entre ciclos.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <button onClick={() => setModalMetasReaisAberto(true)} className="bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2">
@@ -3451,6 +3632,7 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
       </div>
+      {renderTelaEstruturasConfig()}
       {renderTelaConsultores()}
     </div>
   );
@@ -3872,6 +4054,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'Metas') return renderTelaMetas();
     if (telaAtual === 'N1') return <TelaGestaoNucleo nucleo="N1" />;
     if (telaAtual === 'N2') return <TelaGestaoNucleo nucleo="N2" />;
+    if (telaAtual === 'N3') return <TelaGestaoNucleo nucleo="N3" />;
     if (telaAtual === 'Ranking') return renderTelaRanking();
     if (telaAtual === 'Comparativo') return renderTelaComparativo();
     if (telaAtual === 'Histórico') return renderTelaHistorico();
@@ -4142,7 +4325,7 @@ const enviarArquivo = async (tipo) => {
                     <input type="date" value={filtrosAtivos.data_fim} onChange={(e) => setFiltrosAtivos({ ...filtrosAtivos, data_fim: e.target.value })} className="w-full text-sm p-3 border border-gray-200 rounded-lg outline-none focus:border-[#048187]" />
                   </div>
                 </div>
-                <GrupoFiltro cat="nucleos" tit="Núcleo (N1 e N2)" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
+                <GrupoFiltro cat="nucleos" tit="Núcleo (N1, N2 e N3)" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
                 <GrupoFiltro cat="unidades" tit="Unidade" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
                 <GrupoFiltro cat="estruturas" tit="Estrutura" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
                 <GrupoFiltro cat="consultores" tit="Consultor" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
