@@ -1702,7 +1702,8 @@ const carregarRevendedores = async () => {
 
     window.postMessage({
       source: 'DASH_SB',
-      acao: 'INICIAR_EXTRACAO_PEDIDOS'
+      acao: 'INICIAR_EXTRACAO_PEDIDOS',
+      tokenAuth
     }, '*');
 
     setTimeout(() => {
