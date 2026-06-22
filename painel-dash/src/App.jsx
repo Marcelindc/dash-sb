@@ -416,6 +416,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const [erro, setErro] = useState('');
   const [avisoEstrutura, setAvisoEstrutura] = useState(null);
   const [mostrarListaEstruturasMeta, setMostrarListaEstruturasMeta] = useState(false);
+  const [mostrarFormularioMeta, setMostrarFormularioMeta] = useState(false);
 
   const cicloConsulta = form.ciclo || cicloPadrao || '';
 
@@ -461,6 +462,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     setBusca('');
     setAvisoEstrutura(null);
     setMostrarListaEstruturasMeta(false);
+    setMostrarFormularioMeta(false);
   };
 
   const normalizarEstruturaMeta = (valor) => String(valor || '').trim().toLowerCase();
@@ -578,6 +580,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       estruturas: meta.estruturas || []
     });
     setBusca('');
+    setMostrarFormularioMeta(true);
   };
 
   const excluirMeta = async (meta) => {
@@ -630,203 +633,249 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   if (!aberto) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4 py-6">
-      <div className="bg-white w-full max-w-6xl max-h-[92vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-start justify-between p-6 border-b border-gray-100">
+    <div className="fixed inset-0 bg-black/45 z-[9999] flex items-center justify-center p-2 md:p-4">
+      <div className="bg-white w-full max-w-[96vw] h-[94vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col">
+        <div className="flex items-start justify-between gap-4 p-6 md:p-8 border-b border-gray-100">
           <div>
-            <h2 className="text-xl font-black text-gray-700">Cadastro de Metas Reais</h2>
-            <p className="text-sm text-gray-400 font-semibold mt-1">Meta oficial por estrutura, ER ou grupo de estruturas. A divisão por consultor usa o Peso Meta da aba Cadastro.</p>
+            <h2 className="text-2xl md:text-3xl font-black text-gray-700">Cadastro de Metas Reais</h2>
+            <p className="text-sm md:text-base text-gray-400 font-semibold mt-1">Meta oficial por estrutura, ER ou grupo de estruturas. A divisão por consultor usa o Peso Meta da aba Cadastro.</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button>
+          <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2 shrink-0"><X size={24} /></button>
         </div>
 
-        <div className="p-6 overflow-y-auto grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
-          <form onSubmit={salvarMeta} className="border border-gray-100 rounded-2xl p-5 space-y-4 h-fit">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-base font-black text-gray-700">{editandoId ? 'Editar meta' : 'Nova meta'}</h3>
-              {editandoId && <button type="button" onClick={limparForm} className="text-xs font-black text-[#048187] hover:underline">Limpar edição</button>}
-            </div>
-
-            {erro && <div className="bg-red-50 text-red-600 border border-red-100 rounded-xl p-3 text-sm font-bold">{erro}</div>}
-            {mensagem && <div className="bg-green-50 text-green-700 border border-green-100 rounded-xl p-3 text-sm font-bold">{mensagem}</div>}
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Ciclo</label>
-                <input value={form.ciclo} onChange={(e) => setForm({ ...form, ciclo: e.target.value })} placeholder="09/2026" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
-              </div>
-              <div>
-                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Meta Real</label>
-                <input value={form.meta_real} onChange={(e) => { setMensagem(''); setForm({ ...form, meta_real: e.target.value }); }} onBlur={(e) => setForm((atual) => ({ ...atual, meta_real: formatarMetaRealInput(e.target.value) }))} placeholder="383337,00" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
-              </div>
-            </div>
-
-            <div className="border border-gray-100 bg-[#f7fafb] rounded-2xl p-4 space-y-3">
-              <div>
-                <h4 className="text-xs font-black text-gray-600 uppercase">Metas dos indicadores da estrutura</h4>
-                <p className="text-[11px] text-gray-400 font-semibold mt-1">Esses valores alimentam os cards de Atividade, MAKE, CABELO, RPA, Ticket Médio e UPA na aba Metas Estruturas.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <CampoMetaIndicador label="Meta Atividade (%)" value={form.meta_atividade} casas={1} placeholder="46,0" onChange={(valor) => setForm({ ...form, meta_atividade: valor })} />
-                <CampoMetaIndicador label="Meta MAKE (%)" value={form.meta_make} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_make: valor })} />
-                <CampoMetaIndicador label="Meta CABELO (%)" value={form.meta_cabelo} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_cabelo: valor })} />
-                <CampoMetaIndicador label="Meta RPA (R$)" value={form.meta_rpa} casas={2} placeholder="1.500,00" onChange={(valor) => setForm({ ...form, meta_rpa: valor })} />
-                <CampoMetaIndicador label="Meta Tkt Médio (R$)" value={form.meta_tkt_medio} casas={2} placeholder="800,00" onChange={(valor) => setForm({ ...form, meta_tkt_medio: valor })} />
-                <CampoMetaIndicador label="Meta UPA" value={form.meta_upa} casas={1} placeholder="15,0" onChange={(valor) => setForm({ ...form, meta_upa: valor })} />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-black text-gray-400 uppercase block mb-1">Nome da meta</label>
-              <input value={form.nome_meta} onChange={(e) => setForm({ ...form, nome_meta: e.target.value })} placeholder="EQUIPE GRAZIELLE" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Tipo</label>
-                <select value={form.tipo_meta} onChange={(e) => setForm({ ...form, tipo_meta: e.target.value })} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]">
-                  <option value="estrutura">Estrutura</option>
-                  <option value="er">ER</option>
-                  <option value="grupo_estruturas">Grupo de estruturas</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Status</label>
-                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]">
-                  <option value="ativo">Ativo</option>
-                  <option value="inativo">Inativo</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-black text-gray-400 uppercase block mb-1">Estruturas vinculadas</label>
-              <div
-                className="relative"
-                onBlur={() => {
-                  setTimeout(() => setMostrarListaEstruturasMeta(false), 180);
+        <div className="px-6 md:px-8 pt-5 pb-3 border-b border-gray-100">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (mostrarFormularioMeta && !editandoId) {
+                    limparForm(form.ciclo || cicloPadrao || '');
+                  } else {
+                    if (!editandoId) limparForm(form.ciclo || cicloPadrao || '');
+                    setMostrarFormularioMeta((v) => !v || !!editandoId);
+                  }
                 }}
+                className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center gap-2 text-sm"
               >
-                <Search size={16} className="absolute left-3 top-3.5 text-gray-400" />
-                <input
-                  value={busca}
-                  onFocus={() => setMostrarListaEstruturasMeta(true)}
-                  onClick={() => setMostrarListaEstruturasMeta(true)}
-                  onChange={(e) => {
-                    setBusca(e.target.value);
-                    setMostrarListaEstruturasMeta(true);
-                  }}
-                  placeholder="Buscar por código ou nome da estrutura"
-                  className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]"
-                />
-                {mostrarListaEstruturasMeta && (
-                  <div className="absolute z-10 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
-                    {estruturasFiltradas.length > 0 ? (
-                      estruturasFiltradas.map((e) => {
-                        const estrutura = String(e.estrutura || '').trim();
-                        const cod = String(e.cod_estrutura || estrutura.split('-')[0] || '').trim();
-                        const jaCadastrada = estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod);
+                <Plus size={18} /> {editandoId ? 'Editando meta' : mostrarFormularioMeta ? 'Fechar formulário' : 'Nova meta'}
+              </button>
+              {editandoId && (
+                <button
+                  type="button"
+                  onClick={() => limparForm(form.ciclo || cicloPadrao || '')}
+                  className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-3 rounded-xl hover:bg-gray-50 text-sm"
+                >
+                  Cancelar edição
+                </button>
+              )}
+            </div>
 
-                        return (
-                          <button
-                            key={`${e.cod_estrutura}-${e.estrutura}`}
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => adicionarEstrutura(e)}
-                            className={`w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] font-bold flex items-center justify-between gap-3 ${jaCadastrada ? 'text-[#7c1f31] bg-[#7c1f31]/5' : 'text-gray-600'}`}
-                          >
-                            <span className="truncate">{e.estrutura}</span>
-                            <span className={`shrink-0 text-[10px] font-black uppercase rounded-full px-2 py-1 ${jaCadastrada ? 'bg-[#7c1f31] text-white' : 'bg-[#048187] text-white'}`}>
-                              {jaCadastrada ? 'Já cadastrada' : 'Disponível'}
-                            </span>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="px-4 py-3 text-sm font-bold text-gray-400">
-                        Nenhuma estrutura encontrada.
+            <button
+              type="button"
+              onClick={() => carregarMetas()}
+              className="bg-[#e6f6f7] text-[#048187] font-black px-4 py-3 rounded-xl hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm w-full lg:w-auto justify-center"
+            >
+              <RefreshCcw size={16} /> Atualizar
+            </button>
+          </div>
+
+          {(erro || mensagem) && (
+            <div className="mt-4 space-y-2">
+              {erro && <div className="bg-red-50 text-red-600 border border-red-100 rounded-xl p-3 text-sm font-bold">{erro}</div>}
+              {mensagem && <div className="bg-green-50 text-green-700 border border-green-100 rounded-xl p-3 text-sm font-bold">{mensagem}</div>}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+          {mostrarFormularioMeta && (
+            <form onSubmit={salvarMeta} className="border border-[#d9eff0] bg-[#fbfefe] rounded-[24px] p-5 md:p-6 space-y-5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-lg font-black text-gray-700">{editandoId ? 'Editar meta real' : 'Nova meta real'}</h3>
+                <button type="submit" disabled={salvando} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2 text-sm">
+                  <Save size={16} /> {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar meta'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Ciclo</label>
+                  <input value={form.ciclo} onChange={(e) => setForm({ ...form, ciclo: e.target.value })} placeholder="09/2026" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Meta Real</label>
+                  <input value={form.meta_real} onChange={(e) => { setMensagem(''); setForm({ ...form, meta_real: e.target.value }); }} onBlur={(e) => setForm((atual) => ({ ...atual, meta_real: formatarMetaRealInput(e.target.value) }))} placeholder="383337,00" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Tipo</label>
+                  <select value={form.tipo_meta} onChange={(e) => setForm({ ...form, tipo_meta: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]">
+                    <option value="estrutura">Estrutura</option>
+                    <option value="er">ER</option>
+                    <option value="grupo_estruturas">Grupo de estruturas</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Status</label>
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]">
+                    <option value="ativo">Ativo</option>
+                    <option value="inativo">Inativo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Nome da meta</label>
+                <input value={form.nome_meta} onChange={(e) => setForm({ ...form, nome_meta: e.target.value })} placeholder="EQUIPE GRAZIELLE" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
+              </div>
+
+              <div className="border border-gray-100 bg-white rounded-2xl p-4 space-y-3">
+                <div>
+                  <h4 className="text-xs font-black text-gray-600 uppercase">Metas dos indicadores da estrutura</h4>
+                  <p className="text-[11px] text-gray-400 font-semibold mt-1">Esses valores alimentam os cards de Atividade, MAKE, CABELO, RPA, Ticket Médio e UPA na aba Metas Estruturas.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <CampoMetaIndicador label="Meta Atividade (%)" value={form.meta_atividade} casas={1} placeholder="46,0" onChange={(valor) => setForm({ ...form, meta_atividade: valor })} />
+                  <CampoMetaIndicador label="Meta MAKE (%)" value={form.meta_make} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_make: valor })} />
+                  <CampoMetaIndicador label="Meta CABELO (%)" value={form.meta_cabelo} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_cabelo: valor })} />
+                  <CampoMetaIndicador label="Meta RPA (R$)" value={form.meta_rpa} casas={2} placeholder="1.500,00" onChange={(valor) => setForm({ ...form, meta_rpa: valor })} />
+                  <CampoMetaIndicador label="Meta Tkt Médio (R$)" value={form.meta_tkt_medio} casas={2} placeholder="800,00" onChange={(valor) => setForm({ ...form, meta_tkt_medio: valor })} />
+                  <CampoMetaIndicador label="Meta UPA" value={form.meta_upa} casas={1} placeholder="15,0" onChange={(valor) => setForm({ ...form, meta_upa: valor })} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_.9fr] gap-4">
+                <div>
+                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Estruturas vinculadas</label>
+                  <div
+                    className="relative"
+                    onBlur={() => {
+                      setTimeout(() => setMostrarListaEstruturasMeta(false), 180);
+                    }}
+                  >
+                    <Search size={16} className="absolute left-3 top-3.5 text-gray-400" />
+                    <input
+                      value={busca}
+                      onFocus={() => setMostrarListaEstruturasMeta(true)}
+                      onClick={() => setMostrarListaEstruturasMeta(true)}
+                      onChange={(e) => {
+                        setBusca(e.target.value);
+                        setMostrarListaEstruturasMeta(true);
+                      }}
+                      placeholder="Buscar por código ou nome da estrutura"
+                      className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]"
+                    />
+                    {mostrarListaEstruturasMeta && (
+                      <div className="absolute z-10 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
+                        {estruturasFiltradas.length > 0 ? (
+                          estruturasFiltradas.map((e) => {
+                            const estrutura = String(e.estrutura || '').trim();
+                            const cod = String(e.cod_estrutura || estrutura.split('-')[0] || '').trim();
+                            const jaCadastrada = estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod);
+
+                            return (
+                              <button
+                                key={`${e.cod_estrutura}-${e.estrutura}`}
+                                type="button"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => adicionarEstrutura(e)}
+                                className={`w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] font-bold flex items-center justify-between gap-3 ${jaCadastrada ? 'text-[#7c1f31] bg-[#7c1f31]/5' : 'text-gray-600'}`}
+                              >
+                                <span className="truncate">{e.estrutura}</span>
+                                <span className={`shrink-0 text-[10px] font-black uppercase rounded-full px-2 py-1 ${jaCadastrada ? 'bg-[#7c1f31] text-white' : 'bg-[#048187] text-white'}`}>
+                                  {jaCadastrada ? 'Já cadastrada' : 'Disponível'}
+                                </span>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="px-4 py-3 text-sm font-bold text-gray-400">
+                            Nenhuma estrutura encontrada.
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-              {avisoEstrutura && (
-                <div className={`mt-3 rounded-2xl px-4 py-3 text-white shadow-sm ${avisoEstrutura.tipo === 'erro' ? 'bg-[#7c1f31]' : 'bg-[#048187]'}`}>
-                  <p className="font-black text-sm">{avisoEstrutura.texto}</p>
-                  {avisoEstrutura.detalhe && <p className="text-xs font-semibold text-white/85 mt-1">{avisoEstrutura.detalhe}</p>}
+                  {avisoEstrutura && (
+                    <div className={`mt-2 rounded-xl border px-3 py-3 text-sm font-bold ${avisoEstrutura.tipo === 'erro' ? 'border-red-100 bg-red-50 text-red-600' : 'border-green-100 bg-green-50 text-green-700'}`}>
+                      <div>{avisoEstrutura.texto}</div>
+                      {!!avisoEstrutura.detalhe && <div className="text-xs font-semibold mt-1 opacity-80">{avisoEstrutura.detalhe}</div>}
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2 min-h-[44px]">
+                    {form.estruturas.map((e) => (
+                      <span key={e.estrutura} className="bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-xl text-xs font-black inline-flex items-center gap-2">
+                        {e.estrutura}
+                        <button type="button" onClick={() => removerEstrutura(e.estrutura)} className="hover:text-red-500"><X size={14} /></button>
+                      </span>
+                    ))}
+                    {!form.estruturas.length && <span className="text-sm text-gray-400 font-semibold">Nenhuma estrutura vinculada.</span>}
+                  </div>
                 </div>
-              )}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {form.estruturas.map((e) => (
-                  <span key={e.estrutura} className="inline-flex items-center gap-2 bg-[#e6f6f7] text-[#048187] rounded-full px-3 py-1.5 text-xs font-black">
-                    {e.estrutura}
-                    <button type="button" onClick={() => removerEstrutura(e.estrutura)} className="text-[#048187] hover:text-red-500"><X size={13} /></button>
-                  </span>
-                ))}
-                {!form.estruturas.length && <span className="text-xs text-gray-400 font-semibold">Nenhuma estrutura vinculada.</span>}
+
+                <div>
+                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Observação</label>
+                  <textarea value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} rows={5} placeholder="Ex.: soma as estruturas 13476 e 17325" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187] resize-none" />
+                </div>
               </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-black text-gray-400 uppercase block mb-1">Observação</label>
-              <textarea value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} rows={3} placeholder="Ex.: soma as estruturas 13476 e 17325" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] resize-none" />
-            </div>
-
-            <button type="submit" disabled={salvando || !form.estruturas.length} className="w-full bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-xl px-4 py-3 disabled:opacity-60 inline-flex items-center justify-center gap-2">
-              <Save size={16} /> {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar meta real'}
-            </button>
-          </form>
+            </form>
+          )}
 
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h3 className="text-base font-black text-gray-700">Metas cadastradas</h3>
-                <p className="text-xs text-gray-400 font-semibold">Realizado calculado pela soma das estruturas vinculadas.</p>
-              </div>
-              <button type="button" onClick={() => carregarMetas()} className="bg-[#e6f6f7] text-[#048187] font-black px-4 py-2 rounded-lg hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm"><RefreshCcw size={15} /> Atualizar</button>
-            </div>
-
             {carregando ? <p className="text-[#048187] font-bold">Carregando metas reais...</p> : (
-              <div className="space-y-3">
+              <>
                 {metas.map((m) => (
-                  <div key={m.id} className="border border-gray-100 rounded-2xl p-4 bg-white hover:shadow-sm transition-shadow">
-                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                      <div className="min-w-0">
+                  <div key={m.id} className="border border-gray-100 rounded-[24px] p-5 md:p-6 bg-white hover:shadow-sm transition-shadow">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-sm font-black text-gray-700 uppercase">{m.nome_meta}</h4>
+                          <h4 className="text-lg font-black text-gray-700 uppercase">{m.nome_meta}</h4>
                           <span className={`px-2 py-1 rounded-full text-[10px] font-black ${m.status === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{m.status}</span>
                           <span className="px-2 py-1 rounded-full text-[10px] font-black bg-gray-50 text-gray-500">{m.ciclo}</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {(m.estruturas || []).map((e) => <span key={e.id || e.estrutura} className="bg-[#f7fafb] border border-gray-100 text-gray-500 px-2 py-1 rounded-lg text-[11px] font-bold">{e.estrutura}</span>)}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(m.estruturas || []).map((e) => <span key={e.id || e.estrutura} className="bg-[#f7fafb] border border-gray-100 text-gray-500 px-3 py-2 rounded-xl text-xs font-bold">{e.estrutura}</span>)}
                         </div>
-                        {m.observacao && <p className="text-xs text-gray-400 font-semibold mt-2">{m.observacao}</p>}
+                        {m.observacao && <p className="text-sm text-gray-400 font-semibold mt-3">{m.observacao}</p>}
                       </div>
-                      <div className="grid grid-cols-3 gap-2 min-w-[360px]">
-                        <div className="bg-[#f7fafb] rounded-xl p-3"><p className="text-[10px] uppercase font-black text-gray-400">Meta</p><p className="text-sm font-black text-[#048187]">{formatarMoeda(m.meta_real)}</p></div>
-                        <div className="bg-[#f7fafb] rounded-xl p-3"><p className="text-[10px] uppercase font-black text-gray-400">Realizado</p><p className="text-sm font-black text-[#048187]">{formatarMoeda(m.realizado)}</p></div>
-                        <div className="bg-[#f7fafb] rounded-xl p-3"><p className="text-[10px] uppercase font-black text-gray-400">% Ating.</p><p className="text-sm font-black text-[#048187]">{Number(m.percentual || 0).toFixed(1)}%</p></div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:min-w-[420px]">
+                        <div className="bg-[#f7fafb] rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(m.meta_real)}</p></div>
+                        <div className="bg-[#f7fafb] rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Realizado</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(m.realizado)}</p></div>
+                        <div className="bg-[#f7fafb] rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">% Ating.</p><p className="text-lg font-black text-[#048187] mt-1">{Number(m.percentual || 0).toFixed(1)}%</p></div>
                       </div>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
-                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">Atividade</p><p className="text-xs font-black text-gray-700">{Number(m.meta_atividade || 0).toFixed(1)}%</p></div>
-                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">MAKE</p><p className="text-xs font-black text-gray-700">{Number(m.meta_make || 0).toFixed(1)}%</p></div>
-                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">CABELO</p><p className="text-xs font-black text-gray-700">{Number(m.meta_cabelo || 0).toFixed(1)}%</p></div>
-                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">RPA</p><p className="text-xs font-black text-gray-700">{formatarMoeda(m.meta_rpa)}</p></div>
-                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">Tkt Médio</p><p className="text-xs font-black text-gray-700">{formatarMoeda(m.meta_tkt_medio)}</p></div>
-                      <div className="bg-gray-50 rounded-xl p-2"><p className="text-[9px] uppercase font-black text-gray-400">UPA</p><p className="text-xs font-black text-gray-700">{Number(m.meta_upa || 0).toFixed(1)}</p></div>
+                    <div className="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta Atividade</p><p className="text-base font-black text-gray-700 mt-1">{Number(m.meta_atividade || 0).toFixed(1)}%</p></div>
+                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta MAKE</p><p className="text-base font-black text-gray-700 mt-1">{Number(m.meta_make || 0).toFixed(1)}%</p></div>
+                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta CABELO</p><p className="text-base font-black text-gray-700 mt-1">{Number(m.meta_cabelo || 0).toFixed(1)}%</p></div>
+                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta RPA</p><p className="text-base font-black text-gray-700 mt-1">{formatarMoeda(m.meta_rpa)}</p></div>
+                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta Ticket Médio</p><p className="text-base font-black text-gray-700 mt-1">{formatarMoeda(m.meta_tkt_medio)}</p></div>
+                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta UPA</p><p className="text-base font-black text-gray-700 mt-1">{Number(m.meta_upa || 0).toFixed(1)}</p></div>
                     </div>
 
                     {Array.isArray(m.consultores) && m.consultores.length > 0 && (
-                      <div className="mt-4 border-t border-gray-50 pt-3 overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead><tr className="text-left text-gray-400 uppercase"><th className="py-2">Consultor</th><th>Peso editável</th><th>Meta Individual</th><th>Realizado</th><th>%</th></tr></thead>
+                      <div className="mt-5 border-t border-gray-100 pt-4 overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-gray-400 uppercase text-[11px]">
+                              <th className="py-2">Consultor</th>
+                              <th className="py-2">Peso editável</th>
+                              <th className="py-2">Meta individual</th>
+                              <th className="py-2">Realizado</th>
+                              <th className="py-2">%</th>
+                            </tr>
+                          </thead>
                           <tbody>
                             {m.consultores.map((c) => (
                               <tr key={`${m.id}-${c.id_colaborador}`} className="border-t border-gray-50">
-                                <td className="py-2 font-bold text-gray-700">{c.nome_exibicao || c.nome}</td>
-                                <td className="font-bold text-[#048187]"><input type="number" step="0.01" defaultValue={Number(c.peso_meta || 0).toFixed(2)} onBlur={(e) => salvarPesoConsultorMeta(c, e.target.value)} className="w-24 border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-[#048187] outline-none focus:border-[#048187]" />%</td>
+                                <td className="py-3 font-bold text-gray-700">{c.nome_exibicao || c.nome}</td>
+                                <td className="font-bold text-[#048187]">
+                                  <div className="inline-flex items-center gap-2">
+                                    <input type="number" step="0.01" defaultValue={Number(c.peso_meta || 0).toFixed(2)} onBlur={(e) => salvarPesoConsultorMeta(c, e.target.value)} className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-[#048187] outline-none focus:border-[#048187]" />%
+                                  </div>
+                                </td>
                                 <td>{formatarMoeda(c.meta_individual)}</td>
                                 <td>{formatarMoeda(c.realizado)}</td>
                                 <td className="font-black text-[#048187]">{Number(c.percentual || 0).toFixed(1)}%</td>
@@ -837,14 +886,14 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                       </div>
                     )}
 
-                    <div className="flex justify-end gap-2 mt-3">
-                      <button onClick={() => editarMeta(m)} className="text-[#048187] hover:bg-[#e6f6f7] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black"><Pencil size={14} /> Editar</button>
-                      <button onClick={() => excluirMeta(m)} className="text-red-500 hover:bg-red-50 rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black"><Trash2 size={14} /> Excluir</button>
+                    <div className="flex flex-wrap justify-end gap-3 mt-5">
+                      <button type="button" onClick={() => editarMeta(m)} className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] rounded-xl px-4 py-3 inline-flex items-center gap-2 text-sm font-black"><Pencil size={15} /> Editar bloco</button>
+                      <button type="button" onClick={() => excluirMeta(m)} className="bg-red-50 text-red-500 hover:bg-red-100 rounded-xl px-4 py-3 inline-flex items-center gap-2 text-sm font-black"><Trash2 size={15} /> Apagar bloco</button>
                     </div>
                   </div>
                 ))}
-                {!metas.length && <div className="border border-dashed border-gray-200 rounded-2xl p-8 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</div>}
-              </div>
+                {!metas.length && <div className="border border-dashed border-gray-200 rounded-2xl p-10 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</div>}
+              </>
             )}
           </div>
         </div>
