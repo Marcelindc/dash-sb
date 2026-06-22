@@ -108,9 +108,15 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
     normalizadas[perfil] = Array.from(new Set(listaMigrada.filter((aba) => ABAS_SISTEMA.includes(aba))));
   });
 
-  // Garante que a nova aba Histórico apareça mesmo quando as permissões antigas já estavam salvas no banco.
+  // Garante que abas importantes continuem aparecendo mesmo quando as permissões antigas já estavam salvas no banco.
   PERFIS_SISTEMA.forEach((perfil) => {
     if (!normalizadas[perfil].includes('Histórico')) normalizadas[perfil].push('Histórico');
+  });
+
+  // Cadastro precisa ficar disponível para admin e gestor.
+  // Sem essa migração, permissões antigas salvas no banco podem esconder a aba no menu.
+  ['admin', 'gestor'].forEach((perfil) => {
+    if (!normalizadas[perfil].includes('Cadastro')) normalizadas[perfil].push('Cadastro');
   });
 
   // O admin nunca pode perder acesso à própria tela de configuração/perfil.
