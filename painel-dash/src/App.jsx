@@ -419,16 +419,21 @@ const CampoMetaIndicador = ({ label, value, onChange, placeholder = '0,00', casa
 function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao }) {
   const [metas, setMetas] = useState([]);
   const [estruturas, setEstruturas] = useState([]);
+  const [estruturasConfigMeta, setEstruturasConfigMeta] = useState([]);
   const [busca, setBusca] = useState('');
   const [form, setForm] = useState({ ...metaRealVazia, ciclo: cicloPadrao || '' });
   const [editandoId, setEditandoId] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [salvandoTabela, setSalvandoTabela] = useState(false);
   const [mensagem, setMensagem] = useState('');
   const [erro, setErro] = useState('');
   const [avisoEstrutura, setAvisoEstrutura] = useState(null);
   const [mostrarListaEstruturasMeta, setMostrarListaEstruturasMeta] = useState(false);
   const [mostrarFormularioMeta, setMostrarFormularioMeta] = useState(false);
+  const [modoTabelaCiclo, setModoTabelaCiclo] = useState(false);
+  const [linhasNovoCiclo, setLinhasNovoCiclo] = useState([]);
+  const [metaExpandidaId, setMetaExpandidaId] = useState(null);
 
   const cicloConsulta = form.ciclo || cicloPadrao || '';
 
@@ -455,11 +460,21 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     }
   };
 
+  const carregarEstruturasConfigMeta = async () => {
+    try {
+      const { data } = await axios.get(`${apiUrl}/estruturas-config`);
+      setEstruturasConfigMeta(data.estruturas || []);
+    } catch (e) {
+      setEstruturasConfigMeta([]);
+    }
+  };
+
   useEffect(() => {
     if (!aberto) return;
     setForm((atual) => ({ ...atual, ciclo: atual.ciclo || cicloPadrao || '' }));
     carregarMetas();
     carregarEstruturas();
+    carregarEstruturasConfigMeta();
   }, [aberto]);
 
   useEffect(() => {
@@ -467,6 +482,18 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     const timer = setTimeout(() => setAvisoEstrutura(null), 3500);
     return () => clearTimeout(timer);
   }, [avisoEstrutura]);
+
+  const opcoesEstruturasCadastro = (estruturasConfigMeta.length ? estruturasConfigMeta : estruturas)
+    .map((item) => ({
+      cod_estrutura: String(item.cod_estrutura || String(item.estrutura || '').split('-')[0] || '').trim(),
+      estrutura: String(item.estrutura || '').trim(),
+      canal: item.canal || 'VD',
+      nucleo: item.nucleo || item.núcleo || 'NUCLEO 1',
+      tipo_estrutura: item.tipo_estrutura || 'estrutura',
+      status: item.status || 'ativo'
+    }))
+    .filter((item) => item.estrutura && !['excluido', 'excluído'].includes(String(item.status || '').toLowerCase()))
+    .sort((a, b) => `${a.nucleo}-${a.estrutura}`.localeCompare(`${b.nucleo}-${b.estrutura}`));
 
   const limparForm = (cicloManter = null) => {
     setEditandoId(null);
@@ -575,6 +602,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
   const editarMeta = (meta) => {
     setEditandoId(meta.id);
+    setModoTabelaCiclo(false);
     setForm({
       ciclo: meta.ciclo || '',
       nome_meta: meta.nome_meta || '',
@@ -609,13 +637,13 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     }
   };
 
-  const salvarPesoConsultorMeta = async (consultor, valorPeso) => {
+  const salvarConsultorNaMeta = async (consultor, atualizacoes = {}) => {
     const idConsultor = consultor?.id;
     if (!idConsultor) {
-      setErro('Não foi possível identificar o cadastro do consultor para atualizar o peso.');
+      setErro('Não foi possível identificar o cadastro do consultor.');
       return;
     }
-    const pesoNumero = Number(String(valorPeso ?? '0').replace(',', '.')) || 0;
+
     try {
       await axios.put(`${apiUrl}/consultores/${idConsultor}`, {
         id_colaborador: consultor.id_colaborador || '',
@@ -623,73 +651,220 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
         nome_social: consultor.nome_social || '',
         estrutura: consultor.estrutura || '',
         canal: consultor.canal || 'ESPAÇO DO REVENDEDOR',
-        status_consultor: consultor.status_consultor || 'ativo',
-        peso_meta: pesoNumero
+        status_consultor: atualizacoes.status_consultor ?? consultor.status_consultor ?? 'ativo',
+        peso_meta: atualizacoes.peso_meta ?? Number(consultor.peso_meta || 0)
       });
-      setMensagem('Peso Meta do consultor atualizado.');
+      setMensagem('Consultor atualizado.');
       await carregarMetas(cicloConsulta);
       if (onAtualizacao) onAtualizacao();
     } catch (err) {
-      setErro(err.response?.data?.detail || 'Erro ao atualizar peso do consultor.');
+      setErro(err.response?.data?.detail || 'Erro ao atualizar consultor.');
     }
   };
 
-  const estruturasFiltradas = estruturas
+  const salvarPesoConsultorMeta = async (consultor, valorPeso) => {
+    const pesoNumero = Number(String(valorPeso ?? '0').replace(',', '.')) || 0;
+    await salvarConsultorNaMeta(consultor, { peso_meta: pesoNumero });
+  };
+
+  const estruturasFiltradas = opcoesEstruturasCadastro
     .filter((e) => {
       const termo = busca.toLowerCase().trim();
       if (!termo) return true;
       return String(e.estrutura || '').toLowerCase().includes(termo) || String(e.cod_estrutura || '').toLowerCase().includes(termo);
     })
-    .slice(0, 40);
+    .slice(0, 60);
+
+  const obterNomeLimpoEstrutura = (estrutura = '') => String(estrutura || '').replace(/^\s*\d+\s*-\s*/g, '').trim();
+
+  const criarLinhaMeta = (estrutura, indice = 0) => {
+    const estruturaNome = String(estrutura?.estrutura || '').trim();
+    const codigo = String(estrutura?.cod_estrutura || estruturaNome.split('-')[0] || '').trim();
+    const nomeLimpo = obterNomeLimpoEstrutura(estruturaNome) || estruturaNome || `NOVA ESTRUTURA ${indice + 1}`;
+    const tipo = String(estrutura?.tipo_estrutura || '').toLowerCase().includes('er') ? 'er' : 'estrutura';
+
+    return {
+      uid: `${codigo || indice}-${Date.now()}-${indice}`,
+      ciclo: form.ciclo || cicloPadrao || '',
+      nome_meta: nomeLimpo,
+      cod_estrutura: codigo,
+      estrutura: estruturaNome,
+      canal: estrutura?.canal || 'VD',
+      nucleo: estrutura?.nucleo || 'NUCLEO 1',
+      tipo_meta: tipo,
+      status: 'ativo',
+      meta_real: '',
+      meta_atividade: '46,0',
+      meta_rpa: '1.350,00',
+      meta_tkt_medio: '600,00',
+      meta_upa: '12,0',
+      meta_make: '40,0',
+      meta_cabelo: '40,0',
+      observacao: ''
+    };
+  };
+
+  const abrirTabelaNovoCiclo = async () => {
+    setErro('');
+    setMensagem('');
+    setMostrarFormularioMeta(false);
+    setEditandoId(null);
+    setModoTabelaCiclo(true);
+
+    const fonte = opcoesEstruturasCadastro.length ? opcoesEstruturasCadastro : estruturas;
+    const linhas = fonte
+      .filter((item) => !['inativo', 'excluido', 'excluído'].includes(String(item.status || '').toLowerCase()))
+      .map((item, indice) => criarLinhaMeta(item, indice));
+
+    setLinhasNovoCiclo(linhas.length ? linhas : [criarLinhaMeta({}, 0)]);
+  };
+
+  const fecharTabelaNovoCiclo = () => {
+    setModoTabelaCiclo(false);
+    setLinhasNovoCiclo([]);
+  };
+
+  const atualizarLinhaNovoCiclo = (uid, campo, valor) => {
+    setLinhasNovoCiclo((atuais) => atuais.map((linha) => {
+      if (linha.uid !== uid) return linha;
+      const novaLinha = { ...linha, [campo]: valor };
+      if (campo === 'estrutura') {
+        const encontrada = opcoesEstruturasCadastro.find((item) => item.estrutura === valor);
+        if (encontrada) {
+          novaLinha.cod_estrutura = encontrada.cod_estrutura || String(encontrada.estrutura || '').split('-')[0] || '';
+          novaLinha.nome_meta = obterNomeLimpoEstrutura(encontrada.estrutura) || encontrada.estrutura;
+          novaLinha.canal = encontrada.canal || novaLinha.canal;
+          novaLinha.nucleo = encontrada.nucleo || novaLinha.nucleo;
+          novaLinha.tipo_meta = String(encontrada.tipo_estrutura || '').toLowerCase().includes('er') ? 'er' : 'estrutura';
+        }
+      }
+      return novaLinha;
+    }));
+  };
+
+  const adicionarLinhaNovoCiclo = () => {
+    setLinhasNovoCiclo((atuais) => [...atuais, criarLinhaMeta({}, atuais.length)]);
+  };
+
+  const removerLinhaNovoCiclo = (uid) => {
+    setLinhasNovoCiclo((atuais) => atuais.filter((linha) => linha.uid !== uid));
+  };
+
+  const localizarMetaExistenteDaLinha = (linha) => {
+    const estruturaNormalizada = normalizarEstruturaMeta(linha.estrutura);
+    const codNormalizado = normalizarEstruturaMeta(linha.cod_estrutura);
+    return metas.find((meta) => String(meta.ciclo || '') === String(linha.ciclo || '') && (meta.estruturas || []).some((estruturaMeta) => {
+      const eNorm = normalizarEstruturaMeta(estruturaMeta.estrutura);
+      const cNorm = normalizarEstruturaMeta(estruturaMeta.cod_estrutura || String(estruturaMeta.estrutura || '').split('-')[0]);
+      return eNorm === estruturaNormalizada || (!!codNormalizado && cNorm === codNormalizado);
+    }));
+  };
+
+  const salvarTabelaNovoCiclo = async () => {
+    setErro('');
+    setMensagem('');
+    const linhasValidas = linhasNovoCiclo.filter((linha) => String(linha.estrutura || '').trim() && converterMetaRealParaNumero(linha.meta_real) > 0);
+
+    if (!linhasValidas.length) {
+      setErro('Preencha pelo menos uma estrutura com Receita maior que zero.');
+      return;
+    }
+
+    setSalvandoTabela(true);
+    let salvas = 0;
+    let atualizadas = 0;
+    try {
+      for (const linha of linhasValidas) {
+        const payload = {
+          ciclo: String(linha.ciclo || form.ciclo || cicloPadrao || '').trim(),
+          nome_meta: String(linha.nome_meta || obterNomeLimpoEstrutura(linha.estrutura) || linha.estrutura || '').trim(),
+          tipo_meta: linha.tipo_meta || 'estrutura',
+          meta_real: converterMetaRealParaNumero(linha.meta_real),
+          meta_atividade: converterMetaRealParaNumero(linha.meta_atividade),
+          meta_make: converterMetaRealParaNumero(linha.meta_make),
+          meta_cabelo: converterMetaRealParaNumero(linha.meta_cabelo),
+          meta_rpa: converterMetaRealParaNumero(linha.meta_rpa),
+          meta_tkt_medio: converterMetaRealParaNumero(linha.meta_tkt_medio),
+          meta_upa: converterMetaRealParaNumero(linha.meta_upa),
+          regra_calculo: 'somar_estruturas',
+          status: linha.status || 'ativo',
+          observacao: linha.observacao || `${linha.canal || 'VD'} • ${String(linha.nucleo || '').replace('NUCLEO', 'NÚCLEO')}`,
+          estruturas: [{ cod_estrutura: linha.cod_estrutura || '', estrutura: linha.estrutura }]
+        };
+
+        if (!payload.ciclo) throw new Error('Informe o ciclo em todas as linhas.');
+        if (!payload.nome_meta) throw new Error('Informe o nome da meta em todas as linhas.');
+
+        const existente = localizarMetaExistenteDaLinha(linha);
+        if (existente?.id) {
+          await axios.put(`${apiUrl}/metas-reais/${existente.id}`, payload);
+          atualizadas += 1;
+        } else {
+          await axios.post(`${apiUrl}/metas-reais`, payload);
+          salvas += 1;
+        }
+      }
+
+      const cicloSalvo = linhasValidas[0]?.ciclo || form.ciclo || cicloPadrao || '';
+      setMensagem(`Ciclo salvo com sucesso. Novas metas: ${salvas}. Atualizadas: ${atualizadas}.`);
+      setModoTabelaCiclo(false);
+      setLinhasNovoCiclo([]);
+      await carregarMetas(cicloSalvo);
+      if (onAtualizacao) onAtualizacao();
+    } catch (err) {
+      setErro(err.response?.data?.detail || err.message || 'Erro ao salvar tabela do novo ciclo.');
+    } finally {
+      setSalvandoTabela(false);
+    }
+  };
+
+  const totalTabela = linhasNovoCiclo.reduce((acc, linha) => acc + converterMetaRealParaNumero(linha.meta_real), 0);
+  const mediaTabela = (campo) => {
+    const valores = linhasNovoCiclo.map((linha) => converterMetaRealParaNumero(linha[campo])).filter((valor) => valor > 0);
+    if (!valores.length) return 0;
+    return valores.reduce((soma, valor) => soma + valor, 0) / valores.length;
+  };
+
+  const totalMetas = metas.reduce((acc, meta) => acc + Number(meta.meta_real || 0), 0);
+  const totalRealizado = metas.reduce((acc, meta) => acc + Number(meta.realizado || 0), 0);
+  const percentualTotal = totalMetas > 0 ? (totalRealizado / totalMetas) * 100 : 0;
 
   if (!aberto) return null;
 
   return (
     <div className="fixed inset-0 bg-black/45 z-[9999] flex items-center justify-center p-2 md:p-4">
-      <div className="bg-white w-full max-w-[96vw] h-[94vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-start justify-between gap-4 p-6 md:p-8 border-b border-gray-100">
+      <div className="bg-white w-full max-w-[98vw] h-[95vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col">
+        <div className="flex items-start justify-between gap-4 p-5 md:p-7 border-b border-gray-100 bg-white">
           <div>
-            <h2 className="text-2xl md:text-3xl font-black text-gray-700">Cadastro de Metas Reais</h2>
-            <p className="text-sm md:text-base text-gray-400 font-semibold mt-1">Meta oficial por estrutura, ER ou grupo de estruturas. A divisão por consultor usa o Peso Meta da aba Cadastro.</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-700">Cadastro de Metas por Ciclo</h2>
+              <span className="px-3 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-xs font-black">{cicloConsulta || 'Sem ciclo'}</span>
+            </div>
+            <p className="text-sm md:text-base text-gray-400 font-semibold mt-1">Tela em formato de planilha: cadastre metas, acompanhe realizado e abra cada estrutura para dividir por consultor.</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2 shrink-0"><X size={24} /></button>
         </div>
 
-        <div className="px-6 md:px-8 pt-5 pb-3 border-b border-gray-100">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  if (mostrarFormularioMeta && !editandoId) {
-                    limparForm(form.ciclo || cicloPadrao || '');
-                  } else {
-                    if (!editandoId) limparForm(form.ciclo || cicloPadrao || '');
-                    setMostrarFormularioMeta((v) => !v || !!editandoId);
-                  }
-                }}
-                className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center gap-2 text-sm"
-              >
-                <Plus size={18} /> {editandoId ? 'Editando meta' : mostrarFormularioMeta ? 'Fechar formulário' : 'Nova meta'}
-              </button>
-              {editandoId && (
-                <button
-                  type="button"
-                  onClick={() => limparForm(form.ciclo || cicloPadrao || '')}
-                  className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-3 rounded-xl hover:bg-gray-50 text-sm"
-                >
-                  Cancelar edição
-                </button>
-              )}
-            </div>
+        <div className="px-5 md:px-7 py-4 border-b border-gray-100 bg-[#fbfefe]">
+          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta do ciclo</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(totalMetas)}</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Realizado</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(totalRealizado)}</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">% ating.</p><p className="text-lg font-black mt-1" style={{ color: corPorFaixaMeta(percentualTotal) }}>{percentualTotal.toFixed(1)}%</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Metas cadastradas</p><p className="text-lg font-black text-gray-700 mt-1">{metas.length}</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Estruturas base</p><p className="text-lg font-black text-gray-700 mt-1">{opcoesEstruturasCadastro.length}</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Núcleos</p><p className="text-lg font-black text-gray-700 mt-1">N1 • N2 • N3</p></div>
+          </div>
 
-            <button
-              type="button"
-              onClick={() => carregarMetas()}
-              className="bg-[#e6f6f7] text-[#048187] font-black px-4 py-3 rounded-xl hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm w-full lg:w-auto justify-center"
-            >
-              <RefreshCcw size={16} /> Atualizar
-            </button>
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={abrirTabelaNovoCiclo} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center gap-2 text-sm"><Plus size={18} /> Novo ciclo</button>
+              <button type="button" onClick={() => { setModoTabelaCiclo(false); setMostrarFormularioMeta(true); setEditandoId(null); setForm({ ...metaRealVazia, ciclo: form.ciclo || cicloPadrao || '' }); }} className="bg-white border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Pencil size={16} /> Cadastro simples</button>
+              <button type="button" onClick={() => { carregarMetas(); carregarEstruturas(); carregarEstruturasConfigMeta(); }} className="bg-[#e6f6f7] text-[#048187] font-black px-5 py-3 rounded-xl hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button>
+            </div>
+            <div className="relative w-full xl:w-[420px]">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar meta, estrutura ou código..." className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]" />
+            </div>
           </div>
 
           {(erro || mensagem) && (
@@ -700,52 +875,100 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+        <div className="flex-1 overflow-y-auto p-5 md:p-7 space-y-6 bg-[#f7fafb]">
+          {modoTabelaCiclo && (
+            <div className="bg-white border border-[#d9eff0] rounded-[24px] overflow-hidden shadow-sm">
+              <div className="p-5 border-b border-gray-100 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-black text-gray-700">Novo ciclo em modo planilha</h3>
+                  <p className="text-sm text-gray-400 font-semibold mt-1">Preencha somente as linhas que terão meta. Ao salvar, cada linha vira uma meta oficial daquele ciclo.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={adicionarLinhaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Plus size={15} /> Linha</button>
+                  <button type="button" onClick={fecharTabelaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 text-sm">Cancelar</button>
+                  <button type="button" onClick={salvarTabelaNovoCiclo} disabled={salvandoTabela} className="bg-[#048187] text-white font-black px-5 py-2.5 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2 text-sm"><Save size={15} /> {salvandoTabela ? 'Salvando...' : 'Salvar ciclo'}</button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[1680px]">
+                  <thead className="bg-[#f2fafb] text-[10px] uppercase text-gray-500 font-black">
+                    <tr>
+                      <th className="px-3 py-3 text-left w-[190px]">Nome Estrutura</th>
+                      <th className="px-3 py-3 text-left w-[260px]">Estrutura</th>
+                      <th className="px-3 py-3 text-left w-[110px]">Canal</th>
+                      <th className="px-3 py-3 text-left w-[120px]">Núcleo</th>
+                      <th className="px-3 py-3 text-left w-[110px]">Ciclo</th>
+                      <th className="px-3 py-3 text-right w-[150px]">Receita</th>
+                      <th className="px-3 py-3 text-right w-[110px]">Atividade</th>
+                      <th className="px-3 py-3 text-right w-[130px]">RPA</th>
+                      <th className="px-3 py-3 text-right w-[130px]">Tkt Médio</th>
+                      <th className="px-3 py-3 text-right w-[100px]">UPA</th>
+                      <th className="px-3 py-3 text-right w-[110px]">Pen. Make</th>
+                      <th className="px-3 py-3 text-right w-[120px]">Pen. Cabelos</th>
+                      <th className="px-3 py-3 text-right w-[90px]">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {linhasNovoCiclo.map((linha) => (
+                      <tr key={linha.uid} className="hover:bg-[#fbfefe]">
+                        <td className="px-3 py-2"><input value={linha.nome_meta} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'nome_meta', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2">
+                          <select value={linha.estrutura} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'estrutura', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]">
+                            <option value="">Selecionar estrutura</option>
+                            {opcoesEstruturasCadastro.map((item) => <option key={`${linha.uid}-${item.cod_estrutura}-${item.estrutura}`} value={item.estrutura}>{item.estrutura}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2"><select value={linha.canal} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'canal', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]"><option value="VD">VD</option><option value="LOJA">LOJA</option><option value="ER">ER</option></select></td>
+                        <td className="px-3 py-2"><select value={linha.nucleo} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'nucleo', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]"><option value="NUCLEO 1">N1</option><option value="NUCLEO 2">N2</option><option value="NUCLEO 3">N3</option></select></td>
+                        <td className="px-3 py-2"><input value={linha.ciclo} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'ciclo', e.target.value)} placeholder="09/2026" className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.meta_real} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_real', e.target.value)} onBlur={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_real', formatarMetaRealInput(e.target.value))} placeholder="R$ 0,00" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-black text-[#048187] outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.meta_atividade} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_atividade', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.meta_rpa} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_rpa', e.target.value)} onBlur={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_rpa', formatarMetaIndicadorInput(e.target.value, 2))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.meta_tkt_medio} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_tkt_medio', e.target.value)} onBlur={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_tkt_medio', formatarMetaIndicadorInput(e.target.value, 2))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.meta_upa} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_upa', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.meta_make} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_make', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.meta_cabelo} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_cabelo', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2 text-right"><button type="button" onClick={() => removerLinhaNovoCiclo(linha.uid)} className="text-red-500 hover:bg-red-50 rounded-lg p-2"><Trash2 size={16} /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-yellow-100 text-gray-800 font-black">
+                    <tr>
+                      <td className="px-3 py-3 text-center" colSpan={5}>TOTAL GERAL</td>
+                      <td className="px-3 py-3 text-right">{formatarMoeda(totalTabela)}</td>
+                      <td className="px-3 py-3 text-right">{mediaTabela('meta_atividade').toFixed(1)}%</td>
+                      <td className="px-3 py-3 text-right">{formatarMoeda(mediaTabela('meta_rpa'))}</td>
+                      <td className="px-3 py-3 text-right">{formatarMoeda(mediaTabela('meta_tkt_medio'))}</td>
+                      <td className="px-3 py-3 text-right">{mediaTabela('meta_upa').toFixed(1)}</td>
+                      <td className="px-3 py-3 text-right">{mediaTabela('meta_make').toFixed(1)}%</td>
+                      <td className="px-3 py-3 text-right">{mediaTabela('meta_cabelo').toFixed(1)}%</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
           {mostrarFormularioMeta && (
-            <form onSubmit={salvarMeta} className="border border-[#d9eff0] bg-[#fbfefe] rounded-[24px] p-5 md:p-6 space-y-5">
+            <form onSubmit={salvarMeta} className="border border-[#d9eff0] bg-white rounded-[24px] p-5 md:p-6 space-y-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-lg font-black text-gray-700">{editandoId ? 'Editar meta real' : 'Nova meta real'}</h3>
-                <button type="submit" disabled={salvando} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2 text-sm">
-                  <Save size={16} /> {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar meta'}
-                </button>
+                <button type="submit" disabled={salvando} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2 text-sm"><Save size={16} /> {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar meta'}</button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div>
-                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Ciclo</label>
-                  <input value={form.ciclo} onChange={(e) => setForm({ ...form, ciclo: e.target.value })} placeholder="09/2026" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
-                </div>
-                <div>
-                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Meta Real</label>
-                  <input value={form.meta_real} onChange={(e) => { setMensagem(''); setForm({ ...form, meta_real: e.target.value }); }} onBlur={(e) => setForm((atual) => ({ ...atual, meta_real: formatarMetaRealInput(e.target.value) }))} placeholder="383337,00" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
-                </div>
-                <div>
-                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Tipo</label>
-                  <select value={form.tipo_meta} onChange={(e) => setForm({ ...form, tipo_meta: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]">
-                    <option value="estrutura">Estrutura</option>
-                    <option value="er">ER</option>
-                    <option value="grupo_estruturas">Grupo de estruturas</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Status</label>
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]">
-                    <option value="ativo">Ativo</option>
-                    <option value="inativo">Inativo</option>
-                  </select>
-                </div>
+                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Ciclo</label><input value={form.ciclo} onChange={(e) => setForm({ ...form, ciclo: e.target.value })} placeholder="09/2026" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div>
+                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Meta Real</label><input value={form.meta_real} onChange={(e) => { setMensagem(''); setForm({ ...form, meta_real: e.target.value }); }} onBlur={(e) => setForm((atual) => ({ ...atual, meta_real: formatarMetaRealInput(e.target.value) }))} placeholder="383337,00" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div>
+                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Tipo</label><select value={form.tipo_meta} onChange={(e) => setForm({ ...form, tipo_meta: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="estrutura">Estrutura</option><option value="er">ER</option><option value="grupo_estruturas">Grupo de estruturas</option></select></div>
+                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Status</label><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div>
               </div>
 
-              <div>
-                <label className="text-xs font-black text-gray-400 uppercase block mb-1">Nome da meta</label>
-                <input value={form.nome_meta} onChange={(e) => setForm({ ...form, nome_meta: e.target.value })} placeholder="EQUIPE GRAZIELLE" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required />
-              </div>
+              <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Nome da meta</label><input value={form.nome_meta} onChange={(e) => setForm({ ...form, nome_meta: e.target.value })} placeholder="EQUIPE GRAZIELLE" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div>
 
-              <div className="border border-gray-100 bg-white rounded-2xl p-4 space-y-3">
-                <div>
-                  <h4 className="text-xs font-black text-gray-600 uppercase">Metas dos indicadores da estrutura</h4>
-                  <p className="text-[11px] text-gray-400 font-semibold mt-1">Esses valores alimentam os cards de Atividade, MAKE, CABELO, RPA, Ticket Médio e UPA na aba Metas Estruturas.</p>
-                </div>
+              <div className="border border-gray-100 bg-[#f7fafb] rounded-2xl p-4 space-y-3">
+                <h4 className="text-xs font-black text-gray-600 uppercase">Indicadores da estrutura</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   <CampoMetaIndicador label="Meta Atividade (%)" value={form.meta_atividade} casas={1} placeholder="46,0" onChange={(valor) => setForm({ ...form, meta_atividade: valor })} />
                   <CampoMetaIndicador label="Meta MAKE (%)" value={form.meta_make} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_make: valor })} />
@@ -759,153 +982,146 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
               <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_.9fr] gap-4">
                 <div>
                   <label className="text-xs font-black text-gray-400 uppercase block mb-1">Estruturas vinculadas</label>
-                  <div
-                    className="relative"
-                    onBlur={() => {
-                      setTimeout(() => setMostrarListaEstruturasMeta(false), 180);
-                    }}
-                  >
+                  <div className="relative" onBlur={() => setTimeout(() => setMostrarListaEstruturasMeta(false), 180)}>
                     <Search size={16} className="absolute left-3 top-3.5 text-gray-400" />
-                    <input
-                      value={busca}
-                      onFocus={() => setMostrarListaEstruturasMeta(true)}
-                      onClick={() => setMostrarListaEstruturasMeta(true)}
-                      onChange={(e) => {
-                        setBusca(e.target.value);
-                        setMostrarListaEstruturasMeta(true);
-                      }}
-                      placeholder="Buscar por código ou nome da estrutura"
-                      className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]"
-                    />
+                    <input value={busca} onFocus={() => setMostrarListaEstruturasMeta(true)} onClick={() => setMostrarListaEstruturasMeta(true)} onChange={(e) => { setBusca(e.target.value); setMostrarListaEstruturasMeta(true); }} placeholder="Buscar por código ou nome da estrutura" className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]" />
                     {mostrarListaEstruturasMeta && (
                       <div className="absolute z-10 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
-                        {estruturasFiltradas.length > 0 ? (
-                          estruturasFiltradas.map((e) => {
-                            const estrutura = String(e.estrutura || '').trim();
-                            const cod = String(e.cod_estrutura || estrutura.split('-')[0] || '').trim();
-                            const jaCadastrada = estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod);
-
-                            return (
-                              <button
-                                key={`${e.cod_estrutura}-${e.estrutura}`}
-                                type="button"
-                                onMouseDown={(event) => event.preventDefault()}
-                                onClick={() => adicionarEstrutura(e)}
-                                className={`w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] font-bold flex items-center justify-between gap-3 ${jaCadastrada ? 'text-[#7c1f31] bg-[#7c1f31]/5' : 'text-gray-600'}`}
-                              >
-                                <span className="truncate">{e.estrutura}</span>
-                                <span className={`shrink-0 text-[10px] font-black uppercase rounded-full px-2 py-1 ${jaCadastrada ? 'bg-[#7c1f31] text-white' : 'bg-[#048187] text-white'}`}>
-                                  {jaCadastrada ? 'Já cadastrada' : 'Disponível'}
-                                </span>
-                              </button>
-                            );
-                          })
-                        ) : (
-                          <div className="px-4 py-3 text-sm font-bold text-gray-400">
-                            Nenhuma estrutura encontrada.
-                          </div>
-                        )}
+                        {estruturasFiltradas.length > 0 ? estruturasFiltradas.map((e) => {
+                          const estrutura = String(e.estrutura || '').trim();
+                          const cod = String(e.cod_estrutura || estrutura.split('-')[0] || '').trim();
+                          const jaCadastrada = estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod);
+                          return (
+                            <button key={`${e.cod_estrutura}-${e.estrutura}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => adicionarEstrutura(e)} className={`w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] font-bold flex items-center justify-between gap-3 ${jaCadastrada ? 'text-[#7c1f31] bg-[#7c1f31]/5' : 'text-gray-600'}`}>
+                              <span className="truncate">{e.estrutura}</span>
+                              <span className={`shrink-0 text-[10px] font-black uppercase rounded-full px-2 py-1 ${jaCadastrada ? 'bg-[#7c1f31] text-white' : 'bg-[#048187] text-white'}`}>{jaCadastrada ? 'Já cadastrada' : 'Disponível'}</span>
+                            </button>
+                          );
+                        }) : <div className="px-4 py-3 text-sm font-bold text-gray-400">Nenhuma estrutura encontrada.</div>}
                       </div>
                     )}
                   </div>
-                  {avisoEstrutura && (
-                    <div className={`mt-2 rounded-xl border px-3 py-3 text-sm font-bold ${avisoEstrutura.tipo === 'erro' ? 'border-red-100 bg-red-50 text-red-600' : 'border-green-100 bg-green-50 text-green-700'}`}>
-                      <div>{avisoEstrutura.texto}</div>
-                      {!!avisoEstrutura.detalhe && <div className="text-xs font-semibold mt-1 opacity-80">{avisoEstrutura.detalhe}</div>}
-                    </div>
-                  )}
-                  <div className="mt-3 flex flex-wrap gap-2 min-h-[44px]">
-                    {form.estruturas.map((e) => (
-                      <span key={e.estrutura} className="bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-xl text-xs font-black inline-flex items-center gap-2">
-                        {e.estrutura}
-                        <button type="button" onClick={() => removerEstrutura(e.estrutura)} className="hover:text-red-500"><X size={14} /></button>
-                      </span>
-                    ))}
-                    {!form.estruturas.length && <span className="text-sm text-gray-400 font-semibold">Nenhuma estrutura vinculada.</span>}
-                  </div>
+                  {avisoEstrutura && <div className={`mt-2 rounded-xl border px-3 py-3 text-sm font-bold ${avisoEstrutura.tipo === 'erro' ? 'border-red-100 bg-red-50 text-red-600' : 'border-green-100 bg-green-50 text-green-700'}`}><div>{avisoEstrutura.texto}</div>{!!avisoEstrutura.detalhe && <div className="text-xs font-semibold mt-1 opacity-80">{avisoEstrutura.detalhe}</div>}</div>}
+                  <div className="mt-3 flex flex-wrap gap-2 min-h-[44px]">{form.estruturas.map((e) => <span key={e.estrutura} className="bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-xl text-xs font-black inline-flex items-center gap-2">{e.estrutura}<button type="button" onClick={() => removerEstrutura(e.estrutura)} className="hover:text-red-500"><X size={14} /></button></span>)}{!form.estruturas.length && <span className="text-sm text-gray-400 font-semibold">Nenhuma estrutura vinculada.</span>}</div>
                 </div>
-
-                <div>
-                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Observação</label>
-                  <textarea value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} rows={5} placeholder="Ex.: soma as estruturas 13476 e 17325" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187] resize-none" />
-                </div>
+                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Observação</label><textarea value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} rows={5} placeholder="Ex.: soma as estruturas 13476 e 17325" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187] resize-none" /></div>
               </div>
             </form>
           )}
 
-          <div className="space-y-4">
-            {carregando ? <p className="text-[#048187] font-bold">Carregando metas reais...</p> : (
-              <>
-                {metas.map((m) => (
-                  <div key={m.id} className="border border-gray-100 rounded-[24px] p-5 md:p-6 bg-white hover:shadow-sm transition-shadow">
-                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-lg font-black text-gray-700 uppercase">{m.nome_meta}</h4>
-                          <span className={`px-2 py-1 rounded-full text-[10px] font-black ${m.status === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{m.status}</span>
-                          <span className="px-2 py-1 rounded-full text-[10px] font-black bg-gray-50 text-gray-500">{m.ciclo}</span>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {(m.estruturas || []).map((e) => <span key={e.id || e.estrutura} className="bg-[#f7fafb] border border-gray-100 text-gray-500 px-3 py-2 rounded-xl text-xs font-bold">{e.estrutura}</span>)}
-                        </div>
-                        {m.observacao && <p className="text-sm text-gray-400 font-semibold mt-3">{m.observacao}</p>}
-                      </div>
+          <div className="bg-white border border-gray-100 rounded-[24px] overflow-hidden shadow-sm">
+            <div className="p-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-black text-gray-700">Metas salvas do ciclo</h3>
+                <p className="text-sm text-gray-400 font-semibold">Use Ver + para abrir uma estrutura e ajustar consultores, peso e status.</p>
+              </div>
+              <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black w-fit">{metas.length} blocos</span>
+            </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:min-w-[420px]">
-                        <div className="bg-[#f7fafb] rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(m.meta_real)}</p></div>
-                        <div className="bg-[#f7fafb] rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Realizado</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(m.realizado)}</p></div>
-                        <div className="bg-[#f7fafb] rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">% Ating.</p><p className="text-lg font-black text-[#048187] mt-1">{Number(m.percentual || 0).toFixed(1)}%</p></div>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta Atividade</p><p className="text-base font-black text-gray-700 mt-1">{Number(m.meta_atividade || 0).toFixed(1)}%</p></div>
-                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta MAKE</p><p className="text-base font-black text-gray-700 mt-1">{Number(m.meta_make || 0).toFixed(1)}%</p></div>
-                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta CABELO</p><p className="text-base font-black text-gray-700 mt-1">{Number(m.meta_cabelo || 0).toFixed(1)}%</p></div>
-                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta RPA</p><p className="text-base font-black text-gray-700 mt-1">{formatarMoeda(m.meta_rpa)}</p></div>
-                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta Ticket Médio</p><p className="text-base font-black text-gray-700 mt-1">{formatarMoeda(m.meta_tkt_medio)}</p></div>
-                      <div className="bg-gray-50 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta UPA</p><p className="text-base font-black text-gray-700 mt-1">{Number(m.meta_upa || 0).toFixed(1)}</p></div>
-                    </div>
-
-                    {Array.isArray(m.consultores) && m.consultores.length > 0 && (
-                      <div className="mt-5 border-t border-gray-100 pt-4 overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-left text-gray-400 uppercase text-[11px]">
-                              <th className="py-2">Consultor</th>
-                              <th className="py-2">Peso editável</th>
-                              <th className="py-2">Meta individual</th>
-                              <th className="py-2">Realizado</th>
-                              <th className="py-2">%</th>
+            {carregando ? <p className="p-8 text-[#048187] font-bold">Carregando metas reais...</p> : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[1500px]">
+                  <thead className="bg-[#f2fafb] text-[10px] uppercase text-gray-500 font-black">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Nome Estrutura</th>
+                      <th className="px-4 py-3 text-left">Estrutura</th>
+                      <th className="px-4 py-3 text-left">Canal/Núcleo</th>
+                      <th className="px-4 py-3 text-left">Ciclo</th>
+                      <th className="px-4 py-3 text-right">Receita</th>
+                      <th className="px-4 py-3 text-right">Realizado</th>
+                      <th className="px-4 py-3 text-right">% Ating.</th>
+                      <th className="px-4 py-3 text-right">Atividade</th>
+                      <th className="px-4 py-3 text-right">RPA</th>
+                      <th className="px-4 py-3 text-right">Tkt Médio</th>
+                      <th className="px-4 py-3 text-right">UPA</th>
+                      <th className="px-4 py-3 text-right">Pen. Make</th>
+                      <th className="px-4 py-3 text-right">Pen. Cabelos</th>
+                      <th className="px-4 py-3 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {metas
+                      .filter((m) => {
+                        const termo = busca.toLowerCase().trim();
+                        if (!termo) return true;
+                        const estruturasTexto = (m.estruturas || []).map((e) => e.estrutura).join(' ');
+                        return `${m.nome_meta} ${estruturasTexto} ${m.ciclo}`.toLowerCase().includes(termo);
+                      })
+                      .map((m) => {
+                        const primeiraEstrutura = (m.estruturas || [])[0] || {};
+                        const estruturaConfig = opcoesEstruturasCadastro.find((item) => normalizarEstruturaMeta(item.estrutura) === normalizarEstruturaMeta(primeiraEstrutura.estrutura));
+                        const abertoLinha = String(metaExpandidaId) === String(m.id);
+                        return (
+                          <React.Fragment key={m.id}>
+                            <tr className="hover:bg-[#fbfefe]">
+                              <td className="px-4 py-3 font-black text-gray-700 max-w-[240px] truncate">{m.nome_meta}</td>
+                              <td className="px-4 py-3 font-bold text-gray-500 max-w-[320px] truncate">{primeiraEstrutura.estrutura || '-'}</td>
+                              <td className="px-4 py-3"><div className="flex flex-wrap gap-1"><span className="px-2 py-1 rounded-full bg-gray-50 text-gray-500 text-[10px] font-black">{estruturaConfig?.canal || 'VD'}</span><span className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{String(estruturaConfig?.nucleo || '').replace('NUCLEO', 'NÚCLEO') || '-'}</span></div></td>
+                              <td className="px-4 py-3 font-bold text-gray-600">{m.ciclo}</td>
+                              <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarMoeda(m.meta_real)}</td>
+                              <td className="px-4 py-3 text-right font-black text-gray-700">{formatarMoeda(m.realizado)}</td>
+                              <td className="px-4 py-3 text-right font-black" style={{ color: corPorFaixaMeta(m.percentual) }}>{Number(m.percentual || 0).toFixed(1)}%</td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(m.meta_atividade || 0).toFixed(1)}%</td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_rpa)}</td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_tkt_medio)}</td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(m.meta_upa || 0).toFixed(1)}</td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(m.meta_make || 0).toFixed(1)}%</td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(m.meta_cabelo || 0).toFixed(1)}%</td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap">
+                                <button type="button" onClick={() => setMetaExpandidaId(abertoLinha ? null : m.id)} className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1">Ver +</button>
+                                <button type="button" onClick={() => editarMeta(m)} className="text-[#048187] hover:bg-[#e6f6f7] rounded-lg p-2 mr-1"><Pencil size={16} /></button>
+                                <button type="button" onClick={() => excluirMeta(m)} className="text-red-500 hover:bg-red-50 rounded-lg p-2"><Trash2 size={16} /></button>
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {m.consultores.map((c) => (
-                              <tr key={`${m.id}-${c.id_colaborador}`} className="border-t border-gray-50">
-                                <td className="py-3 font-bold text-gray-700">{c.nome_exibicao || c.nome}</td>
-                                <td className="font-bold text-[#048187]">
-                                  <div className="inline-flex items-center gap-2">
-                                    <input type="number" step="0.01" defaultValue={Number(c.peso_meta || 0).toFixed(2)} onBlur={(e) => salvarPesoConsultorMeta(c, e.target.value)} className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-[#048187] outline-none focus:border-[#048187]" />%
+                            {abertoLinha && (
+                              <tr>
+                                <td colSpan={14} className="bg-[#fbfefe] px-6 py-5">
+                                  <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white">
+                                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                                      <div>
+                                        <h4 className="font-black text-gray-700">Consultores vinculados à estrutura</h4>
+                                        <p className="text-xs text-gray-400 font-semibold mt-1">Edite peso e status. Consultores em férias/inativos não entram na divisão ativa da meta.</p>
+                                      </div>
+                                      <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{(m.consultores || []).length} consultores</span>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full min-w-[900px] text-sm">
+                                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3 text-left">Consultor</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Peso</th><th className="px-5 py-3 text-right">Meta individual</th><th className="px-5 py-3 text-right">Realizado</th><th className="px-5 py-3 text-right">% Fat.</th></tr></thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                          {(m.consultores || []).map((c) => (
+                                            <tr key={`${m.id}-${c.id_colaborador}-${c.id}`} className="hover:bg-[#f7fafb]">
+                                              <td className="px-5 py-3"><p className="font-black text-gray-700">{c.nome_exibicao || c.nome_social || c.nome}</p><p className="text-[10px] text-gray-400 font-bold">ID {c.id_colaborador || '-'}</p></td>
+                                              <td className="px-5 py-3"><select defaultValue={c.status_consultor || 'ativo'} onChange={(e) => salvarConsultorNaMeta(c, { status_consultor: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="ferias">Férias</option><option value="inativo">Inativo</option></select></td>
+                                              <td className="px-5 py-3 text-right"><div className="inline-flex items-center gap-2"><input type="number" step="0.01" defaultValue={Number(c.peso_meta || 0).toFixed(2)} onBlur={(e) => salvarPesoConsultorMeta(c, e.target.value)} className="w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold text-[#048187] outline-none focus:border-[#048187]" />%</div></td>
+                                              <td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_individual)}</td>
+                                              <td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(c.realizado)}</td>
+                                              <td className="px-5 py-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{Number(c.percentual || 0).toFixed(1)}%</td>
+                                            </tr>
+                                          ))}
+                                          {!(m.consultores || []).length && <tr><td colSpan={6} className="px-5 py-8 text-center text-gray-400 font-bold">Nenhum consultor cadastrado nessa estrutura.</td></tr>}
+                                        </tbody>
+                                      </table>
+                                    </div>
                                   </div>
                                 </td>
-                                <td>{formatarMoeda(c.meta_individual)}</td>
-                                <td>{formatarMoeda(c.realizado)}</td>
-                                <td className="font-black text-[#048187]">{Number(c.percentual || 0).toFixed(1)}%</td>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap justify-end gap-3 mt-5">
-                      <button type="button" onClick={() => editarMeta(m)} className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] rounded-xl px-4 py-3 inline-flex items-center gap-2 text-sm font-black"><Pencil size={15} /> Editar bloco</button>
-                      <button type="button" onClick={() => excluirMeta(m)} className="bg-red-50 text-red-500 hover:bg-red-100 rounded-xl px-4 py-3 inline-flex items-center gap-2 text-sm font-black"><Trash2 size={15} /> Apagar bloco</button>
-                    </div>
-                  </div>
-                ))}
-                {!metas.length && <div className="border border-dashed border-gray-200 rounded-2xl p-10 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</div>}
-              </>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    {!metas.length && <tr><td colSpan={14} className="p-10 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</td></tr>}
+                  </tbody>
+                  <tfoot className="bg-yellow-100 text-gray-800 font-black">
+                    <tr>
+                      <td className="px-4 py-3 text-center" colSpan={4}>TOTAL GERAL</td>
+                      <td className="px-4 py-3 text-right">{formatarMoeda(totalMetas)}</td>
+                      <td className="px-4 py-3 text-right">{formatarMoeda(totalRealizado)}</td>
+                      <td className="px-4 py-3 text-right">{percentualTotal.toFixed(1)}%</td>
+                      <td colSpan={7}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             )}
           </div>
         </div>
