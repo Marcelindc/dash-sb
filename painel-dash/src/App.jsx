@@ -1157,6 +1157,24 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     return passaBusca && metaPertenceAoNucleoFiltro(m);
   });
 
+  const totalMetasFiltrado = metasTabelaVisualFiltradas.reduce((acc, meta) => acc + Number(meta.meta_real || 0), 0);
+  const totalRealizadoFiltrado = metasTabelaVisualFiltradas.reduce((acc, meta) => acc + Number(meta.realizado || 0), 0);
+  const percentualTotalFiltrado = totalMetasFiltrado > 0 ? (totalRealizadoFiltrado / totalMetasFiltrado) * 100 : 0;
+  const estruturasBaseFiltradas = (() => {
+    const chaves = new Set();
+    metasTabelaVisualFiltradas.forEach((meta) => {
+      const estruturasMeta = obterEstruturasMeta(meta);
+      if (!estruturasMeta.length && meta?.estrutura) {
+        chaves.add(normalizarEstruturaMeta(meta.estrutura));
+      }
+      estruturasMeta.forEach((estruturaItem) => {
+        const chave = normalizarEstruturaMeta(`${estruturaItem.cod_estrutura || ''}__${estruturaItem.estrutura || ''}`);
+        if (chave) chaves.add(chave);
+      });
+    });
+    return chaves.size;
+  })();
+
   const nucleosDisponiveisMetas = ['Todos', 'N1', 'N2', 'N3'];
   const resumoMetasPorNucleo = metasTabelaVisual.reduce((acc, meta) => {
     const estruturasMeta = obterEstruturasMeta(meta);
@@ -1190,11 +1208,11 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
         <div className="px-5 md:px-7 py-4 border-b border-gray-100 bg-[#fbfefe]">
           <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta do ciclo</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(totalMetas)}</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Realizado</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(totalRealizado)}</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">% ating.</p><p className="text-lg font-black mt-1" style={{ color: corPorFaixaMeta(percentualTotal) }}>{percentualTotal.toFixed(1)}%</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Metas cadastradas</p><p className="text-lg font-black text-gray-700 mt-1">{metas.length}</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Estruturas base</p><p className="text-lg font-black text-gray-700 mt-1">{opcoesEstruturasCadastro.length}</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta do ciclo</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(totalMetasFiltrado)}</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Realizado</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(totalRealizadoFiltrado)}</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">% ating.</p><p className="text-lg font-black mt-1" style={{ color: corPorFaixaMeta(percentualTotalFiltrado) }}>{percentualTotalFiltrado.toFixed(1)}%</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Metas cadastradas</p><p className="text-lg font-black text-gray-700 mt-1">{metasTabelaVisualFiltradas.length}</p></div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Estruturas base</p><p className="text-lg font-black text-gray-700 mt-1">{estruturasBaseFiltradas || 0}</p></div>
             <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Núcleos</p><p className="text-lg font-black text-gray-700 mt-1">N1 • N2 • N3</p></div>
           </div>
 
@@ -1571,9 +1589,9 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                   <tfoot className="bg-yellow-100 text-gray-800 font-black">
                     <tr>
                       <td className="px-4 py-3 text-center" colSpan={4}>TOTAL GERAL</td>
-                      <td className="px-4 py-3 text-right">{formatarMoeda(totalMetas)}</td>
-                      <td className="px-4 py-3 text-right">{formatarMoeda(totalRealizado)}</td>
-                      <td className="px-4 py-3 text-right">{percentualTotal.toFixed(1)}%</td>
+                      <td className="px-4 py-3 text-right">{formatarMoeda(totalMetasFiltrado)}</td>
+                      <td className="px-4 py-3 text-right">{formatarMoeda(totalRealizadoFiltrado)}</td>
+                      <td className="px-4 py-3 text-right">{percentualTotalFiltrado.toFixed(1)}%</td>
                       <td colSpan={7}></td>
                     </tr>
                   </tfoot>
