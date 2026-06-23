@@ -433,6 +433,9 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const [modoTabelaCiclo, setModoTabelaCiclo] = useState(false);
   const [linhasNovoCiclo, setLinhasNovoCiclo] = useState([]);
   const [metaExpandidaId, setMetaExpandidaId] = useState(null);
+  const [metaLinhaEditandoId, setMetaLinhaEditandoId] = useState(null);
+  const [linhaEditandoMeta, setLinhaEditandoMeta] = useState(null);
+  const [salvandoLinhaMeta, setSalvandoLinhaMeta] = useState(false);
 
   const cicloConsulta = form.ciclo || cicloPadrao || '';
 
@@ -501,6 +504,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     setAvisoEstrutura(null);
     setMostrarListaEstruturasMeta(false);
     setMostrarFormularioMeta(false);
+    setMetaLinhaEditandoId(null);
+    setLinhaEditandoMeta(null);
   };
 
   const normalizarEstruturaMeta = (valor) => String(valor || '').trim().toLowerCase();
@@ -620,6 +625,146 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     });
     setBusca('');
     setMostrarFormularioMeta(true);
+  };
+
+  const formatarNucleoCurtoMeta = (valor = '') => {
+    const texto = String(valor || '').toUpperCase();
+    if (texto.includes('3')) return 'N3';
+    if (texto.includes('2')) return 'N2';
+    return 'N1';
+  };
+
+  const normalizarNucleoMeta = (valor = '') => {
+    const texto = String(valor || '').toUpperCase();
+    if (texto.includes('3')) return 'NUCLEO 3';
+    if (texto.includes('2')) return 'NUCLEO 2';
+    return 'NUCLEO 1';
+  };
+
+  const encontrarConfigDaMeta = (meta) => {
+    const primeira = (meta.estruturas || [])[0] || {};
+    const estruturaMeta = String(primeira.estrutura || '').trim();
+    const codMeta = String(primeira.cod_estrutura || estruturaMeta.split('-')[0] || '').trim();
+
+    return opcoesEstruturasCadastro.find((item) => {
+      const estruturaIgual = normalizarEstruturaMeta(item.estrutura) === normalizarEstruturaMeta(estruturaMeta);
+      const codIgual = String(item.cod_estrutura || '').trim() && String(item.cod_estrutura || '').trim() === codMeta;
+      return estruturaIgual || codIgual;
+    });
+  };
+
+  const iniciarEdicaoLinhaMeta = (meta) => {
+    const primeiraEstrutura = (meta.estruturas || [])[0] || {};
+    const estruturaConfig = encontrarConfigDaMeta(meta) || {};
+    const estruturaTexto = String(primeiraEstrutura.estrutura || '').trim();
+    const codEstrutura = String(primeiraEstrutura.cod_estrutura || estruturaConfig.cod_estrutura || estruturaTexto.split('-')[0] || '').trim();
+
+    setMetaLinhaEditandoId(meta.id);
+    setLinhaEditandoMeta({
+      id: meta.id,
+      nome_meta: meta.nome_meta || '',
+      estrutura: estruturaTexto,
+      cod_estrutura: codEstrutura,
+      canal: estruturaConfig.canal || 'VD',
+      nucleo: normalizarNucleoMeta(estruturaConfig.nucleo || 'NUCLEO 1'),
+      ciclo: meta.ciclo || form.ciclo || cicloPadrao || '',
+      meta_real: formatarMetaRealInput(meta.meta_real),
+      meta_atividade: formatarMetaIndicadorInput(meta.meta_atividade, 1),
+      meta_rpa: formatarMetaIndicadorInput(meta.meta_rpa, 2),
+      meta_tkt_medio: formatarMetaIndicadorInput(meta.meta_tkt_medio, 2),
+      meta_upa: formatarMetaIndicadorInput(meta.meta_upa, 1),
+      meta_make: formatarMetaIndicadorInput(meta.meta_make, 1),
+      meta_cabelo: formatarMetaIndicadorInput(meta.meta_cabelo, 1),
+      tipo_meta: meta.tipo_meta || 'estrutura',
+      status: meta.status || 'ativo',
+      observacao: meta.observacao || ''
+    });
+    setMostrarFormularioMeta(false);
+    setModoTabelaCiclo(false);
+  };
+
+  const atualizarLinhaMetaEditando = (campo, valor) => {
+    setLinhaEditandoMeta((atual) => ({ ...(atual || {}), [campo]: valor }));
+  };
+
+  const cancelarEdicaoLinhaMeta = () => {
+    setMetaLinhaEditandoId(null);
+    setLinhaEditandoMeta(null);
+    setErro('');
+  };
+
+  const salvarEdicaoLinhaMeta = async (metaOriginal) => {
+    if (!linhaEditandoMeta || !metaOriginal?.id) return;
+
+    setErro('');
+    setMensagem('');
+    setSalvandoLinhaMeta(true);
+
+    const estruturaTexto = String(linhaEditandoMeta.estrutura || '').trim();
+    const codEstrutura = String(linhaEditandoMeta.cod_estrutura || estruturaTexto.split('-')[0] || '').trim();
+    const nomeMeta = String(linhaEditandoMeta.nome_meta || obterNomeLimpoEstrutura(estruturaTexto) || estruturaTexto || '').trim();
+
+    if (!nomeMeta) {
+      setErro('Informe o nome da meta.');
+      setSalvandoLinhaMeta(false);
+      return;
+    }
+    if (!estruturaTexto) {
+      setErro('A estrutura da meta não foi identificada.');
+      setSalvandoLinhaMeta(false);
+      return;
+    }
+
+    const payload = {
+      ciclo: String(linhaEditandoMeta.ciclo || '').trim(),
+      nome_meta: nomeMeta,
+      tipo_meta: linhaEditandoMeta.tipo_meta || metaOriginal.tipo_meta || 'estrutura',
+      meta_real: converterMetaRealParaNumero(linhaEditandoMeta.meta_real),
+      meta_atividade: converterMetaRealParaNumero(linhaEditandoMeta.meta_atividade),
+      meta_make: converterMetaRealParaNumero(linhaEditandoMeta.meta_make),
+      meta_cabelo: converterMetaRealParaNumero(linhaEditandoMeta.meta_cabelo),
+      meta_rpa: converterMetaRealParaNumero(linhaEditandoMeta.meta_rpa),
+      meta_tkt_medio: converterMetaRealParaNumero(linhaEditandoMeta.meta_tkt_medio),
+      meta_upa: converterMetaRealParaNumero(linhaEditandoMeta.meta_upa),
+      regra_calculo: metaOriginal.regra_calculo || 'somar_estruturas',
+      status: linhaEditandoMeta.status || metaOriginal.status || 'ativo',
+      observacao: linhaEditandoMeta.observacao || metaOriginal.observacao || '',
+      estruturas: [{ cod_estrutura: codEstrutura, estrutura: estruturaTexto }]
+    };
+
+    if (!payload.ciclo) {
+      setErro('Informe o ciclo.');
+      setSalvandoLinhaMeta(false);
+      return;
+    }
+    if (payload.meta_real <= 0) {
+      setErro('Informe uma receita/meta maior que zero.');
+      setSalvandoLinhaMeta(false);
+      return;
+    }
+
+    try {
+      await axios.put(`${apiUrl}/metas-reais/${metaOriginal.id}`, payload);
+
+      await axios.post(`${apiUrl}/estruturas-config`, {
+        cod_estrutura: codEstrutura,
+        estrutura: estruturaTexto,
+        canal: linhaEditandoMeta.canal || 'VD',
+        nucleo: normalizarNucleoMeta(linhaEditandoMeta.nucleo),
+        tipo_estrutura: payload.tipo_meta || 'estrutura',
+        status: 'ativo'
+      });
+
+      setMensagem('Linha atualizada com sucesso.');
+      cancelarEdicaoLinhaMeta();
+      await carregarEstruturasConfigMeta();
+      await carregarMetas(payload.ciclo);
+      if (onAtualizacao) onAtualizacao();
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao salvar a linha da meta.');
+    } finally {
+      setSalvandoLinhaMeta(false);
+    }
   };
 
   const excluirMeta = async (meta) => {
@@ -1050,28 +1195,82 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                         const primeiraEstrutura = (m.estruturas || [])[0] || {};
                         const estruturaConfig = opcoesEstruturasCadastro.find((item) => normalizarEstruturaMeta(item.estrutura) === normalizarEstruturaMeta(primeiraEstrutura.estrutura));
                         const abertoLinha = String(metaExpandidaId) === String(m.id);
+                        const editandoLinha = String(metaLinhaEditandoId) === String(m.id);
+                        const linhaEditavel = editandoLinha && linhaEditandoMeta ? linhaEditandoMeta : null;
                         return (
                           <React.Fragment key={m.id}>
-                            <tr className="hover:bg-[#fbfefe]">
-                              <td className="px-4 py-3 font-black text-gray-700 max-w-[240px] truncate">{m.nome_meta}</td>
+                            <tr className={`${editandoLinha ? 'bg-[#f2fafb] ring-2 ring-[#048187]/20' : 'hover:bg-[#fbfefe]'}`}>
+                              <td className="px-4 py-3 font-black text-gray-700 max-w-[240px]">
+                                {editandoLinha ? (
+                                  <input value={linhaEditavel.nome_meta} onChange={(e) => atualizarLinhaMetaEditando('nome_meta', e.target.value)} className="w-full min-w-[180px] border border-gray-200 rounded-lg px-3 py-2 text-sm font-black text-gray-700 outline-none focus:border-[#048187]" />
+                                ) : (
+                                  <span className="truncate block">{m.nome_meta}</span>
+                                )}
+                              </td>
                               <td className="px-4 py-3 font-bold text-gray-500 max-w-[320px] truncate">{primeiraEstrutura.estrutura || '-'}</td>
-                              <td className="px-4 py-3"><div className="flex flex-wrap gap-1"><span className="px-2 py-1 rounded-full bg-gray-50 text-gray-500 text-[10px] font-black">{estruturaConfig?.canal || 'VD'}</span><span className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{String(estruturaConfig?.nucleo || '').replace('NUCLEO', 'NÚCLEO') || '-'}</span></div></td>
-                              <td className="px-4 py-3 font-bold text-gray-600">{m.ciclo}</td>
-                              <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarMoeda(m.meta_real)}</td>
+                              <td className="px-4 py-3 min-w-[190px]">
+                                {editandoLinha ? (
+                                  <div className="grid grid-cols-2 gap-2 min-w-[170px]">
+                                    <select value={linhaEditavel.canal || 'VD'} onChange={(e) => atualizarLinhaMetaEditando('canal', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-xs font-black text-gray-700 outline-none focus:border-[#048187]">
+                                      <option value="VD">VD</option>
+                                      <option value="LOJA">LOJA</option>
+                                      <option value="ER">ER</option>
+                                    </select>
+                                    <select value={normalizarNucleoMeta(linhaEditavel.nucleo)} onChange={(e) => atualizarLinhaMetaEditando('nucleo', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-xs font-black text-gray-700 outline-none focus:border-[#048187]">
+                                      <option value="NUCLEO 1">N1</option>
+                                      <option value="NUCLEO 2">N2</option>
+                                      <option value="NUCLEO 3">N3</option>
+                                    </select>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1">
+                                    <span className="px-2 py-1 rounded-full bg-gray-50 text-gray-500 text-[10px] font-black">{estruturaConfig?.canal || 'VD'}</span>
+                                    <span className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{formatarNucleoCurtoMeta(estruturaConfig?.nucleo || '-')}</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 font-bold text-gray-600 min-w-[110px]">
+                                {editandoLinha ? <input value={linhaEditavel.ciclo} onChange={(e) => atualizarLinhaMetaEditando('ciclo', e.target.value)} className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-[#048187]" /> : m.ciclo}
+                              </td>
+                              <td className="px-4 py-3 text-right font-black text-[#048187] min-w-[145px]">
+                                {editandoLinha ? <input value={linhaEditavel.meta_real} onChange={(e) => atualizarLinhaMetaEditando('meta_real', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_real', formatarMetaRealInput(e.target.value))} className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm text-right font-black text-[#048187] outline-none focus:border-[#048187]" /> : formatarMoeda(m.meta_real)}
+                              </td>
                               <td className="px-4 py-3 text-right font-black text-gray-700">{formatarMoeda(m.realizado)}</td>
                               <td className="px-4 py-3 text-right font-black" style={{ color: corPorFaixaMeta(m.percentual) }}>{Number(m.percentual || 0).toFixed(1)}%</td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(m.meta_atividade || 0).toFixed(1)}%</td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_rpa)}</td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_tkt_medio)}</td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(m.meta_upa || 0).toFixed(1)}</td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(m.meta_make || 0).toFixed(1)}%</td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(m.meta_cabelo || 0).toFixed(1)}%</td>
-                              <td className="px-4 py-3 text-right whitespace-nowrap">
-                                <button type="button" onClick={() => setMetaExpandidaId(abertoLinha ? null : m.id)} className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1">Ver +</button>
-                                <button type="button" onClick={() => editarMeta(m)} className="text-[#048187] hover:bg-[#e6f6f7] rounded-lg p-2 mr-1"><Pencil size={16} /></button>
-                                <button type="button" onClick={() => excluirMeta(m)} className="text-red-500 hover:bg-red-50 rounded-lg p-2"><Trash2 size={16} /></button>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[110px]">
+                                {editandoLinha ? <input value={linhaEditavel.meta_atividade} onChange={(e) => atualizarLinhaMetaEditando('meta_atividade', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_atividade', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_atividade || 0).toFixed(1)}%`}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[135px]">
+                                {editandoLinha ? <input value={linhaEditavel.meta_rpa} onChange={(e) => atualizarLinhaMetaEditando('meta_rpa', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_rpa', formatarMetaIndicadorInput(e.target.value, 2))} className="w-28 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : formatarMoeda(m.meta_rpa)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[135px]">
+                                {editandoLinha ? <input value={linhaEditavel.meta_tkt_medio} onChange={(e) => atualizarLinhaMetaEditando('meta_tkt_medio', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_tkt_medio', formatarMetaIndicadorInput(e.target.value, 2))} className="w-28 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : formatarMoeda(m.meta_tkt_medio)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[90px]">
+                                {editandoLinha ? <input value={linhaEditavel.meta_upa} onChange={(e) => atualizarLinhaMetaEditando('meta_upa', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_upa', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : Number(m.meta_upa || 0).toFixed(1)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[110px]">
+                                {editandoLinha ? <input value={linhaEditavel.meta_make} onChange={(e) => atualizarLinhaMetaEditando('meta_make', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_make', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_make || 0).toFixed(1)}%`}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[120px]">
+                                {editandoLinha ? <input value={linhaEditavel.meta_cabelo} onChange={(e) => atualizarLinhaMetaEditando('meta_cabelo', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_cabelo', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_cabelo || 0).toFixed(1)}%`}
+                              </td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap min-w-[170px]">
+                                {editandoLinha ? (
+                                  <>
+                                    <button type="button" onClick={() => salvarEdicaoLinhaMeta(m)} disabled={salvandoLinhaMeta} className="bg-[#048187] text-white hover:brightness-110 disabled:opacity-60 rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1"><Save size={14} /> Salvar</button>
+                                    <button type="button" onClick={cancelarEdicaoLinhaMeta} className="bg-gray-50 text-gray-500 hover:bg-gray-100 rounded-lg p-2"><X size={16} /></button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button type="button" onClick={() => setMetaExpandidaId(abertoLinha ? null : m.id)} className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1">Ver +</button>
+                                    <button type="button" onClick={() => iniciarEdicaoLinhaMeta(m)} className="text-[#048187] hover:bg-[#e6f6f7] rounded-lg p-2 mr-1"><Pencil size={16} /></button>
+                                    <button type="button" onClick={() => excluirMeta(m)} className="text-red-500 hover:bg-red-50 rounded-lg p-2"><Trash2 size={16} /></button>
+                                  </>
+                                )}
                               </td>
                             </tr>
+
                             {abertoLinha && (
                               <tr>
                                 <td colSpan={14} className="bg-[#fbfefe] px-6 py-5">
