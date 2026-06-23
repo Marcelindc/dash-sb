@@ -70,7 +70,7 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'Configurações', 'Perfil'],
+  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'ADM', 'Configurações', 'Perfil'],
   gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Loja', 'LojaVisaoGeral', 'Perfil'],
   visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Loja', 'LojaVisaoGeral', 'Perfil']
 };
@@ -82,10 +82,11 @@ const obterNomeAba = (nome) => ({
   N2: 'N2',
   Loja: 'LOJA',
   LojaVisaoGeral: 'Visão Geral',
+  ADM: 'Painel ADM',
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'ADM', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -120,7 +121,7 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   });
 
   // O admin nunca pode perder acesso à própria tela de configuração/perfil.
-  ['Configurações', 'Perfil'].forEach((abaObrigatoria) => {
+  ['ADM', 'Configurações', 'Perfil'].forEach((abaObrigatoria) => {
     if (!normalizadas.admin.includes(abaObrigatoria)) {
       normalizadas.admin.push(abaObrigatoria);
     }
@@ -1611,6 +1612,7 @@ export default function App() {
     if (!usuarioLogado) return;
     if (ABAS_SISTEMA.includes(telaAtual)) {
       localStorage.setItem(TELA_ATUAL_STORAGE_KEY, telaAtual);
+      registrarUsoTela(telaAtual);
     }
   }, [usuarioLogado, telaAtual]);
 
@@ -1635,6 +1637,7 @@ export default function App() {
 
 
   const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState('');
+  const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' });
 
   const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
@@ -1997,6 +2000,31 @@ export default function App() {
     } catch (e) { console.error("Erro Comparativo:", e); } finally { setLoadComp(false); }
   };
 
+  const carregarAuditoria = async (dias = filtrosAuditoria.dias) => {
+    if (!usuarioLogado || usuarioLogado.perfil !== 'admin') return;
+    setCarregandoAuditoria(true);
+    setErroAuditoria('');
+    try {
+      const { data } = await axios.get(`${API_URL}/auditoria/resumo`, { params: { dias, limite: 200 } });
+      setDadosAuditoria(data);
+    } catch (erro) {
+      setErroAuditoria(erro.response?.data?.detail || 'Erro ao carregar auditoria.');
+    } finally {
+      setCarregandoAuditoria(false);
+    }
+  };
+
+  const registrarUsoTela = async (tela) => {
+    if (!usuarioLogado || !tela) return;
+    try {
+      await axios.post(`${API_URL}/auditoria/registrar-uso`, {
+        tela,
+        modulo: obterNomeAba(tela),
+        descricao: `Acessou a tela ${obterNomeAba(tela)}`
+      });
+    } catch (_) {}
+  };
+
   const carregarUsuarios = async () => {
     if (!usuarioPodeAcessar('Configurações')) return;
     setCarregandoUsuarios(true); setErroUsuarios('');
@@ -2211,6 +2239,7 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Base') return carregarCiclos();
     if (telaAtual === 'Cadastro') return Promise.allSettled([carregarCiclos(), carregarListaConsultores(), carregarEstruturasConfig()]);
     if (telaAtual === 'Loja' || telaAtual === 'LojaVisaoGeral') return carregarDashboard(filtros, forcarAtualizacao);
+    if (telaAtual === 'ADM') return carregarAuditoria();
     if (telaAtual === 'Configurações') return carregarUsuarios();
   };
 
@@ -2547,6 +2576,7 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Cadastro') { tarefas.push(carregarCiclos()); tarefas.push(carregarListaConsultores()); tarefas.push(carregarEstruturasConfig()); }
     if (telaAtual === 'Histórico') tarefas.push(carregarHistoricoCiclos());
     if (telaAtual === 'Base') tarefas.push(carregarCiclos());
+    if (telaAtual === 'ADM') tarefas.push(carregarAuditoria());
     if (telaAtual === 'Configurações') tarefas.push(carregarUsuarios());
 
     await Promise.allSettled(tarefas);
@@ -4416,6 +4446,70 @@ const enviarArquivo = async (tipo) => {
     </div>
   );
 
+
+  const CardAuditoria = ({ titulo, valor, subtitulo, icone: Icone, destaque = false, perigo = false }) => (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-black uppercase text-gray-400">{titulo}</p>
+          <p className={`text-2xl font-black mt-2 ${perigo ? 'text-[#7c1f31]' : destaque ? 'text-[#048187]' : 'text-gray-700'}`}>{valor ?? 0}</p>
+          {subtitulo && <p className="text-xs font-bold text-gray-400 mt-1">{subtitulo}</p>}
+        </div>
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${perigo ? 'bg-[#7c1f31]/10 text-[#7c1f31]' : 'bg-[#e6f6f7] text-[#048187]'}`}><Icone size={22} /></div>
+      </div>
+    </div>
+  );
+
+  const formatarDataHoraAuditoria = (valor) => {
+    if (!valor) return '-';
+    try { return new Date(valor).toLocaleString('pt-BR'); } catch (_) { return valor; }
+  };
+
+  const LinhaLogAuditoria = ({ item }) => (
+    <tr className="border-b border-gray-50 hover:bg-[#f7fafb]">
+      <td className="py-3 px-3"><div className="font-black text-gray-700">{item.usuario_nome || item.usuario_email || '-'}</div><div className="text-[11px] text-gray-400 font-bold">{item.usuario_email || '-'}</div></td>
+      <td className="py-3 px-3"><div className="font-black text-[#048187]">{item.modulo || '-'}</div><div className="text-[11px] text-gray-400 font-bold">{item.acao || '-'}</div></td>
+      <td className="py-3 px-3 text-gray-500 font-semibold max-w-[420px]">{item.descricao || item.entidade || '-'}</td>
+      <td className="py-3 px-3"><span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${item.status === 'erro' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{item.status || 'sucesso'}</span></td>
+      <td className="py-3 px-3 text-gray-500 font-bold whitespace-nowrap">{formatarDataHoraAuditoria(item.criado_em)}</td>
+    </tr>
+  );
+
+  const TabelaLogsAuditoria = ({ titulo, dados = [], vazio = 'Nenhum registro encontrado.' }) => (
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="p-5 border-b border-gray-100 flex items-center justify-between gap-3"><h3 className="text-lg font-black text-gray-700">{titulo}</h3><span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{dados.length} registros</span></div>
+      <div className="overflow-x-auto"><table className="w-full text-sm min-w-[960px]"><thead className="bg-[#f7fafb] text-[11px] uppercase text-gray-400 font-black"><tr><th className="py-3 px-3 text-left">Usuário</th><th className="py-3 px-3 text-left">Módulo/Ação</th><th className="py-3 px-3 text-left">Descrição</th><th className="py-3 px-3 text-left">Status</th><th className="py-3 px-3 text-left">Data/Hora</th></tr></thead><tbody>{dados.map((item) => <LinhaLogAuditoria key={item.id} item={item} />)}</tbody></table>{!dados.length && <div className="py-10 text-center text-gray-400 font-bold">{vazio}</div>}</div>
+    </div>
+  );
+
+  const renderTelaADM = () => {
+    const resumo = dadosAuditoria?.resumo || {};
+    const aba = filtrosAuditoria.aba || 'acessos';
+    const abas = [
+      { id: 'acessos', label: 'Acessos', dados: dadosAuditoria?.acessos_recentes || [] },
+      { id: 'uploads', label: 'Uploads', dados: dadosAuditoria?.uploads_recentes || [] },
+      { id: 'acoes', label: 'Ações', dados: dadosAuditoria?.acoes_recentes || [] },
+      { id: 'erros', label: 'Erros', dados: dadosAuditoria?.erros_recentes || [] },
+    ];
+    const abaAtual = abas.find((item) => item.id === aba) || abas[0];
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div><h1 className="text-2xl font-black text-gray-700">Painel ADM</h1><p className="text-gray-400 font-semibold mt-1">Acompanhe acessos, uploads, alterações, erros e uso das telas do Dash.</p></div>
+            <div className="flex flex-col sm:flex-row gap-2"><select value={filtrosAuditoria.dias} onChange={(e) => { const dias = Number(e.target.value); setFiltrosAuditoria((atual) => ({ ...atual, dias })); carregarAuditoria(dias); }} className="border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#048187]"><option value={1}>Últimas 24h</option><option value={7}>Últimos 7 dias</option><option value={15}>Últimos 15 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select><button onClick={() => carregarAuditoria()} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center justify-center gap-2"><RefreshCcw size={18} /> Atualizar</button></div>
+          </div>
+          {erroAuditoria && <div className="mt-4 bg-red-50 text-red-600 p-4 rounded-xl font-bold">{erroAuditoria}</div>}
+          {carregandoAuditoria && <div className="mt-4 bg-[#e6f6f7] text-[#048187] p-4 rounded-xl font-bold">Carregando auditoria...</div>}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"><CardAuditoria titulo="Usuários ativos" valor={resumo.usuarios_ativos_24h || 0} subtitulo="últimas 24h" icone={Users} destaque /><CardAuditoria titulo="Logins" valor={resumo.logins_24h || 0} subtitulo="últimas 24h" icone={UserCircle} /><CardAuditoria titulo="Uploads" valor={resumo.uploads_24h || 0} subtitulo="bases atualizadas" icone={Upload} destaque /><CardAuditoria titulo="Ações" valor={resumo.acoes_24h || 0} subtitulo="cadastros/edições" icone={Pencil} /><CardAuditoria titulo="Erros" valor={resumo.erros_24h || 0} subtitulo="últimas 24h" icone={AlertCircle} perigo={Number(resumo.erros_24h || 0) > 0} /></div>
+        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_.8fr] gap-6"><div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5"><div className="flex items-center justify-between gap-3 mb-4"><h3 className="text-lg font-black text-gray-700">Telas mais usadas</h3><span className="text-xs font-black text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{dadosAuditoria?.periodo_dias || filtrosAuditoria.dias} dias</span></div><div className="space-y-3">{(dadosAuditoria?.uso_por_tela || []).slice(0, 8).map((item, index) => (<div key={item.modulo} className="flex items-center gap-3"><div className="w-7 h-7 rounded-full bg-[#e6f6f7] text-[#048187] font-black flex items-center justify-center text-xs">{index + 1}</div><div className="flex-1 min-w-0"><div className="flex items-center justify-between gap-3"><p className="font-black text-gray-700 truncate">{item.modulo}</p><p className="font-black text-[#048187]">{item.acessos}</p></div><div className="h-2 bg-gray-100 rounded-full mt-1 overflow-hidden"><div className="h-full bg-[#048187] rounded-full" style={{ width: `${Math.min(100, Number(item.acessos || 0) * 6)}%` }} /></div><p className="text-[11px] text-gray-400 font-bold mt-1">{item.usuarios} usuário(s)</p></div></div>))}{!(dadosAuditoria?.uso_por_tela || []).length && <p className="text-gray-400 font-bold text-sm">Ainda não há uso registrado.</p>}</div></div><div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5"><h3 className="text-lg font-black text-gray-700 mb-4">Usuários recentes</h3><div className="space-y-3 max-h-[360px] overflow-y-auto pr-2">{(dadosAuditoria?.usuarios_ativos || []).map((u) => (<div key={u.usuario_email} className="flex items-center justify-between gap-3 border-b border-gray-50 pb-3"><div className="min-w-0"><p className="font-black text-gray-700 truncate">{u.usuario_nome || '-'}</p><p className="text-xs text-gray-400 font-bold truncate">{u.usuario_email}</p></div><div className="text-right shrink-0"><span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-black uppercase">{u.perfil || '-'}</span><p className="text-[11px] text-gray-400 font-bold mt-1">{formatarDataHoraAuditoria(u.ultimo_evento)}</p></div></div>))}{!(dadosAuditoria?.usuarios_ativos || []).length && <p className="text-gray-400 font-bold text-sm">Nenhum usuário recente.</p>}</div></div></div>
+        <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm"><div className="flex flex-wrap gap-2">{abas.map((item) => (<button key={item.id} onClick={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: item.id }))} className={`px-4 py-2.5 rounded-xl font-black text-sm transition-colors ${aba === item.id ? 'bg-[#048187] text-white' : 'bg-[#f7fafb] text-gray-500 hover:bg-[#e6f6f7] hover:text-[#048187]'}`}>{item.label} <span className={aba === item.id ? 'text-white/80' : 'text-gray-400'}>({item.dados.length})</span></button>))}</div></div>
+        <TabelaLogsAuditoria titulo={abaAtual.label} dados={abaAtual.dados} vazio={`Nenhum registro em ${abaAtual.label.toLowerCase()}.`} />
+      </div>
+    );
+  };
+
   const renderTelaConfiguracoes = () => (
     <div className="space-y-6 animate-fade-in">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Configurações</h1><p className="text-gray-400">Gerencie usuários e permissões de acesso.</p></div>
@@ -4816,6 +4910,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'Base') return renderTelaBase();
     if (telaAtual === 'Cadastro') return renderTelaCadastro();
     if (telaAtual === 'Loja' || telaAtual === 'LojaVisaoGeral') return renderTelaLoja();
+    if (telaAtual === 'ADM') return renderTelaADM();
     if (telaAtual === 'Configurações') return renderTelaConfiguracoes();
     if (telaAtual === 'Perfil') return renderTelaPerfil();
     return null;
@@ -5019,6 +5114,16 @@ const enviarArquivo = async (tipo) => {
               <User size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
               {sidebarExpandida && <span>Perfil</span>}
             </button>
+            {usuarioPodeAcessar('ADM') && (
+              <button
+                onClick={() => { setCanalAtual('VD'); setTelaAtual('ADM'); }}
+                title="Painel ADM"
+                className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'ADM' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+              >
+                <ShieldCheck size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+                {sidebarExpandida && <span>Painel ADM</span>}
+              </button>
+            )}
             {usuarioPodeAcessar('Configurações') && (
               <button
                 onClick={() => setTelaAtual('Configurações')}
@@ -5042,7 +5147,7 @@ const enviarArquivo = async (tipo) => {
 
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-white/10 z-40 px-2 py-2">
           <div className="flex items-center justify-around gap-1">
-            {[...itensMenuVD, { nome: 'Loja', icone: LayoutDashboard }, { nome: 'Perfil', icone: User }].map((item) => {
+            {[...itensMenuVD, { nome: 'Loja', icone: LayoutDashboard }, { nome: 'ADM', icone: ShieldCheck }, { nome: 'Perfil', icone: User }].map((item) => {
               if (!usuarioPodeAcessar(item.nome)) return null;
               const Icone = item.icone; const ativo = telaAtual === item.nome;
               return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}>{item.nome === 'Loja' ? <IconeCanalLoja size={18} /> : <Icone size={18} />}<span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
