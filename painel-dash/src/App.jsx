@@ -130,8 +130,8 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   return normalizadas;
 };
 
-const filtroVazio = { nucleos: [], unidades: [], estruturas: [], consultores: [], situacoes: [], data_inicio: '', data_fim: '' };
-const buscaFiltrosVazia = { nucleos: '', unidades: '', estruturas: '', consultores: '', situacoes: '' };
+const filtroVazio = { nucleos: [], unidades: [], estruturas: [], consultores: [], situacoes: [], meios_captacao: [], modelos_comerciais: [], canais_venda: [], data_inicio: '', data_fim: '' };
+const buscaFiltrosVazia = { nucleos: '', unidades: '', estruturas: '', consultores: '', situacoes: '', meios_captacao: '', modelos_comerciais: '', canais_venda: '' };
 const cicloFormVazio = { ciclo: '', data_inicio: '', data_fim: '', meta_ciclo: '', status_ciclo: 'ativo' };
 const consultorVazio = { id_colaborador: '', nome: '', nome_social: '', estrutura: '', canal: 'ESPAÇO DO REVENDEDOR', status_consultor: 'ativo', peso_meta: 0 };
 const estruturaConfigVazia = { cod_estrutura: '', estrutura: '', canal: 'VD', nucleo: 'NUCLEO 1', tipo_estrutura: 'estrutura', status: 'ativo' };
@@ -1701,7 +1701,7 @@ export default function App() {
   const [dadosRevendedores, setDadosRevendedores] = useState(null); const [carregandoRevendedores, setCarregandoRevendedores] = useState(false); const [erroRevendedores, setErroRevendedores] = useState(''); const [buscaRevendedores, setBuscaRevendedores] = useState('');
   const [filtrosRevendedores, setFiltrosRevendedores] = useState({ estruturas: [], cidades: [], atividades: [], papeis: [], inadimplentes: [] }); const [buscaFiltrosRevendedores, setBuscaFiltrosRevendedores] = useState({ estruturas: '', cidades: '', atividades: '', papeis: '', inadimplentes: '' });
 
-  const [opcoesFiltros, setOpcFiltros] = useState({ nucleos: ['NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'], unidades: [], estruturas: [], consultores: [], situacoes: [] });
+  const [opcoesFiltros, setOpcFiltros] = useState({ nucleos: ['NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'], unidades: [], estruturas: [], consultores: [], situacoes: [], meios_captacao: [], modelos_comerciais: [], canais_venda: ['app_revendedor', 'omni', 'portal_revendedor', 'vd_mais', 'outros'] });
   const [filtrosAtivos, setFiltrosAtivos] = useState(filtroVazio);
   const [buscaFiltros, setBuscaFiltros] = useState(buscaFiltrosVazia);
 
@@ -1822,7 +1822,7 @@ export default function App() {
     }
   };
 
-  const gerarChaveFiltros = (filtros) => JSON.stringify({ nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
+  const gerarChaveFiltros = (filtros) => JSON.stringify({ nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
 
   const limparCachesDados = () => { setCacheDashboard({}); setCacheMetas(null); setCacheDetalheMetas({}); setOpcoesFiltrosCarregadas(false); };
 
@@ -1842,7 +1842,10 @@ export default function App() {
           unidades: resposta.data.unidades || [],
           estruturas: resposta.data.estruturas || [],
           consultores: resposta.data.consultores || [],
-          situacoes: resposta.data.situacoes || []
+          situacoes: resposta.data.situacoes || [],
+          meios_captacao: resposta.data.meios_captacao || [],
+          modelos_comerciais: resposta.data.modelos_comerciais || [],
+          canais_venda: resposta.data.canais_venda || prev.canais_venda || ['app_revendedor', 'omni', 'portal_revendedor', 'vd_mais', 'outros']
         }));
         setOpcoesFiltrosCarregadas(true);
       })
@@ -2569,6 +2572,61 @@ const carregarRevendedores = async () => {
     }, 250);
   };
 
+
+  const rotuloFiltroInterativo = (categoria, valor) => {
+    const mapaCanal = {
+      app_revendedor: 'App Revendedor',
+      omni: 'Omni',
+      portal_revendedor: 'Portal Revendedor',
+      vd_mais: 'VD+',
+      outros: 'Outros'
+    };
+    const mapaCategoria = {
+      nucleos: 'Núcleo',
+      unidades: 'Unidade',
+      estruturas: 'Estrutura',
+      consultores: 'Consultor',
+      situacoes: 'Situação',
+      meios_captacao: 'Meio de Captação',
+      modelos_comerciais: 'Modelo de Venda',
+      canais_venda: 'Canal de Venda'
+    };
+    const valorLabel = categoria === 'canais_venda' ? (mapaCanal[valor] || valor) : valor;
+    return `${mapaCategoria[categoria] || categoria}: ${valorLabel}`;
+  };
+
+  const aplicarFiltroInterativo = (categoria, valor) => {
+    const valorLimpo = String(valor || '').trim();
+    if (!categoria || !valorLimpo) return;
+
+    const listaAtual = filtrosAtivos[categoria] || [];
+    const jaSelecionadoUnico = listaAtual.length === 1 && listaAtual[0] === valorLimpo;
+    const novosFiltros = {
+      ...filtrosAtivos,
+      [categoria]: jaSelecionadoUnico ? [] : [valorLimpo]
+    };
+
+    if (gerarChaveFiltros(novosFiltros) === gerarChaveFiltros(filtrosAtivos)) return;
+
+    setPainelFiltrosAberto(false);
+    setFiltrosAtivos(novosFiltros);
+    ultimoCarregamentoTelaRef.current = '';
+    carregarTelaAtual(novosFiltros, false);
+  };
+
+  const limparFiltroInterativo = (categoria, valor = null) => {
+    const novosFiltros = { ...filtrosAtivos };
+    if (valor === null) novosFiltros[categoria] = [];
+    else novosFiltros[categoria] = (novosFiltros[categoria] || []).filter((item) => item !== valor);
+    setFiltrosAtivos(novosFiltros);
+    ultimoCarregamentoTelaRef.current = '';
+    carregarTelaAtual(novosFiltros, false);
+  };
+
+  const filtrosAtivosResumo = Object.entries(filtrosAtivos)
+    .filter(([categoria, valor]) => Array.isArray(valor) && valor.length > 0)
+    .flatMap(([categoria, valores]) => valores.map((valor) => ({ categoria, valor, label: rotuloFiltroInterativo(categoria, valor) })));
+
   const iniciarAtualizacaoAutomaticaPedidos = () => {
     setErroUpload('');
     setMensagemUpload('Solicitando atualização automática de pedidos pela extensão...');
@@ -2980,7 +3038,18 @@ const enviarArquivo = async (tipo) => {
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
+          <div className="space-y-2 min-w-0">
+            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
+            {filtrosAtivosResumo.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {filtrosAtivosResumo.map((filtro) => (
+                  <button key={`${filtro.categoria}-${filtro.valor}`} type="button" onClick={() => limparFiltroInterativo(filtro.categoria, filtro.valor)} className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-[11px] font-black inline-flex items-center gap-2 hover:bg-[#d0f0f1]">
+                    {filtro.label} <X size={12} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <p className="text-xs font-medium text-gray-400 text-left sm:text-right">{dados.ultima_atualizacao_pedidos ? `Última atualização (Base Pedidos): ${dados.ultima_atualizacao_pedidos}` : 'Nenhum upload de Pedidos'}</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 xl:gap-5">
@@ -3020,7 +3089,7 @@ const enviarArquivo = async (tipo) => {
                   <XAxis dataKey="Data Captação" tick={{ fontSize: 11, fill: '#64748b' }} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatarTickMoeda} width={48} />
                   <Tooltip formatter={(value) => formatarMoeda(value)} />
-                  <Area type="monotone" dataKey="ValorPraticado" stroke="#048187" strokeWidth={3} fill="url(#colorVendas)" />
+                  <Area type="monotone" dataKey="ValorPraticado" stroke="#048187" strokeWidth={3} fill="url(#colorVendas)" activeDot={{ r: 6, cursor: 'pointer', onClick: (e, payload) => { const dataTexto = payload?.payload?.['Data Captação']; if (dataTexto) { const [dia, mes, ano] = String(dataTexto).split('/'); const dataIso = `${ano}-${mes}-${dia}`; const novosFiltros = { ...filtrosAtivos, data_inicio: dataIso, data_fim: dataIso }; setFiltrosAtivos(novosFiltros); ultimoCarregamentoTelaRef.current = ''; carregarTelaAtual(novosFiltros, false); } } }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -3031,7 +3100,7 @@ const enviarArquivo = async (tipo) => {
               {rMar.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart margin={{ top: 0, right: 0, bottom: 20, left: 0 }}>
-                    <Pie data={rMar} dataKey="value" nameKey="name" cx="50%" cy="45%" innerRadius="40%" outerRadius="75%">{rMar.map((entry, index) => (<Cell key={entry.name} fill={CORES_GRAFICO[index % CORES_GRAFICO.length]} />))}</Pie>
+                    <Pie data={rMar} dataKey="value" nameKey="name" cx="50%" cy="45%" innerRadius="40%" outerRadius="75%" cursor="pointer" onClick={(item) => aplicarFiltroInterativo('modelos_comerciais', item?.name || item?.payload?.name)}>{rMar.map((entry, index) => (<Cell key={entry.name} fill={CORES_GRAFICO[index % CORES_GRAFICO.length]} />))}</Pie>
                     <Tooltip formatter={(value) => formatarMoeda(value)} />
                     <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                   </PieChart>
@@ -3049,7 +3118,7 @@ const enviarArquivo = async (tipo) => {
                     <XAxis type="number" hide />
                     <YAxis dataKey="MeioCaptacao" type="category" width={85} tick={{ fontSize: 11, fill: '#334155' }} />
                     <Tooltip formatter={(value) => `${value} pedidos`} />
-                    <Bar dataKey="value" fill="#048187" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="value" fill="#048187" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(item) => aplicarFiltroInterativo('meios_captacao', item?.MeioCaptacao || item?.payload?.MeioCaptacao)}>
                       <LabelList content={({ x, y, width, height, value }) => { const percentual = tCap > 0 ? ((Number(value || 0) / tCap) * 100).toFixed(1) : '0.0'; return (<text x={x + width + 8} y={y + height / 2 + 4} fill="#475569" fontSize={11} fontWeight="bold">{percentual}%</text>); }} />
                     </Bar>
                   </BarChart>
@@ -3071,12 +3140,12 @@ const enviarArquivo = async (tipo) => {
                   <tbody>
                     {vCan.map((i, idx) => (
                       <tr key={`${i.estrutura}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-3 py-2 font-bold text-gray-700 border border-gray-200 whitespace-nowrap">{i.estrutura}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap">{formatarMoeda(i.app_revendedor)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap">{formatarMoeda(i.omni)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap">{formatarMoeda(i.portal_revendedor)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap">{formatarMoeda(i.vd_mais)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-[#712231] border border-gray-200 whitespace-nowrap">{formatarMoeda(i.cancelado)}</td>
+                        <td className="px-3 py-2 font-bold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('estruturas', i.estrutura)} className="hover:text-[#048187] hover:underline font-black text-left">{i.estrutura}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'app_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.app_revendedor)}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'omni')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.omni)}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'portal_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.portal_revendedor)}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'vd_mais')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.vd_mais)}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-[#712231] border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('situacoes', 'Cancelado')} className="hover:underline">{formatarMoeda(i.cancelado)}</button></td>
                         <td className="px-3 py-2 text-right font-extrabold text-green-600 border border-gray-200 whitespace-nowrap">{formatarMoeda(i.receita_total)}</td>
                       </tr>
                     ))}
@@ -3097,7 +3166,7 @@ const enviarArquivo = async (tipo) => {
                       <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => formatarAbrev(v)} />
                       <YAxis dataKey="Estrutura" type="category" width={95} tick={{ fontSize: 9, fill: '#334155' }} />
                       <Tooltip content={<TooltipEstrutura />} />
-                      <Bar dataKey="ValorPraticado" radius={[0, 4, 4, 0]}>{rEst.map((e, i) => (<Cell key={e.Estrutura} fill={CORES_ESTRUTURA[i % CORES_ESTRUTURA.length]} />))}<LabelList dataKey="ValorPraticado" position="right" formatter={(v) => formatarAbrev(v)} style={{ fontSize: 10, fill: '#334155', fontWeight: 700 }} /></Bar>
+                      <Bar dataKey="ValorPraticado" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(item) => aplicarFiltroInterativo('estruturas', item?.Estrutura || item?.payload?.Estrutura)}>{rEst.map((e, i) => (<Cell key={e.Estrutura} fill={CORES_ESTRUTURA[i % CORES_ESTRUTURA.length]} />))}<LabelList dataKey="ValorPraticado" position="right" formatter={(v) => formatarAbrev(v)} style={{ fontSize: 10, fill: '#334155', fontWeight: 700 }} /></Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm">Sem dados</div>)}
@@ -3112,7 +3181,7 @@ const enviarArquivo = async (tipo) => {
             {consDataDash.length > 0 ? consDataDash.map((c, idx) => {
               const perc = dados.valor_total > 0 ? (Number(c.ValorPraticado || 0) / dados.valor_total) * 100 : 0;
               return (
-                <div key={`${c.Consultor}-${idx}`} className="flex items-center gap-3 p-3 bg-[#fcfbf7] rounded-xl border border-gray-100 transition-all hover:bg-white min-w-0">
+                <div key={`${c.Consultor}-${idx}`} className="flex items-center gap-3 p-3 bg-[#fcfbf7] rounded-xl border border-gray-100 transition-all hover:bg-white min-w-0 cursor-pointer select-none" onClick={() => aplicarFiltroInterativo('consultores', c.Consultor)}>
                   <span className="w-8 h-8 rounded-full bg-[#048187] text-white flex items-center justify-center font-black text-xs shrink-0">{idx + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-700 truncate text-xs sm:text-sm">{c.Consultor}</p>
@@ -5352,6 +5421,9 @@ const enviarArquivo = async (tipo) => {
                 <GrupoFiltro cat="estruturas" tit="Estrutura" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
                 <GrupoFiltro cat="consultores" tit="Consultor" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
                 <GrupoFiltro cat="situacoes" tit="Situação Comercial" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
+                <GrupoFiltro cat="meios_captacao" tit="Meio de Captação" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
+                <GrupoFiltro cat="modelos_comerciais" tit="Modelo de Venda" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
+                <GrupoFiltro cat="canais_venda" tit="Canal de Venda" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
               </div>
               <div className="p-5 border-t border-gray-100 bg-white shrink-0 space-y-3">
                 <button onClick={handleAplicarFiltros} className="w-full bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70]">Aplicar Filtros</button>
