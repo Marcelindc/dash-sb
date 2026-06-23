@@ -2799,7 +2799,7 @@ const enviarArquivo = async (tipo) => {
         { label: 'Realizado', valor: formatarMoeda(realizado) },
         { label: 'Meta faturamento', valor: formatarMoeda(meta) },
         { label: '% da meta', valor: `${formatarNumeroBR(percentual, 1)}%` },
-        { label: 'Faltam faturar', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' }
+        { label: 'Falta para a meta', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' }
       ]
     });
   };
@@ -2816,7 +2816,7 @@ const enviarArquivo = async (tipo) => {
         { label: 'Realizado hoje', valor: formatarMoeda(realizado) },
         { label: 'Meta diária', valor: formatarMoeda(meta) },
         { label: '% da meta diária', valor: `${formatarNumeroBR(percentual, 1)}%` },
-        { label: 'Faltam faturar hoje', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' }
+        { label: 'Falta para a meta diária', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' }
       ]
     });
   };
@@ -2945,7 +2945,7 @@ const enviarArquivo = async (tipo) => {
         { label: 'Base ativa', valor: formatarNumeroBR(baseAtiva, 0) },
         { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividade, 1)}%` },
         { label: 'Meta em revendedores', valor: formatarNumeroBR(metaEmRevendedores, 0) },
-        { label: 'Faltam ativar', valor: formatarFaltamAtivar(faltamAtivar) }
+        { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivar) }
       ],
       `${formatarNumeroBR(baseAtiva, 0)} × ${formatarNumeroBR(metaAtividade, 1)}% = ${formatarNumeroBR(metaEmRevendedores, 0)} revendedores necessários`
     );
@@ -3004,8 +3004,8 @@ const enviarArquivo = async (tipo) => {
           { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(rpa, meta), 1)}%` },
           { label: 'Faturamento realizado', valor: formatarMoeda(valorTotal) },
           { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
-          { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessario) },
-          { label: 'Faltam faturar', valor: faltaFaturamento > 0 ? formatarMoeda(faltaFaturamento) : 'Meta batida' }
+          { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessario) },
+          { label: 'Falta para a meta', valor: faltaFaturamento > 0 ? formatarMoeda(faltaFaturamento) : 'Meta batida' }
         ],
         `${formatarMoeda(valorTotal)} ÷ ${formatarNumeroBR(ativados, 0)} = ${formatarMoeda(rpa)} | Meta: ${formatarNumeroBR(ativados, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
       );
@@ -3027,8 +3027,8 @@ const enviarArquivo = async (tipo) => {
           { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(tkt, meta), 1)}%` },
           { label: 'Faturamento realizado', valor: formatarMoeda(valorTotal) },
           { label: 'Total de pedidos', valor: formatarNumeroBR(pedidos, 0) },
-          { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessario) },
-          { label: 'Faltam faturar', valor: faltaFaturamento > 0 ? formatarMoeda(faltaFaturamento) : 'Meta batida' }
+          { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessario) },
+          { label: 'Falta para a meta', valor: faltaFaturamento > 0 ? formatarMoeda(faltaFaturamento) : 'Meta batida' }
         ],
         `${formatarMoeda(valorTotal)} ÷ ${formatarNumeroBR(pedidos, 0)} = ${formatarMoeda(tkt)} | Meta: ${formatarNumeroBR(pedidos, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
       );
@@ -3050,7 +3050,7 @@ const enviarArquivo = async (tipo) => {
         { label: 'Itens vendidos', valor: formatarNumeroBR(totalItens, 0) },
         { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
         { label: 'Itens necessários', valor: formatarNumeroBR(itensNecessarios, 0) },
-        { label: 'Faltam itens', valor: faltamItens > 0 ? formatarNumeroBR(faltamItens, 0) : 'Meta batida' }
+        { label: 'Falta para a meta', valor: faltamItens > 0 ? formatarNumeroBR(faltamItens, 0) : 'Meta batida' }
       ],
       `${formatarNumeroBR(totalItens, 0)} ÷ ${formatarNumeroBR(ativados, 0)} = ${formatarNumeroBR(upa, 2)} | Meta: ${formatarNumeroBR(ativados, 0)} × ${formatarNumeroBR(meta, 1)} = ${formatarNumeroBR(itensNecessarios, 0)} itens`
     );
@@ -3075,6 +3075,137 @@ const enviarArquivo = async (tipo) => {
     const mCap = [...(dados.meios_captacao || [])].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)); const rMar = [...(dados.realizado_por_marca || [])].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)); const rEst = [...(dados.realizado_por_estrutura || [])].sort((a, b) => Number(b.ValorPraticado || 0) - Number(a.ValorPraticado || 0)); const vCan = [...(dados.vendas_por_canal || [])].sort((a, b) => Number(b.receita_total || 0) - Number(a.receita_total || 0));
     const tCap = mCap.reduce((acc, curr) => acc + Number(curr.value || 0), 0); const altEst = Math.max(300, rEst.length * 48);
     const consDataDash = [...(dados.realizado_por_consultor || [])].sort((a, b) => Number(b.ValorPraticado || 0) - Number(a.ValorPraticado || 0));
+
+
+    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) return numero;
+      const numeroFallback = Number(fallback);
+      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
+    };
+
+    const calcularIndicadoresLinhaEstrutura = (item) => {
+      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
+      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
+      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
+
+      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
+      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
+      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
+      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
+      const percentualAtividade = obterNumeroLinhaMeta(item?.percentual_atividade, calcularPercentualSeguro(atividadeRealizada, baseAtiva));
+
+      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
+      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
+
+      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
+      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
+      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
+
+      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
+      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
+      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
+
+      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const percentualMake = obterNumeroLinhaMeta(item?.percentual_make, calcularPercentualSeguro(makeRealizado, atividadeRealizada));
+
+      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const percentualCabelo = obterNumeroLinhaMeta(item?.percentual_cabelo, calcularPercentualSeguro(cabeloRealizado, atividadeRealizada));
+
+      return {
+        receitaMeta,
+        receitaRealizada,
+        percentualReceita,
+        atividadeRealizada,
+        baseAtiva,
+        metaAtividadePercentual,
+        metaAtividadeQtd,
+        percentualAtividade,
+        rpaMeta,
+        rpaRealizado,
+        ticketMeta,
+        ticketRealizado,
+        upaMeta,
+        upaRealizada,
+        metaMakePercentual,
+        makeMetaQtd,
+        makeRealizado,
+        percentualMake,
+        metaCabeloPercentual,
+        cabeloMetaQtd,
+        cabeloRealizado,
+        percentualCabelo
+      };
+    };
+
+    const calcularPercentualSeguro = (realizado, meta) => {
+      const m = Number(meta || 0);
+      if (!m || m <= 0) return 0;
+      return (Number(realizado || 0) / m) * 100;
+    };
+
+    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
+      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
+      return (
+        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+          {percentual !== null && (
+            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+              {percentual}
+            </span>
+          )}
+        </div>
+      );
+    };
+
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+      const cor = corPorFaixaMeta(percentualAtingimento);
+      return (
+        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
+          <div className="mt-2 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+          </div>
+        </div>
+      );
+    };
+
+    const ColunaEstruturaMetaRealizado = ({ item }) => {
+      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      return (
+        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
+          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
+            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            {estruturasVinculadas.length > 1 && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
+                {estruturasVinculadas.length} estruturas vinculadas
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    };
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -3393,7 +3524,7 @@ const enviarArquivo = async (tipo) => {
           { label: 'Realizado', valor: formatarMoeda(realizado) },
           { label: 'Meta faturamento', valor: formatarMoeda(meta) },
           { label: '% da meta', valor: `${formatarNumeroBR(percentual, 1)}%` },
-          { label: 'Faltam faturar', valor: textoFaltaMoeda(faltam) }
+          { label: 'Falta para a meta', valor: textoFaltaMoeda(faltam) }
         ],
         meta > 0 ? `${formatarMoeda(realizado)} ÷ ${formatarMoeda(meta)} = ${formatarNumeroBR(percentual, 1)}% da meta` : 'Meta de faturamento não cadastrada.'
       );
@@ -3412,7 +3543,7 @@ const enviarArquivo = async (tipo) => {
           { label: 'Realizado hoje', valor: formatarMoeda(realizado) },
           { label: 'Meta diária', valor: formatarMoeda(meta) },
           { label: '% da meta diária', valor: `${formatarNumeroBR(percentual, 1)}%` },
-          { label: 'Faltam faturar hoje', valor: textoFaltaMoeda(faltam) }
+          { label: 'Falta para a meta diária', valor: textoFaltaMoeda(faltam) }
         ],
         meta > 0 ? `${formatarMoeda(realizado)} ÷ ${formatarMoeda(meta)} = ${formatarNumeroBR(percentual, 1)}% da meta diária` : 'Meta diária não cadastrada.'
       );
@@ -3435,8 +3566,8 @@ const enviarArquivo = async (tipo) => {
           { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(rpa, meta), 1)}%` },
           { label: 'Faturamento realizado', valor: formatarMoeda(realizado) },
           { label: 'Revendedoras ativadas', valor: formatarNumeroBR(ativados, 0) },
-          { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessario) },
-          { label: 'Faltam faturar', valor: textoFaltaMoeda(faltam) }
+          { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessario) },
+          { label: 'Falta para a meta', valor: textoFaltaMoeda(faltam) }
         ],
         `${formatarMoeda(realizado)} ÷ ${formatarNumeroBR(ativados, 0)} = ${formatarMoeda(rpa)} | Meta: ${formatarNumeroBR(ativados, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
       );
@@ -3459,8 +3590,8 @@ const enviarArquivo = async (tipo) => {
           { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(ticket, meta), 1)}%` },
           { label: 'Faturamento realizado', valor: formatarMoeda(realizado) },
           { label: 'Total de pedidos', valor: formatarNumeroBR(pedidos, 0) },
-          { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessario) },
-          { label: 'Faltam faturar', valor: textoFaltaMoeda(faltam) }
+          { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessario) },
+          { label: 'Falta para a meta', valor: textoFaltaMoeda(faltam) }
         ],
         `${formatarMoeda(realizado)} ÷ ${formatarNumeroBR(pedidos, 0)} = ${formatarMoeda(ticket)} | Meta: ${formatarNumeroBR(pedidos, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
       );
@@ -3481,7 +3612,7 @@ const enviarArquivo = async (tipo) => {
           { label: 'Itens vendidos', valor: formatarNumeroBR(totalItensGeral, 0) },
           { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) },
           { label: 'Itens necessários', valor: formatarNumeroBR(itensNecessarios, 0) },
-          { label: 'Faltam itens', valor: textoFaltaQtd(faltam) }
+          { label: 'Falta para a meta', valor: textoFaltaQtd(faltam) }
         ],
         `${formatarNumeroBR(totalItensGeral, 0)} ÷ ${formatarNumeroBR(atividadeGeral, 0)} = ${formatarNumeroBR(upaGeral, 2)} | Meta: ${formatarNumeroBR(atividadeGeral, 0)} × ${formatarNumeroBR(meta, 1)} = ${formatarNumeroBR(itensNecessarios, 0)} itens`
       );
@@ -3501,7 +3632,7 @@ const enviarArquivo = async (tipo) => {
           { label: 'Realizado', valor: formatarMoeda(realizado) },
           { label: 'Meta faturamento', valor: formatarMoeda(meta) },
           { label: '% da meta', valor: `${formatarNumeroBR(percentual, 1)}%` },
-          { label: 'Faltam faturar', valor: textoFaltaMoeda(faltam) }
+          { label: 'Falta para a meta', valor: textoFaltaMoeda(faltam) }
         ],
         meta > 0 ? `${formatarMoeda(realizado)} ÷ ${formatarMoeda(meta)} = ${formatarNumeroBR(percentual, 1)}% da meta` : 'Meta de faturamento da estrutura não cadastrada.'
       );
@@ -3524,8 +3655,8 @@ const enviarArquivo = async (tipo) => {
           { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(rpa, meta), 1)}%` },
           { label: 'Faturamento realizado', valor: formatarMoeda(realizado) },
           { label: 'Revendedoras ativadas', valor: formatarNumeroBR(ativados, 0) },
-          { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessario) },
-          { label: 'Faltam faturar', valor: textoFaltaMoeda(faltam) }
+          { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessario) },
+          { label: 'Falta para a meta', valor: textoFaltaMoeda(faltam) }
         ],
         `${formatarMoeda(realizado)} ÷ ${formatarNumeroBR(ativados, 0)} = ${formatarMoeda(rpa)} | Meta: ${formatarNumeroBR(ativados, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
       );
@@ -3548,8 +3679,8 @@ const enviarArquivo = async (tipo) => {
           { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(ticket, meta), 1)}%` },
           { label: 'Faturamento realizado', valor: formatarMoeda(realizado) },
           { label: 'Total de pedidos', valor: formatarNumeroBR(pedidos, 0) },
-          { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessario) },
-          { label: 'Faltam faturar', valor: textoFaltaMoeda(faltam) }
+          { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessario) },
+          { label: 'Falta para a meta', valor: textoFaltaMoeda(faltam) }
         ],
         `${formatarMoeda(realizado)} ÷ ${formatarNumeroBR(pedidos, 0)} = ${formatarMoeda(ticket)} | Meta: ${formatarNumeroBR(pedidos, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
       );
@@ -3570,9 +3701,140 @@ const enviarArquivo = async (tipo) => {
           { label: 'Itens vendidos', valor: formatarNumeroBR(totalItensDetalhe, 0) },
           { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) },
           { label: 'Itens necessários', valor: formatarNumeroBR(itensNecessarios, 0) },
-          { label: 'Faltam itens', valor: textoFaltaQtd(faltam) }
+          { label: 'Falta para a meta', valor: textoFaltaQtd(faltam) }
         ],
         `${formatarNumeroBR(totalItensDetalhe, 0)} ÷ ${formatarNumeroBR(atividadeDetalhe, 0)} = ${formatarNumeroBR(upaDetalhe, 2)} | Meta: ${formatarNumeroBR(atividadeDetalhe, 0)} × ${formatarNumeroBR(meta, 1)} = ${formatarNumeroBR(itensNecessarios, 0)} itens`
+      );
+    };
+
+
+    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) return numero;
+      const numeroFallback = Number(fallback);
+      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
+    };
+
+    const calcularIndicadoresLinhaEstrutura = (item) => {
+      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
+      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
+      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
+
+      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
+      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
+      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
+      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
+      const percentualAtividade = obterNumeroLinhaMeta(item?.percentual_atividade, calcularPercentualSeguro(atividadeRealizada, baseAtiva));
+
+      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
+      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
+
+      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
+      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
+      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
+
+      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
+      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
+      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
+
+      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const percentualMake = obterNumeroLinhaMeta(item?.percentual_make, calcularPercentualSeguro(makeRealizado, atividadeRealizada));
+
+      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const percentualCabelo = obterNumeroLinhaMeta(item?.percentual_cabelo, calcularPercentualSeguro(cabeloRealizado, atividadeRealizada));
+
+      return {
+        receitaMeta,
+        receitaRealizada,
+        percentualReceita,
+        atividadeRealizada,
+        baseAtiva,
+        metaAtividadePercentual,
+        metaAtividadeQtd,
+        percentualAtividade,
+        rpaMeta,
+        rpaRealizado,
+        ticketMeta,
+        ticketRealizado,
+        upaMeta,
+        upaRealizada,
+        metaMakePercentual,
+        makeMetaQtd,
+        makeRealizado,
+        percentualMake,
+        metaCabeloPercentual,
+        cabeloMetaQtd,
+        cabeloRealizado,
+        percentualCabelo
+      };
+    };
+
+    const calcularPercentualSeguro = (realizado, meta) => {
+      const m = Number(meta || 0);
+      if (!m || m <= 0) return 0;
+      return (Number(realizado || 0) / m) * 100;
+    };
+
+    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
+      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
+      return (
+        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+          {percentual !== null && (
+            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+              {percentual}
+            </span>
+          )}
+        </div>
+      );
+    };
+
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+      const cor = corPorFaixaMeta(percentualAtingimento);
+      return (
+        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
+          <div className="mt-2 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+          </div>
+        </div>
+      );
+    };
+
+    const ColunaEstruturaMetaRealizado = ({ item }) => {
+      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      return (
+        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
+          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
+            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            {estruturasVinculadas.length > 1 && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
+                {estruturasVinculadas.length} estruturas vinculadas
+              </span>
+            )}
+          </div>
+        </div>
       );
     };
 
@@ -3604,9 +3866,9 @@ const enviarArquivo = async (tipo) => {
           <div className="grid grid-cols-8 gap-3 min-w-[1040px]">
           <CardMini titulo="Faturamento Geral" valor={formatarAbrev(dadosMetas?.realizado_total_geral)} percentual={calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(dadosMetas?.meta_total_geral)} onClickExpandir={abrirDetalheFaturamentoGeralMetas} />
           <CardMini titulo="Realizado Diário" valor={formatarAbrev(dados?.realizado_diario)} percentual={calcPerc(dados?.realizado_diario, dados?.meta_diaria)} labelMeta="Meta Diária:" valorMeta={formatarAbrev(dados?.meta_diaria)} onClickExpandir={abrirDetalheRealizadoDiarioMetas} />
-          <CardMini titulo="Atividade Geral" valor={`${percentualAtividadeGeral.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade Geral', `${formatarNumeroBR(percentualAtividadeGeral, 1)}%`, 'Atividade = revendedores ativados dividido pela base ativa.', [{ label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeGeral, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaGeral, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%` }, { label: 'Meta em revendedores', valor: formatarNumeroBR(qtdMetaAtividadeGeral, 0) }, { label: 'Faltam ativar', valor: formatarFaltamAtivar(faltamAtivarGeral) }], `${formatarNumeroBR(baseAtivaGeral, 0)} × ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeGeral, 0)} revendedores necessários`)} />
-          <CardMini titulo="MAKE Geral" valor={`${percentualMakeGeral.toFixed(1)}%`} percentual={calcPerc(percentualMakeGeral, metaMakeGeralPercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE Geral', `${formatarNumeroBR(percentualMakeGeral, 1)}%`, 'MAKE = revendedoras ativadas que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeGeral, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeGeral, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeGeral, metaMakeGeralPercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeGeral, 0) }, { label: 'Faltam incluir MAKE', valor: formatarFaltamAtivar(faltamMakeGeral) }], `${formatarNumeroBR(atividadeGeral, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeGeral, 0)} revendedoras necessárias com MAKE`)} />
-          <CardMini titulo="CABELO Geral" valor={`${percentualCabeloGeral.toFixed(1)}%`} percentual={calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO Geral', `${formatarNumeroBR(percentualCabeloGeral, 1)}%`, 'CABELO = revendedoras ativadas que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloGeral, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloGeral, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloGeral, 0) }, { label: 'Faltam incluir CABELO', valor: formatarFaltamAtivar(faltamCabeloGeral) }], `${formatarNumeroBR(atividadeGeral, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloGeral, 0)} revendedoras necessárias com CABELO`)} />
+          <CardMini titulo="Atividade Geral" valor={`${percentualAtividadeGeral.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade Geral', `${formatarNumeroBR(percentualAtividadeGeral, 1)}%`, 'Atividade = revendedores ativados dividido pela base ativa.', [{ label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeGeral, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaGeral, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%` }, { label: 'Meta em revendedores', valor: formatarNumeroBR(qtdMetaAtividadeGeral, 0) }, { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarGeral) }], `${formatarNumeroBR(baseAtivaGeral, 0)} × ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeGeral, 0)} revendedores necessários`)} />
+          <CardMini titulo="MAKE Geral" valor={`${percentualMakeGeral.toFixed(1)}%`} percentual={calcPerc(percentualMakeGeral, metaMakeGeralPercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE Geral', `${formatarNumeroBR(percentualMakeGeral, 1)}%`, 'MAKE = revendedoras ativadas que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeGeral, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeGeral, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeGeral, metaMakeGeralPercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeGeral, 0) }, { label: 'Falta para a meta MAKE', valor: formatarFaltamAtivar(faltamMakeGeral) }], `${formatarNumeroBR(atividadeGeral, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeGeral, 0)} revendedoras necessárias com MAKE`)} />
+          <CardMini titulo="CABELO Geral" valor={`${percentualCabeloGeral.toFixed(1)}%`} percentual={calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO Geral', `${formatarNumeroBR(percentualCabeloGeral, 1)}%`, 'CABELO = revendedoras ativadas que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloGeral, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloGeral, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloGeral, 0) }, { label: 'Falta para a meta CABELO', valor: formatarFaltamAtivar(faltamCabeloGeral) }], `${formatarNumeroBR(atividadeGeral, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloGeral, 0)} revendedoras necessárias com CABELO`)} />
           <CardMini titulo="RPA Geral" valor={formatarMoeda(rpaGeral)} percentual={calcPerc(rpaGeral, dadosMetas?.meta_rpa_geral)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(dadosMetas?.meta_rpa_geral)} onClickExpandir={abrirDetalheRpaGeralMetas} />
           <CardMini titulo="Ticket Médio" valor={formatarMoeda(tktGeral)} percentual={calcPerc(tktGeral, dadosMetas?.meta_tkt_medio_geral)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(dadosMetas?.meta_tkt_medio_geral)} onClickExpandir={abrirDetalheTicketGeralMetas} />
           <CardMini titulo="UPA Geral" valor={upaGeral.toFixed(1)} percentual={calcPerc(upaGeral, dadosMetas?.meta_upa_geral)} labelMeta="Meta UPA:" valorMeta={Number(dadosMetas?.meta_upa_geral||0).toFixed(1)} onClickExpandir={abrirDetalheUpaGeralMetas} />
@@ -3617,9 +3879,53 @@ const enviarArquivo = async (tipo) => {
         {visaoMetas === 'estruturas' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
-          <div className="overflow-x-auto"><div className="max-h-[36rem] overflow-y-auto pr-2"><table className="w-full text-sm min-w-[1400px]"><thead className="sticky top-0 bg-white z-10"><tr className="text-left text-gray-500 border-b border-gray-100"><th className="py-3 pr-4">Estrutura</th><th className="py-3 text-right">Meta</th><th className="py-3 text-right">Realizado</th><th className="py-3 text-right">% Rec.</th><th className="py-3 text-right">Ativ.</th><th className="py-3 text-right">% Ativ.</th><th className="py-3 text-right">RPA</th><th className="py-3 text-right">Tkt Méd.</th><th className="py-3 text-right">UPA</th><th className="py-3 text-right">MAKE</th><th className="py-3 text-right">% Make</th><th className="py-3 text-right">CABELO</th><th className="py-3 text-right">% Cab.</th><th className="py-3 text-right">Ação</th></tr></thead><tbody>
-            {ests.map(i => (<tr key={i.estrutura} className={`border-b border-gray-50 hover:bg-[#f4fbfb] ${estruturaSelecionada === i.estrutura ? 'bg-[#e6f6f7]' : ''}`}><td className="py-3 pr-4 font-medium text-gray-700">{i.estrutura}</td><td className="py-3 text-right text-gray-600">{formatarMoeda(i.receita)}</td><td className="py-3 text-right font-bold text-[#048187]">{formatarMoeda(i.realizado)}</td><td className="py-3 text-right font-bold text-gray-700">{Number(i.percentual || 0).toFixed(2)}%</td><td className="py-3 text-right font-bold text-gray-700">{Number(i.atividade_realizada || 0).toLocaleString('pt-BR')}</td><td className="py-3 text-right font-bold text-[#F97316]">{Number(i.percentual_atividade || 0).toFixed(2)}%</td><td className="py-3 text-right font-bold text-gray-700">{formatarMoeda(i.atividade_realizada > 0 ? i.realizado / i.atividade_realizada : 0)}</td><td className="py-3 text-right font-bold text-gray-700">{formatarMoeda(i.quantidade_pedidos > 0 ? i.realizado / i.quantidade_pedidos : 0)}</td><td className="py-3 text-right font-bold text-gray-700">{Number(i.atividade_realizada > 0 ? (i.total_itens || 0) / i.atividade_realizada : 0).toFixed(1)}</td><td className="py-3 text-right font-bold text-gray-700">{Number(i.make_realizado || 0).toLocaleString('pt-BR')}</td><td className="py-3 text-right font-bold text-[#048187]">{Number(i.percentual_make || 0).toFixed(2)}%</td><td className="py-3 text-right font-bold text-gray-700">{Number(i.cabelo_realizado || 0).toLocaleString('pt-BR')}</td><td className="py-3 text-right font-bold text-[#712231]">{Number(i.percentual_cabelo || 0).toFixed(2)}%</td><td className="py-3 text-right"><button onClick={async () => { await carregarDetalheMeta(i.estrutura, filtrosAtivos, false); setVisaoMetas('consultores'); }} className="bg-[#048187] text-white px-3 py-2 rounded-md hover:bg-[#036b70] inline-flex items-center gap-1"><Search size={14} /> Ver</button></td></tr>))}
-          </tbody></table></div></div>
+          <div className="overflow-x-auto pb-3" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
+            <div className="min-w-[2140px] space-y-3">
+              <div className="grid grid-cols-[260px_155px_155px_130px_145px_135px_155px_155px_125px_145px_135px_145px_135px_100px] gap-0 px-1 text-[10px] font-black uppercase tracking-wide text-gray-400">
+                <div className="px-4 py-2">Estrutura</div>
+                <div className="px-4 py-2">Meta</div>
+                <div className="px-4 py-2">Realizado</div>
+                <div className="px-4 py-2">% Rec.</div>
+                <div className="px-4 py-2">Ativ.</div>
+                <div className="px-4 py-2">% Ativ.</div>
+                <div className="px-4 py-2">RPA</div>
+                <div className="px-4 py-2">Tkt Méd.</div>
+                <div className="px-4 py-2">UPA</div>
+                <div className="px-4 py-2">MAKE</div>
+                <div className="px-4 py-2">% Make</div>
+                <div className="px-4 py-2">CABELO</div>
+                <div className="px-4 py-2">% Cab.</div>
+                <div className="px-4 py-2 text-center">Ação</div>
+              </div>
+              <div className="max-h-[42rem] overflow-y-auto pr-2 space-y-3">
+                {ests.map((i) => {
+                  const ind = calcularIndicadoresLinhaEstrutura(i);
+                  return (
+                    <div key={i.estrutura} className={`grid grid-cols-[260px_155px_155px_130px_145px_135px_155px_155px_125px_145px_135px_145px_135px_100px] rounded-3xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}>
+                      <ColunaEstruturaMetaRealizado item={i} />
+                      <CelulaValorPrincipalMeta titulo="Meta fat." valor={formatarMoeda(ind.receitaMeta)} tipo="meta" />
+                      <CelulaValorPrincipalMeta titulo="Realizado" valor={formatarMoeda(ind.receitaRealizada)} tipo="realizado" />
+                      <CelulaIndicadorMetaRealizado titulo="% Receita" meta="100%" realizado={`${formatarNumeroBR(ind.percentualReceita, 2)}%`} percentualAtingimento={ind.percentualReceita} compacto />
+                      <CelulaIndicadorMetaRealizado titulo="Atividade" meta={formatarNumeroBR(ind.metaAtividadeQtd, 0)} realizado={formatarNumeroBR(ind.atividadeRealizada, 0)} percentualMeta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} percentualRealizado={`${formatarNumeroBR(calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd), 1)}%`} percentualAtingimento={calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd)} compacto />
+                      <CelulaIndicadorMetaRealizado titulo="% Ativ." meta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} realizado={`${formatarNumeroBR(ind.percentualAtividade, 2)}%`} percentualAtingimento={calcPerc(ind.percentualAtividade, ind.metaAtividadePercentual)} compacto />
+                      <CelulaIndicadorMetaRealizado titulo="RPA" meta={formatarMoeda(ind.rpaMeta)} realizado={formatarMoeda(ind.rpaRealizado)} percentualAtingimento={calcPerc(ind.rpaRealizado, ind.rpaMeta)} />
+                      <CelulaIndicadorMetaRealizado titulo="Tkt Médio" meta={formatarMoeda(ind.ticketMeta)} realizado={formatarMoeda(ind.ticketRealizado)} percentualAtingimento={calcPerc(ind.ticketRealizado, ind.ticketMeta)} />
+                      <CelulaIndicadorMetaRealizado titulo="UPA" meta={formatarNumeroBR(ind.upaMeta, 1)} realizado={formatarNumeroBR(ind.upaRealizada, 1)} percentualAtingimento={calcPerc(ind.upaRealizada, ind.upaMeta)} compacto />
+                      <CelulaIndicadorMetaRealizado titulo="MAKE" meta={formatarNumeroBR(ind.makeMetaQtd, 0)} realizado={formatarNumeroBR(ind.makeRealizado, 0)} percentualMeta={`${formatarNumeroBR(ind.metaMakePercentual, 1)}%`} percentualRealizado={`${formatarNumeroBR(calcPerc(ind.makeRealizado, ind.makeMetaQtd), 1)}%`} percentualAtingimento={calcPerc(ind.makeRealizado, ind.makeMetaQtd)} compacto />
+                      <CelulaIndicadorMetaRealizado titulo="% Make" meta={`${formatarNumeroBR(ind.metaMakePercentual, 1)}%`} realizado={`${formatarNumeroBR(ind.percentualMake, 2)}%`} percentualAtingimento={calcPerc(ind.percentualMake, ind.metaMakePercentual)} compacto />
+                      <CelulaIndicadorMetaRealizado titulo="CABELO" meta={formatarNumeroBR(ind.cabeloMetaQtd, 0)} realizado={formatarNumeroBR(ind.cabeloRealizado, 0)} percentualMeta={`${formatarNumeroBR(ind.metaCabeloPercentual, 1)}%`} percentualRealizado={`${formatarNumeroBR(calcPerc(ind.cabeloRealizado, ind.cabeloMetaQtd), 1)}%`} percentualAtingimento={calcPerc(ind.cabeloRealizado, ind.cabeloMetaQtd)} compacto />
+                      <CelulaIndicadorMetaRealizado titulo="% Cab." meta={`${formatarNumeroBR(ind.metaCabeloPercentual, 1)}%`} realizado={`${formatarNumeroBR(ind.percentualCabelo, 2)}%`} percentualAtingimento={calcPerc(ind.percentualCabelo, ind.metaCabeloPercentual)} compacto />
+                      <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 rounded-r-3xl flex items-center justify-center">
+                        <button onClick={async () => { await carregarDetalheMeta(i.estrutura, filtrosAtivos, false); setVisaoMetas('consultores'); }} className="bg-[#048187] text-white px-3 py-2 rounded-xl hover:bg-[#036b70] inline-flex items-center gap-1 font-black text-xs shadow-sm">
+                          <Search size={14} /> Ver
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
         )}
 
@@ -3683,9 +3989,9 @@ const enviarArquivo = async (tipo) => {
               <div className="overflow-x-auto pb-2 mb-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
                 <div className="grid grid-cols-7 gap-3 min-w-[1120px]">
                 <CardMetaNova titulo="Faturamento Estrutura" valor={formatarAbrev(detalheMeta.realizado)} percentual={calcPerc(detalheMeta.realizado, detalheMeta.meta?.receita)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(detalheMeta.meta?.receita)} onClickExpandir={abrirDetalheFaturamentoEstruturaMetas} />
-                <CardMetaNova titulo="Atividade" valor={`${percentualAtividadeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade', `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%`, 'Atividade = revendedoras ativadas dividido pela base ativa da estrutura.', [{ label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) }, { label: 'Faltam ativar', valor: formatarFaltamAtivar(faltamAtivarDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedoras necessárias`)} />
-                <CardMetaNova titulo="MAKE" valor={`${percentualMakeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE', `${formatarNumeroBR(percentualMakeDetalhe, 1)}%`, 'MAKE = revendedoras ativadas da estrutura que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeDetalhe, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) }, { label: 'Faltam incluir MAKE', valor: formatarFaltamAtivar(faltamMakeDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedoras necessárias com MAKE`)} />
-                <CardMetaNova titulo="CABELO" valor={`${percentualCabeloDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO', `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%`, 'CABELO = revendedoras ativadas da estrutura que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloDetalhe, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) }, { label: 'Faltam incluir CABELO', valor: formatarFaltamAtivar(faltamCabeloDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedoras necessárias com CABELO`)} />
+                <CardMetaNova titulo="Atividade" valor={`${percentualAtividadeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade', `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%`, 'Atividade = revendedoras ativadas dividido pela base ativa da estrutura.', [{ label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) }, { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedoras necessárias`)} />
+                <CardMetaNova titulo="MAKE" valor={`${percentualMakeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE', `${formatarNumeroBR(percentualMakeDetalhe, 1)}%`, 'MAKE = revendedoras ativadas da estrutura que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeDetalhe, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) }, { label: 'Falta para a meta MAKE', valor: formatarFaltamAtivar(faltamMakeDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedoras necessárias com MAKE`)} />
+                <CardMetaNova titulo="CABELO" valor={`${percentualCabeloDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO', `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%`, 'CABELO = revendedoras ativadas da estrutura que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloDetalhe, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) }, { label: 'Falta para a meta CABELO', valor: formatarFaltamAtivar(faltamCabeloDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedoras necessárias com CABELO`)} />
                 <CardMetaNova titulo="RPA" valor={formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0)} percentual={calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.rpa)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(detalheMeta.meta?.rpa)} onClickExpandir={abrirDetalheRpaEstruturaMetas} />
                 <CardMetaNova titulo="Ticket Médio" valor={formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0)} percentual={calcPerc(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0, detalheMeta.meta?.tkt_medio)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(detalheMeta.meta?.tkt_medio)} onClickExpandir={abrirDetalheTicketEstruturaMetas} />
                 <CardMetaNova titulo="UPA" valor={upaDetalhe.toFixed(1)} percentual={calcPerc(upaDetalhe, detalheMeta.meta?.upa)} labelMeta="Meta UPA:" valorMeta={Number(detalheMeta.meta?.upa||0).toFixed(1)} onClickExpandir={abrirDetalheUpaEstruturaMetas} />
@@ -3745,7 +4051,7 @@ const enviarArquivo = async (tipo) => {
                       { label: 'Meta faturamento', valor: formatarMoeda(faturamentoMeta) },
                       { label: 'Realizado', valor: formatarMoeda(faturamentoRealizado) },
                       { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualFaturamentoItem, 1)}%` },
-                      { label: 'Faltam faturar', valor: faltaFaturamentoItem > 0 ? formatarMoeda(faltaFaturamentoItem) : 'Meta batida' },
+                      { label: 'Falta para a meta', valor: faltaFaturamentoItem > 0 ? formatarMoeda(faltaFaturamentoItem) : 'Meta batida' },
                     ],
                     `${formatarMoeda(faturamentoRealizado)} ÷ ${formatarMoeda(faturamentoMeta)} = ${formatarNumeroBR(percentualFaturamentoItem, 1)}% da meta`
                   );
@@ -3763,7 +4069,7 @@ const enviarArquivo = async (tipo) => {
                       { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
                       { label: '% atividade realizado', valor: `${formatarNumeroBR(percentualAtividadeItem, 1)}%` },
                       { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaAtividadeAtingido, 1)}%` },
-                      { label: 'Faltam ativar', valor: faltamAtivarItem > 0 ? `${formatarNumeroBR(faltamAtivarItem, 0)} revendedores` : 'Meta batida' },
+                      { label: 'Falta para a meta', valor: faltamAtivarItem > 0 ? `${formatarNumeroBR(faltamAtivarItem, 0)} revendedores` : 'Meta batida' },
                     ],
                     c.tipo_fallback_estrutura
                       ? `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedores necessários`
@@ -3781,7 +4087,7 @@ const enviarArquivo = async (tipo) => {
                       { label: 'Revendedores com MAKE', valor: formatarNumeroBR(makeRealizadoItem, 0) },
                       { label: '% MAKE realizado', valor: `${formatarNumeroBR(percentualMakeItem, 1)}%` },
                       { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaMakeAtingido, 1)}%` },
-                      { label: 'Faltam incluir MAKE', valor: faltamMakeItem > 0 ? `${formatarNumeroBR(faltamMakeItem, 0)} revendedores` : 'Meta batida' },
+                      { label: 'Falta para a meta MAKE', valor: faltamMakeItem > 0 ? `${formatarNumeroBR(faltamMakeItem, 0)} revendedores` : 'Meta batida' },
                     ],
                     `${formatarNumeroBR(atividadeRealizadaItem, 0)} ativados × ${formatarNumeroBR(percentualMetaMakeItem, 1)}% = ${formatarNumeroBR(metaMakeItem, 0)} revendedores necessários com MAKE`
                   );
@@ -3797,7 +4103,7 @@ const enviarArquivo = async (tipo) => {
                       { label: 'Revendedores com CABELO', valor: formatarNumeroBR(cabeloRealizadoItem, 0) },
                       { label: '% CABELO realizado', valor: `${formatarNumeroBR(percentualCabeloItem, 1)}%` },
                       { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaCabeloAtingido, 1)}%` },
-                      { label: 'Faltam incluir CABELO', valor: faltamCabeloItem > 0 ? `${formatarNumeroBR(faltamCabeloItem, 0)} revendedores` : 'Meta batida' },
+                      { label: 'Falta para a meta CABELO', valor: faltamCabeloItem > 0 ? `${formatarNumeroBR(faltamCabeloItem, 0)} revendedores` : 'Meta batida' },
                     ],
                     `${formatarNumeroBR(atividadeRealizadaItem, 0)} ativados × ${formatarNumeroBR(percentualMetaCabeloItem, 1)}% = ${formatarNumeroBR(metaCabeloItem, 0)} revendedores necessários com CABELO`
                   );
@@ -3812,8 +4118,8 @@ const enviarArquivo = async (tipo) => {
                       { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaRpaAtingido, 1)}%` },
                       { label: 'Faturamento realizado', valor: formatarMoeda(faturamentoRealizado) },
                       { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
-                      { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessarioRpaItem) },
-                      { label: 'Faltam faturar', valor: faltamFaturarRpaItem > 0 ? formatarMoeda(faltamFaturarRpaItem) : 'Meta batida' },
+                      { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessarioRpaItem) },
+                      { label: 'Falta para a meta', valor: faltamFaturarRpaItem > 0 ? formatarMoeda(faltamFaturarRpaItem) : 'Meta batida' },
                     ],
                     `${formatarMoeda(faturamentoRealizado)} ÷ ${formatarNumeroBR(atividadeRealizadaItem, 0)} = ${formatarMoeda(rpaRealizadoItem)} | Meta: ${formatarNumeroBR(atividadeRealizadaItem, 0)} × ${formatarMoeda(metaRpaItem)} = ${formatarMoeda(faturamentoNecessarioRpaItem)}`
                   );
@@ -3828,8 +4134,8 @@ const enviarArquivo = async (tipo) => {
                       { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaTicketAtingido, 1)}%` },
                       { label: 'Faturamento realizado', valor: formatarMoeda(faturamentoRealizado) },
                       { label: 'Quantidade de pedidos', valor: formatarNumeroBR(Number(c.quantidade_pedidos || 0), 0) },
-                      { label: 'Faturamento necessário', valor: formatarMoeda(faturamentoNecessarioTicketItem) },
-                      { label: 'Faltam faturar', valor: faltamFaturarTicketItem > 0 ? formatarMoeda(faltamFaturarTicketItem) : 'Meta batida' },
+                      { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessarioTicketItem) },
+                      { label: 'Falta para a meta', valor: faltamFaturarTicketItem > 0 ? formatarMoeda(faltamFaturarTicketItem) : 'Meta batida' },
                     ],
                     `${formatarMoeda(faturamentoRealizado)} ÷ ${formatarNumeroBR(Number(c.quantidade_pedidos || 0), 0)} = ${formatarMoeda(ticketRealizadoItem)} | Meta: ${formatarNumeroBR(Number(c.quantidade_pedidos || 0), 0)} × ${formatarMoeda(metaTicketItem)} = ${formatarMoeda(faturamentoNecessarioTicketItem)}`
                   );
@@ -3845,7 +4151,7 @@ const enviarArquivo = async (tipo) => {
                       { label: 'Itens vendidos', valor: formatarNumeroBR(Number(c.total_itens || 0), 0) },
                       { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
                       { label: 'Itens necessários', valor: formatarNumeroBR(itensNecessariosUpaItem, 0) },
-                      { label: 'Faltam itens', valor: faltamItensUpaItem > 0 ? formatarNumeroBR(faltamItensUpaItem, 0) : 'Meta batida' },
+                      { label: 'Falta para a meta', valor: faltamItensUpaItem > 0 ? formatarNumeroBR(faltamItensUpaItem, 0) : 'Meta batida' },
                     ],
                     `${formatarNumeroBR(Number(c.total_itens || 0), 0)} ÷ ${formatarNumeroBR(atividadeRealizadaItem, 0)} = ${formatarNumeroBR(upaRealizadoItem, 1)} | Meta: ${formatarNumeroBR(atividadeRealizadaItem, 0)} × ${formatarNumeroBR(metaUpaItem, 1)} = ${formatarNumeroBR(itensNecessariosUpaItem, 0)} itens`
                   );
@@ -3994,6 +4300,137 @@ const enviarArquivo = async (tipo) => {
       return nome.split(' ')[0];
     };
     
+
+    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) return numero;
+      const numeroFallback = Number(fallback);
+      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
+    };
+
+    const calcularIndicadoresLinhaEstrutura = (item) => {
+      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
+      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
+      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
+
+      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
+      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
+      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
+      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
+      const percentualAtividade = obterNumeroLinhaMeta(item?.percentual_atividade, calcularPercentualSeguro(atividadeRealizada, baseAtiva));
+
+      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
+      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
+
+      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
+      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
+      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
+
+      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
+      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
+      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
+
+      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const percentualMake = obterNumeroLinhaMeta(item?.percentual_make, calcularPercentualSeguro(makeRealizado, atividadeRealizada));
+
+      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const percentualCabelo = obterNumeroLinhaMeta(item?.percentual_cabelo, calcularPercentualSeguro(cabeloRealizado, atividadeRealizada));
+
+      return {
+        receitaMeta,
+        receitaRealizada,
+        percentualReceita,
+        atividadeRealizada,
+        baseAtiva,
+        metaAtividadePercentual,
+        metaAtividadeQtd,
+        percentualAtividade,
+        rpaMeta,
+        rpaRealizado,
+        ticketMeta,
+        ticketRealizado,
+        upaMeta,
+        upaRealizada,
+        metaMakePercentual,
+        makeMetaQtd,
+        makeRealizado,
+        percentualMake,
+        metaCabeloPercentual,
+        cabeloMetaQtd,
+        cabeloRealizado,
+        percentualCabelo
+      };
+    };
+
+    const calcularPercentualSeguro = (realizado, meta) => {
+      const m = Number(meta || 0);
+      if (!m || m <= 0) return 0;
+      return (Number(realizado || 0) / m) * 100;
+    };
+
+    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
+      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
+      return (
+        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+          {percentual !== null && (
+            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+              {percentual}
+            </span>
+          )}
+        </div>
+      );
+    };
+
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+      const cor = corPorFaixaMeta(percentualAtingimento);
+      return (
+        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
+          <div className="mt-2 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+          </div>
+        </div>
+      );
+    };
+
+    const ColunaEstruturaMetaRealizado = ({ item }) => {
+      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      return (
+        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
+          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
+            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            {estruturasVinculadas.length > 1 && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
+                {estruturasVinculadas.length} estruturas vinculadas
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 min-w-0">
@@ -4065,6 +4502,137 @@ const enviarArquivo = async (tipo) => {
     const dates = Array.from(new Set([...v1.map(d=>d['Data Captação']), ...v2.map(d=>d['Data Captação'])]));
     dates.sort((a,b) => { const [da,ma,ya] = a.split('/'); const [db,mb,yb] = b.split('/'); return new Date(ya,ma-1,da) - new Date(yb,mb-1,db); });
     chartData = dates.map(d => ({ data: d, N1: v1.find(x=>x['Data Captação']===d)?.ValorPraticado || 0, N2: v2.find(x=>x['Data Captação']===d)?.ValorPraticado || 0 }));
+
+
+    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) return numero;
+      const numeroFallback = Number(fallback);
+      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
+    };
+
+    const calcularIndicadoresLinhaEstrutura = (item) => {
+      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
+      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
+      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
+
+      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
+      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
+      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
+      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
+      const percentualAtividade = obterNumeroLinhaMeta(item?.percentual_atividade, calcularPercentualSeguro(atividadeRealizada, baseAtiva));
+
+      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
+      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
+
+      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
+      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
+      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
+
+      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
+      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
+      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
+
+      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const percentualMake = obterNumeroLinhaMeta(item?.percentual_make, calcularPercentualSeguro(makeRealizado, atividadeRealizada));
+
+      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const percentualCabelo = obterNumeroLinhaMeta(item?.percentual_cabelo, calcularPercentualSeguro(cabeloRealizado, atividadeRealizada));
+
+      return {
+        receitaMeta,
+        receitaRealizada,
+        percentualReceita,
+        atividadeRealizada,
+        baseAtiva,
+        metaAtividadePercentual,
+        metaAtividadeQtd,
+        percentualAtividade,
+        rpaMeta,
+        rpaRealizado,
+        ticketMeta,
+        ticketRealizado,
+        upaMeta,
+        upaRealizada,
+        metaMakePercentual,
+        makeMetaQtd,
+        makeRealizado,
+        percentualMake,
+        metaCabeloPercentual,
+        cabeloMetaQtd,
+        cabeloRealizado,
+        percentualCabelo
+      };
+    };
+
+    const calcularPercentualSeguro = (realizado, meta) => {
+      const m = Number(meta || 0);
+      if (!m || m <= 0) return 0;
+      return (Number(realizado || 0) / m) * 100;
+    };
+
+    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
+      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
+      return (
+        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+          {percentual !== null && (
+            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+              {percentual}
+            </span>
+          )}
+        </div>
+      );
+    };
+
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+      const cor = corPorFaixaMeta(percentualAtingimento);
+      return (
+        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
+          <div className="mt-2 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+          </div>
+        </div>
+      );
+    };
+
+    const ColunaEstruturaMetaRealizado = ({ item }) => {
+      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      return (
+        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
+          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
+            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            {estruturasVinculadas.length > 1 && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
+                {estruturasVinculadas.length} estruturas vinculadas
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    };
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -4192,6 +4760,137 @@ const enviarArquivo = async (tipo) => {
         {detalhe && <p className="text-[10px] font-bold text-gray-400 uppercase mt-3 truncate">{detalhe}</p>}
       </div>
     );
+
+
+    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) return numero;
+      const numeroFallback = Number(fallback);
+      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
+    };
+
+    const calcularIndicadoresLinhaEstrutura = (item) => {
+      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
+      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
+      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
+
+      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
+      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
+      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
+      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
+      const percentualAtividade = obterNumeroLinhaMeta(item?.percentual_atividade, calcularPercentualSeguro(atividadeRealizada, baseAtiva));
+
+      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
+      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
+
+      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
+      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
+      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
+
+      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
+      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
+      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
+
+      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const percentualMake = obterNumeroLinhaMeta(item?.percentual_make, calcularPercentualSeguro(makeRealizado, atividadeRealizada));
+
+      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const percentualCabelo = obterNumeroLinhaMeta(item?.percentual_cabelo, calcularPercentualSeguro(cabeloRealizado, atividadeRealizada));
+
+      return {
+        receitaMeta,
+        receitaRealizada,
+        percentualReceita,
+        atividadeRealizada,
+        baseAtiva,
+        metaAtividadePercentual,
+        metaAtividadeQtd,
+        percentualAtividade,
+        rpaMeta,
+        rpaRealizado,
+        ticketMeta,
+        ticketRealizado,
+        upaMeta,
+        upaRealizada,
+        metaMakePercentual,
+        makeMetaQtd,
+        makeRealizado,
+        percentualMake,
+        metaCabeloPercentual,
+        cabeloMetaQtd,
+        cabeloRealizado,
+        percentualCabelo
+      };
+    };
+
+    const calcularPercentualSeguro = (realizado, meta) => {
+      const m = Number(meta || 0);
+      if (!m || m <= 0) return 0;
+      return (Number(realizado || 0) / m) * 100;
+    };
+
+    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
+      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
+      return (
+        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+          {percentual !== null && (
+            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+              {percentual}
+            </span>
+          )}
+        </div>
+      );
+    };
+
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+      const cor = corPorFaixaMeta(percentualAtingimento);
+      return (
+        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
+          <div className="mt-2 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+          </div>
+        </div>
+      );
+    };
+
+    const ColunaEstruturaMetaRealizado = ({ item }) => {
+      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      return (
+        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
+          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
+            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            {estruturasVinculadas.length > 1 && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
+                {estruturasVinculadas.length} estruturas vinculadas
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    };
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -4559,6 +5258,137 @@ const enviarArquivo = async (tipo) => {
       );
     }
 
+
+    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) return numero;
+      const numeroFallback = Number(fallback);
+      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
+    };
+
+    const calcularIndicadoresLinhaEstrutura = (item) => {
+      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
+      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
+      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
+
+      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
+      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
+      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
+      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
+      const percentualAtividade = obterNumeroLinhaMeta(item?.percentual_atividade, calcularPercentualSeguro(atividadeRealizada, baseAtiva));
+
+      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
+      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
+
+      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
+      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
+      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
+
+      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
+      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
+      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
+
+      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const percentualMake = obterNumeroLinhaMeta(item?.percentual_make, calcularPercentualSeguro(makeRealizado, atividadeRealizada));
+
+      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const percentualCabelo = obterNumeroLinhaMeta(item?.percentual_cabelo, calcularPercentualSeguro(cabeloRealizado, atividadeRealizada));
+
+      return {
+        receitaMeta,
+        receitaRealizada,
+        percentualReceita,
+        atividadeRealizada,
+        baseAtiva,
+        metaAtividadePercentual,
+        metaAtividadeQtd,
+        percentualAtividade,
+        rpaMeta,
+        rpaRealizado,
+        ticketMeta,
+        ticketRealizado,
+        upaMeta,
+        upaRealizada,
+        metaMakePercentual,
+        makeMetaQtd,
+        makeRealizado,
+        percentualMake,
+        metaCabeloPercentual,
+        cabeloMetaQtd,
+        cabeloRealizado,
+        percentualCabelo
+      };
+    };
+
+    const calcularPercentualSeguro = (realizado, meta) => {
+      const m = Number(meta || 0);
+      if (!m || m <= 0) return 0;
+      return (Number(realizado || 0) / m) * 100;
+    };
+
+    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
+      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
+      return (
+        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+          {percentual !== null && (
+            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+              {percentual}
+            </span>
+          )}
+        </div>
+      );
+    };
+
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+      const cor = corPorFaixaMeta(percentualAtingimento);
+      return (
+        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
+          <div className="mt-2 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+          </div>
+        </div>
+      );
+    };
+
+    const ColunaEstruturaMetaRealizado = ({ item }) => {
+      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      return (
+        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
+          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
+            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            {estruturasVinculadas.length > 1 && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
+                {estruturasVinculadas.length} estruturas vinculadas
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
@@ -4603,6 +5433,137 @@ const enviarArquivo = async (tipo) => {
 
   const renderTelaConsultores = () => {
     const cFilt = listaConsultores.filter(c => String(c.nome || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.nome_social || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.id_colaborador).includes(buscaConsultor));
+
+    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) return numero;
+      const numeroFallback = Number(fallback);
+      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
+    };
+
+    const calcularIndicadoresLinhaEstrutura = (item) => {
+      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
+      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
+      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
+
+      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
+      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
+      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
+      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
+      const percentualAtividade = obterNumeroLinhaMeta(item?.percentual_atividade, calcularPercentualSeguro(atividadeRealizada, baseAtiva));
+
+      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
+      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
+
+      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
+      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
+      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
+
+      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
+      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
+      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
+
+      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const percentualMake = obterNumeroLinhaMeta(item?.percentual_make, calcularPercentualSeguro(makeRealizado, atividadeRealizada));
+
+      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const percentualCabelo = obterNumeroLinhaMeta(item?.percentual_cabelo, calcularPercentualSeguro(cabeloRealizado, atividadeRealizada));
+
+      return {
+        receitaMeta,
+        receitaRealizada,
+        percentualReceita,
+        atividadeRealizada,
+        baseAtiva,
+        metaAtividadePercentual,
+        metaAtividadeQtd,
+        percentualAtividade,
+        rpaMeta,
+        rpaRealizado,
+        ticketMeta,
+        ticketRealizado,
+        upaMeta,
+        upaRealizada,
+        metaMakePercentual,
+        makeMetaQtd,
+        makeRealizado,
+        percentualMake,
+        metaCabeloPercentual,
+        cabeloMetaQtd,
+        cabeloRealizado,
+        percentualCabelo
+      };
+    };
+
+    const calcularPercentualSeguro = (realizado, meta) => {
+      const m = Number(meta || 0);
+      if (!m || m <= 0) return 0;
+      return (Number(realizado || 0) / m) * 100;
+    };
+
+    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
+      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
+      return (
+        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+          {percentual !== null && (
+            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+              {percentual}
+            </span>
+          )}
+        </div>
+      );
+    };
+
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+      const cor = corPorFaixaMeta(percentualAtingimento);
+      return (
+        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
+          <div className="mt-2 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+          </div>
+        </div>
+      );
+    };
+
+    const ColunaEstruturaMetaRealizado = ({ item }) => {
+      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      return (
+        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
+          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
+            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            {estruturasVinculadas.length > 1 && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
+                {estruturasVinculadas.length} estruturas vinculadas
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2"><h1 className="text-xl sm:text-2xl font-bold text-gray-700">Gestão de Consultores</h1><div className="flex gap-2"><button onClick={() => setModalCriarConsultorAberto(true)} className="bg-[#048187] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#036b70] flex items-center gap-2 text-sm"><Plus size={16} /> Novo consultor</button><button onClick={carregarListaConsultores} className="bg-[#e6f6f7] text-[#048187] font-bold px-4 py-2 rounded-lg hover:bg-[#d0f0f1] flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button></div></div></div>
@@ -4829,6 +5790,137 @@ const enviarArquivo = async (tipo) => {
       { id: 'ativos', label: 'Consultores ativos', total: consultoresAtivos.length },
       { id: 'metas', label: 'Metas salvas', total: metas.length }
     ];
+
+
+    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
+      const numero = Number(valor);
+      if (Number.isFinite(numero)) return numero;
+      const numeroFallback = Number(fallback);
+      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
+    };
+
+    const calcularIndicadoresLinhaEstrutura = (item) => {
+      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
+      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
+      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
+
+      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
+      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
+      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
+      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
+      const percentualAtividade = obterNumeroLinhaMeta(item?.percentual_atividade, calcularPercentualSeguro(atividadeRealizada, baseAtiva));
+
+      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
+      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
+
+      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
+      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
+      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
+
+      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
+      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
+      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
+
+      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const percentualMake = obterNumeroLinhaMeta(item?.percentual_make, calcularPercentualSeguro(makeRealizado, atividadeRealizada));
+
+      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const percentualCabelo = obterNumeroLinhaMeta(item?.percentual_cabelo, calcularPercentualSeguro(cabeloRealizado, atividadeRealizada));
+
+      return {
+        receitaMeta,
+        receitaRealizada,
+        percentualReceita,
+        atividadeRealizada,
+        baseAtiva,
+        metaAtividadePercentual,
+        metaAtividadeQtd,
+        percentualAtividade,
+        rpaMeta,
+        rpaRealizado,
+        ticketMeta,
+        ticketRealizado,
+        upaMeta,
+        upaRealizada,
+        metaMakePercentual,
+        makeMetaQtd,
+        makeRealizado,
+        percentualMake,
+        metaCabeloPercentual,
+        cabeloMetaQtd,
+        cabeloRealizado,
+        percentualCabelo
+      };
+    };
+
+    const calcularPercentualSeguro = (realizado, meta) => {
+      const m = Number(meta || 0);
+      if (!m || m <= 0) return 0;
+      return (Number(realizado || 0) / m) * 100;
+    };
+
+    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
+      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
+      return (
+        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+          {percentual !== null && (
+            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+              {percentual}
+            </span>
+          )}
+        </div>
+      );
+    };
+
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+      const cor = corPorFaixaMeta(percentualAtingimento);
+      return (
+        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
+          <div className="mt-2 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+            </div>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+          </div>
+        </div>
+      );
+    };
+
+    const ColunaEstruturaMetaRealizado = ({ item }) => {
+      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      return (
+        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
+          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
+            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            {estruturasVinculadas.length > 1 && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
+                {estruturasVinculadas.length} estruturas vinculadas
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    };
 
     return (
       <div className="space-y-6 animate-fade-in">
