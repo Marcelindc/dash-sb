@@ -673,11 +673,21 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   };
 
   const iniciarEdicaoLinhaMeta = (meta) => {
+    if (!meta?.id) {
+      setErro('Não foi possível identificar a meta para edição.');
+      return;
+    }
+
     const primeiraEstrutura = (meta.estruturas || [])[0] || {};
     const estruturaConfig = encontrarConfigDaMeta(meta) || {};
     const estruturaTexto = String(primeiraEstrutura.estrutura || '').trim();
     const codEstrutura = String(primeiraEstrutura.cod_estrutura || estruturaConfig.cod_estrutura || estruturaTexto.split('-')[0] || '').trim();
 
+    setErro('');
+    setMensagem(`Editando ${meta.nome_meta || estruturaTexto || 'meta'}. Altere os campos na própria linha e clique em Salvar.`);
+    setMetaExpandidaId(null);
+    setMostrarFormularioMeta(false);
+    setModoTabelaCiclo(false);
     setMetaLinhaEditandoId(meta.id);
     setLinhaEditandoMeta({
       id: meta.id,
@@ -698,8 +708,6 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       status: meta.status || 'ativo',
       observacao: meta.observacao || ''
     });
-    setMostrarFormularioMeta(false);
-    setModoTabelaCiclo(false);
   };
 
   const atualizarLinhaMetaEditando = (campo, valor) => {
@@ -710,6 +718,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     setMetaLinhaEditandoId(null);
     setLinhaEditandoMeta(null);
     setErro('');
+    setMensagem('');
   };
 
   const salvarEdicaoLinhaMeta = async (metaOriginal) => {
@@ -799,7 +808,12 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       await carregarMetas(payload.ciclo);
       if (onAtualizacao) onAtualizacao();
     } catch (err) {
-      setErro(err.response?.data?.detail || 'Erro ao salvar a linha da meta.');
+      const detalheErro = err.response?.data?.detail || 'Erro ao salvar a linha da meta.';
+      setErro(
+        String(detalheErro).toLowerCase().includes('acesso')
+          ? `${detalheErro} Verifique se este usuário tem permissão na aba Cadastro.`
+          : detalheErro
+      );
     } finally {
       setSalvandoLinhaMeta(false);
     }
@@ -1532,8 +1546,15 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                                   </>
                                 ) : (
                                   <>
-                                    <button type="button" onClick={() => setMetaExpandidaId(abertoLinha ? null : m.id)} className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1">Ver +</button>
-                                    <button type="button" onClick={() => iniciarEdicaoLinhaMeta(m)} className="text-[#048187] hover:bg-[#e6f6f7] rounded-lg p-2 mr-1"><Pencil size={16} /></button>
+                                    <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setMetaExpandidaId(abertoLinha ? null : m.id); }} className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1">Ver +</button>
+                                    <button
+                                      type="button"
+                                      onClick={(event) => { event.preventDefault(); event.stopPropagation(); iniciarEdicaoLinhaMeta(m); }}
+                                      title="Editar meta na própria linha"
+                                      className="bg-white border border-[#d9eff0] text-[#048187] hover:bg-[#e6f6f7] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1"
+                                    >
+                                      <Pencil size={15} /> Editar
+                                    </button>
                                     <button type="button" onClick={() => excluirMeta(m)} className="text-red-500 hover:bg-red-50 rounded-lg p-2"><Trash2 size={16} /></button>
                                   </>
                                 )}
