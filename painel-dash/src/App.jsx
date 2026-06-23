@@ -1860,12 +1860,53 @@ export default function App() {
     return promessa;
   };
 
-  const calcularMetaDashboardPelosFiltros = (dadosMetasApi, filtros) => {
+  const normalizarChaveFiltroMeta = (valor) => String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+  const obterEstruturasDaMetaDashboard = (item) => {
+    const vinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+    return vinculadas.length ? vinculadas : [item?.estrutura].filter(Boolean);
+  };
+
+  const calcularMetaDashboardPelosFiltros = (dadosMetasApi, filtros, dadosDashboardApi = null) => {
     const estruturasMetas = dadosMetasApi?.estruturas || [];
-    if (!estruturasMetas.length) return 0;
-    if (filtros?.estruturas?.length > 0) return estruturasMetas.filter((item) => filtros.estruturas.includes(item.estrutura)).reduce((acc, item) => acc + Number(item.receita || 0), 0);
-    if (filtros?.unidades?.length > 0) return estruturasMetas.filter((item) => { const unidadeEstrutura = String(item.estrutura || '').split('-')[0].trim(); return filtros.unidades.includes(unidadeEstrutura); }).reduce((acc, item) => acc + Number(item.receita || 0), 0);
-    return Number(dadosMetasApi?.meta_total_geral || 0);
+
+    if (!estruturasMetas.length) {
+      return Number(dadosDashboardApi?.meta_contextual || dadosDashboardApi?.meta_ciclo || 0);
+    }
+
+    const estruturasFiltro = (filtros?.estruturas || []).map(normalizarChaveFiltroMeta).filter(Boolean);
+    const unidadesFiltro = (filtros?.unidades || []).map((u) => String(u || '').trim()).filter(Boolean);
+
+    if (estruturasFiltro.length > 0) {
+      const metaEstruturas = estruturasMetas
+        .filter((item) => {
+          const estruturasItem = obterEstruturasDaMetaDashboard(item).map(normalizarChaveFiltroMeta);
+          return estruturasItem.some((estrutura) => estruturasFiltro.includes(estrutura));
+        })
+        .reduce((acc, item) => acc + Number(item.receita || 0), 0);
+
+      if (metaEstruturas > 0) return metaEstruturas;
+    }
+
+    if (unidadesFiltro.length > 0) {
+      const metaUnidades = estruturasMetas
+        .filter((item) => {
+          const estruturasItem = obterEstruturasDaMetaDashboard(item);
+          return estruturasItem.some((estrutura) => {
+            const unidadeEstrutura = String(estrutura || '').split('-')[0].trim();
+            return unidadesFiltro.includes(unidadeEstrutura);
+          });
+        })
+        .reduce((acc, item) => acc + Number(item.receita || 0), 0);
+
+      if (metaUnidades > 0) return metaUnidades;
+    }
+
+    return Number(dadosMetasApi?.meta_total_geral || dadosDashboardApi?.meta_contextual || dadosDashboardApi?.meta_ciclo || 0);
   };
 
   const carregarDashboard = async (filtros, forcarAtualizacao = false) => {
@@ -1904,7 +1945,7 @@ export default function App() {
         }
         if (resDados.status !== 'fulfilled') throw resDados.reason;
 
-        const metaCalculada = calcularMetaDashboardPelosFiltros(resumoMetas, filtros);
+        const metaCalculada = calcularMetaDashboardPelosFiltros(resumoMetas, filtros, resDados.value.data);
         setDados(resDados.value.data);
         setMetaFaturamentoDashboard(metaCalculada);
         setCacheDashboard((prev) => ({ ...prev, [chaveCache]: { dados: resDados.value.data, metaFaturamentoDashboard: metaCalculada } }));
@@ -2019,7 +2060,7 @@ export default function App() {
         }
 
         if (resDados.status === 'fulfilled') {
-          const metaCalculada = calcularMetaDashboardPelosFiltros(dadosMetasAtualizados || cacheMetas, filtros);
+          const metaCalculada = calcularMetaDashboardPelosFiltros(dadosMetasAtualizados || cacheMetas, filtros, resDados.value.data);
           setDados(resDados.value.data);
           setMetaFaturamentoDashboard(metaCalculada);
           setCacheDashboard((prev) => ({ ...prev, [chaveDashboard]: { dados: resDados.value.data, metaFaturamentoDashboard: metaCalculada } }));
