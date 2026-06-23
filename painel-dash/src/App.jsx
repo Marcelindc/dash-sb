@@ -715,10 +715,19 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       return;
     }
 
+    const estruturasOriginaisMeta = Array.isArray(metaOriginal.estruturas) ? metaOriginal.estruturas.filter((e) => String(e?.estrutura || '').trim()) : [];
+    const metaTemMultiplasEstruturas = estruturasOriginaisMeta.length > 1;
+    const estruturasPayloadEdicao = metaTemMultiplasEstruturas
+      ? estruturasOriginaisMeta.map((e) => ({
+          cod_estrutura: e.cod_estrutura || String(e.estrutura || '').split('-')[0] || '',
+          estrutura: e.estrutura
+        }))
+      : [{ cod_estrutura: codEstrutura, estrutura: estruturaTexto }];
+
     const payload = {
       ciclo: String(linhaEditandoMeta.ciclo || '').trim(),
       nome_meta: nomeMeta,
-      tipo_meta: linhaEditandoMeta.tipo_meta || metaOriginal.tipo_meta || 'estrutura',
+      tipo_meta: metaTemMultiplasEstruturas ? 'grupo_estruturas' : (linhaEditandoMeta.tipo_meta || metaOriginal.tipo_meta || 'estrutura'),
       meta_real: converterMetaRealParaNumero(linhaEditandoMeta.meta_real),
       meta_atividade: converterMetaRealParaNumero(linhaEditandoMeta.meta_atividade),
       meta_make: converterMetaRealParaNumero(linhaEditandoMeta.meta_make),
@@ -729,7 +738,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       regra_calculo: metaOriginal.regra_calculo || 'somar_estruturas',
       status: linhaEditandoMeta.status || metaOriginal.status || 'ativo',
       observacao: linhaEditandoMeta.observacao || metaOriginal.observacao || '',
-      estruturas: [{ cod_estrutura: codEstrutura, estrutura: estruturaTexto }]
+      estruturas: estruturasPayloadEdicao
     };
 
     if (!payload.ciclo) {
@@ -746,14 +755,24 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     try {
       await axios.put(`${apiUrl}/metas-reais/${metaOriginal.id}`, payload);
 
-      await axios.post(`${apiUrl}/estruturas-config`, {
-        cod_estrutura: codEstrutura,
-        estrutura: estruturaTexto,
-        canal: linhaEditandoMeta.canal || 'VD',
-        nucleo: normalizarNucleoMeta(linhaEditandoMeta.nucleo),
-        tipo_estrutura: payload.tipo_meta || 'estrutura',
-        status: 'ativo'
-      });
+      const metasAgrupadasParaLimpar = Array.isArray(metaOriginal._metasAgrupadas)
+        ? metaOriginal._metasAgrupadas.filter((metaFilha) => String(metaFilha.id) !== String(metaOriginal.id))
+        : [];
+
+      for (const metaFilha of metasAgrupadasParaLimpar) {
+        await axios.delete(`${apiUrl}/metas-reais/${metaFilha.id}`);
+      }
+
+      if (!metaTemMultiplasEstruturas) {
+        await axios.post(`${apiUrl}/estruturas-config`, {
+          cod_estrutura: codEstrutura,
+          estrutura: estruturaTexto,
+          canal: linhaEditandoMeta.canal || 'VD',
+          nucleo: normalizarNucleoMeta(linhaEditandoMeta.nucleo),
+          tipo_estrutura: payload.tipo_meta || 'estrutura',
+          status: 'ativo'
+        });
+      }
 
       setMensagem('Linha atualizada com sucesso.');
       cancelarEdicaoLinhaMeta();
@@ -768,11 +787,17 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   };
 
   const excluirMeta = async (meta) => {
-    const ok = window.confirm(`Excluir a meta real "${meta.nome_meta}"?`);
+    const metasParaExcluir = Array.isArray(meta?._metasAgrupadas) && meta._metasAgrupadas.length
+      ? meta._metasAgrupadas
+      : [meta];
+    const textoQtd = metasParaExcluir.length > 1 ? ` e suas ${metasParaExcluir.length} estruturas/metas vinculadas` : '';
+    const ok = window.confirm(`Excluir a meta real "${meta.nome_meta}"${textoQtd}?`);
     if (!ok) return;
     setErro('');
     try {
-      await axios.delete(`${apiUrl}/metas-reais/${meta.id}`);
+      for (const metaFilha of metasParaExcluir) {
+        if (metaFilha?.id) await axios.delete(`${apiUrl}/metas-reais/${metaFilha.id}`);
+      }
       setMensagem('Meta real excluída.');
       await carregarMetas();
       if (onAtualizacao) onAtualizacao();
@@ -904,6 +929,56 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     }));
   };
 
+  const agruparLinhasValidasNovoCiclo = (linhasValidas) => {
+    const grupos = new Map();
+
+    linhasValidas.forEach((linha) => {
+      const cicloLinha = String(linha.ciclo || form.ciclo || cicloPadrao || '').trim();
+      const nomeLinha = String(linha.nome_meta || obterNomeLimpoEstrutura(linha.estrutura) || linha.estrutura || '').trim();
+      const chave = `${cicloLinha}__${normalizarEstruturaMeta(nomeLinha)}`;
+
+      if (!grupos.has(chave)) {
+        grupos.set(chave, {
+          ciclo: cicloLinha,
+          nome_meta: nomeLinha,
+          linhas: []
+        });
+      }
+
+      grupos.get(chave).linhas.push(linha);
+    });
+
+    return Array.from(grupos.values());
+  };
+
+  const localizarMetaExistenteDoGrupo = (grupo) => {
+    const nomeNormalizado = normalizarEstruturaMeta(grupo.nome_meta);
+    const cicloNormalizado = String(grupo.ciclo || '').trim();
+    const estruturasGrupo = new Set(
+      grupo.linhas
+        .map((linha) => normalizarEstruturaMeta(linha.estrutura))
+        .filter(Boolean)
+    );
+    const codigosGrupo = new Set(
+      grupo.linhas
+        .map((linha) => normalizarEstruturaMeta(linha.cod_estrutura))
+        .filter(Boolean)
+    );
+
+    return metas.find((meta) => {
+      const mesmoNome = normalizarEstruturaMeta(meta.nome_meta) === nomeNormalizado;
+      const mesmoCiclo = String(meta.ciclo || '').trim() === cicloNormalizado;
+      if (mesmoNome && mesmoCiclo) return true;
+
+      if (!mesmoCiclo) return false;
+      return (meta.estruturas || []).some((estruturaMeta) => {
+        const estruturaNorm = normalizarEstruturaMeta(estruturaMeta.estrutura);
+        const codNorm = normalizarEstruturaMeta(estruturaMeta.cod_estrutura || String(estruturaMeta.estrutura || '').split('-')[0]);
+        return estruturasGrupo.has(estruturaNorm) || codigosGrupo.has(codNorm);
+      });
+    });
+  };
+
   const salvarTabelaNovoCiclo = async () => {
     setErro('');
     setMensagem('');
@@ -914,32 +989,45 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       return;
     }
 
+    const gruposValidos = agruparLinhasValidasNovoCiclo(linhasValidas);
+
     setSalvandoTabela(true);
     let salvas = 0;
     let atualizadas = 0;
+    let estruturasVinculadas = 0;
+
     try {
-      for (const linha of linhasValidas) {
+      for (const grupo of gruposValidos) {
+        const primeira = grupo.linhas[0] || {};
+        const metaRealTotal = grupo.linhas.reduce((soma, linha) => soma + converterMetaRealParaNumero(linha.meta_real), 0);
+        const estruturasPayload = grupo.linhas.map((linha) => ({
+          cod_estrutura: linha.cod_estrutura || String(linha.estrutura || '').split('-')[0] || '',
+          estrutura: linha.estrutura
+        }));
+
         const payload = {
-          ciclo: String(linha.ciclo || form.ciclo || cicloPadrao || '').trim(),
-          nome_meta: String(linha.nome_meta || obterNomeLimpoEstrutura(linha.estrutura) || linha.estrutura || '').trim(),
-          tipo_meta: linha.tipo_meta || 'estrutura',
-          meta_real: converterMetaRealParaNumero(linha.meta_real),
-          meta_atividade: converterMetaRealParaNumero(linha.meta_atividade),
-          meta_make: converterMetaRealParaNumero(linha.meta_make),
-          meta_cabelo: converterMetaRealParaNumero(linha.meta_cabelo),
-          meta_rpa: converterMetaRealParaNumero(linha.meta_rpa),
-          meta_tkt_medio: converterMetaRealParaNumero(linha.meta_tkt_medio),
-          meta_upa: converterMetaRealParaNumero(linha.meta_upa),
+          ciclo: grupo.ciclo,
+          nome_meta: grupo.nome_meta,
+          tipo_meta: grupo.linhas.length > 1 ? 'grupo_estruturas' : (primeira.tipo_meta || 'estrutura'),
+          meta_real: metaRealTotal,
+          meta_atividade: converterMetaRealParaNumero(primeira.meta_atividade),
+          meta_make: converterMetaRealParaNumero(primeira.meta_make),
+          meta_cabelo: converterMetaRealParaNumero(primeira.meta_cabelo),
+          meta_rpa: converterMetaRealParaNumero(primeira.meta_rpa),
+          meta_tkt_medio: converterMetaRealParaNumero(primeira.meta_tkt_medio),
+          meta_upa: converterMetaRealParaNumero(primeira.meta_upa),
           regra_calculo: 'somar_estruturas',
-          status: linha.status || 'ativo',
-          observacao: linha.observacao || `${linha.canal || 'VD'} • ${String(linha.nucleo || '').replace('NUCLEO', 'NÚCLEO')}`,
-          estruturas: [{ cod_estrutura: linha.cod_estrutura || '', estrutura: linha.estrutura }]
+          status: primeira.status || 'ativo',
+          observacao: grupo.linhas.length > 1
+            ? `Grupo com ${grupo.linhas.length} estruturas vinculadas.`
+            : (primeira.observacao || `${primeira.canal || 'VD'} • ${String(primeira.nucleo || '').replace('NUCLEO', 'NÚCLEO')}`),
+          estruturas: estruturasPayload
         };
 
         if (!payload.ciclo) throw new Error('Informe o ciclo em todas as linhas.');
         if (!payload.nome_meta) throw new Error('Informe o nome da meta em todas as linhas.');
 
-        const existente = localizarMetaExistenteDaLinha(linha);
+        const existente = localizarMetaExistenteDoGrupo(grupo);
         if (existente?.id) {
           await axios.put(`${apiUrl}/metas-reais/${existente.id}`, payload);
           atualizadas += 1;
@@ -947,12 +1035,25 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
           await axios.post(`${apiUrl}/metas-reais`, payload);
           salvas += 1;
         }
+
+        for (const linha of grupo.linhas) {
+          await axios.post(`${apiUrl}/estruturas-config`, {
+            cod_estrutura: linha.cod_estrutura || String(linha.estrutura || '').split('-')[0] || '',
+            estrutura: linha.estrutura,
+            canal: linha.canal || 'VD',
+            nucleo: normalizarNucleoMeta(linha.nucleo),
+            tipo_estrutura: String(linha.tipo_meta || '').toLowerCase().includes('er') ? 'er' : 'estrutura',
+            status: 'ativo'
+          });
+          estruturasVinculadas += 1;
+        }
       }
 
       const cicloSalvo = linhasValidas[0]?.ciclo || form.ciclo || cicloPadrao || '';
-      setMensagem(`Ciclo salvo com sucesso. Novas metas: ${salvas}. Atualizadas: ${atualizadas}.`);
+      setMensagem(`Ciclo salvo com sucesso. Grupos novos: ${salvas}. Grupos atualizados: ${atualizadas}. Estruturas vinculadas: ${estruturasVinculadas}.`);
       setModoTabelaCiclo(false);
       setLinhasNovoCiclo([]);
+      await carregarEstruturasConfigMeta();
       await carregarMetas(cicloSalvo);
       if (onAtualizacao) onAtualizacao();
     } catch (err) {
@@ -972,6 +1073,70 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const totalMetas = metas.reduce((acc, meta) => acc + Number(meta.meta_real || 0), 0);
   const totalRealizado = metas.reduce((acc, meta) => acc + Number(meta.realizado || 0), 0);
   const percentualTotal = totalMetas > 0 ? (totalRealizado / totalMetas) * 100 : 0;
+
+  const obterEstruturasMeta = (meta) => (Array.isArray(meta?.estruturas) ? meta.estruturas.filter((e) => String(e?.estrutura || '').trim()) : []);
+  const obterConfigEstruturaMeta = (estruturaMeta = {}) => {
+    const estruturaTexto = String(estruturaMeta.estrutura || '').trim();
+    const codTexto = String(estruturaMeta.cod_estrutura || estruturaTexto.split('-')[0] || '').trim();
+    return opcoesEstruturasCadastro.find((item) => {
+      const estruturaIgual = normalizarEstruturaMeta(item.estrutura) === normalizarEstruturaMeta(estruturaTexto);
+      const codIgual = String(item.cod_estrutura || '').trim() && String(item.cod_estrutura || '').trim() === codTexto;
+      return estruturaIgual || codIgual;
+    }) || {};
+  };
+  const obterConsultoresMeta = (meta) => (Array.isArray(meta?.consultores) ? meta.consultores : []);
+
+  const agruparMetasParaVisualizacao = (listaMetas = []) => {
+    const grupos = new Map();
+
+    listaMetas.forEach((meta) => {
+      const chave = `${String(meta.ciclo || '').trim()}__${normalizarEstruturaMeta(meta.nome_meta)}`;
+      if (!grupos.has(chave)) {
+        grupos.set(chave, {
+          ...meta,
+          id: meta.id,
+          _metasAgrupadas: [],
+          estruturas: [],
+          consultores: [],
+          meta_real: 0,
+          realizado: 0,
+          pedidos: 0,
+          ativos: 0
+        });
+      }
+
+      const grupo = grupos.get(chave);
+      grupo._metasAgrupadas.push(meta);
+      grupo.estruturas.push(...obterEstruturasMeta(meta));
+      grupo.consultores.push(...obterConsultoresMeta(meta));
+      grupo.meta_real += Number(meta.meta_real || 0);
+      grupo.realizado += Number(meta.realizado || 0);
+      grupo.pedidos += Number(meta.pedidos || 0);
+      grupo.ativos += Number(meta.ativos || 0);
+    });
+
+    return Array.from(grupos.values()).map((grupo) => {
+      const percentual = grupo.meta_real > 0 ? (grupo.realizado / grupo.meta_real) * 100 : 0;
+      const estruturasUnicas = [];
+      const chavesEstruturas = new Set();
+
+      grupo.estruturas.forEach((estruturaItem) => {
+        const chaveEstrutura = normalizarEstruturaMeta(`${estruturaItem.cod_estrutura || ''}__${estruturaItem.estrutura || ''}`);
+        if (!chaveEstrutura || chavesEstruturas.has(chaveEstrutura)) return;
+        chavesEstruturas.add(chaveEstrutura);
+        estruturasUnicas.push(estruturaItem);
+      });
+
+      return {
+        ...grupo,
+        estruturas: estruturasUnicas,
+        percentual,
+        tipo_meta: estruturasUnicas.length > 1 ? 'grupo_estruturas' : grupo.tipo_meta
+      };
+    });
+  };
+
+  const metasTabelaVisual = agruparMetasParaVisualizacao(metas);
 
   if (!aberto) return null;
 
@@ -1159,7 +1324,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                 <h3 className="text-xl font-black text-gray-700">Metas salvas do ciclo</h3>
                 <p className="text-sm text-gray-400 font-semibold">Use Ver + para abrir uma estrutura e ajustar consultores, peso e status.</p>
               </div>
-              <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black w-fit">{metas.length} blocos</span>
+              <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black w-fit">{metasTabelaVisual.length} blocos</span>
             </div>
 
             {carregando ? <p className="p-8 text-[#048187] font-bold">Carregando metas reais...</p> : (
@@ -1184,7 +1349,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {metas
+                    {metasTabelaVisual
                       .filter((m) => {
                         const termo = busca.toLowerCase().trim();
                         if (!termo) return true;
@@ -1192,8 +1357,14 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                         return `${m.nome_meta} ${estruturasTexto} ${m.ciclo}`.toLowerCase().includes(termo);
                       })
                       .map((m) => {
-                        const primeiraEstrutura = (m.estruturas || [])[0] || {};
-                        const estruturaConfig = opcoesEstruturasCadastro.find((item) => normalizarEstruturaMeta(item.estrutura) === normalizarEstruturaMeta(primeiraEstrutura.estrutura));
+                        const estruturasMeta = obterEstruturasMeta(m);
+                        const primeiraEstrutura = estruturasMeta[0] || {};
+                        const estruturaConfig = obterConfigEstruturaMeta(primeiraEstrutura);
+                        const configsEstruturas = estruturasMeta.map((estruturaItem) => ({ estruturaItem, config: obterConfigEstruturaMeta(estruturaItem) }));
+                        const canaisUnicosMeta = Array.from(new Set(configsEstruturas.map(({ config }) => config.canal || 'VD')));
+                        const nucleosUnicosMeta = Array.from(new Set(configsEstruturas.map(({ config }) => normalizarNucleoMeta(config.nucleo || 'NUCLEO 1'))));
+                        const metaTemMultiplasEstruturas = estruturasMeta.length > 1;
+                        const consultoresMeta = obterConsultoresMeta(m);
                         const abertoLinha = String(metaExpandidaId) === String(m.id);
                         const editandoLinha = String(metaLinhaEditandoId) === String(m.id);
                         const linhaEditavel = editandoLinha && linhaEditandoMeta ? linhaEditandoMeta : null;
@@ -1207,25 +1378,45 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                                   <span className="truncate block">{m.nome_meta}</span>
                                 )}
                               </td>
-                              <td className="px-4 py-3 font-bold text-gray-500 max-w-[320px] truncate">{primeiraEstrutura.estrutura || '-'}</td>
+                              <td className="px-4 py-3 font-bold text-gray-500 max-w-[360px]">
+                                <div className="flex flex-col gap-1">
+                                  <span className="truncate">{primeiraEstrutura.estrutura || '-'}</span>
+                                  {metaTemMultiplasEstruturas && (
+                                    <div className="flex flex-wrap gap-1">
+                                      <span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-black">{estruturasMeta.length} estruturas vinculadas</span>
+                                      {estruturasMeta.slice(1, 3).map((estruturaItem) => (
+                                        <span key={`${m.id}-${estruturaItem.estrutura}`} className="bg-gray-50 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold max-w-[220px] truncate">{estruturaItem.estrutura}</span>
+                                      ))}
+                                      {estruturasMeta.length > 3 && <span className="bg-gray-50 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold">+{estruturasMeta.length - 3}</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
                               <td className="px-4 py-3 min-w-[190px]">
                                 {editandoLinha ? (
-                                  <div className="grid grid-cols-2 gap-2 min-w-[170px]">
-                                    <select value={linhaEditavel.canal || 'VD'} onChange={(e) => atualizarLinhaMetaEditando('canal', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-xs font-black text-gray-700 outline-none focus:border-[#048187]">
-                                      <option value="VD">VD</option>
-                                      <option value="LOJA">LOJA</option>
-                                      <option value="ER">ER</option>
-                                    </select>
-                                    <select value={normalizarNucleoMeta(linhaEditavel.nucleo)} onChange={(e) => atualizarLinhaMetaEditando('nucleo', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-xs font-black text-gray-700 outline-none focus:border-[#048187]">
-                                      <option value="NUCLEO 1">N1</option>
-                                      <option value="NUCLEO 2">N2</option>
-                                      <option value="NUCLEO 3">N3</option>
-                                    </select>
-                                  </div>
+                                  metaTemMultiplasEstruturas ? (
+                                    <div className="flex flex-wrap gap-1 min-w-[170px]">
+                                      <span className="px-2 py-1 rounded-full bg-gray-50 text-gray-500 text-[10px] font-black">GRUPO</span>
+                                      <span className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{estruturasMeta.length} estruturas</span>
+                                    </div>
+                                  ) : (
+                                    <div className="grid grid-cols-2 gap-2 min-w-[170px]">
+                                      <select value={linhaEditavel.canal || 'VD'} onChange={(e) => atualizarLinhaMetaEditando('canal', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-xs font-black text-gray-700 outline-none focus:border-[#048187]">
+                                        <option value="VD">VD</option>
+                                        <option value="LOJA">LOJA</option>
+                                        <option value="ER">ER</option>
+                                      </select>
+                                      <select value={normalizarNucleoMeta(linhaEditavel.nucleo)} onChange={(e) => atualizarLinhaMetaEditando('nucleo', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-xs font-black text-gray-700 outline-none focus:border-[#048187]">
+                                        <option value="NUCLEO 1">N1</option>
+                                        <option value="NUCLEO 2">N2</option>
+                                        <option value="NUCLEO 3">N3</option>
+                                      </select>
+                                    </div>
+                                  )
                                 ) : (
                                   <div className="flex flex-wrap gap-1">
-                                    <span className="px-2 py-1 rounded-full bg-gray-50 text-gray-500 text-[10px] font-black">{estruturaConfig?.canal || 'VD'}</span>
-                                    <span className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{formatarNucleoCurtoMeta(estruturaConfig?.nucleo || '-')}</span>
+                                    {canaisUnicosMeta.map((canal) => <span key={`${m.id}-canal-${canal}`} className="px-2 py-1 rounded-full bg-gray-50 text-gray-500 text-[10px] font-black">{canal}</span>)}
+                                    {nucleosUnicosMeta.map((nucleo) => <span key={`${m.id}-nucleo-${nucleo}`} className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{formatarNucleoCurtoMeta(nucleo)}</span>)}
                                   </div>
                                 )}
                               </td>
@@ -1275,20 +1466,45 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                               <tr>
                                 <td colSpan={14} className="bg-[#fbfefe] px-6 py-5">
                                   <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white">
+                                    <div className="px-5 py-4 border-b border-gray-100">
+                                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                                        <div>
+                                          <h4 className="font-black text-gray-700">Estruturas vinculadas à equipe</h4>
+                                          <p className="text-xs text-gray-400 font-semibold mt-1">Aqui você enxerga quando uma mesma equipe tem mais de uma estrutura, como EQUIPE GRAZIELLE.</p>
+                                        </div>
+                                        <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{estruturasMeta.length} estrutura(s)</span>
+                                      </div>
+                                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                        {estruturasMeta.map((estruturaItem) => {
+                                          const configItem = obterConfigEstruturaMeta(estruturaItem);
+                                          return (
+                                            <div key={`${m.id}-estrutura-${estruturaItem.estrutura}`} className="bg-[#f7fafb] border border-gray-100 rounded-2xl p-4">
+                                              <p className="text-xs font-black text-gray-700">{estruturaItem.estrutura}</p>
+                                              <div className="flex flex-wrap gap-1 mt-2">
+                                                <span className="px-2 py-1 rounded-full bg-white text-gray-500 text-[10px] font-black">{configItem.canal || 'VD'}</span>
+                                                <span className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{formatarNucleoCurtoMeta(configItem.nucleo || 'NUCLEO 1')}</span>
+                                                <span className="px-2 py-1 rounded-full bg-white text-gray-500 text-[10px] font-bold">Cód. {estruturaItem.cod_estrutura || String(estruturaItem.estrutura || '').split('-')[0] || '-'}</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
                                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
                                       <div>
-                                        <h4 className="font-black text-gray-700">Consultores vinculados à estrutura</h4>
+                                        <h4 className="font-black text-gray-700">Consultores vinculados</h4>
                                         <p className="text-xs text-gray-400 font-semibold mt-1">Edite peso e status. Consultores em férias/inativos não entram na divisão ativa da meta.</p>
                                       </div>
-                                      <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{(m.consultores || []).length} consultores</span>
+                                      <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{consultoresMeta.length} consultores</span>
                                     </div>
                                     <div className="overflow-x-auto">
                                       <table className="w-full min-w-[900px] text-sm">
-                                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3 text-left">Consultor</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Peso</th><th className="px-5 py-3 text-right">Meta individual</th><th className="px-5 py-3 text-right">Realizado</th><th className="px-5 py-3 text-right">% Fat.</th></tr></thead>
+                                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3 text-left">Consultor</th><th className="px-5 py-3 text-left">Estrutura</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Peso</th><th className="px-5 py-3 text-right">Meta individual</th><th className="px-5 py-3 text-right">Realizado</th><th className="px-5 py-3 text-right">% Fat.</th></tr></thead>
                                         <tbody className="divide-y divide-gray-100">
-                                          {(m.consultores || []).map((c) => (
+                                          {consultoresMeta.map((c) => (
                                             <tr key={`${m.id}-${c.id_colaborador}-${c.id}`} className="hover:bg-[#f7fafb]">
                                               <td className="px-5 py-3"><p className="font-black text-gray-700">{c.nome_exibicao || c.nome_social || c.nome}</p><p className="text-[10px] text-gray-400 font-bold">ID {c.id_colaborador || '-'}</p></td>
+                                              <td className="px-5 py-3 text-xs font-bold text-gray-500 max-w-[260px]"><span className="line-clamp-2">{c.estrutura || c.nome_estrutura || '-'}</span></td>
                                               <td className="px-5 py-3"><select defaultValue={c.status_consultor || 'ativo'} onChange={(e) => salvarConsultorNaMeta(c, { status_consultor: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="ferias">Férias</option><option value="inativo">Inativo</option></select></td>
                                               <td className="px-5 py-3 text-right"><div className="inline-flex items-center gap-2"><input type="number" step="0.01" defaultValue={Number(c.peso_meta || 0).toFixed(2)} onBlur={(e) => salvarPesoConsultorMeta(c, e.target.value)} className="w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold text-[#048187] outline-none focus:border-[#048187]" />%</div></td>
                                               <td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_individual)}</td>
@@ -1296,7 +1512,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                                               <td className="px-5 py-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{Number(c.percentual || 0).toFixed(1)}%</td>
                                             </tr>
                                           ))}
-                                          {!(m.consultores || []).length && <tr><td colSpan={6} className="px-5 py-8 text-center text-gray-400 font-bold">Nenhum consultor cadastrado nessa estrutura.</td></tr>}
+                                          {!consultoresMeta.length && <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400 font-bold">Nenhum consultor cadastrado nessa estrutura.</td></tr>}
                                         </tbody>
                                       </table>
                                     </div>
@@ -1307,7 +1523,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                           </React.Fragment>
                         );
                       })}
-                    {!metas.length && <tr><td colSpan={14} className="p-10 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</td></tr>}
+                    {!metasTabelaVisual.length && <tr><td colSpan={14} className="p-10 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</td></tr>}
                   </tbody>
                   <tfoot className="bg-yellow-100 text-gray-800 font-black">
                     <tr>
