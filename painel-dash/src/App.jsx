@@ -1935,6 +1935,10 @@ export default function App() {
     if (!forcarAtualizacao && cacheDashboard[chaveCache]) {
       const c = cacheDashboard[chaveCache];
       setDados(c.dados);
+      if (c.dadosMetas) {
+        setDadosMetas(c.dadosMetas);
+        setCacheMetas(c.dadosMetas);
+      }
       setMetaFaturamentoDashboard(c.metaFaturamentoDashboard || 0);
       await carregarOpcoesFiltros(false);
       return c.dados;
@@ -1966,7 +1970,7 @@ export default function App() {
         const metaCalculada = calcularMetaDashboardPelosFiltros(resumoMetas, filtros, resDados.value.data);
         setDados(resDados.value.data);
         setMetaFaturamentoDashboard(metaCalculada);
-        setCacheDashboard((prev) => ({ ...prev, [chaveCache]: { dados: resDados.value.data, metaFaturamentoDashboard: metaCalculada } }));
+        setCacheDashboard((prev) => ({ ...prev, [chaveCache]: { dados: resDados.value.data, dadosMetas: resumoMetas, metaFaturamentoDashboard: metaCalculada } }));
         return resDados.value.data;
       } catch (erro) {
         console.error('Erro dashboard:', erro);
@@ -2993,7 +2997,7 @@ const enviarArquivo = async (tipo) => {
         { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
         { label: `Meta ${tipoNormalizado}`, valor: `${formatarNumeroBR(metaPercentual, 1)}%` },
         { label: 'Meta em revendedores', valor: formatarNumeroBR(metaEmRevendedores, 0) },
-        { label: `Faltam incluir ${tipoNormalizado}`, valor: formatarFaltamAtivar(faltamIncluir) }
+        { label: `Falta para a meta ${tipoNormalizado}`, valor: formatarFaltamAtivar(faltamIncluir) }
       ],
       `${formatarNumeroBR(ativados, 0)} revendedores ativados × ${formatarNumeroBR(metaPercentual, 1)}% = ${formatarNumeroBR(metaEmRevendedores, 0)} revendedores necessários com ${tipoNormalizado}`
     );
