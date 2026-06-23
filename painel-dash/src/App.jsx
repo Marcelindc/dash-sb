@@ -130,6 +130,23 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   return normalizadas;
 };
 
+
+const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') => {
+  const listaBase = Array.isArray(abas) ? abas : (permissoesPadrao[perfil] || permissoesPadrao.visualizador || []);
+  const migradas = listaBase.map((aba) => aba === 'Consultores' ? 'Cadastro' : aba);
+  const normalizadas = Array.from(new Set(migradas.filter((aba) => ABAS_SISTEMA.includes(aba))));
+
+  if (!normalizadas.includes('Perfil')) normalizadas.push('Perfil');
+
+  if (perfil === 'admin') {
+    ['ADM', 'Configurações', 'Perfil'].forEach((abaObrigatoria) => {
+      if (!normalizadas.includes(abaObrigatoria)) normalizadas.push(abaObrigatoria);
+    });
+  }
+
+  return normalizadas;
+};
+
 const filtroVazio = { nucleos: [], unidades: [], estruturas: [], consultores: [], situacoes: [], meios_captacao: [], modelos_comerciais: [], canais_venda: [], data_inicio: '', data_fim: '' };
 const buscaFiltrosVazia = { nucleos: '', unidades: '', estruturas: '', consultores: '', situacoes: '', meios_captacao: '', modelos_comerciais: '', canais_venda: '' };
 const cicloFormVazio = { ciclo: '', data_inicio: '', data_fim: '', meta_ciclo: '', status_ciclo: 'ativo' };
@@ -1639,7 +1656,8 @@ export default function App() {
   const [permissoesAtivas, setPermissoesAtivas] = useState(permissoesPadrao);
   const [modalPermissoesAberto, setModalPermissoesAberto] = useState(false);
   const [perfilEditando, setPerfilEditando] = useState('admin');
-  const [permissoesTemporarias, setPermissoesTemporarias] = useState(permissoesPadrao);
+  const [usuarioPermissoesEditando, setUsuarioPermissoesEditando] = useState(null);
+  const [permissoesTemporarias, setPermissoesTemporarias] = useState([]);
 
   const [cacheDashboard, setCacheDashboard] = useState({}); const [cacheDetalheMetas, setCacheDetalheMetas] = useState({}); const [cacheMetas, setCacheMetas] = useState(null); const [opcoesFiltrosCarregadas, setOpcoesFiltrosCarregadas] = useState(false);
   const [carregandoDashboard, setCarregandoDashboard] = useState(false); const [carregandoMetas, setCarregandoMetas] = useState(false); const [carregandoDetalheMeta, setCarregandoDetalheMeta] = useState(false); const [erroMetas, setErroMetas] = useState('');
@@ -1799,44 +1817,91 @@ export default function App() {
       const res = await axios.get(`${API_URL}/auth/permissoes`);
       const permissoesNormalizadas = normalizarPermissoesSistema(res.data?.permissoes || {});
       setPermissoesAtivas(permissoesNormalizadas);
-      setPermissoesTemporarias(permissoesNormalizadas);
+      setPermissoesTemporarias([]);
     } catch (erro) {
       console.error('Erro ao carregar permissões:', erro);
       const permissoesNormalizadas = normalizarPermissoesSistema(permissoesPadrao);
       setPermissoesAtivas(permissoesNormalizadas);
-      setPermissoesTemporarias(permissoesNormalizadas);
+      setPermissoesTemporarias([]);
     }
+  };
+
+  const permissoesDoUsuarioAtual = () => {
+    if (!usuarioLogado) return [];
+    const perfilUsuario = usuarioLogado.perfil || 'visualizador';
+    if (Array.isArray(usuarioLogado.permissoes)) {
+      return normalizarListaPermissoesUsuario(usuarioLogado.permissoes, perfilUsuario);
+    }
+    return normalizarListaPermissoesUsuario(permissoesAtivas[perfilUsuario] || [], perfilUsuario);
   };
 
   const usuarioPodeAcessar = (tela) => {
     if (!usuarioLogado) return false;
-    const perfilUsuario = usuarioLogado.perfil || 'visualizador';
-    return permissoesAtivas[perfilUsuario]?.includes(tela);
+    if (usuarioLogado.perfil === 'admin') return true;
+    return permissoesDoUsuarioAtual().includes(tela);
   };
 
   const usuarioPodeAcessarLoja = () => usuarioPodeAcessar('Loja') || usuarioPodeAcessar('LojaVisaoGeral');
 
   const telaEhLoja = (tela) => ['Loja', 'LojaVisaoGeral'].includes(tela);
 
-  const abrirModalPermissoes = (perfil = 'admin') => { setPermissoesTemporarias({ ...permissoesAtivas }); setPerfilEditando(perfil || 'admin'); setModalPermissoesAberto(true); };
+  const obterPermissoesUsuarioLista = (usuario) => normalizarListaPermissoesUsuario(
+    Array.isArray(usuario?.permissoes) ? usuario.permissoes : (permissoesAtivas[usuario?.perfil] || []),
+    usuario?.perfil || 'visualizador'
+  );
 
-  const togglePermissaoTemporaria = (perfil, aba) => {
-    if (perfil === 'admin' && (aba === 'Configurações' || aba === 'Perfil')) return;
-    const listaAtual = permissoesTemporarias[perfil] || [];
-    const novaLista = listaAtual.includes(aba) ? listaAtual.filter(i => i !== aba) : [...listaAtual, aba];
-    setPermissoesTemporarias({ ...permissoesTemporarias, [perfil]: novaLista });
+  const abrirModalPermissoes = (usuario) => {
+    const usuarioAlvo = usuario && usuario.id ? usuario : null;
+    if (!usuarioAlvo) return;
+    setUsuarioPermissoesEditando(usuarioAlvo);
+    setPerfilEditando(usuarioAlvo.perfil || 'visualizador');
+    setPermissoesTemporarias(obterPermissoesUsuarioLista(usuarioAlvo));
+    setModalPermissoesAberto(true);
+  };
+
+  const togglePermissaoTemporaria = (aba) => {
+    const perfil = usuarioPermissoesEditando?.perfil || perfilEditando || 'visualizador';
+    if (perfil === 'admin' && ['ADM', 'Configurações', 'Perfil'].includes(aba)) return;
+    if (aba === 'Perfil') return;
+
+    const listaAtual = Array.isArray(permissoesTemporarias) ? permissoesTemporarias : [];
+    const novaLista = listaAtual.includes(aba)
+      ? listaAtual.filter(i => i !== aba)
+      : [...listaAtual, aba];
+
+    setPermissoesTemporarias(normalizarListaPermissoesUsuario(novaLista, perfil));
   };
 
   const salvarPermissoes = async () => {
+    if (!usuarioPermissoesEditando) return;
     try {
-      const permissoesNormalizadas = normalizarPermissoesSistema(permissoesTemporarias);
-      await axios.post(`${API_URL}/auth/permissoes`, { permissoes: permissoesNormalizadas });
-      setPermissoesAtivas(permissoesNormalizadas);
-      setPermissoesTemporarias(permissoesNormalizadas);
+      const permissoesNormalizadas = normalizarListaPermissoesUsuario(permissoesTemporarias, usuarioPermissoesEditando.perfil);
+      const resposta = await axios.put(`${API_URL}/auth/usuario-permissoes`, {
+        id: usuarioPermissoesEditando.id,
+        permissoes: permissoesNormalizadas
+      });
+
+      setUsuariosSistema((lista) => lista.map((u) => (
+        u.id === usuarioPermissoesEditando.id
+          ? { ...u, permissoes: resposta.data?.usuario?.permissoes || permissoesNormalizadas }
+          : u
+      )));
+
+      if (usuarioLogado?.id === usuarioPermissoesEditando.id) {
+        const usuarioAtualizado = {
+          ...usuarioLogado,
+          permissoes: resposta.data?.usuario?.permissoes || permissoesNormalizadas
+        };
+        setUsuarioLogado(usuarioAtualizado);
+        localStorage.setItem('usuarioLogado', JSON.stringify(usuarioAtualizado));
+      }
+
       setModalPermissoesAberto(false);
-      setMensagemUsuarios('Permissões atualizadas!');
+      setUsuarioPermissoesEditando(null);
+      setMensagemUsuarios(`Permissões de ${usuarioPermissoesEditando.nome} atualizadas!`);
+      await carregarUsuarios();
     } catch (erro) {
-      setErroUsuarios('Falha ao salvar permissões.');
+      setErroUsuarios(erro.response?.data?.detail || 'Falha ao salvar permissões do usuário.');
     }
   };
 
@@ -5769,7 +5834,7 @@ const enviarArquivo = async (tipo) => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Configurações</h1><p className="text-gray-400">Gerencie usuários e permissões de acesso.</p></div>
       {(mensagemUsuarios || erroUsuarios) && (<div className={`rounded-xl p-4 font-bold text-sm ${mensagemUsuarios ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemUsuarios || erroUsuarios}</div>)}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-        <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><ShieldCheck size={24} /></div><div><h2 className="text-xl font-bold text-gray-700">Controle de Permissões</h2><p className="text-sm text-gray-400">Configure as abas liberadas na coluna Permissões dos usuários cadastrados.</p></div></div>
+        <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><ShieldCheck size={24} /></div><div><h2 className="text-xl font-bold text-gray-700">Controle de Permissões</h2><p className="text-sm text-gray-400">Configure as abas liberadas individualmente para cada usuário cadastrado.</p></div></div>
       </div>
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
         <div className="flex items-center gap-2 mb-6"><Plus size={22} className="text-[#048187]" /><h2 className="text-xl font-bold text-gray-700">Criar usuário</h2></div>
@@ -5778,7 +5843,7 @@ const enviarArquivo = async (tipo) => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6"><h2 className="text-xl font-bold text-gray-700">Usuários cadastrados</h2><button onClick={carregarUsuarios} className="text-[#048187] font-bold text-sm hover:underline">Atualizar</button></div>
         {carregandoUsuarios ? (<p className="text-[#048187] font-bold">Carregando usuários...</p>) : (
-          <div className="overflow-x-auto"><table className="w-full text-sm min-w-[980px]"><thead><tr className="text-left text-gray-500 border-b border-gray-100"><th className="py-3 px-2">Nome</th><th className="py-3 px-2">E-mail</th><th className="py-3 px-2">Perfil</th><th className="py-3 px-2">Permissões</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>{usuariosSistema.map((u) => { const abasPerfil = permissoesAtivas[u.perfil] || []; const podeConfigurarPermissoes = usuarioLogado?.perfil === 'admin'; return (<tr key={u.id} className="border-b border-gray-50"><td className="py-4 px-2 font-bold text-gray-700">{u.nome}</td><td className="py-4 px-2 text-gray-500">{u.email}</td><td className="py-4 px-2 text-[#048187] font-bold uppercase">{u.perfil}</td><td className="py-4 px-2"><div className="flex flex-col gap-2 min-w-[220px]"><div className="flex flex-wrap gap-1.5">{abasPerfil.slice(0, 3).map((aba) => (<span key={aba} className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold">{obterNomeAba(aba)}</span>))}{abasPerfil.length > 3 && (<span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold">+{abasPerfil.length - 3}</span>)}</div>{podeConfigurarPermissoes ? (<button type="button" onClick={() => abrirModalPermissoes(u.perfil)} className="w-fit bg-[#048187] text-white font-bold px-3 py-1.5 rounded-lg hover:bg-[#036b70] transition-colors text-xs inline-flex items-center gap-1"><ShieldCheck size={13} /> Configurar abas</button>) : (<span className="text-xs text-gray-400 font-medium">Somente admin pode alterar</span>)}</div></td><td className="py-4 px-2"><span className={`px-3 py-1 rounded-full text-xs font-bold ${u.status_usuario === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status_usuario}</span></td><td className="py-4 px-2 text-right"><button onClick={() => abrirEditarUsuario(u)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirUsuario(u)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>); })}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full text-sm min-w-[980px]"><thead><tr className="text-left text-gray-500 border-b border-gray-100"><th className="py-3 px-2">Nome</th><th className="py-3 px-2">E-mail</th><th className="py-3 px-2">Perfil</th><th className="py-3 px-2">Permissões</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>{usuariosSistema.map((u) => { const abasPerfil = obterPermissoesUsuarioLista(u); const podeConfigurarPermissoes = usuarioLogado?.perfil === 'admin'; return (<tr key={u.id} className="border-b border-gray-50"><td className="py-4 px-2 font-bold text-gray-700">{u.nome}</td><td className="py-4 px-2 text-gray-500">{u.email}</td><td className="py-4 px-2 text-[#048187] font-bold uppercase">{u.perfil}</td><td className="py-4 px-2"><div className="flex flex-col gap-2 min-w-[220px]"><div className="flex flex-wrap gap-1.5">{abasPerfil.slice(0, 3).map((aba) => (<span key={aba} className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold">{obterNomeAba(aba)}</span>))}{abasPerfil.length > 3 && (<span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold">+{abasPerfil.length - 3}</span>)}</div>{podeConfigurarPermissoes ? (<button type="button" onClick={() => abrirModalPermissoes(u)} className="w-fit bg-[#048187] text-white font-bold px-3 py-1.5 rounded-lg hover:bg-[#036b70] transition-colors text-xs inline-flex items-center gap-1"><ShieldCheck size={13} /> Configurar abas</button>) : (<span className="text-xs text-gray-400 font-medium">Somente admin pode alterar</span>)}</div></td><td className="py-4 px-2"><span className={`px-3 py-1 rounded-full text-xs font-bold ${u.status_usuario === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status_usuario}</span></td><td className="py-4 px-2 text-right"><button onClick={() => abrirEditarUsuario(u)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirUsuario(u)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>); })}</tbody></table></div>
         )}
       </div>
     </div>
@@ -6685,10 +6750,60 @@ const enviarArquivo = async (tipo) => {
         <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6"><h2 className="text-xl font-bold text-gray-700 mb-4">Excluir ciclo?</h2><p className="text-gray-600 mb-6">{cicloParaExcluir.ciclo}</p><div className="flex justify-end gap-3"><button onClick={() => setModalExcluirCicloAberto(false)} className="px-5 py-2 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button onClick={confirmarExclusaoCiclo} className="bg-red-500 text-white px-5 py-2 rounded-lg font-bold hover:bg-red-600">Excluir</button></div></div></div>
       )}
 
-      {modalPermissoesAberto && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Configurar Permissões</h2><p className="text-sm text-gray-400 mt-1">Marque as abas que cada perfil pode acessar.</p></div><button onClick={() => setModalPermissoesAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><div className="flex border-b border-gray-100"><button onClick={() => setPerfilEditando('admin')} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${perfilEditando === 'admin' ? 'border-[#048187] text-[#048187]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>Admin</button><button onClick={() => setPerfilEditando('gestor')} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${perfilEditando === 'gestor' ? 'border-[#048187] text-[#048187]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>Gestor</button><button onClick={() => setPerfilEditando('visualizador')} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${perfilEditando === 'visualizador' ? 'border-[#048187] text-[#048187]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>Visualizador</button></div><div className="p-6"><div className="grid grid-cols-2 gap-3">{ABAS_SISTEMA.map((aba) => { const travado = perfilEditando === 'admin' && (aba === 'Configurações' || aba === 'Perfil'); return (<label key={aba} className={`flex items-center gap-3 p-3 rounded-lg border ${travado ? 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-60' : 'bg-white border-gray-200 cursor-pointer hover:border-[#048187]'}`}><input type="checkbox" checked={permissoesTemporarias[perfilEditando]?.includes(aba) || false} onChange={() => togglePermissaoTemporaria(perfilEditando, aba)} disabled={travado} className="w-4 h-4 accent-[#048187]" /><span className="text-sm font-bold text-gray-700">{obterNomeAba(aba)}</span></label>); })}</div></div><div className="flex justify-end gap-3 p-6 border-t border-gray-100"><button onClick={() => setModalPermissoesAberto(false)} className="px-5 py-2 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button onClick={salvarPermissoes} className="px-5 py-2 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Salvar Permissões</button></div></div></div>
+      {modalPermissoesAberto && usuarioPermissoesEditando && (
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-start justify-between p-6 border-b border-gray-100">
+              <div>
+                <h2 className="text-xl font-bold text-gray-700">Permissões do usuário</h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  Configure as abas liberadas somente para <strong>{usuarioPermissoesEditando.nome}</strong>.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1 rounded-full text-xs font-black uppercase">{usuarioPermissoesEditando.perfil}</span>
+                  <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-xs font-bold">{usuarioPermissoesEditando.email}</span>
+                </div>
+              </div>
+              <button onClick={() => { setModalPermissoesAberto(false); setUsuarioPermissoesEditando(null); }} className="text-gray-400 hover:bg-gray-50 rounded-full p-2">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 bg-[#fbfefe] border-b border-gray-100">
+              <div className="rounded-xl bg-white border border-[#d9eff0] p-4 text-sm text-gray-500 font-semibold">
+                Agora as permissões são salvas por pessoa. Alterar a Isabela não altera a Ellerne, Leonardo, Oseas ou qualquer outro gestor.
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {ABAS_SISTEMA.map((aba) => {
+                  const perfil = usuarioPermissoesEditando?.perfil || 'visualizador';
+                  const travado = aba === 'Perfil' || (perfil === 'admin' && ['ADM', 'Configurações', 'Perfil'].includes(aba));
+                  return (
+                    <label key={aba} className={`flex items-center gap-3 p-3 rounded-lg border ${travado ? 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-70' : 'bg-white border-gray-200 cursor-pointer hover:border-[#048187]'}`}>
+                      <input
+                        type="checkbox"
+                        checked={Array.isArray(permissoesTemporarias) && permissoesTemporarias.includes(aba)}
+                        onChange={() => togglePermissaoTemporaria(aba)}
+                        disabled={travado}
+                        className="w-4 h-4 accent-[#048187]"
+                      />
+                      <span className="text-sm font-bold text-gray-700">{obterNomeAba(aba)}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-gray-100">
+              <button onClick={() => { setModalPermissoesAberto(false); setUsuarioPermissoesEditando(null); }} className="px-5 py-2 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button>
+              <button onClick={salvarPermissoes} className="px-5 py-2 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Salvar permissões deste usuário</button>
+            </div>
+          </div>
+        </div>
       )}
-      
+
       {modalEditarUsuarioAberto && usuarioEditando && (
         <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Editar usuário</h2></div><button onClick={() => setModalEditarUsuarioAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarEdicaoUsuario} className="p-6 space-y-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome</label><input type="text" value={usuarioEditando.nome} onChange={(e) => setUsuarioEditando({...usuarioEditando, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Perfil</label><select value={usuarioEditando.perfil} onChange={(e) => setUsuarioEditando({...usuarioEditando, perfil: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"><option value="admin">Admin</option><option value="gestor">Gestor</option><option value="visualizador">Visualizador</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={usuarioEditando.status_usuario} onChange={(e) => setUsuarioEditando({...usuarioEditando, status_usuario: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div></div><div className="flex justify-end gap-3 pt-4"><button type="submit" className="bg-[#048187] text-white px-5 py-2 rounded-lg font-bold">Salvar alterações</button></div></form></div></div>
       )}
