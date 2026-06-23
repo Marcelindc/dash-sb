@@ -437,6 +437,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const [metaLinhaEditandoId, setMetaLinhaEditandoId] = useState(null);
   const [linhaEditandoMeta, setLinhaEditandoMeta] = useState(null);
   const [salvandoLinhaMeta, setSalvandoLinhaMeta] = useState(false);
+  const [filtroNucleoMetas, setFiltroNucleoMetas] = useState('Todos');
 
   const cicloConsulta = form.ciclo || cicloPadrao || '';
 
@@ -1139,6 +1140,38 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
   const metasTabelaVisual = agruparMetasParaVisualizacao(metas);
 
+  const metaPertenceAoNucleoFiltro = (meta) => {
+    if (!filtroNucleoMetas || filtroNucleoMetas === 'Todos') return true;
+    const estruturasMeta = obterEstruturasMeta(meta);
+    if (!estruturasMeta.length) return filtroNucleoMetas === 'Sem núcleo';
+    return estruturasMeta.some((estruturaItem) => {
+      const config = obterConfigEstruturaMeta(estruturaItem);
+      return formatarNucleoCurtoMeta(config.nucleo || 'NUCLEO 1') === filtroNucleoMetas;
+    });
+  };
+
+  const metasTabelaVisualFiltradas = metasTabelaVisual.filter((m) => {
+    const termo = busca.toLowerCase().trim();
+    const estruturasTexto = (m.estruturas || []).map((e) => e.estrutura).join(' ');
+    const passaBusca = !termo || `${m.nome_meta} ${estruturasTexto} ${m.ciclo}`.toLowerCase().includes(termo);
+    return passaBusca && metaPertenceAoNucleoFiltro(m);
+  });
+
+  const nucleosDisponiveisMetas = ['Todos', 'N1', 'N2', 'N3'];
+  const resumoMetasPorNucleo = metasTabelaVisual.reduce((acc, meta) => {
+    const estruturasMeta = obterEstruturasMeta(meta);
+    const nucleosMeta = new Set(
+      estruturasMeta.map((estruturaItem) => {
+        const config = obterConfigEstruturaMeta(estruturaItem);
+        return formatarNucleoCurtoMeta(config.nucleo || 'NUCLEO 1');
+      })
+    );
+    Array.from(nucleosMeta).forEach((nucleo) => {
+      acc[nucleo] = (acc[nucleo] || 0) + 1;
+    });
+    return acc;
+  }, {});
+
   if (!aberto) return null;
 
   return (
@@ -1171,9 +1204,24 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
               <button type="button" onClick={() => { setModoTabelaCiclo(false); setMostrarFormularioMeta(true); setEditandoId(null); setForm({ ...metaRealVazia, ciclo: form.ciclo || cicloPadrao || '' }); }} className="bg-white border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Pencil size={16} /> Cadastro simples</button>
               <button type="button" onClick={() => { carregarMetas(); carregarEstruturas(); carregarEstruturasConfigMeta(); }} className="bg-[#e6f6f7] text-[#048187] font-black px-5 py-3 rounded-xl hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button>
             </div>
-            <div className="relative w-full xl:w-[420px]">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar meta, estrutura ou código..." className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]" />
+            <div className="flex flex-col lg:flex-row gap-3 w-full xl:w-auto">
+              <div className="flex flex-wrap gap-2">
+                {nucleosDisponiveisMetas.map((nucleo) => (
+                  <button
+                    key={nucleo}
+                    type="button"
+                    onClick={() => setFiltroNucleoMetas(nucleo)}
+                    className={`px-4 py-3 rounded-xl text-sm font-black transition-colors ${filtroNucleoMetas === nucleo ? 'bg-[#048187] text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-500 hover:bg-[#e6f6f7] hover:text-[#048187]'}`}
+                  >
+                    {nucleo}
+                    {nucleo !== 'Todos' && <span className={`ml-2 ${filtroNucleoMetas === nucleo ? 'text-white/80' : 'text-gray-400'}`}>{resumoMetasPorNucleo[nucleo] || 0}</span>}
+                  </button>
+                ))}
+              </div>
+              <div className="relative w-full xl:w-[420px]">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar meta, estrutura ou código..." className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]" />
+              </div>
             </div>
           </div>
 
@@ -1325,7 +1373,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                 <h3 className="text-xl font-black text-gray-700">Metas salvas do ciclo</h3>
                 <p className="text-sm text-gray-400 font-semibold">Use Ver + para abrir uma estrutura e ajustar consultores, peso e status.</p>
               </div>
-              <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black w-fit">{metasTabelaVisual.length} blocos</span>
+              <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black w-fit">{metasTabelaVisualFiltradas.length} blocos</span>
             </div>
 
             {carregando ? <p className="p-8 text-[#048187] font-bold">Carregando metas reais...</p> : (
@@ -1350,13 +1398,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {metasTabelaVisual
-                      .filter((m) => {
-                        const termo = busca.toLowerCase().trim();
-                        if (!termo) return true;
-                        const estruturasTexto = (m.estruturas || []).map((e) => e.estrutura).join(' ');
-                        return `${m.nome_meta} ${estruturasTexto} ${m.ciclo}`.toLowerCase().includes(termo);
-                      })
+                    {metasTabelaVisualFiltradas
                       .map((m) => {
                         const estruturasMeta = obterEstruturasMeta(m);
                         const primeiraEstrutura = estruturasMeta[0] || {};
@@ -1637,7 +1679,7 @@ export default function App() {
 
 
   const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState('');
-  const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' });
+  const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' }); const [auditoriaDetalhe, setAuditoriaDetalhe] = useState(null);
 
   const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
@@ -4447,7 +4489,7 @@ const enviarArquivo = async (tipo) => {
   );
 
 
-  const CardAuditoria = ({ titulo, valor, subtitulo, icone: Icone, destaque = false, perigo = false }) => (
+  const CardAuditoria = ({ titulo, valor, subtitulo, icone: Icone, destaque = false, perigo = false, onDetalhes }) => (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -4455,7 +4497,14 @@ const enviarArquivo = async (tipo) => {
           <p className={`text-2xl font-black mt-2 ${perigo ? 'text-[#7c1f31]' : destaque ? 'text-[#048187]' : 'text-gray-700'}`}>{valor ?? 0}</p>
           {subtitulo && <p className="text-xs font-bold text-gray-400 mt-1">{subtitulo}</p>}
         </div>
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${perigo ? 'bg-[#7c1f31]/10 text-[#7c1f31]' : 'bg-[#e6f6f7] text-[#048187]'}`}><Icone size={22} /></div>
+        <div className="flex flex-col items-end gap-2">
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${perigo ? 'bg-[#7c1f31]/10 text-[#7c1f31]' : 'bg-[#e6f6f7] text-[#048187]'}`}><Icone size={22} /></div>
+          {onDetalhes && (
+            <button type="button" onClick={onDetalhes} className="inline-flex items-center gap-1 text-[11px] font-black text-[#048187] hover:underline">
+              <Eye size={14} /> Ver
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -4472,13 +4521,96 @@ const enviarArquivo = async (tipo) => {
       <td className="py-3 px-3 text-gray-500 font-semibold max-w-[420px]">{item.descricao || item.entidade || '-'}</td>
       <td className="py-3 px-3"><span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${item.status === 'erro' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{item.status || 'sucesso'}</span></td>
       <td className="py-3 px-3 text-gray-500 font-bold whitespace-nowrap">{formatarDataHoraAuditoria(item.criado_em)}</td>
+      <td className="py-3 px-3 text-right">
+        <button type="button" onClick={() => setAuditoriaDetalhe(item)} className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1]" title="Ver detalhes da ação">
+          <Eye size={17} />
+        </button>
+      </td>
     </tr>
   );
+
+  const ModalDetalheAuditoria = () => {
+    if (!auditoriaDetalhe) return null;
+
+    const detalhes = auditoriaDetalhe.detalhes_json || {};
+    const resumoPayload = detalhes.resumo_payload || {};
+    const payload = detalhes.payload || {};
+    const campos = resumoPayload.campos_alterados || [];
+
+    return (
+      <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
+        <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-gray-100 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-black text-gray-700">Detalhes da ação</h2>
+              <p className="text-sm text-gray-400 font-semibold mt-1">Veja quem fez, quando fez e quais campos foram enviados na edição.</p>
+            </div>
+            <button onClick={() => setAuditoriaDetalhe(null)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={22} /></button>
+          </div>
+
+          <div className="p-6 overflow-y-auto space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-[#f7fafb] rounded-2xl p-4">
+                <p className="text-[10px] uppercase font-black text-gray-400">Usuário</p>
+                <p className="font-black text-gray-700 mt-1">{auditoriaDetalhe.usuario_nome || '-'}</p>
+                <p className="text-xs text-gray-400 font-bold">{auditoriaDetalhe.usuario_email || '-'}</p>
+              </div>
+              <div className="bg-[#f7fafb] rounded-2xl p-4">
+                <p className="text-[10px] uppercase font-black text-gray-400">Módulo</p>
+                <p className="font-black text-[#048187] mt-1">{auditoriaDetalhe.modulo || '-'}</p>
+                <p className="text-xs text-gray-400 font-bold">{auditoriaDetalhe.acao || '-'}</p>
+              </div>
+              <div className="bg-[#f7fafb] rounded-2xl p-4">
+                <p className="text-[10px] uppercase font-black text-gray-400">Quando</p>
+                <p className="font-black text-gray-700 mt-1">{formatarDataHoraAuditoria(auditoriaDetalhe.criado_em)}</p>
+                <p className="text-xs text-gray-400 font-bold">IP: {auditoriaDetalhe.ip || '-'}</p>
+              </div>
+            </div>
+
+            <div className="bg-white border border-gray-100 rounded-2xl p-4">
+              <p className="text-[10px] uppercase font-black text-gray-400">O que foi feito</p>
+              <p className="font-bold text-gray-700 mt-2">{auditoriaDetalhe.descricao || '-'}</p>
+            </div>
+
+            <div className="bg-white border border-gray-100 rounded-2xl p-4">
+              <p className="text-[10px] uppercase font-black text-gray-400 mb-3">Campos editados/enviados</p>
+              {campos.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {campos.map((campo) => <span key={campo} className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{campo}</span>)}
+                </div>
+              ) : (
+                <p className="text-gray-400 font-bold text-sm">Nenhum campo registrado.</p>
+              )}
+            </div>
+
+            {!!Object.keys(resumoPayload).length && (
+              <div className="bg-[#fbfefe] border border-[#d9eff0] rounded-2xl p-4">
+                <p className="text-[10px] uppercase font-black text-gray-400 mb-3">Resumo dos novos valores</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                  {Object.entries(resumoPayload).filter(([chave]) => !['campos_alterados', 'total_campos'].includes(chave)).map(([chave, valor]) => (
+                    <div key={chave} className="bg-white border border-gray-100 rounded-xl px-3 py-2">
+                      <p className="text-[10px] uppercase font-black text-gray-400">{chave}</p>
+                      <p className="font-bold text-gray-700 break-words">{typeof valor === 'object' ? JSON.stringify(valor) : String(valor ?? '-')}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <details className="bg-gray-50 rounded-2xl p-4">
+              <summary className="cursor-pointer font-black text-gray-600">Ver payload técnico</summary>
+              <pre className="mt-3 bg-white border border-gray-100 rounded-xl p-4 text-xs overflow-x-auto text-gray-600">{JSON.stringify(payload, null, 2)}</pre>
+            </details>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const TabelaLogsAuditoria = ({ titulo, dados = [], vazio = 'Nenhum registro encontrado.' }) => (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
       <div className="p-5 border-b border-gray-100 flex items-center justify-between gap-3"><h3 className="text-lg font-black text-gray-700">{titulo}</h3><span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{dados.length} registros</span></div>
-      <div className="overflow-x-auto"><table className="w-full text-sm min-w-[960px]"><thead className="bg-[#f7fafb] text-[11px] uppercase text-gray-400 font-black"><tr><th className="py-3 px-3 text-left">Usuário</th><th className="py-3 px-3 text-left">Módulo/Ação</th><th className="py-3 px-3 text-left">Descrição</th><th className="py-3 px-3 text-left">Status</th><th className="py-3 px-3 text-left">Data/Hora</th></tr></thead><tbody>{dados.map((item) => <LinhaLogAuditoria key={item.id} item={item} />)}</tbody></table>{!dados.length && <div className="py-10 text-center text-gray-400 font-bold">{vazio}</div>}</div>
+      <div className="overflow-x-auto"><table className="w-full text-sm min-w-[960px]"><thead className="bg-[#f7fafb] text-[11px] uppercase text-gray-400 font-black"><tr><th className="py-3 px-3 text-left">Usuário</th><th className="py-3 px-3 text-left">Módulo/Ação</th><th className="py-3 px-3 text-left">Descrição</th><th className="py-3 px-3 text-left">Status</th><th className="py-3 px-3 text-left">Data/Hora</th><th className="py-3 px-3 text-right">Detalhes</th></tr></thead><tbody>{dados.map((item) => <LinhaLogAuditoria key={item.id} item={item} />)}</tbody></table>{!dados.length && <div className="py-10 text-center text-gray-400 font-bold">{vazio}</div>}</div>
     </div>
   );
 
@@ -4502,10 +4634,11 @@ const enviarArquivo = async (tipo) => {
           {erroAuditoria && <div className="mt-4 bg-red-50 text-red-600 p-4 rounded-xl font-bold">{erroAuditoria}</div>}
           {carregandoAuditoria && <div className="mt-4 bg-[#e6f6f7] text-[#048187] p-4 rounded-xl font-bold">Carregando auditoria...</div>}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"><CardAuditoria titulo="Usuários ativos" valor={resumo.usuarios_ativos_24h || 0} subtitulo="últimas 24h" icone={Users} destaque /><CardAuditoria titulo="Logins" valor={resumo.logins_24h || 0} subtitulo="últimas 24h" icone={UserCircle} /><CardAuditoria titulo="Uploads" valor={resumo.uploads_24h || 0} subtitulo="bases atualizadas" icone={Upload} destaque /><CardAuditoria titulo="Ações" valor={resumo.acoes_24h || 0} subtitulo="cadastros/edições" icone={Pencil} /><CardAuditoria titulo="Erros" valor={resumo.erros_24h || 0} subtitulo="últimas 24h" icone={AlertCircle} perigo={Number(resumo.erros_24h || 0) > 0} /></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"><CardAuditoria titulo="Usuários ativos" valor={resumo.usuarios_ativos_24h || 0} subtitulo="últimas 24h" icone={Users} destaque onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'acessos' }))} /><CardAuditoria titulo="Logins" valor={resumo.logins_24h || 0} subtitulo="últimas 24h" icone={UserCircle} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'acessos' }))} /><CardAuditoria titulo="Uploads" valor={resumo.uploads_24h || 0} subtitulo="bases atualizadas" icone={Upload} destaque onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'uploads' }))} /><CardAuditoria titulo="Ações" valor={resumo.acoes_24h || 0} subtitulo="cadastros/edições" icone={Pencil} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'acoes' }))} /><CardAuditoria titulo="Erros" valor={resumo.erros_24h || 0} subtitulo="últimas 24h" icone={AlertCircle} perigo={Number(resumo.erros_24h || 0) > 0} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'erros' }))} /></div>
         <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_.8fr] gap-6"><div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5"><div className="flex items-center justify-between gap-3 mb-4"><h3 className="text-lg font-black text-gray-700">Telas mais usadas</h3><span className="text-xs font-black text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{dadosAuditoria?.periodo_dias || filtrosAuditoria.dias} dias</span></div><div className="space-y-3">{(dadosAuditoria?.uso_por_tela || []).slice(0, 8).map((item, index) => (<div key={item.modulo} className="flex items-center gap-3"><div className="w-7 h-7 rounded-full bg-[#e6f6f7] text-[#048187] font-black flex items-center justify-center text-xs">{index + 1}</div><div className="flex-1 min-w-0"><div className="flex items-center justify-between gap-3"><p className="font-black text-gray-700 truncate">{item.modulo}</p><p className="font-black text-[#048187]">{item.acessos}</p></div><div className="h-2 bg-gray-100 rounded-full mt-1 overflow-hidden"><div className="h-full bg-[#048187] rounded-full" style={{ width: `${Math.min(100, Number(item.acessos || 0) * 6)}%` }} /></div><p className="text-[11px] text-gray-400 font-bold mt-1">{item.usuarios} usuário(s)</p></div></div>))}{!(dadosAuditoria?.uso_por_tela || []).length && <p className="text-gray-400 font-bold text-sm">Ainda não há uso registrado.</p>}</div></div><div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5"><h3 className="text-lg font-black text-gray-700 mb-4">Usuários recentes</h3><div className="space-y-3 max-h-[360px] overflow-y-auto pr-2">{(dadosAuditoria?.usuarios_ativos || []).map((u) => (<div key={u.usuario_email} className="flex items-center justify-between gap-3 border-b border-gray-50 pb-3"><div className="min-w-0"><p className="font-black text-gray-700 truncate">{u.usuario_nome || '-'}</p><p className="text-xs text-gray-400 font-bold truncate">{u.usuario_email}</p></div><div className="text-right shrink-0"><span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-black uppercase">{u.perfil || '-'}</span><p className="text-[11px] text-gray-400 font-bold mt-1">{formatarDataHoraAuditoria(u.ultimo_evento)}</p></div></div>))}{!(dadosAuditoria?.usuarios_ativos || []).length && <p className="text-gray-400 font-bold text-sm">Nenhum usuário recente.</p>}</div></div></div>
         <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm"><div className="flex flex-wrap gap-2">{abas.map((item) => (<button key={item.id} onClick={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: item.id }))} className={`px-4 py-2.5 rounded-xl font-black text-sm transition-colors ${aba === item.id ? 'bg-[#048187] text-white' : 'bg-[#f7fafb] text-gray-500 hover:bg-[#e6f6f7] hover:text-[#048187]'}`}>{item.label} <span className={aba === item.id ? 'text-white/80' : 'text-gray-400'}>({item.dados.length})</span></button>))}</div></div>
         <TabelaLogsAuditoria titulo={abaAtual.label} dados={abaAtual.dados} vazio={`Nenhum registro em ${abaAtual.label.toLowerCase()}.`} />
+        <ModalDetalheAuditoria />
       </div>
     );
   };
