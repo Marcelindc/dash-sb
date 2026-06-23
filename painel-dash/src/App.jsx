@@ -415,7 +415,7 @@ const CampoMetaIndicador = ({ label, value, onChange, placeholder = '0,00', casa
   </div>
 );
 
-function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao }) {
+function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao, modoInline = false }) {
   const [metas, setMetas] = useState([]);
   const [estruturas, setEstruturas] = useState([]);
   const [estruturasConfigMeta, setEstruturasConfigMeta] = useState([]);
@@ -976,8 +976,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   if (!aberto) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/45 z-[9999] flex items-center justify-center p-2 md:p-4">
-      <div className="bg-white w-full max-w-[98vw] h-[95vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col">
+    <div className={modoInline ? "w-full" : "fixed inset-0 bg-black/45 z-[9999] flex items-center justify-center p-2 md:p-4"}>
+      <div className={modoInline ? "bg-white w-full rounded-xl shadow-sm border border-gray-100 overflow-visible flex flex-col" : "bg-white w-full max-w-[98vw] h-[95vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col"}>
         <div className="flex items-start justify-between gap-4 p-5 md:p-7 border-b border-gray-100 bg-white">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -986,7 +986,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
             </div>
             <p className="text-sm md:text-base text-gray-400 font-semibold mt-1">Tela em formato de planilha: cadastre metas, acompanhe realizado e abra cada estrutura para dividir por consultor.</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2 shrink-0"><X size={24} /></button>
+          {!modoInline && <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2 shrink-0"><X size={24} /></button>}
         </div>
 
         <div className="px-5 md:px-7 py-4 border-b border-gray-100 bg-[#fbfefe]">
@@ -1019,7 +1019,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 md:p-7 space-y-6 bg-[#f7fafb]">
+        <div className={modoInline ? "p-5 md:p-7 space-y-6 bg-[#f7fafb] overflow-visible" : "flex-1 overflow-y-auto p-5 md:p-7 space-y-6 bg-[#f7fafb]"}>
           {modoTabelaCiclo && (
             <div className="bg-white border border-[#d9eff0] rounded-[24px] overflow-hidden shadow-sm">
               <div className="p-5 border-b border-gray-100 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
@@ -1035,7 +1035,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[1680px]">
+                <table className="w-full text-[12px] min-w-[1320px]">
                   <thead className="bg-[#f2fafb] text-[10px] uppercase text-gray-500 font-black">
                     <tr>
                       <th className="px-3 py-3 text-left w-[190px]">Nome Estrutura</th>
@@ -1164,7 +1164,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
             {carregando ? <p className="p-8 text-[#048187] font-bold">Carregando metas reais...</p> : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[1500px]">
+                <table className="w-full text-[12px] min-w-[1320px]">
                   <thead className="bg-[#f2fafb] text-[10px] uppercase text-gray-500 font-black">
                     <tr>
                       <th className="px-4 py-3 text-left">Nome Estrutura</th>
@@ -3992,7 +3992,7 @@ const enviarArquivo = async (tipo) => {
 
         {carregandoEstruturasConfig ? <div className="py-10 text-center text-[#048187] font-bold">Carregando estruturas...</div> : (
           <div className="overflow-x-auto">
-            <div className="max-h-[420px] overflow-y-auto pr-2">
+            <div className="overflow-visible pr-2">
               <table className="w-full text-sm min-w-[900px]">
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">Código</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Núcleo</th><th className="py-3 px-2">Tipo</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr>
@@ -4010,7 +4010,7 @@ const enviarArquivo = async (tipo) => {
                   ))}
                 </tbody>
               </table>
-              {!lista.length && <div className="py-10 text-center text-gray-400 font-bold">Nenhuma estrutura encontrada. Clique em Sincronizar bases para carregar as estruturas existentes.</div>}
+              {!lista.length && <div className="py-10 text-center text-gray-400 font-bold">Nenhuma estrutura encontrada. Clique em Sincronizar bases para carregar todas as equipes das bases. Agora estruturas com o mesmo código também aparecem separadas.</div>}
             </div>
           </div>
         )}
@@ -4120,18 +4120,15 @@ const enviarArquivo = async (tipo) => {
     if (visaoCadastro === 'metas') {
       return (
         <div className="space-y-6 animate-fade-in">
-          <CabecalhoSubCadastro titulo="Metas por Ciclo" descricao="Abra a tabela de metas para cadastrar, editar, apagar e dividir metas por consultor." />
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-black text-gray-700">Tabela de metas do ciclo</h2>
-                <p className="text-sm text-gray-400 font-semibold mt-1">Use o botão abaixo para abrir a planilha interna de metas, com Ver + por estrutura, edição e exclusão.</p>
-              </div>
-              <button onClick={() => setModalMetasReaisAberto(true)} className="bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-5 py-3 inline-flex items-center justify-center gap-2">
-                <Plus size={16} /> Abrir metas reais
-              </button>
-            </div>
-          </div>
+          <CabecalhoSubCadastro titulo="Metas por Ciclo" descricao="Tabela completa na própria tela: cadastre, edite na linha, apague e use Ver + para dividir por consultor." />
+          <ModalMetasReais
+            aberto={true}
+            onClose={() => {}}
+            apiUrl={API_URL}
+            cicloPadrao={dados?.ciclo_atual || ciclos.find((c) => c.status_ciclo === 'ativo')?.ciclo || ''}
+            onAtualizacao={atualizarTelasAposMudancaBanco}
+            modoInline
+          />
         </div>
       );
     }
