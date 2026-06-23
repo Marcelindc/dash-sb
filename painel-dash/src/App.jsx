@@ -71,8 +71,8 @@ const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_s
 
 const permissoesPadrao = {
   admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'ADM', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Loja', 'LojaVisaoGeral', 'Perfil'],
-  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Loja', 'LojaVisaoGeral', 'Perfil']
+  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
+  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
 };
 
 const obterNomeAba = (nome) => ({
@@ -1652,11 +1652,21 @@ export default function App() {
 
   useEffect(() => {
     if (!usuarioLogado) return;
+
+    if (telaEhLoja(telaAtual) && !usuarioPodeAcessarLoja()) {
+      setCanalAtual('VD');
+      setMenuLojaExpandido(false);
+      setMenuVDExpandido(true);
+      setTelaAtual('Dashboard');
+      localStorage.setItem(TELA_ATUAL_STORAGE_KEY, 'Dashboard');
+      return;
+    }
+
     if (ABAS_SISTEMA.includes(telaAtual)) {
       localStorage.setItem(TELA_ATUAL_STORAGE_KEY, telaAtual);
       registrarUsoTela(telaAtual);
     }
-  }, [usuarioLogado, telaAtual]);
+  }, [usuarioLogado, telaAtual, permissoesAtivas]);
 
   useEffect(() => {
     if (!usuarioLogado) return;
@@ -1725,6 +1735,13 @@ export default function App() {
   };
 
   const navegarParaLoja = () => {
+    if (!usuarioPodeAcessarLoja()) {
+      setCanalAtual('VD');
+      setMenuLojaExpandido(false);
+      setMenuVDExpandido(true);
+      setTelaAtual('Dashboard');
+      return;
+    }
     setCanalAtual('LOJA');
     setMenuLojaExpandido(true);
     setMenuVDExpandido(false);
@@ -1735,10 +1752,17 @@ export default function App() {
     setCanalAtual('VD');
     setMenuVDExpandido((atual) => !atual);
     setMenuLojaExpandido(false);
-    if (telaAtual === 'Loja') setTelaAtual('Dashboard');
+    if (telaEhLoja(telaAtual)) setTelaAtual('Dashboard');
   };
 
   const alternarCanalLoja = () => {
+    if (!usuarioPodeAcessarLoja()) {
+      setCanalAtual('VD');
+      setMenuLojaExpandido(false);
+      setMenuVDExpandido(true);
+      setTelaAtual('Dashboard');
+      return;
+    }
     setCanalAtual('LOJA');
     setMenuLojaExpandido((atual) => !atual);
     setMenuVDExpandido(false);
@@ -1749,7 +1773,7 @@ export default function App() {
     setCanalAtual('VD');
     setMenuVDExpandido(true);
     setMenuLojaExpandido(false);
-    if (telaAtual === 'Loja') setTelaAtual('Dashboard');
+    if (telaEhLoja(telaAtual)) setTelaAtual('Dashboard');
   };
 
   const carregarPermissoesDoBanco = async () => {
@@ -1771,6 +1795,10 @@ export default function App() {
     const perfilUsuario = usuarioLogado.perfil || 'visualizador';
     return permissoesAtivas[perfilUsuario]?.includes(tela);
   };
+
+  const usuarioPodeAcessarLoja = () => usuarioPodeAcessar('Loja') || usuarioPodeAcessar('LojaVisaoGeral');
+
+  const telaEhLoja = (tela) => ['Loja', 'LojaVisaoGeral'].includes(tela);
 
   const abrirModalPermissoes = (perfil = 'admin') => { setPermissoesTemporarias({ ...permissoesAtivas }); setPerfilEditando(perfil || 'admin'); setModalPermissoesAberto(true); };
 
@@ -5195,6 +5223,7 @@ const enviarArquivo = async (tipo) => {
               )}
             </div>
 
+            {usuarioPodeAcessarLoja() && (
             <div>
               <button
                 type="button"
@@ -5212,7 +5241,7 @@ const enviarArquivo = async (tipo) => {
               {menuLojaExpandido && (
                 <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
                   {itensMenuLoja.length > 0 ? (
-                    itensMenuLoja.map((item) => {
+                    itensMenuLoja.filter((item) => usuarioPodeAcessar(item.nome)).map((item) => {
                       const Icone = item.icone;
                       const ativo = canalAtual === 'LOJA' && telaAtual === item.nome;
                       return (
@@ -5237,6 +5266,7 @@ const enviarArquivo = async (tipo) => {
                 </div>
               )}
             </div>
+            )}
           </nav>
           <div className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} border-t border-white/10`}>
             <button
@@ -5280,7 +5310,7 @@ const enviarArquivo = async (tipo) => {
 
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-white/10 z-40 px-2 py-2">
           <div className="flex items-center justify-around gap-1">
-            {[...itensMenuVD, { nome: 'Loja', icone: LayoutDashboard }, { nome: 'ADM', icone: ShieldCheck }, { nome: 'Perfil', icone: User }].map((item) => {
+            {[...itensMenuVD, ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []), { nome: 'ADM', icone: ShieldCheck }, { nome: 'Perfil', icone: User }].map((item) => {
               if (!usuarioPodeAcessar(item.nome)) return null;
               const Icone = item.icone; const ativo = telaAtual === item.nome;
               return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}>{item.nome === 'Loja' ? <IconeCanalLoja size={18} /> : <Icone size={18} />}<span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
