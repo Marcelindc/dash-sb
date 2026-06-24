@@ -7539,8 +7539,12 @@ const enviarArquivo = async (tipo) => {
                     <label className="block text-sm font-bold text-gray-600">Senha</label>
                     <button
                       type="button"
-                      onClick={abrirModalRecuperacaoSenha}
-                      className="text-sm font-black text-[#048187] hover:text-[#036b70]"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        abrirModalRecuperacaoSenha();
+                      }}
+                      className="relative z-20 text-sm font-black text-[#048187] hover:text-[#036b70] underline underline-offset-4 cursor-pointer"
                     >
                       Esqueci A Senha
                     </button>
