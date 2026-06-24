@@ -4621,9 +4621,15 @@ const enviarArquivo = async (tipo) => {
     const formatarRealizadoPodio = (item) => formatarAbrev(item?.realizado || 0);
 
     const formatarNomePodio = (nome) => {
-      if (!nome) return '';
-      if (visaoRanking === 'estruturas' && nome.includes('-')) return nome.split('-')[1].trim();
-      return nome.split(' ')[0];
+      const texto = String(nome || '').replace(/\s+/g, ' ').trim();
+      if (!texto) return '';
+
+      if (visaoRanking === 'estruturas') {
+        return texto.replace(/^\d+\s*-\s*/g, '');
+      }
+
+      const partes = texto.split(' ').filter(Boolean);
+      return partes.slice(0, 2).join(' ');
     };
     
 
@@ -4773,32 +4779,72 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-end min-h-[320px]">
-          <h2 className="text-lg font-bold text-gray-700 mb-8 uppercase tracking-widest text-center">Top 3 % de Faturamento ({visaoRanking === 'consultores' ? 'Consultores' : 'Estruturas'})</h2>
-          <div className="flex items-end justify-center w-full max-w-2xl gap-2 sm:gap-4 h-48">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-7 min-h-[360px] overflow-hidden">
+          <h2 className="text-base sm:text-lg font-black text-gray-700 mb-8 uppercase tracking-widest text-center">
+            Top 3 % de Faturamento ({visaoRanking === 'consultores' ? 'Consultores' : 'Estruturas'})
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 items-end justify-center w-full max-w-4xl mx-auto gap-5 sm:gap-6">
             {podio[0] && (
-              <div className="flex flex-col items-center w-1/3 z-10 hover:-translate-y-2 transition-transform cursor-default group">
-                <p className="text-xs font-bold text-gray-600 truncate w-full text-center px-1">{formatarNomePodio(obterNomeExibicaoConsultor(podio[0]))}</p>
-                <p className="text-sm font-black text-gray-600 mb-0.5 truncate w-full text-center">{formatarPercentualFaturamento(podio[0])}</p>
-                <p className="text-[10px] text-gray-400 mb-2 truncate w-full text-center">{formatarRealizadoPodio(podio[0])}</p>
-                <div className="w-full h-32 bg-gradient-to-t from-gray-300 to-gray-200 rounded-t-lg flex flex-col items-center justify-start pt-2 border-t-4 border-gray-400 shadow-inner"><span className="text-xl font-black text-white drop-shadow-md">2º</span></div>
+              <div className="flex flex-col items-center justify-end min-w-0 hover:-translate-y-1 transition-transform cursor-default">
+                <div className="mb-3 w-full rounded-2xl bg-slate-50 border border-slate-100 px-3 py-3 text-center min-h-[104px] flex flex-col items-center justify-center">
+                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-wide">2º lugar</span>
+                  <p
+                    className="mt-1 text-sm font-black text-gray-700 leading-tight w-full"
+                    title={obterNomeExibicaoConsultor(podio[0])}
+                    style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                  >
+                    {formatarNomePodio(obterNomeExibicaoConsultor(podio[0]))}
+                  </p>
+                  <p className="mt-1 text-base font-black text-gray-600">{formatarPercentualFaturamento(podio[0])}</p>
+                  <p className="text-[11px] text-gray-400">{formatarRealizadoPodio(podio[0])}</p>
+                </div>
+                <div className="w-full h-28 sm:h-32 bg-gradient-to-t from-gray-300 to-gray-200 rounded-t-xl flex flex-col items-center justify-start pt-3 border-t-4 border-gray-400 shadow-inner">
+                  <span className="text-2xl font-black text-white drop-shadow-md">2º</span>
+                </div>
               </div>
             )}
+
             {podio[1] && (
-              <div className="flex flex-col items-center w-1/3 z-20 hover:-translate-y-2 transition-transform cursor-default group">
-                <Trophy size={24} className="text-yellow-500 mb-1 animate-bounce" />
-                <p className="text-sm font-black text-[#048187] truncate w-full text-center px-1">{formatarNomePodio(obterNomeExibicaoConsultor(podio[1]))}</p>
-                <p className="text-base font-black text-yellow-600 mb-0.5 truncate w-full text-center">{formatarPercentualFaturamento(podio[1])}</p>
-                <p className="text-[11px] text-gray-400 mb-2 truncate w-full text-center">{formatarRealizadoPodio(podio[1])}</p>
-                <div className="w-full h-40 bg-gradient-to-t from-yellow-300 to-yellow-100 rounded-t-lg flex flex-col items-center justify-start pt-2 border-t-4 border-yellow-500 shadow-2xl relative"><span className="text-3xl font-black text-white drop-shadow-md">1º</span></div>
+              <div className="flex flex-col items-center justify-end min-w-0 hover:-translate-y-1 transition-transform cursor-default">
+                <div className="mb-3 w-full rounded-2xl bg-yellow-50 border border-yellow-100 px-3 py-3 text-center min-h-[118px] flex flex-col items-center justify-center shadow-sm">
+                  <div className="inline-flex items-center justify-center gap-1.5 rounded-full bg-white px-3 py-1 text-yellow-600 shadow-sm">
+                    <Trophy size={18} />
+                    <span className="text-[11px] font-black uppercase tracking-wide">1º lugar</span>
+                  </div>
+                  <p
+                    className="mt-2 text-base font-black text-[#048187] leading-tight w-full"
+                    title={obterNomeExibicaoConsultor(podio[1])}
+                    style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                  >
+                    {formatarNomePodio(obterNomeExibicaoConsultor(podio[1]))}
+                  </p>
+                  <p className="mt-1 text-lg font-black text-yellow-600">{formatarPercentualFaturamento(podio[1])}</p>
+                  <p className="text-[11px] text-gray-400">{formatarRealizadoPodio(podio[1])}</p>
+                </div>
+                <div className="w-full h-36 sm:h-44 bg-gradient-to-t from-yellow-300 to-yellow-100 rounded-t-xl flex flex-col items-center justify-start pt-3 border-t-4 border-yellow-500 shadow-xl">
+                  <span className="text-3xl font-black text-white drop-shadow-md">1º</span>
+                </div>
               </div>
             )}
+
             {podio[2] && (
-              <div className="flex flex-col items-center w-1/3 z-0 hover:-translate-y-2 transition-transform cursor-default group">
-                <p className="text-xs font-bold text-gray-600 truncate w-full text-center px-1">{formatarNomePodio(obterNomeExibicaoConsultor(podio[2]))}</p>
-                <p className="text-sm font-black text-orange-600 mb-0.5 truncate w-full text-center">{formatarPercentualFaturamento(podio[2])}</p>
-                <p className="text-[10px] text-gray-400 mb-2 truncate w-full text-center">{formatarRealizadoPodio(podio[2])}</p>
-                <div className="w-full h-24 bg-gradient-to-t from-orange-300 to-orange-200 rounded-t-lg flex flex-col items-center justify-start pt-2 border-t-4 border-orange-400 shadow-inner"><span className="text-xl font-black text-white drop-shadow-md">3º</span></div>
+              <div className="flex flex-col items-center justify-end min-w-0 hover:-translate-y-1 transition-transform cursor-default">
+                <div className="mb-3 w-full rounded-2xl bg-orange-50 border border-orange-100 px-3 py-3 text-center min-h-[104px] flex flex-col items-center justify-center">
+                  <span className="text-[11px] font-black text-orange-500 uppercase tracking-wide">3º lugar</span>
+                  <p
+                    className="mt-1 text-sm font-black text-gray-700 leading-tight w-full"
+                    title={obterNomeExibicaoConsultor(podio[2])}
+                    style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                  >
+                    {formatarNomePodio(obterNomeExibicaoConsultor(podio[2]))}
+                  </p>
+                  <p className="mt-1 text-base font-black text-orange-600">{formatarPercentualFaturamento(podio[2])}</p>
+                  <p className="text-[11px] text-gray-400">{formatarRealizadoPodio(podio[2])}</p>
+                </div>
+                <div className="w-full h-24 sm:h-28 bg-gradient-to-t from-orange-300 to-orange-200 rounded-t-xl flex flex-col items-center justify-start pt-3 border-t-4 border-orange-400 shadow-inner">
+                  <span className="text-2xl font-black text-white drop-shadow-md">3º</span>
+                </div>
               </div>
             )}
           </div>
