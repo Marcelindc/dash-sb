@@ -1770,6 +1770,18 @@ export default function App() {
   const [mensagemHistorico, setMensagemHistorico] = useState('');
   const [visaoHistorico, setVisaoHistorico] = useState('estruturas');
   const [fechamentoHistorico, setFechamentoHistorico] = useState({ ciclo: '', observacao: '' });
+  const [lancamentoHistorico, setLancamentoHistorico] = useState({
+    ciclo: '',
+    data_inicio: '',
+    data_fim: '',
+    observacao: '',
+    pedidos: null,
+    base_ativa: null,
+    consultores: null,
+    metas: null,
+    make: [],
+    cabelo: []
+  });
 
   const promessasEmAndamentoRef = useRef({});
   const ultimoCarregamentoTelaRef = useRef('');
@@ -2584,6 +2596,98 @@ const carregarRevendedores = async () => {
       await carregarHistoricoCiclo(ciclo);
     } catch (erro) {
       setErroHistorico(erro.response?.data?.detail || 'Erro ao reprocessar ciclo.');
+    } finally {
+      setCarregandoHistorico(false);
+    }
+  };
+
+  const selecionarArquivoLancamentoHistorico = (campo, files, multiplo = false) => {
+    const lista = Array.from(files || []);
+    setLancamentoHistorico((atual) => ({
+      ...atual,
+      [campo]: multiplo ? lista : (lista[0] || null)
+    }));
+  };
+
+  const processarLancamentoHistorico = async () => {
+    const ciclo = String(lancamentoHistorico.ciclo || '').trim();
+    if (!ciclo) {
+      setErroHistorico('Informe o ciclo que deseja lançar. Ex.: 08/2026.');
+      setVisaoHistorico('lancar');
+      return;
+    }
+    if (!lancamentoHistorico.pedidos) {
+      setErroHistorico('Envie pelo menos a base de Pedidos do ciclo.');
+      setVisaoHistorico('lancar');
+      return;
+    }
+
+    const confirmar = window.confirm(`Processar e lançar o ciclo ${ciclo} no histórico? O histórico desse ciclo será substituído.`);
+    if (!confirmar) return;
+
+    const formData = new FormData();
+    formData.append('ciclo', ciclo);
+    formData.append('lancado_por', usuarioLogado?.nome || usuarioLogado?.email || 'Sistema');
+    formData.append('observacao', lancamentoHistorico.observacao || `Lançamento retroativo do ciclo ${ciclo}`);
+    formData.append('substituir', 'true');
+    if (lancamentoHistorico.data_inicio) formData.append('data_inicio', lancamentoHistorico.data_inicio);
+    if (lancamentoHistorico.data_fim) formData.append('data_fim', lancamentoHistorico.data_fim);
+    formData.append('pedidos', lancamentoHistorico.pedidos);
+    if (lancamentoHistorico.base_ativa) formData.append('base_ativa', lancamentoHistorico.base_ativa);
+    if (lancamentoHistorico.consultores) formData.append('consultores', lancamentoHistorico.consultores);
+    if (lancamentoHistorico.metas) formData.append('metas', lancamentoHistorico.metas);
+    (lancamentoHistorico.make || []).forEach((arquivo) => formData.append('make', arquivo));
+    (lancamentoHistorico.cabelo || []).forEach((arquivo) => formData.append('cabelo', arquivo));
+
+    setCarregandoHistorico(true);
+    setErroHistorico('');
+    setMensagemHistorico('');
+    try {
+      const { data } = await axios.post(`${API_URL}/historico/lancar-ciclo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setMensagemHistorico(data?.mensagem || `Ciclo ${ciclo} lançado com sucesso.`);
+      setCicloHistoricoSelecionado(ciclo);
+      setVisaoHistorico('estruturas');
+      setLancamentoHistorico({ ciclo: '', data_inicio: '', data_fim: '', observacao: '', pedidos: null, base_ativa: null, consultores: null, metas: null, make: [], cabelo: [] });
+      await carregarHistoricoCiclos();
+      await carregarHistoricoCiclo(ciclo);
+    } catch (erro) {
+      setErroHistorico(erro.response?.data?.detail || 'Erro ao lançar ciclo histórico.');
+      setVisaoHistorico('lancar');
+    } finally {
+      setCarregandoHistorico(false);
+    }
+  };
+
+  const salvarSnapshotAtualHistorico = async () => {
+    const ciclo = String(lancamentoHistorico.ciclo || dados?.ciclo_atual || ciclos.find((c) => c.status_ciclo === 'ativo')?.ciclo || '').trim();
+    if (!ciclo) {
+      setErroHistorico('Informe o ciclo vigente para salvar snapshot. Ex.: 09/2026.');
+      setVisaoHistorico('lancar');
+      return;
+    }
+    const confirmar = window.confirm(`Salvar uma fotografia parcial do ciclo vigente ${ciclo}?`);
+    if (!confirmar) return;
+
+    setCarregandoHistorico(true);
+    setErroHistorico('');
+    setMensagemHistorico('');
+    try {
+      const { data } = await axios.post(`${API_URL}/historico/snapshot-atual`, {
+        ciclo,
+        fechado_por: usuarioLogado?.nome || usuarioLogado?.email || 'Sistema',
+        observacao: `Snapshot parcial do ciclo vigente ${ciclo}`,
+        substituir: true
+      });
+      setMensagemHistorico(data?.mensagem || `Snapshot do ciclo ${ciclo} salvo.`);
+      setCicloHistoricoSelecionado(ciclo);
+      setVisaoHistorico('estruturas');
+      await carregarHistoricoCiclos();
+      await carregarHistoricoCiclo(ciclo);
+    } catch (erro) {
+      setErroHistorico(erro.response?.data?.detail || 'Erro ao salvar snapshot do ciclo vigente.');
+      setVisaoHistorico('lancar');
     } finally {
       setCarregandoHistorico(false);
     }
@@ -6010,7 +6114,8 @@ const enviarArquivo = async (tipo) => {
       { id: 'estruturas', label: 'Estruturas', total: estruturas.length },
       { id: 'consultores', label: 'Consultores', total: consultores.length },
       { id: 'ativos', label: 'Consultores ativos', total: consultoresAtivos.length },
-      { id: 'metas', label: 'Metas salvas', total: metas.length }
+      { id: 'metas', label: 'Metas salvas', total: metas.length },
+      { id: 'lancar', label: 'Lançar ciclo', total: 0 }
     ];
 
 
@@ -6161,6 +6266,7 @@ const enviarArquivo = async (tipo) => {
                 <option value="">Selecione o ciclo</option>
                 {historicoCiclos.map((c) => <option key={c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}
               </select>
+              <button onClick={() => setVisaoHistorico('lancar')} disabled={carregandoHistorico} className="bg-[#fff7ed] text-[#ff6f03] font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2 disabled:opacity-60"><Upload size={18} /> Lançar ciclo</button>
               <button onClick={() => carregarHistoricoCiclo()} disabled={!cicloHistoricoSelecionado || carregandoHistorico} className="bg-[#e6f6f7] text-[#048187] font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2 disabled:opacity-60"><RefreshCcw size={18} /> Atualizar</button>
               <button onClick={reprocessarCicloHistorico} disabled={!cicloHistoricoSelecionado || carregandoHistorico} className="bg-[#048187] hover:bg-[#036b70] text-white font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2 disabled:opacity-60"><RefreshCcw size={18} /> Reprocessar</button>
             </div>
@@ -6169,6 +6275,72 @@ const enviarArquivo = async (tipo) => {
 
         {(erroHistorico || mensagemHistorico) && (
           <div className={`rounded-xl px-4 py-3 text-sm font-bold border ${erroHistorico ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-700 border-green-100'}`}>{erroHistorico || mensagemHistorico}</div>
+        )}
+
+        {visaoHistorico === 'lancar' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-5">
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-gray-700">Lançar ciclo histórico</h2>
+                <p className="text-sm text-gray-400 font-semibold max-w-3xl mt-1">Use para carregar ciclos antigos. Para ciclos 08 para trás, envie pelo menos Pedidos. Base Ativa, MAKE, CABELO, Consultores e Metas deixam os indicadores completos.</p>
+              </div>
+              <button type="button" onClick={salvarSnapshotAtualHistorico} disabled={carregandoHistorico} className="bg-[#048187] hover:bg-[#036b70] text-white px-4 py-3 rounded-xl font-black text-xs inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                <Save size={17} /> Salvar snapshot do ciclo vigente
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Ciclo</label>
+                <input value={lancamentoHistorico.ciclo} onChange={(e) => setLancamentoHistorico({ ...lancamentoHistorico, ciclo: e.target.value })} placeholder="Ex.: 08/2026" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Data início opcional</label>
+                <input type="date" value={lancamentoHistorico.data_inicio} onChange={(e) => setLancamentoHistorico({ ...lancamentoHistorico, data_inicio: e.target.value })} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Data fim opcional</label>
+                <input type="date" value={lancamentoHistorico.data_fim} onChange={(e) => setLancamentoHistorico({ ...lancamentoHistorico, data_fim: e.target.value })} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Observação</label>
+                <input value={lancamentoHistorico.observacao} onChange={(e) => setLancamentoHistorico({ ...lancamentoHistorico, observacao: e.target.value })} placeholder="Ex.: Histórico C08" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {[
+                { campo: 'pedidos', titulo: 'Pedidos', obrigatorio: true, mult: false },
+                { campo: 'base_ativa', titulo: 'Base Ativa', obrigatorio: false, mult: false },
+                { campo: 'metas', titulo: 'Metas Estruturas', obrigatorio: false, mult: false },
+                { campo: 'consultores', titulo: 'Consultores', obrigatorio: false, mult: false },
+                { campo: 'make', titulo: 'MAKE', obrigatorio: false, mult: true },
+                { campo: 'cabelo', titulo: 'CABELO', obrigatorio: false, mult: true }
+              ].map((item) => {
+                const valor = lancamentoHistorico[item.campo];
+                const qtd = item.mult ? (valor || []).length : (valor ? 1 : 0);
+                return (
+                  <label key={item.campo} className="border border-gray-100 rounded-xl p-4 bg-[#fbfdfd] hover:bg-white transition-colors cursor-pointer">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div>
+                        <p className="text-sm font-black text-gray-700">{item.titulo}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">{item.obrigatorio ? 'Obrigatório' : 'Opcional'} {item.mult ? '• múltiplos arquivos' : ''}</p>
+                      </div>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-black ${qtd ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'}`}>{qtd ? `${qtd} arquivo(s)` : 'pendente'}</span>
+                    </div>
+                    <input type="file" accept=".xlsx,.xls,.csv" multiple={item.mult} onChange={(e) => selecionarArquivoLancamentoHistorico(item.campo, e.target.files, item.mult)} className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-[#e6f6f7] file:px-3 file:py-2 file:text-[#048187] file:font-black" />
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-end">
+              <button type="button" onClick={() => setVisaoHistorico('estruturas')} className="bg-gray-50 text-gray-500 px-5 py-3 rounded-xl font-black text-xs">Voltar</button>
+              <button type="button" onClick={processarLancamentoHistorico} disabled={carregandoHistorico} className="bg-[#ff6f03] hover:bg-[#e86605] text-white px-5 py-3 rounded-xl font-black text-xs inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                <Upload size={17} /> Processar e lançar ciclo
+              </button>
+            </div>
+          </div>
         )}
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
@@ -6225,7 +6397,7 @@ const enviarArquivo = async (tipo) => {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {abasHistorico.map((aba) => (
-                    <button key={aba.id} onClick={() => setVisaoHistorico(aba.id)} className={`px-3 py-2 rounded-lg text-xs font-black transition-colors ${visaoHistorico === aba.id ? 'bg-[#048187] text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>{aba.label} ({aba.total})</button>
+                    <button key={aba.id} onClick={() => setVisaoHistorico(aba.id)} className={`px-3 py-2 rounded-lg text-xs font-black transition-colors ${visaoHistorico === aba.id ? 'bg-[#048187] text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>{aba.id === 'lancar' ? aba.label : `${aba.label} (${aba.total})`}</button>
                   ))}
                 </div>
               </div>
