@@ -280,24 +280,58 @@ const CardVersus = ({ titulo, val1, val2, desc1, desc2, formataVal, isPerc }) =>
 };
 
 const CardTop5 = ({ titulo, dados, propValor, formatter, corValor, propSubValor, subFormatter, subLabel }) => {
-  const sorted = [...(dados || [])].sort((a, b) => Number(b[propValor]) - Number(a[propValor])).slice(0, 5);
+  const [expandido, setExpandido] = useState(false);
+  const ordenados = [...(dados || [])].sort((a, b) => Number(b[propValor] || 0) - Number(a[propValor] || 0));
+  const lista = expandido ? ordenados : ordenados.slice(0, 5);
+  const total = ordenados.length;
+
   return (
-    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 transition-transform hover:shadow-md">
-      <h3 className="text-xs font-bold text-gray-500 uppercase mb-4 border-b border-gray-100 pb-2 truncate">{titulo}</h3>
-      <div className="space-y-3.5 flex-1">
-        {sorted.map((c, i) => {
+    <div className={`bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col min-w-0 transition-all hover:shadow-md ${expandido ? 'h-auto' : 'h-full'}`}>
+      <div className="flex items-center justify-between gap-3 mb-4 border-b border-gray-100 pb-2 min-w-0">
+        <h3 className="text-xs font-bold text-gray-500 uppercase truncate">{titulo}</h3>
+
+        {total > 5 && (
+          <button
+            type="button"
+            onClick={() => setExpandido((atual) => !atual)}
+            className="shrink-0 rounded-lg bg-[#e6f6f7] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-[#048187] hover:bg-[#d0f0f1] transition-colors"
+          >
+            {expandido ? 'Ver menos' : 'Ver completo'}
+          </button>
+        )}
+      </div>
+
+      <div className={`space-y-3.5 flex-1 pr-1 ${expandido ? 'max-h-[520px] overflow-y-auto' : ''}`} style={expandido ? { scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' } : undefined}>
+        {lista.map((c, i) => {
+          const posicaoReal = i + 1;
           const trend = obterTendenciaVisual(c.id_colaborador);
           const subtituloBase = c.estrutura || '';
           const subtituloExtra = propSubValor ? `${subLabel || ''}${subFormatter ? subFormatter(c[propSubValor]) : c[propSubValor]}` : '';
           const subtitulo = subtituloExtra ? `${subtituloBase} • ${subtituloExtra}` : subtituloBase;
           return (
-            <div key={i} className="flex justify-between items-center min-w-0 gap-3">
-              <div className="flex items-center gap-3 min-w-0 flex-1"><span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500 shrink-0">{i + 1}</span><div className="flex flex-col min-w-0"><span className="text-xs font-bold text-gray-700 truncate">{obterNomeExibicaoConsultor(c)}</span><span className="text-[9px] text-gray-400 truncate">{subtitulo}</span></div></div>
-              <div className="flex items-center gap-2 shrink-0"><span className={`font-black text-sm truncate`} style={{ color: corValor }}>{formatter(c[propValor])}</span>{trend.val > 0 ? (trend.up ? <ArrowUpRight size={14} className="text-green-500" /> : <ArrowDownRight size={14} className="text-red-500" />) : (<span className="w-3.5"></span>)}</div>
+            <div key={`${c.id_colaborador || c.nome || c.estrutura || titulo}-${i}`} className="flex justify-between items-center min-w-0 gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500 shrink-0">{posicaoReal}</span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-gray-700 truncate" title={obterNomeExibicaoConsultor(c)}>{obterNomeExibicaoConsultor(c)}</span>
+                  <span className="text-[9px] text-gray-400 truncate" title={subtitulo}>{subtitulo}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-black text-sm truncate" style={{ color: corValor }}>{formatter(c[propValor])}</span>
+                {trend.val > 0 ? (trend.up ? <ArrowUpRight size={14} className="text-green-500" /> : <ArrowDownRight size={14} className="text-red-500" />) : (<span className="w-3.5"></span>)}
+              </div>
             </div>
           );
         })}
       </div>
+
+      {expandido && total > 5 && (
+        <div className="mt-4 rounded-lg bg-gray-50 px-3 py-2 text-[10px] font-bold text-gray-400 text-center">
+          Exibindo lista completa: {total} registros
+        </div>
+      )}
     </div>
   );
 };
