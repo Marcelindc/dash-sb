@@ -3307,25 +3307,49 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
+    const quebrarNomeEstruturaTabela = (nome) => {
+      const texto = String(nome || '').replace(/\s+/g, ' ').trim();
+      if (!texto) return { linha1: '-', linha2: '' };
+
+      const palavras = texto.split(' ');
+      if (palavras.length <= 3) return { linha1: texto, linha2: '' };
+
+      const prefixoCodigo = /^\d+$/.test(palavras[0]) && palavras[1] === '-';
+      const limitePrimeiraLinha = prefixoCodigo ? 4 : 3;
+
+      if (palavras.length <= limitePrimeiraLinha) {
+        return { linha1: texto, linha2: '' };
+      }
+
+      return {
+        linha1: palavras.slice(0, limitePrimeiraLinha).join(' '),
+        linha2: palavras.slice(limitePrimeiraLinha).join(' ')
+      };
+    };
+
     const ColunaEstruturaMetaRealizado = ({ item }) => {
       const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      const nomeQuebrado = quebrarNomeEstruturaTabela(item?.estrutura);
+
       return (
         <div className="h-full min-h-[84px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-3 py-3 flex items-center gap-2 rounded-l-2xl border-r border-gray-100 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
             <Users size={18} />
           </div>
-          <div className="min-w-0">
+
+          <div className="min-w-0 w-full max-w-[205px] overflow-hidden">
             <p className="text-[9px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
-            <p
-              className="text-[13px] font-black text-gray-800 leading-[1.15] break-words"
-              title={item?.estrutura}
-              style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-            >
-              {item?.estrutura}
-            </p>
+
+            <div className="mt-0.5 text-[13px] font-black text-gray-800 leading-[1.12] uppercase" title={item?.estrutura}>
+              <span className="block whitespace-nowrap overflow-hidden text-ellipsis">{nomeQuebrado.linha1}</span>
+              {nomeQuebrado.linha2 && (
+                <span className="block whitespace-nowrap overflow-hidden text-ellipsis">{nomeQuebrado.linha2}</span>
+              )}
+            </div>
+
             {estruturasVinculadas.length > 1 && (
               <span className="mt-1 inline-flex rounded-full bg-[#e6f6f7] px-1.5 py-0.5 text-[9px] font-black text-[#048187]">
-                {estruturasVinculadas.length} estruturas
+                {estruturasVinculadas.length} estruturas vinculadas
               </span>
             )}
           </div>
