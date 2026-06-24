@@ -3259,7 +3259,7 @@ const enviarArquivo = async (tipo) => {
     const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
       const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
       return (
-        <div className="h-full min-h-[92px] bg-white px-2.5 py-2 flex flex-col justify-center border-l border-gray-100 min-w-0">
+        <div className="h-full min-h-[84px] bg-white px-2.5 py-2 flex flex-col justify-center border-l border-gray-100 min-w-0">
           <p className="text-[9px] font-black uppercase tracking-wide text-gray-400 truncate">{titulo}</p>
           <p className="mt-1.5 text-[13px] xl:text-sm font-black whitespace-nowrap truncate" style={{ color: corValor }} title={valor}>{valor}</p>
           {percentual !== null && (
@@ -3298,7 +3298,7 @@ const enviarArquivo = async (tipo) => {
     const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false, onClickDetalhe = null }) => {
       const cor = corPorFaixaMeta(percentualAtingimento);
       return (
-        <div className="h-full min-h-[92px] bg-white px-2.5 py-2.5 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden min-w-0">
+        <div className="h-full min-h-[84px] bg-white px-2 py-2 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden min-w-0">
           <div className="absolute left-0 top-3 bottom-3 w-0.5 rounded-r-full" style={{ backgroundColor: cor }} />
           <div className="flex items-center justify-between gap-1 pl-2 min-w-0">
             <p className="text-[9px] font-black uppercase tracking-wide text-gray-400 truncate">{titulo}</p>
@@ -3334,7 +3334,7 @@ const enviarArquivo = async (tipo) => {
     const ColunaEstruturaMetaRealizado = ({ item }) => {
       const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
       return (
-        <div className="h-full min-h-[92px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-3 py-3 flex items-center gap-2 rounded-l-2xl border-r border-gray-100 min-w-0">
+        <div className="h-full min-h-[84px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-3 py-3 flex items-center gap-2 rounded-l-2xl border-r border-gray-100 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
             <Users size={18} />
           </div>
@@ -3349,6 +3349,10 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
       );
+    };
+
+    const gridMetasEstruturasStyle = {
+      gridTemplateColumns: 'minmax(210px,1.7fr) minmax(160px,1.15fr) minmax(90px,.7fr) minmax(98px,.74fr) minmax(90px,.68fr) minmax(118px,.9fr) minmax(118px,.9fr) minmax(78px,.58fr) minmax(96px,.74fr) minmax(96px,.74fr) minmax(82px,.58fr)'
     };
 
     return (
@@ -4023,9 +4027,9 @@ const enviarArquivo = async (tipo) => {
         {visaoMetas === 'estruturas' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
-          <div className="overflow-x-hidden pb-1">
-            <div className="w-full space-y-2">
-              <div className="grid grid-cols-[1.6fr_1.35fr_.68fr_.82fr_.72fr_.94fr_.94fr_.58fr_.78fr_.78fr_.62fr] gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400">
+          <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
+            <div className="min-w-[1350px] space-y-2">
+              <div className="grid gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400" style={gridMetasEstruturasStyle}>
                 <div className="px-2 py-2">Estrutura</div>
                 <div className="px-2 py-2">Faturamento</div>
                 <div className="px-2 py-2">% Rec.</div>
@@ -4044,7 +4048,7 @@ const enviarArquivo = async (tipo) => {
                   const faltamMakeLinha = Math.max(Number(ind.makeMetaQtd || 0) - Number(ind.makeRealizado || 0), 0);
                   const faltamCabeloLinha = Math.max(Number(ind.cabeloMetaQtd || 0) - Number(ind.cabeloRealizado || 0), 0);
                   return (
-                    <div key={i.estrutura} className={`grid grid-cols-[1.6fr_1.35fr_.68fr_.82fr_.72fr_.94fr_.94fr_.58fr_.78fr_.78fr_.62fr] rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}>
+                    <div key={i.estrutura} className={`grid rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`} style={gridMetasEstruturasStyle}>
                       <ColunaEstruturaMetaRealizado item={i} />
                       <CelulaFaturamentoMetaRealizado meta={formatarMoeda(ind.receitaMeta)} realizado={formatarMoeda(ind.receitaRealizada)} percentualReceita={ind.percentualReceita} />
                       <CelulaIndicadorMetaRealizado titulo="% Receita" meta="100%" realizado={`${formatarNumeroBR(ind.percentualReceita, 2)}%`} percentualAtingimento={ind.percentualReceita} compacto />
@@ -4095,7 +4099,7 @@ const enviarArquivo = async (tipo) => {
                           `${formatarNumeroBR(ind.atividadeRealizada, 0)} revendedoras ativadas × ${formatarNumeroBR(ind.metaCabeloPercentual, 1)}% = ${formatarNumeroBR(ind.cabeloMetaQtd, 0)} revendedoras necessárias com CABELO`
                         )}
                       />
-                      <div className="h-full min-h-[92px] bg-white px-2.5 py-2.5 border-l border-gray-100 rounded-r-2xl flex items-center justify-center">
+                      <div className="h-full min-h-[84px] bg-white px-2 py-2 border-l border-gray-100 rounded-r-2xl flex items-center justify-center">
                         <button onClick={async () => { await carregarDetalheMeta(i.estrutura, filtrosAtivos, false); setVisaoMetas('consultores'); }} className="bg-[#048187] text-white px-2.5 py-2 rounded-xl hover:bg-[#036b70] inline-flex items-center gap-1 font-black text-[11px] shadow-sm">
                           <Search size={14} /> Ver
                         </button>
