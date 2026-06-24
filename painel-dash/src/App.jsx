@@ -3307,49 +3307,19 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
-    const quebrarNomeEstruturaTabela = (nome) => {
-      const texto = String(nome || '').replace(/\s+/g, ' ').trim();
-      if (!texto) return { linha1: '-', linha2: '' };
-
-      const palavras = texto.split(' ');
-      if (palavras.length <= 3) return { linha1: texto, linha2: '' };
-
-      const prefixoCodigo = /^\d+$/.test(palavras[0]) && palavras[1] === '-';
-      const limitePrimeiraLinha = prefixoCodigo ? 4 : 3;
-
-      if (palavras.length <= limitePrimeiraLinha) {
-        return { linha1: texto, linha2: '' };
-      }
-
-      return {
-        linha1: palavras.slice(0, limitePrimeiraLinha).join(' '),
-        linha2: palavras.slice(limitePrimeiraLinha).join(' ')
-      };
-    };
-
     const ColunaEstruturaMetaRealizado = ({ item }) => {
       const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
-      const nomeQuebrado = quebrarNomeEstruturaTabela(item?.estrutura);
-
       return (
         <div className="h-full min-h-[84px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-3 py-3 flex items-center gap-2 rounded-l-2xl border-r border-gray-100 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
             <Users size={18} />
           </div>
-
-          <div className="min-w-0 w-full max-w-[205px] overflow-hidden">
+          <div className="min-w-0">
             <p className="text-[9px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
-
-            <div className="mt-0.5 text-[13px] font-black text-gray-800 leading-[1.12] uppercase" title={item?.estrutura}>
-              <span className="block whitespace-nowrap overflow-hidden text-ellipsis">{nomeQuebrado.linha1}</span>
-              {nomeQuebrado.linha2 && (
-                <span className="block whitespace-nowrap overflow-hidden text-ellipsis">{nomeQuebrado.linha2}</span>
-              )}
-            </div>
-
+            <p className="text-[13px] font-black text-gray-800 leading-tight truncate" title={item?.estrutura}>{item?.estrutura}</p>
             {estruturasVinculadas.length > 1 && (
               <span className="mt-1 inline-flex rounded-full bg-[#e6f6f7] px-1.5 py-0.5 text-[9px] font-black text-[#048187]">
-                {estruturasVinculadas.length} estruturas vinculadas
+                {estruturasVinculadas.length} estruturas
               </span>
             )}
           </div>
@@ -3944,6 +3914,29 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
+    const CelulaFaturamentoMetaRealizado = ({ meta, realizado, percentualReceita = 0 }) => {
+      const cor = corPorFaixaMeta(percentualReceita);
+      return (
+        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">Faturamento</p>
+
+          <div className="mt-2 pl-2">
+            <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+            <p className="text-[15px] font-black text-[#7c1f31] whitespace-nowrap">{meta}</p>
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+              <span className="text-[10px] font-black" style={{ color: cor }}>{formatarNumeroBR(percentualReceita, 1)}%</span>
+            </div>
+            <p className="text-[15px] font-black text-[#048187] whitespace-nowrap">{realizado}</p>
+          </div>
+        </div>
+      );
+    };
+
     const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
       const cor = corPorFaixaMeta(percentualAtingimento);
       return (
@@ -3968,18 +3961,50 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
+    const quebrarNomeEstruturaTabela = (nome) => {
+      const texto = String(nome || '').replace(/\s+/g, ' ').trim();
+      if (!texto) return { linha1: '-', linha2: '' };
+
+      const limite = 22;
+      if (texto.length <= limite) return { linha1: texto, linha2: '' };
+
+      const palavras = texto.split(' ');
+      let linha1 = '';
+      let indice = 0;
+
+      for (let pos = 0; pos < palavras.length; pos += 1) {
+        const tentativa = linha1 ? `${linha1} ${palavras[pos]}` : palavras[pos];
+        if (tentativa.length <= limite || linha1 === '') {
+          linha1 = tentativa;
+          indice = pos + 1;
+        } else {
+          break;
+        }
+      }
+
+      const linha2 = palavras.slice(indice).join(' ');
+      return { linha1, linha2 };
+    };
+
     const ColunaEstruturaMetaRealizado = ({ item }) => {
       const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
+      const nomeQuebrado = quebrarNomeEstruturaTabela(item?.estrutura);
+
       return (
-        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
+        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100 overflow-hidden">
           <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
             <Users size={20} />
           </div>
-          <div className="min-w-0">
+          <div className="w-[205px] max-w-[205px] min-w-0 overflow-hidden">
             <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
-            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            <div className="mt-0.5 text-sm font-black text-gray-800 leading-[1.12] uppercase" title={item?.estrutura}>
+              <span className="block whitespace-nowrap overflow-hidden text-ellipsis">{nomeQuebrado.linha1}</span>
+              {nomeQuebrado.linha2 && (
+                <span className="block whitespace-nowrap overflow-hidden text-ellipsis">{nomeQuebrado.linha2}</span>
+              )}
+            </div>
             {estruturasVinculadas.length > 1 && (
-              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187] whitespace-nowrap">
                 {estruturasVinculadas.length} estruturas vinculadas
               </span>
             )}
@@ -4029,12 +4054,14 @@ const enviarArquivo = async (tipo) => {
         {visaoMetas === 'estruturas' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
-          <div className="overflow-x-hidden pb-1">
-            <div className="w-full space-y-2">
-              <div className="grid grid-cols-[1.7fr_.9fr_.9fr_.72fr_.78fr_.72fr_.9fr_.9fr_.58fr_.78fr_.78fr_.62fr] gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400">
+          <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
+            <div className="min-w-[1470px] space-y-2">
+              <div
+                className="grid gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400"
+                style={{ gridTemplateColumns: '280px 170px 105px 120px 105px 135px 135px 90px 120px 120px 90px' }}
+              >
                 <div className="px-2 py-2">Estrutura</div>
-                <div className="px-2 py-2">Meta</div>
-                <div className="px-2 py-2">Realizado</div>
+                <div className="px-2 py-2">Faturamento</div>
                 <div className="px-2 py-2">% Rec.</div>
                 <div className="px-2 py-2">Ativ.</div>
                 <div className="px-2 py-2">% Ativ.</div>
@@ -4051,10 +4078,17 @@ const enviarArquivo = async (tipo) => {
                   const faltamMakeLinha = Math.max(Number(ind.makeMetaQtd || 0) - Number(ind.makeRealizado || 0), 0);
                   const faltamCabeloLinha = Math.max(Number(ind.cabeloMetaQtd || 0) - Number(ind.cabeloRealizado || 0), 0);
                   return (
-                    <div key={i.estrutura} className={`grid grid-cols-[1.7fr_.9fr_.9fr_.72fr_.78fr_.72fr_.9fr_.9fr_.58fr_.78fr_.78fr_.62fr] rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}>
+                    <div
+                      key={i.estrutura}
+                      className={`grid rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}
+                      style={{ gridTemplateColumns: '280px 170px 105px 120px 105px 135px 135px 90px 120px 120px 90px' }}
+                    >
                       <ColunaEstruturaMetaRealizado item={i} />
-                      <CelulaValorPrincipalMeta titulo="Meta fat." valor={formatarMoeda(ind.receitaMeta)} tipo="meta" />
-                      <CelulaValorPrincipalMeta titulo="Realizado" valor={formatarMoeda(ind.receitaRealizada)} tipo="realizado" />
+                      <CelulaFaturamentoMetaRealizado
+                        meta={formatarMoeda(ind.receitaMeta)}
+                        realizado={formatarMoeda(ind.receitaRealizada)}
+                        percentualReceita={ind.percentualReceita}
+                      />
                       <CelulaIndicadorMetaRealizado titulo="% Receita" meta="100%" realizado={`${formatarNumeroBR(ind.percentualReceita, 2)}%`} percentualAtingimento={ind.percentualReceita} compacto />
                       <CelulaIndicadorMetaRealizado titulo="Atividade" meta={formatarNumeroBR(ind.metaAtividadeQtd, 0)} realizado={formatarNumeroBR(ind.atividadeRealizada, 0)} percentualMeta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} percentualRealizado={`${formatarNumeroBR(calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd), 1)}%`} percentualAtingimento={calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd)} compacto />
                       <CelulaIndicadorMetaRealizado titulo="% Ativ." meta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} realizado={`${formatarNumeroBR(ind.percentualAtividade, 2)}%`} percentualAtingimento={calcPerc(ind.percentualAtividade, ind.metaAtividadePercentual)} compacto />
