@@ -3271,31 +3271,6 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
-    const CelulaFaturamentoMetaRealizado = ({ meta, realizado, percentualReceita = 0 }) => {
-      const cor = corPorFaixaMeta(percentualReceita);
-      return (
-        <div className="h-full min-h-[84px] bg-white px-3 py-2 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden min-w-0">
-          <div className="absolute left-0 top-3 bottom-3 w-0.5 rounded-r-full" style={{ backgroundColor: cor }} />
-          <p className="pl-2 text-[9px] font-black uppercase tracking-wide text-gray-400 truncate">Faturamento</p>
-
-          <div className="mt-1 pl-2 min-w-0">
-            <div className="flex items-baseline justify-between gap-1">
-              <span className="text-[8px] font-black uppercase text-gray-400">Meta</span>
-            </div>
-            <p className="text-[13px] xl:text-sm font-black text-[#7c1f31] whitespace-nowrap truncate" title={String(meta)}>{meta}</p>
-          </div>
-
-          <div className="mt-1 pt-1 border-t border-gray-100 pl-2 min-w-0">
-            <div className="flex items-baseline justify-between gap-1">
-              <span className="text-[8px] font-black uppercase text-gray-400">Realizado</span>
-              <span className="text-[8px] font-black truncate" style={{ color: cor }}>{formatarNumeroBR(percentualReceita, 1)}%</span>
-            </div>
-            <p className="text-[13px] xl:text-sm font-black text-[#048187] whitespace-nowrap truncate" title={String(realizado)}>{realizado}</p>
-          </div>
-        </div>
-      );
-    };
-
     const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false, onClickDetalhe = null }) => {
       const cor = corPorFaixaMeta(percentualAtingimento);
       return (
@@ -3341,13 +3316,7 @@ const enviarArquivo = async (tipo) => {
           </div>
           <div className="min-w-0">
             <p className="text-[9px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
-            <p
-              className="text-[13px] font-black text-gray-800 leading-tight break-words"
-              title={item?.estrutura}
-              style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-            >
-              {item?.estrutura}
-            </p>
+            <p className="text-[13px] font-black text-gray-800 leading-tight truncate" title={item?.estrutura}>{item?.estrutura}</p>
             {estruturasVinculadas.length > 1 && (
               <span className="mt-1 inline-flex rounded-full bg-[#e6f6f7] px-1.5 py-0.5 text-[9px] font-black text-[#048187]">
                 {estruturasVinculadas.length} estruturas
@@ -4032,9 +4001,10 @@ const enviarArquivo = async (tipo) => {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
           <div className="overflow-x-hidden pb-1">
             <div className="w-full space-y-2">
-              <div className="grid grid-cols-[2.15fr_1.35fr_.72fr_.78fr_.72fr_.9fr_.9fr_.58fr_.78fr_.78fr_.62fr] gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400">
+              <div className="grid grid-cols-[1.7fr_.9fr_.9fr_.72fr_.78fr_.72fr_.9fr_.9fr_.58fr_.78fr_.78fr_.62fr] gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400">
                 <div className="px-2 py-2">Estrutura</div>
-                <div className="px-2 py-2">Faturamento</div>
+                <div className="px-2 py-2">Meta</div>
+                <div className="px-2 py-2">Realizado</div>
                 <div className="px-2 py-2">% Rec.</div>
                 <div className="px-2 py-2">Ativ.</div>
                 <div className="px-2 py-2">% Ativ.</div>
@@ -4051,13 +4021,10 @@ const enviarArquivo = async (tipo) => {
                   const faltamMakeLinha = Math.max(Number(ind.makeMetaQtd || 0) - Number(ind.makeRealizado || 0), 0);
                   const faltamCabeloLinha = Math.max(Number(ind.cabeloMetaQtd || 0) - Number(ind.cabeloRealizado || 0), 0);
                   return (
-                    <div key={i.estrutura} className={`grid grid-cols-[2.15fr_1.35fr_.72fr_.78fr_.72fr_.9fr_.9fr_.58fr_.78fr_.78fr_.62fr] rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}>
+                    <div key={i.estrutura} className={`grid grid-cols-[1.7fr_.9fr_.9fr_.72fr_.78fr_.72fr_.9fr_.9fr_.58fr_.78fr_.78fr_.62fr] rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}>
                       <ColunaEstruturaMetaRealizado item={i} />
-                      <CelulaFaturamentoMetaRealizado
-                        meta={formatarMoeda(ind.receitaMeta)}
-                        realizado={formatarMoeda(ind.receitaRealizada)}
-                        percentualReceita={ind.percentualReceita}
-                      />
+                      <CelulaValorPrincipalMeta titulo="Meta fat." valor={formatarMoeda(ind.receitaMeta)} tipo="meta" />
+                      <CelulaValorPrincipalMeta titulo="Realizado" valor={formatarMoeda(ind.receitaRealizada)} tipo="realizado" />
                       <CelulaIndicadorMetaRealizado titulo="% Receita" meta="100%" realizado={`${formatarNumeroBR(ind.percentualReceita, 2)}%`} percentualAtingimento={ind.percentualReceita} compacto />
                       <CelulaIndicadorMetaRealizado titulo="Atividade" meta={formatarNumeroBR(ind.metaAtividadeQtd, 0)} realizado={formatarNumeroBR(ind.atividadeRealizada, 0)} percentualMeta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} percentualRealizado={`${formatarNumeroBR(calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd), 1)}%`} percentualAtingimento={calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd)} compacto />
                       <CelulaIndicadorMetaRealizado titulo="% Ativ." meta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} realizado={`${formatarNumeroBR(ind.percentualAtividade, 2)}%`} percentualAtingimento={calcPerc(ind.percentualAtividade, ind.metaAtividadePercentual)} compacto />
