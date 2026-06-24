@@ -7520,10 +7520,10 @@ const enviarArquivo = async (tipo) => {
                         key={item.nome}
                         onClick={() => navegarParaTelaVD(item.nome)}
                         title={obterNomeAba(item.nome)}
-                        className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-2.5 rounded-lg text-sm' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                        className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-2.5 rounded-lg text-sm' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-medium transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
                       >
                         <Icone size={sidebarExpandida ? 18 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                        {sidebarExpandida && <span>{obterNomeAba(item.nome)}</span>}
+                        {sidebarExpandida && <span className="tracking-normal">{obterNomeAba(item.nome)}</span>}
                       </button>
                     );
                   })}
@@ -7557,10 +7557,10 @@ const enviarArquivo = async (tipo) => {
                           key={item.nome}
                           onClick={() => { setCanalAtual('LOJA'); setTelaAtual(item.nome); }}
                           title={obterNomeAba(item.nome)}
-                          className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-2.5 rounded-lg text-sm' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                          className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-2.5 rounded-lg text-sm' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-medium transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
                         >
                           <Icone size={sidebarExpandida ? 18 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                          {sidebarExpandida && <span>{obterNomeAba(item.nome)}</span>}
+                          {sidebarExpandida && <span className="tracking-normal">{obterNomeAba(item.nome)}</span>}
                         </button>
                       );
                     })
