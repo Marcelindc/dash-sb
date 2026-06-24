@@ -1686,6 +1686,13 @@ export default function App() {
   const [usuarioLogado, setUsuarioLogado] = useState(() => { const s = localStorage.getItem('usuarioLogado'); return s ? JSON.parse(s) : null; });
   const [tokenAuth, setTokenAuth] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || '');
   const [emailLogin, setEmailLogin] = useState(''); const [senhaLogin, setSenhaLogin] = useState(''); const [mostrarSenha, setMostrarSenha] = useState(false); const [erroLogin, setErroLogin] = useState(''); const [carregandoLogin, setCarregandoLogin] = useState(false);
+  const [modalRecuperacaoSenhaAberto, setModalRecuperacaoSenhaAberto] = useState(false);
+  const [etapaRecuperacaoSenha, setEtapaRecuperacaoSenha] = useState('solicitar');
+  const [carregandoRecuperacaoSenha, setCarregandoRecuperacaoSenha] = useState(false);
+  const [mensagemRecuperacaoSenha, setMensagemRecuperacaoSenha] = useState('');
+  const [erroRecuperacaoSenha, setErroRecuperacaoSenha] = useState('');
+  const [codigoGeradoRecuperacao, setCodigoGeradoRecuperacao] = useState('');
+  const [formRecuperacaoSenha, setFormRecuperacaoSenha] = useState({ email: '', codigo: '', nova_senha: '', confirmar_senha: '' });
   
   const [telaAtual, setTelaAtual] = useState(() => {
     const telaSalva = localStorage.getItem(TELA_ATUAL_STORAGE_KEY);
@@ -3022,6 +3029,101 @@ const carregarRevendedores = async () => {
       setErroLogin(erro.response?.data?.detail || 'Erro ao realizar login.');
     } finally {
       setCarregandoLogin(false);
+    }
+  };
+
+  const abrirModalRecuperacaoSenha = () => {
+    setErroLogin('');
+    setErroRecuperacaoSenha('');
+    setMensagemRecuperacaoSenha('');
+    setCodigoGeradoRecuperacao('');
+    setEtapaRecuperacaoSenha('solicitar');
+    setFormRecuperacaoSenha({
+      email: emailLogin || '',
+      codigo: '',
+      nova_senha: '',
+      confirmar_senha: ''
+    });
+    setModalRecuperacaoSenhaAberto(true);
+  };
+
+  const fecharModalRecuperacaoSenha = () => {
+    if (carregandoRecuperacaoSenha) return;
+    setModalRecuperacaoSenhaAberto(false);
+    setErroRecuperacaoSenha('');
+    setMensagemRecuperacaoSenha('');
+    setCodigoGeradoRecuperacao('');
+  };
+
+  const solicitarCodigoRecuperacaoSenha = async (e) => {
+    e.preventDefault();
+    setErroRecuperacaoSenha('');
+    setMensagemRecuperacaoSenha('');
+    setCodigoGeradoRecuperacao('');
+
+    const email = String(formRecuperacaoSenha.email || '').trim().toLowerCase();
+    if (!email) {
+      setErroRecuperacaoSenha('Informe o e-mail cadastrado.');
+      return;
+    }
+
+    setCarregandoRecuperacaoSenha(true);
+    try {
+      const resposta = await axios.post(`${API_URL}/auth/recuperar-senha/solicitar`, { email });
+      setFormRecuperacaoSenha((atual) => ({ ...atual, email, codigo: '' }));
+      setCodigoGeradoRecuperacao('');
+      setEtapaRecuperacaoSenha('redefinir');
+      setMensagemRecuperacaoSenha(resposta.data?.mensagem || 'Enviamos o código para o e-mail cadastrado.');
+    } catch (erro) {
+      setErroRecuperacaoSenha(erro.response?.data?.detail || 'Erro ao gerar código de recuperação.');
+    } finally {
+      setCarregandoRecuperacaoSenha(false);
+    }
+  };
+
+  const redefinirSenhaRecuperacao = async (e) => {
+    e.preventDefault();
+    setErroRecuperacaoSenha('');
+    setMensagemRecuperacaoSenha('');
+
+    const email = String(formRecuperacaoSenha.email || '').trim().toLowerCase();
+    const codigo = String(formRecuperacaoSenha.codigo || '').trim();
+    const novaSenha = String(formRecuperacaoSenha.nova_senha || '');
+    const confirmarSenha = String(formRecuperacaoSenha.confirmar_senha || '');
+
+    if (!email || !codigo || !novaSenha || !confirmarSenha) {
+      setErroRecuperacaoSenha('Preencha todos os campos.');
+      return;
+    }
+    if (novaSenha.length < 6) {
+      setErroRecuperacaoSenha('A nova senha precisa ter no mínimo 6 caracteres.');
+      return;
+    }
+    if (novaSenha !== confirmarSenha) {
+      setErroRecuperacaoSenha('As senhas não conferem.');
+      return;
+    }
+
+    setCarregandoRecuperacaoSenha(true);
+    try {
+      const resposta = await axios.post(`${API_URL}/auth/recuperar-senha/redefinir`, {
+        email,
+        codigo,
+        nova_senha: novaSenha
+      });
+      setMensagemRecuperacaoSenha(resposta.data?.mensagem || 'Senha redefinida com sucesso.');
+      setSenhaLogin('');
+      setEmailLogin(email);
+      setErroLogin('');
+      setTimeout(() => {
+        setModalRecuperacaoSenhaAberto(false);
+        setMensagemRecuperacaoSenha('');
+        setCodigoGeradoRecuperacao('');
+      }, 1200);
+    } catch (erro) {
+      setErroRecuperacaoSenha(erro.response?.data?.detail || 'Erro ao redefinir senha.');
+    } finally {
+      setCarregandoRecuperacaoSenha(false);
     }
   };
 
@@ -7435,7 +7537,11 @@ const enviarArquivo = async (tipo) => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-bold text-gray-600">Senha</label>
-                    <button type="button" className="text-sm font-black text-[#048187] hover:text-[#036b70]">
+                    <button
+                      type="button"
+                      onClick={abrirModalRecuperacaoSenha}
+                      className="text-sm font-black text-[#048187] hover:text-[#036b70]"
+                    >
                       Esqueci A Senha
                     </button>
                   </div>
@@ -7469,6 +7575,147 @@ const enviarArquivo = async (tipo) => {
             </div>
           </div>
         </div>
+
+        {modalRecuperacaoSenhaAberto && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-4 py-6">
+            <div className="w-full max-w-[460px] bg-white rounded-3xl shadow-2xl border border-white/80 overflow-hidden">
+              <div className="bg-[#048187] px-6 py-5 text-white flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black">Recuperar senha</h2>
+                  <p className="text-sm text-white/80 mt-1">Receba o código no e-mail cadastrado e cadastre uma nova senha.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={fecharModalRecuperacaoSenha}
+                  disabled={carregandoRecuperacaoSenha}
+                  className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center disabled:opacity-60"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="px-6 py-6">
+                <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setEtapaRecuperacaoSenha('solicitar')}
+                    className={`rounded-xl py-2 text-xs font-black uppercase transition-colors ${etapaRecuperacaoSenha === 'solicitar' ? 'bg-white text-[#048187] shadow-sm' : 'text-gray-400'}`}
+                  >
+                    1. Código
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEtapaRecuperacaoSenha('redefinir')}
+                    className={`rounded-xl py-2 text-xs font-black uppercase transition-colors ${etapaRecuperacaoSenha === 'redefinir' ? 'bg-white text-[#048187] shadow-sm' : 'text-gray-400'}`}
+                  >
+                    2. Nova senha
+                  </button>
+                </div>
+
+                {erroRecuperacaoSenha && (
+                  <div className="mb-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-600">
+                    {erroRecuperacaoSenha}
+                  </div>
+                )}
+
+                {mensagemRecuperacaoSenha && (
+                  <div className="mb-4 rounded-xl border border-[#d0f0f1] bg-[#e6f6f7] p-3 text-sm font-bold text-[#048187]">
+                    {mensagemRecuperacaoSenha}
+                  </div>
+                )}
+
+                {etapaRecuperacaoSenha === 'redefinir' && (
+                  <div className="mb-4 rounded-2xl border border-[#ccecee] bg-[#e6f6f7] p-4">
+                    <p className="text-[11px] font-black uppercase tracking-wide text-[#048187]">Código enviado por e-mail</p>
+                    <p className="mt-1 text-xs font-bold text-[#048187]/80">
+                      Confira a caixa de entrada e o spam/lixo eletrônico do e-mail cadastrado. O código expira em 15 minutos.
+                    </p>
+                  </div>
+                )}
+
+                {etapaRecuperacaoSenha === 'solicitar' ? (
+                  <form onSubmit={solicitarCodigoRecuperacaoSenha} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-600 mb-2">E-mail cadastrado</label>
+                      <input
+                        type="email"
+                        value={formRecuperacaoSenha.email}
+                        onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, email: e.target.value }))}
+                        placeholder="seuemail@mail.com"
+                        className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
+                        required
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={carregandoRecuperacaoSenha}
+                      className="w-full bg-[#048187] text-white font-black py-3.5 rounded-lg hover:bg-[#036b70] disabled:opacity-60 transition-all shadow-lg shadow-[#048187]/20"
+                    >
+                      {carregandoRecuperacaoSenha ? 'Enviando código...' : 'Enviar código por e-mail'}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={redefinirSenhaRecuperacao} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-600 mb-2">E-mail</label>
+                      <input
+                        type="email"
+                        value={formRecuperacaoSenha.email}
+                        onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, email: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-gray-600 mb-2">Código</label>
+                      <input
+                        value={formRecuperacaoSenha.codigo}
+                        onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, codigo: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                        placeholder="000000"
+                        className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all tracking-[0.18em] font-black"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-600 mb-2">Nova senha</label>
+                        <input
+                          type="password"
+                          value={formRecuperacaoSenha.nova_senha}
+                          onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, nova_senha: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-600 mb-2">Confirmar</label>
+                        <input
+                          type="password"
+                          value={formRecuperacaoSenha.confirmar_senha}
+                          onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, confirmar_senha: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={carregandoRecuperacaoSenha}
+                      className="w-full bg-[#048187] text-white font-black py-3.5 rounded-lg hover:bg-[#036b70] disabled:opacity-60 transition-all shadow-lg shadow-[#048187]/20"
+                    >
+                      {carregandoRecuperacaoSenha ? 'Salvando nova senha...' : 'Salvar nova senha'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
