@@ -3259,11 +3259,11 @@ const enviarArquivo = async (tipo) => {
     const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
       const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
       return (
-        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
-          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
-          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+        <div className="h-full min-h-[84px] bg-white px-2.5 py-2 flex flex-col justify-center border-l border-gray-100 min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-wide text-gray-400 truncate">{titulo}</p>
+          <p className="mt-1.5 text-[13px] xl:text-sm font-black whitespace-nowrap truncate" style={{ color: corValor }} title={valor}>{valor}</p>
           {percentual !== null && (
-            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+            <span className="mt-1.5 w-fit rounded-full px-1.5 py-0.5 text-[10px] font-black bg-[#e6f6f7] text-[#048187]">
               {percentual}
             </span>
           )}
@@ -3271,25 +3271,37 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
-    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false, onClickDetalhe = null }) => {
       const cor = corPorFaixaMeta(percentualAtingimento);
       return (
-        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
-          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
-          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
-          <div className="mt-2 pl-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
-              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
-            </div>
-            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+        <div className="h-full min-h-[84px] bg-white px-2 py-2 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden min-w-0">
+          <div className="absolute left-0 top-3 bottom-3 w-0.5 rounded-r-full" style={{ backgroundColor: cor }} />
+          <div className="flex items-center justify-between gap-1 pl-2 min-w-0">
+            <p className="text-[9px] font-black uppercase tracking-wide text-gray-400 truncate">{titulo}</p>
+            {onClickDetalhe && (
+              <button
+                type="button"
+                onClick={(event) => { event.preventDefault(); event.stopPropagation(); onClickDetalhe(); }}
+                title={`Ver detalhes de ${titulo}`}
+                className="shrink-0 w-6 h-6 rounded-lg bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] inline-flex items-center justify-center"
+              >
+                <Eye size={13} />
+              </button>
+            )}
           </div>
-          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
-              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+          <div className="mt-1 pl-2 min-w-0">
+            <div className="flex items-baseline justify-between gap-1">
+              <span className="text-[8px] font-black uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[8px] font-black text-[#7c1f31] truncate">{percentualMeta}</span>}
             </div>
-            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+            <p className={`${compacto ? 'text-[12px]' : 'text-[13px]'} font-black text-[#7c1f31] whitespace-nowrap truncate`} title={String(meta)}>{meta}</p>
+          </div>
+          <div className="mt-1 pt-1 border-t border-gray-100 pl-2 min-w-0">
+            <div className="flex items-baseline justify-between gap-1">
+              <span className="text-[8px] font-black uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[8px] font-black truncate" style={{ color: cor }}>{percentualRealizado}</span>}
+            </div>
+            <p className={`${compacto ? 'text-[12px]' : 'text-[13px]'} font-black text-[#048187] whitespace-nowrap truncate`} title={String(realizado)}>{realizado}</p>
           </div>
         </div>
       );
@@ -3298,16 +3310,16 @@ const enviarArquivo = async (tipo) => {
     const ColunaEstruturaMetaRealizado = ({ item }) => {
       const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
       return (
-        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
-          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
-            <Users size={20} />
+        <div className="h-full min-h-[84px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-3 py-3 flex items-center gap-2 rounded-l-2xl border-r border-gray-100 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
+            <Users size={18} />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
-            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
+            <p className="text-[9px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
+            <p className="text-[13px] font-black text-gray-800 leading-tight truncate" title={item?.estrutura}>{item?.estrutura}</p>
             {estruturasVinculadas.length > 1 && (
-              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
-                {estruturasVinculadas.length} estruturas vinculadas
+              <span className="mt-1 inline-flex rounded-full bg-[#e6f6f7] px-1.5 py-0.5 text-[9px] font-black text-[#048187]">
+                {estruturasVinculadas.length} estruturas
               </span>
             )}
           </div>
@@ -3985,31 +3997,31 @@ const enviarArquivo = async (tipo) => {
         )}
         
         {visaoMetas === 'estruturas' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
-          <div className="overflow-x-auto pb-3" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-            <div className="min-w-[2140px] space-y-3">
-              <div className="grid grid-cols-[260px_155px_155px_130px_145px_135px_155px_155px_125px_145px_135px_145px_135px_100px] gap-0 px-1 text-[10px] font-black uppercase tracking-wide text-gray-400">
-                <div className="px-4 py-2">Estrutura</div>
-                <div className="px-4 py-2">Meta</div>
-                <div className="px-4 py-2">Realizado</div>
-                <div className="px-4 py-2">% Rec.</div>
-                <div className="px-4 py-2">Ativ.</div>
-                <div className="px-4 py-2">% Ativ.</div>
-                <div className="px-4 py-2">RPA</div>
-                <div className="px-4 py-2">Tkt Méd.</div>
-                <div className="px-4 py-2">UPA</div>
-                <div className="px-4 py-2">MAKE</div>
-                <div className="px-4 py-2">% Make</div>
-                <div className="px-4 py-2">CABELO</div>
-                <div className="px-4 py-2">% Cab.</div>
-                <div className="px-4 py-2 text-center">Ação</div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
+          <div className="overflow-x-hidden pb-1">
+            <div className="w-full space-y-2">
+              <div className="grid grid-cols-[1.7fr_.9fr_.9fr_.72fr_.78fr_.72fr_.9fr_.9fr_.58fr_.78fr_.78fr_.62fr] gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400">
+                <div className="px-2 py-2">Estrutura</div>
+                <div className="px-2 py-2">Meta</div>
+                <div className="px-2 py-2">Realizado</div>
+                <div className="px-2 py-2">% Rec.</div>
+                <div className="px-2 py-2">Ativ.</div>
+                <div className="px-2 py-2">% Ativ.</div>
+                <div className="px-2 py-2">RPA</div>
+                <div className="px-2 py-2">Tkt Méd.</div>
+                <div className="px-2 py-2">UPA</div>
+                <div className="px-2 py-2">% Make</div>
+                <div className="px-2 py-2">% Cab.</div>
+                <div className="px-2 py-2 text-center">Ação</div>
               </div>
-              <div className="max-h-[42rem] overflow-y-auto pr-2 space-y-3">
+              <div className="max-h-[42rem] overflow-y-auto pr-1 space-y-2">
                 {ests.map((i) => {
                   const ind = calcularIndicadoresLinhaEstrutura(i);
+                  const faltamMakeLinha = Math.max(Number(ind.makeMetaQtd || 0) - Number(ind.makeRealizado || 0), 0);
+                  const faltamCabeloLinha = Math.max(Number(ind.cabeloMetaQtd || 0) - Number(ind.cabeloRealizado || 0), 0);
                   return (
-                    <div key={i.estrutura} className={`grid grid-cols-[260px_155px_155px_130px_145px_135px_155px_155px_125px_145px_135px_145px_135px_100px] rounded-3xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}>
+                    <div key={i.estrutura} className={`grid grid-cols-[1.7fr_.9fr_.9fr_.72fr_.78fr_.72fr_.9fr_.9fr_.58fr_.78fr_.78fr_.62fr] rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}>
                       <ColunaEstruturaMetaRealizado item={i} />
                       <CelulaValorPrincipalMeta titulo="Meta fat." valor={formatarMoeda(ind.receitaMeta)} tipo="meta" />
                       <CelulaValorPrincipalMeta titulo="Realizado" valor={formatarMoeda(ind.receitaRealizada)} tipo="realizado" />
@@ -4019,12 +4031,50 @@ const enviarArquivo = async (tipo) => {
                       <CelulaIndicadorMetaRealizado titulo="RPA" meta={formatarMoeda(ind.rpaMeta)} realizado={formatarMoeda(ind.rpaRealizado)} percentualAtingimento={calcPerc(ind.rpaRealizado, ind.rpaMeta)} />
                       <CelulaIndicadorMetaRealizado titulo="Tkt Médio" meta={formatarMoeda(ind.ticketMeta)} realizado={formatarMoeda(ind.ticketRealizado)} percentualAtingimento={calcPerc(ind.ticketRealizado, ind.ticketMeta)} />
                       <CelulaIndicadorMetaRealizado titulo="UPA" meta={formatarNumeroBR(ind.upaMeta, 1)} realizado={formatarNumeroBR(ind.upaRealizada, 1)} percentualAtingimento={calcPerc(ind.upaRealizada, ind.upaMeta)} compacto />
-                      <CelulaIndicadorMetaRealizado titulo="MAKE" meta={formatarNumeroBR(ind.makeMetaQtd, 0)} realizado={formatarNumeroBR(ind.makeRealizado, 0)} percentualMeta={`${formatarNumeroBR(ind.metaMakePercentual, 1)}%`} percentualRealizado={`${formatarNumeroBR(calcPerc(ind.makeRealizado, ind.makeMetaQtd), 1)}%`} percentualAtingimento={calcPerc(ind.makeRealizado, ind.makeMetaQtd)} compacto />
-                      <CelulaIndicadorMetaRealizado titulo="% Make" meta={`${formatarNumeroBR(ind.metaMakePercentual, 1)}%`} realizado={`${formatarNumeroBR(ind.percentualMake, 2)}%`} percentualAtingimento={calcPerc(ind.percentualMake, ind.metaMakePercentual)} compacto />
-                      <CelulaIndicadorMetaRealizado titulo="CABELO" meta={formatarNumeroBR(ind.cabeloMetaQtd, 0)} realizado={formatarNumeroBR(ind.cabeloRealizado, 0)} percentualMeta={`${formatarNumeroBR(ind.metaCabeloPercentual, 1)}%`} percentualRealizado={`${formatarNumeroBR(calcPerc(ind.cabeloRealizado, ind.cabeloMetaQtd), 1)}%`} percentualAtingimento={calcPerc(ind.cabeloRealizado, ind.cabeloMetaQtd)} compacto />
-                      <CelulaIndicadorMetaRealizado titulo="% Cab." meta={`${formatarNumeroBR(ind.metaCabeloPercentual, 1)}%`} realizado={`${formatarNumeroBR(ind.percentualCabelo, 2)}%`} percentualAtingimento={calcPerc(ind.percentualCabelo, ind.metaCabeloPercentual)} compacto />
-                      <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 rounded-r-3xl flex items-center justify-center">
-                        <button onClick={async () => { await carregarDetalheMeta(i.estrutura, filtrosAtivos, false); setVisaoMetas('consultores'); }} className="bg-[#048187] text-white px-3 py-2 rounded-xl hover:bg-[#036b70] inline-flex items-center gap-1 font-black text-xs shadow-sm">
+                      <CelulaIndicadorMetaRealizado
+                        titulo="% Make"
+                        meta={`${formatarNumeroBR(ind.metaMakePercentual, 1)}%`}
+                        realizado={`${formatarNumeroBR(ind.percentualMake, 2)}%`}
+                        percentualAtingimento={calcPerc(ind.percentualMake, ind.metaMakePercentual)}
+                        compacto
+                        onClickDetalhe={() => abrirModalValExp(
+                          `${i.estrutura} • MAKE`,
+                          `${formatarNumeroBR(ind.percentualMake, 2)}%`,
+                          'MAKE = revendedoras ativadas que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas.',
+                          [
+                            { label: 'Meta MAKE', valor: `${formatarNumeroBR(ind.metaMakePercentual, 1)}%` },
+                            { label: 'Meta em revendedoras', valor: formatarNumeroBR(ind.makeMetaQtd, 0) },
+                            { label: 'Realizado MAKE', valor: formatarNumeroBR(ind.makeRealizado, 0) },
+                            { label: '% MAKE atual', valor: `${formatarNumeroBR(ind.percentualMake, 2)}%` },
+                            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(ind.percentualMake, ind.metaMakePercentual), 1)}%` },
+                            { label: 'Falta para a meta', valor: faltamMakeLinha > 0 ? formatarNumeroBR(faltamMakeLinha, 0) : 'Meta batida' }
+                          ],
+                          `${formatarNumeroBR(ind.atividadeRealizada, 0)} revendedoras ativadas × ${formatarNumeroBR(ind.metaMakePercentual, 1)}% = ${formatarNumeroBR(ind.makeMetaQtd, 0)} revendedoras necessárias com MAKE`
+                        )}
+                      />
+                      <CelulaIndicadorMetaRealizado
+                        titulo="% Cab."
+                        meta={`${formatarNumeroBR(ind.metaCabeloPercentual, 1)}%`}
+                        realizado={`${formatarNumeroBR(ind.percentualCabelo, 2)}%`}
+                        percentualAtingimento={calcPerc(ind.percentualCabelo, ind.metaCabeloPercentual)}
+                        compacto
+                        onClickDetalhe={() => abrirModalValExp(
+                          `${i.estrutura} • CABELO`,
+                          `${formatarNumeroBR(ind.percentualCabelo, 2)}%`,
+                          'CABELO = revendedoras ativadas que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas.',
+                          [
+                            { label: 'Meta CABELO', valor: `${formatarNumeroBR(ind.metaCabeloPercentual, 1)}%` },
+                            { label: 'Meta em revendedoras', valor: formatarNumeroBR(ind.cabeloMetaQtd, 0) },
+                            { label: 'Realizado CABELO', valor: formatarNumeroBR(ind.cabeloRealizado, 0) },
+                            { label: '% CABELO atual', valor: `${formatarNumeroBR(ind.percentualCabelo, 2)}%` },
+                            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(ind.percentualCabelo, ind.metaCabeloPercentual), 1)}%` },
+                            { label: 'Falta para a meta', valor: faltamCabeloLinha > 0 ? formatarNumeroBR(faltamCabeloLinha, 0) : 'Meta batida' }
+                          ],
+                          `${formatarNumeroBR(ind.atividadeRealizada, 0)} revendedoras ativadas × ${formatarNumeroBR(ind.metaCabeloPercentual, 1)}% = ${formatarNumeroBR(ind.cabeloMetaQtd, 0)} revendedoras necessárias com CABELO`
+                        )}
+                      />
+                      <div className="h-full min-h-[84px] bg-white px-2 py-2 border-l border-gray-100 rounded-r-2xl flex items-center justify-center">
+                        <button onClick={async () => { await carregarDetalheMeta(i.estrutura, filtrosAtivos, false); setVisaoMetas('consultores'); }} className="bg-[#048187] text-white px-2.5 py-2 rounded-xl hover:bg-[#036b70] inline-flex items-center gap-1 font-black text-[11px] shadow-sm">
                           <Search size={14} /> Ver
                         </button>
                       </div>
