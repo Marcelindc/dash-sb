@@ -3316,7 +3316,13 @@ const enviarArquivo = async (tipo) => {
           </div>
           <div className="min-w-0">
             <p className="text-[9px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
-            <p className="text-[13px] font-black text-gray-800 leading-tight truncate" title={item?.estrutura}>{item?.estrutura}</p>
+            <p
+              className="text-[13px] font-black text-gray-800 leading-[1.15] break-words"
+              title={item?.estrutura}
+              style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+            >
+              {item?.estrutura}
+            </p>
             {estruturasVinculadas.length > 1 && (
               <span className="mt-1 inline-flex rounded-full bg-[#e6f6f7] px-1.5 py-0.5 text-[9px] font-black text-[#048187]">
                 {estruturasVinculadas.length} estruturas
