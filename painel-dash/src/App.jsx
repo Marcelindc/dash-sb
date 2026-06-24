@@ -70,8 +70,8 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'ADM', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
+  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'ADM', 'Configurações', 'Perfil'],
+  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
   visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
 };
 
@@ -86,7 +86,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'ADM', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'ADM', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -112,6 +112,11 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   // Garante que abas importantes continuem aparecendo mesmo quando as permissões antigas já estavam salvas no banco.
   PERFIS_SISTEMA.forEach((perfil) => {
     if (!normalizadas[perfil].includes('Histórico')) normalizadas[perfil].push('Histórico');
+  });
+
+  // Ações é uma aba de gestão operacional. Libera por padrão para admin e gestor.
+  ['admin', 'gestor'].forEach((perfil) => {
+    if (!normalizadas[perfil].includes('Ações')) normalizadas[perfil].push('Ações');
   });
 
   // Cadastro precisa ficar disponível para admin e gestor.
@@ -1817,12 +1822,32 @@ export default function App() {
     cabelo: []
   });
 
+  const acaoCicloVazia = {
+    nome_acao: '',
+    ciclo: '',
+    data_inicio: '',
+    data_fim: '',
+    meta_valor: '',
+    status_acao: 'acontecendo',
+    estruturas: [],
+    observacao: ''
+  };
+  const [acoesCiclo, setAcoesCiclo] = useState([]);
+  const [carregandoAcoesCiclo, setCarregandoAcoesCiclo] = useState(false);
+  const [erroAcoesCiclo, setErroAcoesCiclo] = useState('');
+  const [mensagemAcoesCiclo, setMensagemAcoesCiclo] = useState('');
+  const [modalAcaoCicloAberto, setModalAcaoCicloAberto] = useState(false);
+  const [acaoCicloForm, setAcaoCicloForm] = useState(acaoCicloVazia);
+  const [acaoCicloEditandoId, setAcaoCicloEditandoId] = useState(null);
+  const [acaoCicloDetalhe, setAcaoCicloDetalhe] = useState(null);
+  const [buscaEstruturaAcao, setBuscaEstruturaAcao] = useState('');
+
   const promessasEmAndamentoRef = useRef({});
   const ultimoCarregamentoTelaRef = useRef('');
   const debounceFiltroRapidoRef = useRef(null);
 
   const itensMenuTopo = [
-    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'N3', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
+    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'N3', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Ações', icone: Sparkles }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
   ];
 
   const itensMenuVD = itensMenuTopo;
@@ -2496,12 +2521,237 @@ const carregarRevendedores = async () => {
     return () => window.removeEventListener('message', receberMensagemAutomacao);
   }, [filtrosAtivos, telaAtual]);
 
+
+  const obterCicloReferenciaAtual = () => (
+    dados?.ciclo_atual
+    || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
+    || ciclos?.[0]?.ciclo
+    || ''
+  );
+
+  const normalizarDataAcao = (valor) => {
+    if (!valor) return '';
+    return String(valor).slice(0, 10);
+  };
+
+  const obterCicloPorPeriodoAcao = (dataInicio, dataFim) => {
+    const inicio = normalizarDataAcao(dataInicio);
+    const fim = normalizarDataAcao(dataFim || dataInicio);
+
+    if (!inicio && !fim) {
+      return { ciclo: '', mensagem: 'Selecione o período para identificar o ciclo automaticamente.' };
+    }
+
+    if (!inicio || !fim) {
+      return { ciclo: '', mensagem: 'Informe data início e data fim para identificar o ciclo.' };
+    }
+
+    if (inicio > fim) {
+      return { ciclo: '', mensagem: 'A data inicial não pode ser maior que a data final.' };
+    }
+
+    const cicloEncontrado = (ciclos || []).find((cicloItem) => {
+      const dataInicioCiclo = normalizarDataAcao(cicloItem.data_inicio);
+      const dataFimCiclo = normalizarDataAcao(cicloItem.data_fim);
+      return dataInicioCiclo && dataFimCiclo && inicio >= dataInicioCiclo && fim <= dataFimCiclo;
+    });
+
+    if (!cicloEncontrado) {
+      return { ciclo: '', mensagem: 'Nenhum ciclo cadastrado cobre esse período.' };
+    }
+
+    return {
+      ciclo: cicloEncontrado.ciclo || '',
+      mensagem: `${formatarDataBR(inicio)} até ${formatarDataBR(fim)} pertence ao ciclo ${cicloEncontrado.ciclo}.`
+    };
+  };
+
+  const atualizarPeriodoAcao = (campo, valor) => {
+    setAcaoCicloForm((atual) => {
+      const novo = { ...atual, [campo]: valor };
+      const cicloInfo = obterCicloPorPeriodoAcao(novo.data_inicio, novo.data_fim);
+      return { ...novo, ciclo: cicloInfo.ciclo || '' };
+    });
+  };
+
+  const carregarAcoesCiclo = async () => {
+    if (!usuarioLogado) return;
+
+    setCarregandoAcoesCiclo(true);
+    setErroAcoesCiclo('');
+
+    try {
+      await Promise.allSettled([carregarOpcoesFiltros(), carregarCiclos()]);
+      const ciclo = obterCicloReferenciaAtual();
+      const params = ciclo ? { ciclo } : {};
+      const { data } = await axios.get(`${API_URL}/acoes-ciclo`, { params });
+      setAcoesCiclo(data?.acoes || []);
+    } catch (erro) {
+      setErroAcoesCiclo(erro.response?.data?.detail || 'Erro ao carregar ações do ciclo.');
+    } finally {
+      setCarregandoAcoesCiclo(false);
+    }
+  };
+
+  const abrirModalCriarAcaoCiclo = () => {
+    setAcaoCicloEditandoId(null);
+    setAcaoCicloForm({ ...acaoCicloVazia, ciclo: '', status_acao: 'acontecendo' });
+    setBuscaEstruturaAcao('');
+    setMensagemAcoesCiclo('');
+    setErroAcoesCiclo('');
+    setModalAcaoCicloAberto(true);
+  };
+
+  const abrirModalEditarAcaoCiclo = (acao) => {
+    setAcaoCicloEditandoId(acao.id);
+    setAcaoCicloForm({
+      nome_acao: acao.nome_acao || '',
+      ciclo: acao.ciclo || obterCicloReferenciaAtual(),
+      data_inicio: acao.data_inicio || '',
+      data_fim: acao.data_fim || '',
+      meta_valor: Number(acao.meta_valor || 0),
+      status_acao: acao.status_acao || 'acontecendo',
+      estruturas: Array.isArray(acao.estruturas) ? acao.estruturas : [],
+      observacao: acao.observacao || ''
+    });
+    setBuscaEstruturaAcao('');
+    setMensagemAcoesCiclo('');
+    setErroAcoesCiclo('');
+    setModalAcaoCicloAberto(true);
+  };
+
+  const alternarEstruturaAcao = (estrutura) => {
+    setAcaoCicloForm((atual) => {
+      const lista = Array.isArray(atual.estruturas) ? atual.estruturas : [];
+      return {
+        ...atual,
+        estruturas: lista.includes(estrutura)
+          ? lista.filter((item) => item !== estrutura)
+          : [...lista, estrutura]
+      };
+    });
+  };
+
+  const selecionarTodasEstruturasAcao = (estruturas) => {
+    setAcaoCicloForm((atual) => ({ ...atual, estruturas: estruturas }));
+  };
+
+  const salvarAcaoCiclo = async () => {
+    const nome = String(acaoCicloForm.nome_acao || '').trim();
+    const dataInicio = String(acaoCicloForm.data_inicio || '').trim();
+    const dataFim = String(acaoCicloForm.data_fim || '').trim();
+    const cicloInfo = obterCicloPorPeriodoAcao(dataInicio, dataFim);
+    const ciclo = String(cicloInfo.ciclo || '').trim();
+    const metaValor = Number(acaoCicloForm.meta_valor || 0);
+
+    if (!nome) {
+      setErroAcoesCiclo('Informe o nome da ação.');
+      return;
+    }
+    if (!dataInicio || !dataFim) {
+      setErroAcoesCiclo('Informe o período da ação.');
+      return;
+    }
+    if (new Date(dataInicio) > new Date(dataFim)) {
+      setErroAcoesCiclo('A data inicial não pode ser maior que a data final.');
+      return;
+    }
+    if (!ciclo) {
+      setErroAcoesCiclo(cicloInfo.mensagem || 'A data informada não pertence a nenhum ciclo cadastrado.');
+      return;
+    }
+    if (metaValor <= 0) {
+      setErroAcoesCiclo('Informe uma meta maior que zero.');
+      return;
+    }
+    if (!Array.isArray(acaoCicloForm.estruturas) || acaoCicloForm.estruturas.length === 0) {
+      setErroAcoesCiclo('Selecione pelo menos uma estrutura.');
+      return;
+    }
+
+    setCarregandoAcoesCiclo(true);
+    setErroAcoesCiclo('');
+    setMensagemAcoesCiclo('');
+
+    const payload = {
+      nome_acao: nome,
+      ciclo,
+      data_inicio: dataInicio,
+      data_fim: dataFim,
+      meta_valor: metaValor,
+      status_acao: acaoCicloForm.status_acao || 'acontecendo',
+      estruturas: acaoCicloForm.estruturas || [],
+      observacao: acaoCicloForm.observacao || ''
+    };
+
+    try {
+      if (acaoCicloEditandoId) {
+        await axios.put(`${API_URL}/acoes-ciclo/${acaoCicloEditandoId}`, payload);
+        setMensagemAcoesCiclo('Ação atualizada com sucesso.');
+      } else {
+        await axios.post(`${API_URL}/acoes-ciclo`, payload);
+        setMensagemAcoesCiclo('Ação criada com sucesso.');
+      }
+
+      setModalAcaoCicloAberto(false);
+      setAcaoCicloEditandoId(null);
+      setAcaoCicloForm(acaoCicloVazia);
+      await carregarAcoesCiclo();
+    } catch (erro) {
+      setErroAcoesCiclo(erro.response?.data?.detail || 'Erro ao salvar ação.');
+    } finally {
+      setCarregandoAcoesCiclo(false);
+    }
+  };
+
+  const apagarAcaoCiclo = async (acao) => {
+    const confirmar = window.confirm(`Apagar a ação "${acao.nome_acao}"?`);
+    if (!confirmar) return;
+
+    setCarregandoAcoesCiclo(true);
+    setErroAcoesCiclo('');
+    setMensagemAcoesCiclo('');
+
+    try {
+      await axios.delete(`${API_URL}/acoes-ciclo/${acao.id}`);
+      setMensagemAcoesCiclo('Ação apagada com sucesso.');
+      if (acaoCicloDetalhe?.id === acao.id) setAcaoCicloDetalhe(null);
+      await carregarAcoesCiclo();
+    } catch (erro) {
+      setErroAcoesCiclo(erro.response?.data?.detail || 'Erro ao apagar ação.');
+    } finally {
+      setCarregandoAcoesCiclo(false);
+    }
+  };
+
+  const carregarDetalheAcaoCiclo = async (acao) => {
+    setCarregandoAcoesCiclo(true);
+    setErroAcoesCiclo('');
+
+    try {
+      const { data } = await axios.get(`${API_URL}/acoes-ciclo/${acao.id}`);
+      setAcaoCicloDetalhe(data?.acao || null);
+    } catch (erro) {
+      setErroAcoesCiclo(erro.response?.data?.detail || 'Erro ao carregar detalhes da ação.');
+    } finally {
+      setCarregandoAcoesCiclo(false);
+    }
+  };
+
+  const statusVisualAcao = (status) => {
+    const s = String(status || '').toLowerCase();
+    if (s === 'cancelada') return { texto: 'Cancelada', classe: 'bg-red-50 text-red-700' };
+    if (s === 'concluida' || s === 'concluída') return { texto: 'Concluída', classe: 'bg-gray-100 text-gray-600' };
+    return { texto: 'Acontecendo', classe: 'bg-[#e6f6f7] text-[#048187]' };
+  };
+
   const carregarTelaAtual = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
 
     if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao);
     if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
+    if (telaAtual === 'Ações') return carregarAcoesCiclo();
     if (telaAtual === 'Histórico') return carregarHistoricoCiclos();
     if (telaAtual === 'Revendedores') return carregarRevendedores();
     if (telaAtual === 'Base') return carregarCiclos();
@@ -6168,6 +6418,387 @@ const enviarArquivo = async (tipo) => {
     </div>
   );
 
+
+  const renderTelaAcoesCiclo = () => {
+    const cicloAtualAcao = obterCicloReferenciaAtual();
+    const estruturasDisponiveis = Array.from(new Set((opcoesFiltros.estruturas || []).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
+    const estruturasFiltradas = estruturasDisponiveis.filter((estrutura) =>
+      String(estrutura || '').toLowerCase().includes(String(buscaEstruturaAcao || '').toLowerCase())
+    );
+    const resumoAcoes = {
+      total: acoesCiclo.length,
+      acontecendo: acoesCiclo.filter((a) => String(a.status_final || a.status_acao || '').toLowerCase() === 'acontecendo').length,
+      concluidas: acoesCiclo.filter((a) => ['concluida', 'concluída'].includes(String(a.status_final || a.status_acao || '').toLowerCase())).length,
+      canceladas: acoesCiclo.filter((a) => String(a.status_final || a.status_acao || '').toLowerCase() === 'cancelada').length,
+    };
+    const cicloInfoAcaoForm = obterCicloPorPeriodoAcao(acaoCicloForm.data_inicio, acaoCicloForm.data_fim);
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0">
+                  <Sparkles size={24} />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-black text-gray-700">Ações do Ciclo</h1>
+                  <p className="text-sm text-gray-400 font-semibold mt-1">
+                    Crie campanhas como Dia D, viradas de ciclo, desafios de estruturas e acompanhe só o período da ação.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={carregarAcoesCiclo}
+                className="border border-[#d9eff0] text-[#048187] bg-white px-5 py-3 rounded-xl font-black hover:bg-[#f4fbfb] inline-flex items-center justify-center gap-2"
+              >
+                <RefreshCcw size={18} /> Atualizar
+              </button>
+              <button
+                type="button"
+                onClick={abrirModalCriarAcaoCiclo}
+                className="bg-[#048187] text-white px-5 py-3 rounded-xl font-black hover:bg-[#036b70] shadow-lg shadow-[#048187]/20 inline-flex items-center justify-center gap-2"
+              >
+                <Plus size={18} /> Criar ação
+              </button>
+            </div>
+          </div>
+
+          {(mensagemAcoesCiclo || erroAcoesCiclo) && (
+            <div className={`mt-5 rounded-xl px-4 py-3 text-sm font-bold ${erroAcoesCiclo ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
+              {erroAcoesCiclo || mensagemAcoesCiclo}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mt-6">
+            <div className="bg-[#fbfefe] border border-gray-100 rounded-2xl p-4">
+              <p className="text-[10px] uppercase font-black text-gray-400">Total de ações</p>
+              <p className="text-2xl font-black text-[#048187] mt-1">{resumoAcoes.total}</p>
+            </div>
+            <div className="bg-[#fbfefe] border border-gray-100 rounded-2xl p-4">
+              <p className="text-[10px] uppercase font-black text-gray-400">Acontecendo</p>
+              <p className="text-2xl font-black text-[#048187] mt-1">{resumoAcoes.acontecendo}</p>
+            </div>
+            <div className="bg-[#fbfefe] border border-gray-100 rounded-2xl p-4">
+              <p className="text-[10px] uppercase font-black text-gray-400">Concluídas</p>
+              <p className="text-2xl font-black text-gray-600 mt-1">{resumoAcoes.concluidas}</p>
+            </div>
+            <div className="bg-[#fbfefe] border border-gray-100 rounded-2xl p-4">
+              <p className="text-[10px] uppercase font-black text-gray-400">Canceladas</p>
+              <p className="text-2xl font-black text-[#7c1f31] mt-1">{resumoAcoes.canceladas}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-gray-700">Histórico de ações</h2>
+              <p className="text-xs text-gray-400 font-bold mt-1">Ciclo referência: {cicloAtualAcao || '-'}</p>
+            </div>
+            {carregandoAcoesCiclo && <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">Carregando...</span>}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1050px] text-sm">
+              <thead className="bg-[#f7fafb] text-[11px] uppercase text-gray-400 font-black">
+                <tr>
+                  <th className="px-4 py-3 text-left">Nome da ação</th>
+                  <th className="px-4 py-3 text-left">Período</th>
+                  <th className="px-4 py-3 text-right">Meta</th>
+                  <th className="px-4 py-3 text-right">Realizado</th>
+                  <th className="px-4 py-3 text-right">% Meta</th>
+                  <th className="px-4 py-3 text-center">Estruturas</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {acoesCiclo.map((acao) => {
+                  const visual = statusVisualAcao(acao.status_final || acao.status_acao);
+                  const percentual = Number(acao.percentual_meta || 0);
+                  return (
+                    <tr key={acao.id} className="border-b border-gray-50 last:border-0 hover:bg-[#fbfefe]">
+                      <td className="px-4 py-4">
+                        <p className="font-black text-gray-700">{acao.nome_acao}</p>
+                        <p className="text-[11px] text-gray-400 font-bold mt-1">Ciclo {acao.ciclo}</p>
+                      </td>
+                      <td className="px-4 py-4 font-bold text-gray-600">
+                        {formatarDataBR(acao.data_inicio)} até {formatarDataBR(acao.data_fim)}
+                      </td>
+                      <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{formatarMoeda(acao.meta_valor)}</td>
+                      <td className="px-4 py-4 text-right font-black text-[#048187]">{formatarMoeda(acao.realizado)}</td>
+                      <td className="px-4 py-4 text-right font-black" style={{ color: corPorFaixaMeta(percentual) }}>{formatarNumeroBR(percentual, 1)}%</td>
+                      <td className="px-4 py-4 text-center">
+                        <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">
+                          {Number(acao.total_estruturas || 0)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`px-3 py-1.5 rounded-full text-xs font-black ${visual.classe}`}>{visual.texto}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => carregarDetalheAcaoCiclo(acao)}
+                            className="bg-[#048187] text-white px-3 py-2 rounded-lg text-xs font-black hover:bg-[#036b70] inline-flex items-center gap-1"
+                          >
+                            <Eye size={14} /> Ver +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => abrirModalEditarAcaoCiclo(acao)}
+                            className="bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-lg text-xs font-black hover:bg-[#d0f0f1] inline-flex items-center gap-1"
+                          >
+                            <Pencil size={14} /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => apagarAcaoCiclo(acao)}
+                            className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-xs font-black hover:bg-red-100 inline-flex items-center gap-1"
+                          >
+                            <Trash2 size={14} /> Apagar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {!acoesCiclo.length && !carregandoAcoesCiclo && (
+              <div className="py-12 text-center text-gray-400 font-bold">
+                Nenhuma ação cadastrada ainda. Clique em “Criar ação” para começar.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {acaoCicloDetalhe && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div>
+                <h2 className="text-xl font-black text-gray-700">{acaoCicloDetalhe.nome_acao}</h2>
+                <p className="text-sm text-gray-400 font-bold mt-1">
+                  {formatarDataBR(acaoCicloDetalhe.data_inicio)} até {formatarDataBR(acaoCicloDetalhe.data_fim)} • {acaoCicloDetalhe.total_estruturas || 0} estruturas
+                </p>
+              </div>
+              <button onClick={() => setAcaoCicloDetalhe(null)} className="bg-gray-100 text-gray-500 rounded-full p-2 hover:bg-gray-200"><X size={18} /></button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+              <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                <p className="text-[10px] uppercase font-black text-gray-400">Meta da ação</p>
+                <p className="text-xl font-black text-[#7c1f31] mt-1">{formatarMoeda(acaoCicloDetalhe.meta_valor)}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                <p className="text-[10px] uppercase font-black text-gray-400">Realizado</p>
+                <p className="text-xl font-black text-[#048187] mt-1">{formatarMoeda(acaoCicloDetalhe.realizado)}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                <p className="text-[10px] uppercase font-black text-gray-400">% Meta</p>
+                <p className="text-xl font-black mt-1" style={{ color: corPorFaixaMeta(acaoCicloDetalhe.percentual_meta || 0) }}>{formatarNumeroBR(acaoCicloDetalhe.percentual_meta || 0, 1)}%</p>
+              </div>
+              <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                <p className="text-[10px] uppercase font-black text-gray-400">Falta para a meta</p>
+                <p className="text-xl font-black text-[#7c1f31] mt-1">{formatarMoeda(acaoCicloDetalhe.falta_meta || 0)}</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[780px] text-sm">
+                <thead className="bg-[#f7fafb] text-[11px] uppercase text-gray-400 font-black">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Estrutura</th>
+                    <th className="px-4 py-3 text-right">Realizado</th>
+                    <th className="px-4 py-3 text-right">Pedidos</th>
+                    <th className="px-4 py-3 text-right">Revendedores</th>
+                    <th className="px-4 py-3 text-right">Participação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(acaoCicloDetalhe.estruturas_apuracao || []).map((item) => (
+                    <tr key={item.estrutura} className="border-b border-gray-50 last:border-0">
+                      <td className="px-4 py-3 font-black text-gray-700">{item.estrutura}</td>
+                      <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(item.pedidos || 0).toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(item.revendedores || 0).toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3 text-right font-black text-gray-700">{formatarNumeroBR(item.participacao || 0, 1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {modalAcaoCicloAberto && (
+          <div className="fixed inset-0 bg-black/40 z-[80] flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl max-h-[92vh] overflow-hidden flex flex-col">
+              <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black text-gray-700">{acaoCicloEditandoId ? 'Editar ação' : 'Criar ação'}</h2>
+                  <p className="text-sm text-gray-400 font-bold mt-1">Defina período, estruturas participantes e meta de faturamento.</p>
+                </div>
+                <button onClick={() => setModalAcaoCicloAberto(false)} className="bg-gray-100 text-gray-500 rounded-full p-2 hover:bg-gray-200"><X size={18} /></button>
+              </div>
+
+              <div className="p-5 overflow-y-auto space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <div className="xl:col-span-2">
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Nome da ação</label>
+                    <input
+                      value={acaoCicloForm.nome_acao}
+                      onChange={(e) => setAcaoCicloForm({ ...acaoCicloForm, nome_acao: e.target.value })}
+                      placeholder="Ex.: Dia D, Virada de Ciclo, Arrancada N2"
+                      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Ciclo automático</label>
+                    <div className={`w-full border rounded-lg px-4 py-3 text-sm font-black ${cicloInfoAcaoForm.ciclo ? 'border-[#d9eff0] bg-[#e6f6f7] text-[#048187]' : 'border-orange-100 bg-orange-50 text-orange-600'}`}>
+                      {cicloInfoAcaoForm.ciclo || 'Escolha o período'}
+                    </div>
+                    <p className="mt-1 text-[10px] font-bold text-gray-400 leading-tight">
+                      A data escolhida define o ciclo automaticamente.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Status</label>
+                    <select
+                      value={acaoCicloForm.status_acao}
+                      onChange={(e) => setAcaoCicloForm({ ...acaoCicloForm, status_acao: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                    >
+                      <option value="acontecendo">Acontecendo</option>
+                      <option value="concluida">Concluída</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Data início</label>
+                    <input
+                      type="date"
+                      value={acaoCicloForm.data_inicio}
+                      onChange={(e) => atualizarPeriodoAcao('data_inicio', e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Data fim</label>
+                    <input
+                      type="date"
+                      value={acaoCicloForm.data_fim}
+                      onChange={(e) => atualizarPeriodoAcao('data_fim', e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Valor da meta</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={acaoCicloForm.meta_valor}
+                      onChange={(e) => setAcaoCicloForm({ ...acaoCicloForm, meta_valor: e.target.value })}
+                      placeholder="Ex.: 50000"
+                      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Observação</label>
+                    <input
+                      value={acaoCicloForm.observacao}
+                      onChange={(e) => setAcaoCicloForm({ ...acaoCicloForm, observacao: e.target.value })}
+                      placeholder="Opcional"
+                      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                    />
+                  </div>
+                </div>
+
+                <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${cicloInfoAcaoForm.ciclo ? 'bg-[#f4fbfb] border-[#d9eff0] text-[#048187]' : 'bg-orange-50 border-orange-100 text-orange-600'}`}>
+                  {cicloInfoAcaoForm.mensagem}
+                </div>
+
+                <div className="border border-gray-100 rounded-2xl p-4 bg-[#fbfefe]">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
+                    <div>
+                      <h3 className="font-black text-gray-700">Estruturas participantes</h3>
+                      <p className="text-xs text-gray-400 font-bold">{acaoCicloForm.estruturas.length} selecionada(s)</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        value={buscaEstruturaAcao}
+                        onChange={(e) => setBuscaEstruturaAcao(e.target.value)}
+                        placeholder="Buscar estrutura..."
+                        className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                      />
+                      <button type="button" onClick={() => selecionarTodasEstruturasAcao(estruturasDisponiveis)} className="bg-[#e6f6f7] text-[#048187] rounded-lg px-3 py-2.5 text-xs font-black">Selecionar todas</button>
+                      <button type="button" onClick={() => setAcaoCicloForm({ ...acaoCicloForm, estruturas: [] })} className="bg-red-50 text-red-600 rounded-lg px-3 py-2.5 text-xs font-black">Limpar</button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-[300px] overflow-y-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
+                    {estruturasFiltradas.map((estrutura) => {
+                      const marcada = acaoCicloForm.estruturas.includes(estrutura);
+                      return (
+                        <button
+                          key={estrutura}
+                          type="button"
+                          onClick={() => alternarEstruturaAcao(estrutura)}
+                          className={`text-left rounded-xl border px-3 py-2.5 text-xs font-black transition-colors ${marcada ? 'bg-[#e6f6f7] border-[#5bb2b4] text-[#048187]' : 'bg-white border-gray-100 text-gray-600 hover:border-[#5bb2b4]'}`}
+                          title={estrutura}
+                        >
+                          <span className="inline-flex items-center gap-2 min-w-0">
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${marcada ? 'bg-[#048187] border-[#048187] text-white' : 'border-gray-300'}`}>
+                              {marcada ? '✓' : ''}
+                            </span>
+                            <span className="truncate">{estrutura}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {!estruturasFiltradas.length && (
+                      <div className="col-span-full py-8 text-center text-gray-400 font-bold">
+                        Nenhuma estrutura encontrada.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 border-t border-gray-100 bg-white flex flex-col sm:flex-row justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setModalAcaoCicloAberto(false)}
+                  className="border border-gray-200 text-gray-500 px-5 py-3 rounded-xl font-black hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={carregandoAcoesCiclo}
+                  onClick={salvarAcaoCiclo}
+                  className="bg-[#048187] text-white px-5 py-3 rounded-xl font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                >
+                  <Save size={18} /> {carregandoAcoesCiclo ? 'Salvando...' : 'Salvar ação'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+
   const renderTelaHistorico = () => {
     const resumo = dadosHistorico?.resumo || null;
     const estruturas = dadosHistorico?.estruturas || [];
@@ -6742,6 +7373,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'N3') return <TelaGestaoNucleo nucleo="N3" />;
     if (telaAtual === 'Ranking') return renderTelaRanking();
     if (telaAtual === 'Comparativo') return renderTelaComparativo();
+    if (telaAtual === 'Ações') return renderTelaAcoesCiclo();
     if (telaAtual === 'Histórico') return renderTelaHistorico();
     if (telaAtual === 'Revendedores') return renderTelaRevendedores();
     if (telaAtual === 'Base') return renderTelaBase();
