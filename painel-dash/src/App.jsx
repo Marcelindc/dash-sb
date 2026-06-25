@@ -1864,6 +1864,7 @@ export default function App() {
   const [mensagemLoja, setMensagemLoja] = useState('');
   const [cicloLoja, setCicloLoja] = useState('');
   const [arquivoGerencialLoja, setArquivoGerencialLoja] = useState(null);
+  const [arquivosLoja, setArquivosLoja] = useState({ unidades: null, consultoras: null, metasUnidade: null, metasConsultora: null, skin: null, servicos: null });
   const [buscaLoja, setBuscaLoja] = useState('');
   const [lojaUnidadeForm, setLojaUnidadeForm] = useState({ codigo_pdv: '', cidade: '', nome_loja: '', status_loja: 'ativo' });
   const [lojaConsultoraForm, setLojaConsultoraForm] = useState({ id_consultora: '', nome_consultora: '', codigo_pdv_oficial: '', status_consultora: 'ativo' });
@@ -2826,6 +2827,32 @@ const carregarRevendedores = async () => {
     }
   };
 
+  const uploadBaseLoja = async (e, chaveArquivo, endpoint, nomeBase) => {
+    e.preventDefault();
+    const arquivo = arquivosLoja?.[chaveArquivo];
+    if (!arquivo) {
+      setErroLoja(`Selecione a base ${nomeBase}.`);
+      return;
+    }
+    setCarregandoLoja(true);
+    setErroLoja('');
+    setMensagemLoja('');
+    try {
+      const form = new FormData();
+      form.append('file', arquivo);
+      form.append('ciclo', cicloLojaSelecionado());
+      form.append('substituir', 'true');
+      const { data } = await axios.post(`${API_URL}${endpoint}`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setMensagemLoja(data?.mensagem || `${nomeBase} importada com sucesso.`);
+      setArquivosLoja((atual) => ({ ...atual, [chaveArquivo]: null }));
+      await carregarDadosLoja(data?.ciclo || cicloLojaSelecionado());
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || `Erro ao importar ${nomeBase}.`);
+    } finally {
+      setCarregandoLoja(false);
+    }
+  };
+
   const salvarUnidadeLoja = async (e) => {
     e.preventDefault();
     setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
@@ -2852,13 +2879,31 @@ const carregarRevendedores = async () => {
     } finally { setCarregandoLoja(false); }
   };
 
+  const numeroPayloadLoja = (valor) => {
+    const texto = String(valor ?? '').trim();
+    if (!texto) return '0';
+    if (texto.includes(',')) return texto.replace(/\./g, '').replace(',', '.');
+    return texto;
+  };
+
   const salvarMetaUnidadeLoja = async (e) => {
     e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const payload = {
+      ciclo: String(formData.get('ciclo') || cicloLojaSelecionado()),
+      codigo_pdv: String(formData.get('codigo_pdv') || ''),
+      meta_faturamento: numeroPayloadLoja(formData.get('meta_faturamento') || '0'),
+      meta_boleto_medio: numeroPayloadLoja(formData.get('meta_boleto_medio') || '0'),
+      meta_itens_boleto: numeroPayloadLoja(formData.get('meta_itens_boleto') || '4'),
+      meta_skin: numeroPayloadLoja(formData.get('meta_skin') || '0'),
+      meta_servicos_mes: numeroPayloadLoja(formData.get('meta_servicos_mes') || '0'),
+      meta_servicos_ano: numeroPayloadLoja(formData.get('meta_servicos_ano') || '0')
+    };
     setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
     try {
-      await axios.post(`${API_URL}/loja/metas/unidade`, { ...lojaMetaUnidadeForm, ciclo: lojaMetaUnidadeForm.ciclo || cicloLojaSelecionado() });
-      setMensagemLoja('Meta da unidade salva com sucesso.');
-      setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
+      await axios.post(`${API_URL}/loja/metas/unidade`, payload);
+      setMensagemLoja('Meta da unidade salva.');
+      e.currentTarget.reset();
       await carregarDadosLoja();
     } catch (erro) {
       setErroLoja(erro.response?.data?.detail || 'Erro ao salvar meta da unidade.');
@@ -2867,247 +2912,26 @@ const carregarRevendedores = async () => {
 
   const salvarMetaConsultoraLoja = async (e) => {
     e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const cons = consultoras.find((c) => c.id_consultora === String(formData.get('id_consultora') || ''));
+    const payload = {
+      ciclo: String(formData.get('ciclo') || cicloLojaSelecionado()),
+      id_consultora: String(formData.get('id_consultora') || ''),
+      codigo_pdv_oficial: cons?.codigo_pdv_oficial || '',
+      meta_faturamento: numeroPayloadLoja(formData.get('meta_faturamento') || '0'),
+      meta_boleto_medio: numeroPayloadLoja(formData.get('meta_boleto_medio') || '0'),
+      meta_itens_boleto: numeroPayloadLoja(formData.get('meta_itens_boleto') || '4'),
+      meta_skin: numeroPayloadLoja(formData.get('meta_skin') || '0')
+    };
     setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
     try {
-      await axios.post(`${API_URL}/loja/metas/consultora`, { ...lojaMetaConsultoraForm, ciclo: lojaMetaConsultoraForm.ciclo || cicloLojaSelecionado() });
-      setMensagemLoja('Meta da consultora salva com sucesso.');
-      setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' });
+      await axios.post(`${API_URL}/loja/metas/consultora`, payload);
+      setMensagemLoja('Meta da consultora salva.');
+      e.currentTarget.reset();
       await carregarDadosLoja();
     } catch (erro) {
       setErroLoja(erro.response?.data?.detail || 'Erro ao salvar meta da consultora.');
     } finally { setCarregandoLoja(false); }
-  };
-
-  const carregarTelaAtual = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
-    if (!usuarioLogado) return;
-
-    if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao);
-    if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
-    if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
-    if (telaAtual === 'Ações') return carregarAcoesCiclo();
-    if (telaAtual === 'Histórico') return carregarHistoricoCiclos();
-    if (telaAtual === 'Revendedores') return carregarRevendedores();
-    if (telaAtual === 'Base') return carregarCiclos();
-    if (telaAtual === 'Cadastro') return Promise.allSettled([carregarCiclos(), carregarListaConsultores(), carregarEstruturasConfig()]);
-    if (telaEhLoja(telaAtual)) return carregarDadosLoja();
-    if (telaAtual === 'ADM') return carregarAuditoria();
-    if (telaAtual === 'Configurações') return carregarUsuarios();
-  };
-
-  const carregarHistoricoCiclo = async (cicloParam = cicloHistoricoSelecionado) => {
-    const ciclo = String(cicloParam || '').trim();
-    if (!ciclo) {
-      setDadosHistorico({ resumo: null, estruturas: [], consultores: [], consultoresAtivos: [], metas: [] });
-      return;
-    }
-
-    setCarregandoHistorico(true);
-    setErroHistorico('');
-    setMensagemHistorico('');
-
-    try {
-      const [resumoResp, estruturasResp, consultoresResp, ativosResp, metasResp] = await Promise.allSettled([
-        axios.get(`${API_URL}/historico/resumo`, { params: { ciclo } }),
-        axios.get(`${API_URL}/historico/estruturas`, { params: { ciclo } }),
-        axios.get(`${API_URL}/historico/consultores`, { params: { ciclo } }),
-        axios.get(`${API_URL}/historico/consultores-ativos`, { params: { ciclo } }),
-        axios.get(`${API_URL}/historico/metas`, { params: { ciclo } })
-      ]);
-
-      const ler = (resp, campo, padrao) => resp.status === 'fulfilled' ? (resp.value?.data?.[campo] ?? padrao) : padrao;
-
-      setDadosHistorico({
-        resumo: ler(resumoResp, 'resumo', null),
-        estruturas: ler(estruturasResp, 'estruturas', []),
-        consultores: ler(consultoresResp, 'consultores', []),
-        consultoresAtivos: ler(ativosResp, 'consultores', []),
-        metas: ler(metasResp, 'metas', [])
-      });
-    } catch (erro) {
-      setErroHistorico(erro.response?.data?.detail || 'Erro ao carregar histórico do ciclo.');
-    } finally {
-      setCarregandoHistorico(false);
-    }
-  };
-
-  const carregarHistoricoCiclos = async () => {
-    if (!usuarioLogado) return;
-    setCarregandoHistorico(true);
-    setErroHistorico('');
-
-    try {
-      const { data } = await axios.get(`${API_URL}/historico/ciclos`);
-      const ciclosLista = data?.ciclos || [];
-      setHistoricoCiclos(ciclosLista);
-
-      const cicloParaAbrir = cicloHistoricoSelecionado || ciclosLista?.[0]?.ciclo || '';
-      if (cicloParaAbrir) {
-        setCicloHistoricoSelecionado(cicloParaAbrir);
-        await carregarHistoricoCiclo(cicloParaAbrir);
-      } else {
-        setDadosHistorico({ resumo: null, estruturas: [], consultores: [], consultoresAtivos: [], metas: [] });
-      }
-    } catch (erro) {
-      setErroHistorico(erro.response?.data?.detail || 'Erro ao carregar lista de ciclos históricos.');
-    } finally {
-      setCarregandoHistorico(false);
-    }
-  };
-
-  const fecharCicloHistorico = async () => {
-    const ciclo = String(fechamentoHistorico.ciclo || '').trim();
-    if (!ciclo) {
-      setErroHistorico('Informe o ciclo que deseja fechar. Ex.: 08/2026.');
-      return;
-    }
-
-    const confirmar = window.confirm(`Fechar e congelar o ciclo ${ciclo}? Isso salvará uma fotografia oficial do ciclo.`);
-    if (!confirmar) return;
-
-    setCarregandoHistorico(true);
-    setErroHistorico('');
-    setMensagemHistorico('');
-
-    try {
-      const { data } = await axios.post(`${API_URL}/historico/fechar-ciclo`, {
-        ciclo,
-        fechado_por: usuarioLogado?.nome || usuarioLogado?.email || 'Sistema',
-        observacao: fechamentoHistorico.observacao || `Fechamento histórico do ciclo ${ciclo}`,
-        substituir: true
-      });
-      setMensagemHistorico(data?.mensagem || `Ciclo ${ciclo} salvo no histórico.`);
-      setFechamentoHistorico({ ciclo: '', observacao: '' });
-      setCicloHistoricoSelecionado(ciclo);
-      await carregarHistoricoCiclos();
-      await carregarHistoricoCiclo(ciclo);
-    } catch (erro) {
-      setErroHistorico(erro.response?.data?.detail || 'Erro ao fechar ciclo.');
-    } finally {
-      setCarregandoHistorico(false);
-    }
-  };
-
-  const reprocessarCicloHistorico = async () => {
-    const ciclo = String(cicloHistoricoSelecionado || '').trim();
-    if (!ciclo) {
-      setErroHistorico('Selecione um ciclo para reprocessar.');
-      return;
-    }
-
-    const confirmar = window.confirm(`Reprocessar o histórico do ciclo ${ciclo}? O snapshot atual será substituído.`);
-    if (!confirmar) return;
-
-    setCarregandoHistorico(true);
-    setErroHistorico('');
-    setMensagemHistorico('');
-
-    try {
-      const { data } = await axios.post(`${API_URL}/historico/reprocessar`, {
-        ciclo,
-        fechado_por: usuarioLogado?.nome || usuarioLogado?.email || 'Sistema',
-        observacao: `Reprocessamento manual do ciclo ${ciclo}`,
-        substituir: true
-      });
-      setMensagemHistorico(data?.mensagem || `Histórico do ciclo ${ciclo} reprocessado.`);
-      await carregarHistoricoCiclos();
-      await carregarHistoricoCiclo(ciclo);
-    } catch (erro) {
-      setErroHistorico(erro.response?.data?.detail || 'Erro ao reprocessar ciclo.');
-    } finally {
-      setCarregandoHistorico(false);
-    }
-  };
-
-  const selecionarArquivoLancamentoHistorico = (campo, files, multiplo = false) => {
-    const lista = Array.from(files || []);
-    setLancamentoHistorico((atual) => ({
-      ...atual,
-      [campo]: multiplo ? lista : (lista[0] || null)
-    }));
-  };
-
-  const processarLancamentoHistorico = async () => {
-    const ciclo = String(lancamentoHistorico.ciclo || '').trim();
-    if (!ciclo) {
-      setErroHistorico('Informe o ciclo que deseja lançar. Ex.: 08/2026.');
-      setVisaoHistorico('lancar');
-      return;
-    }
-    if (!lancamentoHistorico.pedidos) {
-      setErroHistorico('Envie pelo menos a base de Pedidos do ciclo.');
-      setVisaoHistorico('lancar');
-      return;
-    }
-
-    const confirmar = window.confirm(`Processar e lançar o ciclo ${ciclo} no histórico? O histórico desse ciclo será substituído.`);
-    if (!confirmar) return;
-
-    const formData = new FormData();
-    formData.append('ciclo', ciclo);
-    formData.append('lancado_por', usuarioLogado?.nome || usuarioLogado?.email || 'Sistema');
-    formData.append('observacao', lancamentoHistorico.observacao || `Lançamento retroativo do ciclo ${ciclo}`);
-    formData.append('substituir', 'true');
-    if (lancamentoHistorico.data_inicio) formData.append('data_inicio', lancamentoHistorico.data_inicio);
-    if (lancamentoHistorico.data_fim) formData.append('data_fim', lancamentoHistorico.data_fim);
-    formData.append('pedidos', lancamentoHistorico.pedidos);
-    if (lancamentoHistorico.base_ativa) formData.append('base_ativa', lancamentoHistorico.base_ativa);
-    if (lancamentoHistorico.consultores) formData.append('consultores', lancamentoHistorico.consultores);
-    if (lancamentoHistorico.metas) formData.append('metas', lancamentoHistorico.metas);
-    (lancamentoHistorico.make || []).forEach((arquivo) => formData.append('make', arquivo));
-    (lancamentoHistorico.cabelo || []).forEach((arquivo) => formData.append('cabelo', arquivo));
-
-    setCarregandoHistorico(true);
-    setErroHistorico('');
-    setMensagemHistorico('');
-    try {
-      const { data } = await axios.post(`${API_URL}/historico/lancar-ciclo`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      setMensagemHistorico(data?.mensagem || `Ciclo ${ciclo} lançado com sucesso.`);
-      setCicloHistoricoSelecionado(ciclo);
-      setVisaoHistorico('estruturas');
-      setLancamentoHistorico({ ciclo: '', data_inicio: '', data_fim: '', observacao: '', pedidos: null, base_ativa: null, consultores: null, metas: null, make: [], cabelo: [] });
-      await carregarHistoricoCiclos();
-      await carregarHistoricoCiclo(ciclo);
-    } catch (erro) {
-      setErroHistorico(erro.response?.data?.detail || 'Erro ao lançar ciclo histórico.');
-      setVisaoHistorico('lancar');
-    } finally {
-      setCarregandoHistorico(false);
-    }
-  };
-
-  const salvarSnapshotAtualHistorico = async () => {
-    const ciclo = String(lancamentoHistorico.ciclo || dados?.ciclo_atual || ciclos.find((c) => c.status_ciclo === 'ativo')?.ciclo || '').trim();
-    if (!ciclo) {
-      setErroHistorico('Informe o ciclo vigente para salvar snapshot. Ex.: 09/2026.');
-      setVisaoHistorico('lancar');
-      return;
-    }
-    const confirmar = window.confirm(`Salvar uma fotografia parcial do ciclo vigente ${ciclo}?`);
-    if (!confirmar) return;
-
-    setCarregandoHistorico(true);
-    setErroHistorico('');
-    setMensagemHistorico('');
-    try {
-      const { data } = await axios.post(`${API_URL}/historico/snapshot-atual`, {
-        ciclo,
-        fechado_por: usuarioLogado?.nome || usuarioLogado?.email || 'Sistema',
-        observacao: `Snapshot parcial do ciclo vigente ${ciclo}`,
-        substituir: true
-      });
-      setMensagemHistorico(data?.mensagem || `Snapshot do ciclo ${ciclo} salvo.`);
-      setCicloHistoricoSelecionado(ciclo);
-      setVisaoHistorico('estruturas');
-      await carregarHistoricoCiclos();
-      await carregarHistoricoCiclo(ciclo);
-    } catch (erro) {
-      setErroHistorico(erro.response?.data?.detail || 'Erro ao salvar snapshot do ciclo vigente.');
-      setVisaoHistorico('lancar');
-    } finally {
-      setCarregandoHistorico(false);
-    }
   };
 
   useEffect(() => {
@@ -7507,8 +7331,8 @@ const enviarArquivo = async (tipo) => {
     const TabelaUnidades = ({ lista = unidadesFiltradas, compacta = false }) => (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1180px] text-sm">
-          <thead><tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black"><th className="py-3 px-3">PDV</th><th className="py-3 px-3">Cidade/Loja</th><th className="py-3 px-3 text-right">Meta ciclo</th><th className="py-3 px-3 text-right">Realizado no PDV</th><th className="py-3 px-3 text-right">Déficit</th><th className="py-3 px-3 text-right">%</th><th className="py-3 px-3 text-right">Boleto médio</th><th className="py-3 px-3 text-right">Itens/Boleto</th><th className="py-3 px-3 text-right">Meta Skin</th><th className="py-3 px-3 text-right">Serviços</th></tr></thead>
-          <tbody>{lista.map((u) => (<tr key={u.codigo_pdv} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]"><td className="py-3 px-3 font-black text-gray-700">{u.codigo_pdv}</td><td className="py-3 px-3"><p className="font-black text-gray-700 truncate max-w-[260px]">{u.cidade || '-'}</p><p className="text-[10px] text-gray-400 font-bold truncate max-w-[260px]">{u.nome_loja || '-'}</p></td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(u.meta_faturamento)}</td><td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(u.realizado)}</td><td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(u.deficit)}</td><td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(u.percentual) }}>{formatarNumeroBR(u.percentual, 1)}%</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.boleto_medio)}</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(u.itens_por_boleto, 2)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.meta_skin)}</td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarNumeroBR(u.realizado_servicos_mes, 0)} / {formatarNumeroBR(u.meta_servicos_mes, 0)}</td></tr>))}</tbody>
+          <thead><tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black"><th className="py-3 px-3">PDV</th><th className="py-3 px-3">Cidade/Loja</th><th className="py-3 px-3 text-right">Meta ciclo</th><th className="py-3 px-3 text-right">Realizado no PDV</th><th className="py-3 px-3 text-right">Déficit</th><th className="py-3 px-3 text-right">%</th><th className="py-3 px-3 text-right">Boleto médio</th><th className="py-3 px-3 text-right">Itens/Boleto</th><th className="py-3 px-3 text-right">Skin</th><th className="py-3 px-3 text-right">Serviços</th></tr></thead>
+          <tbody>{lista.map((u) => (<tr key={u.codigo_pdv} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]"><td className="py-3 px-3 font-black text-gray-700">{u.codigo_pdv}</td><td className="py-3 px-3"><p className="font-black text-gray-700 truncate max-w-[260px]">{u.cidade || '-'}</p><p className="text-[10px] text-gray-400 font-bold truncate max-w-[260px]">{u.nome_loja || '-'}</p></td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(u.meta_faturamento)}</td><td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(u.realizado)}</td><td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(u.deficit)}</td><td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(u.percentual) }}>{formatarNumeroBR(u.percentual, 1)}%</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.boleto_medio)}</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(u.itens_por_boleto, 2)}</td><td className="py-3 px-3 text-right font-bold"><span className="text-[#048187]">{formatarMoeda(u.realizado_skin || 0)}</span><span className="text-gray-400"> / {formatarMoeda(u.meta_skin || 0)}</span></td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarNumeroBR(u.realizado_servicos_mes, 0)} / {formatarNumeroBR(u.meta_servicos_mes, 0)}</td></tr>))}</tbody>
         </table>
         {!lista.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma unidade encontrada.</div>}
       </div>
@@ -7517,8 +7341,8 @@ const enviarArquivo = async (tipo) => {
     const TabelaConsultoras = ({ lista = consultorasFiltradas }) => (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1220px] text-sm">
-          <thead><tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black"><th className="py-3 px-3">ID</th><th className="py-3 px-3">Consultora</th><th className="py-3 px-3">PDV oficial</th><th className="py-3 px-3 text-right">Meta</th><th className="py-3 px-3 text-right">Realizado consultora</th><th className="py-3 px-3 text-right">Déficit</th><th className="py-3 px-3 text-right">%</th><th className="py-3 px-3 text-right">Boletos</th><th className="py-3 px-3 text-right">Boleto médio</th><th className="py-3 px-3 text-right">Itens/Boleto</th><th className="py-3 px-3 text-right">Meta Skin</th></tr></thead>
-          <tbody>{lista.map((c) => (<tr key={c.id_consultora} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]"><td className="py-3 px-3 font-black text-[#048187]">{c.id_consultora}</td><td className="py-3 px-3"><p className="font-black text-gray-700 truncate max-w-[280px]">{c.nome_consultora}</p><p className="text-[10px] text-gray-400 font-bold">Resultado soma todos os PDVs vendidos.</p></td><td className="py-3 px-3 font-bold text-gray-500">{c.codigo_pdv_oficial || '-'}</td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_faturamento)}</td><td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(c.realizado)}</td><td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(c.deficit)}</td><td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{formatarNumeroBR(c.percentual, 1)}%</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.qtd_boletos, 0)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.boleto_medio)}</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.itens_por_boleto, 2)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.meta_skin)}</td></tr>))}</tbody>
+          <thead><tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black"><th className="py-3 px-3">ID</th><th className="py-3 px-3">Consultora</th><th className="py-3 px-3">PDV oficial</th><th className="py-3 px-3 text-right">Meta</th><th className="py-3 px-3 text-right">Realizado consultora</th><th className="py-3 px-3 text-right">Déficit</th><th className="py-3 px-3 text-right">%</th><th className="py-3 px-3 text-right">Boletos</th><th className="py-3 px-3 text-right">Boleto médio</th><th className="py-3 px-3 text-right">Itens/Boleto</th><th className="py-3 px-3 text-right">Skin</th></tr></thead>
+          <tbody>{lista.map((c) => (<tr key={c.id_consultora} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]"><td className="py-3 px-3 font-black text-[#048187]">{c.id_consultora}</td><td className="py-3 px-3"><p className="font-black text-gray-700 truncate max-w-[280px]">{c.nome_consultora}</p><p className="text-[10px] text-gray-400 font-bold">Resultado soma todos os PDVs vendidos.</p></td><td className="py-3 px-3 font-bold text-gray-500">{c.codigo_pdv_oficial || '-'}</td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_faturamento)}</td><td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(c.realizado)}</td><td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(c.deficit)}</td><td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{formatarNumeroBR(c.percentual, 1)}%</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.qtd_boletos, 0)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.boleto_medio)}</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.itens_por_boleto, 2)}</td><td className="py-3 px-3 text-right font-bold"><span className="text-[#048187]">{formatarMoeda(c.realizado_skin || 0)}</span><span className="text-gray-400"> / {formatarMoeda(c.meta_skin || 0)}</span></td></tr>))}</tbody>
         </table>
         {!lista.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma consultora encontrada.</div>}
       </div>
@@ -7533,13 +7357,102 @@ const enviarArquivo = async (tipo) => {
 
     const AvisosLoja = () => (<>{erroLoja && <div className="rounded-xl border border-red-100 bg-red-50 text-red-700 px-4 py-3 font-bold text-sm">{erroLoja}</div>}{mensagemLoja && <div className="rounded-xl border border-green-100 bg-green-50 text-green-700 px-4 py-3 font-bold text-sm">{mensagemLoja}</div>}</>);
 
+    const CampoArquivoLoja = ({ titulo, descricao, chave, endpoint, exemplo }) => (
+      <form onSubmit={(e) => uploadBaseLoja(e, chave, endpoint, titulo)} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+        <h2 className="text-base font-semibold text-gray-700">{titulo}</h2>
+        <p className="text-xs text-gray-400 font-medium mt-1 leading-relaxed">{descricao}</p>
+        {exemplo && <p className="text-[11px] text-gray-400 mt-2">{exemplo}</p>}
+        <div className="mt-4 flex flex-col gap-3">
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={(e) => setArquivosLoja((atual) => ({ ...atual, [chave]: e.target.files?.[0] || null }))}
+            className="border border-gray-200 rounded-lg px-4 py-3 font-medium text-gray-600"
+          />
+          <button disabled={carregandoLoja} className="bg-[#048187] text-white px-5 py-3 rounded-lg font-semibold hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2">
+            <Upload size={18} /> Importar
+          </button>
+        </div>
+      </form>
+    );
+
     const CadastroLoja = () => (
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 xl:col-span-2"><h2 className="text-lg font-black text-gray-700">Importar base gerencial LOJA</h2><p className="text-xs text-gray-400 font-bold mt-1">Aceita CSV/XLSX com colunas Listar Por Lojas e Quebrar Por Consultor. O ID antes do nome da consultora será salvo como ID oficial.</p><form onSubmit={uploadGerencialLoja} className="mt-4 flex flex-col md:flex-row gap-3"><input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setArquivoGerencialLoja(e.target.files?.[0] || null)} className="flex-1 border border-gray-200 rounded-lg px-4 py-3 font-bold text-gray-600" /><button disabled={carregandoLoja} className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2"><Upload size={18} /> Importar base</button></form></div>
-        <form onSubmit={salvarUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700">Cadastrar unidade/PDV</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"><input placeholder="PDV" value={lojaUnidadeForm.codigo_pdv} onChange={(e) => setLojaUnidadeForm({ ...lojaUnidadeForm, codigo_pdv: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required /><input placeholder="Cidade" value={lojaUnidadeForm.cidade} onChange={(e) => setLojaUnidadeForm({ ...lojaUnidadeForm, cidade: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input placeholder="Nome da loja" value={lojaUnidadeForm.nome_loja} onChange={(e) => setLojaUnidadeForm({ ...lojaUnidadeForm, nome_loja: e.target.value })} className="md:col-span-2 border border-gray-200 rounded-lg px-4 py-3 font-bold" required /></div><button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-black">Salvar unidade</button></form>
-        <form onSubmit={salvarConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700">Cadastrar consultora</h2><p className="text-xs text-gray-400 font-bold mt-1">O ID é o número que vem antes do nome na base.</p><div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"><input placeholder="ID consultora" value={lojaConsultoraForm.id_consultora} onChange={(e) => setLojaConsultoraForm({ ...lojaConsultoraForm, id_consultora: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required /><select value={lojaConsultoraForm.codigo_pdv_oficial} onChange={(e) => setLojaConsultoraForm({ ...lojaConsultoraForm, codigo_pdv_oficial: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required><option value="">PDV oficial</option>{unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}</select><input placeholder="Nome da consultora" value={lojaConsultoraForm.nome_consultora} onChange={(e) => setLojaConsultoraForm({ ...lojaConsultoraForm, nome_consultora: e.target.value })} className="md:col-span-2 border border-gray-200 rounded-lg px-4 py-3 font-bold" required /></div><button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-black">Salvar consultora</button></form>
-        <form onSubmit={salvarMetaUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700">Metas por unidade</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"><input placeholder="Ciclo" value={lojaMetaUnidadeForm.ciclo || cicloAtualLoja} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, ciclo: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><select value={lojaMetaUnidadeForm.codigo_pdv} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, codigo_pdv: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required><option value="">PDV</option>{unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}</select><input type="number" step="0.01" placeholder="Meta faturamento" value={lojaMetaUnidadeForm.meta_faturamento} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_faturamento: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Meta Skin R$" value={lojaMetaUnidadeForm.meta_skin} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_skin: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Boleto médio" value={lojaMetaUnidadeForm.meta_boleto_medio} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_boleto_medio: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Itens/Boleto" value={lojaMetaUnidadeForm.meta_itens_boleto} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_itens_boleto: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="1" placeholder="Meta serviços mês" value={lojaMetaUnidadeForm.meta_servicos_mes} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_servicos_mes: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="1" placeholder="Meta serviços ano" value={lojaMetaUnidadeForm.meta_servicos_ano} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_servicos_ano: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /></div><button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-black">Salvar meta unidade</button></form>
-        <form onSubmit={salvarMetaConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700">Metas por consultora</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"><input placeholder="Ciclo" value={lojaMetaConsultoraForm.ciclo || cicloAtualLoja} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, ciclo: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><select value={lojaMetaConsultoraForm.id_consultora} onChange={(e) => { const cons = consultoras.find((c) => c.id_consultora === e.target.value); setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, id_consultora: e.target.value, codigo_pdv_oficial: cons?.codigo_pdv_oficial || lojaMetaConsultoraForm.codigo_pdv_oficial }); }} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required><option value="">Consultora</option>{consultoras.map((c) => <option key={c.id_consultora} value={c.id_consultora}>{c.id_consultora} - {c.nome_consultora}</option>)}</select><input type="number" step="0.01" placeholder="Meta faturamento" value={lojaMetaConsultoraForm.meta_faturamento} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, meta_faturamento: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Meta Skin R$" value={lojaMetaConsultoraForm.meta_skin} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, meta_skin: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Boleto médio" value={lojaMetaConsultoraForm.meta_boleto_medio} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, meta_boleto_medio: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Itens/Boleto" value={lojaMetaConsultoraForm.meta_itens_boleto} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, meta_itens_boleto: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /></div><button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-black">Salvar meta consultora</button></form>
+      <div className="space-y-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-gray-700">Bases da LOJA</h2>
+          <p className="text-sm text-gray-400 font-medium mt-1">São bases separadas. Primeiro importe a base de vendas/GMV. Depois importe cadastros, metas, Skin e Serviços quando tiver os arquivos.</p>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 xl:col-span-3">
+            <h2 className="text-base font-semibold text-gray-700">Base de vendas / GMV</h2>
+            <p className="text-xs text-gray-400 font-medium mt-1">Usa Listar Por Lojas, Quebrar Por Consultor e GMV-GMV. O faturamento será calculado pelo GMV-GMV.</p>
+            <form onSubmit={uploadGerencialLoja} className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setArquivoGerencialLoja(e.target.files?.[0] || null)} className="border border-gray-200 rounded-lg px-4 py-3 font-medium text-gray-600" />
+              <button disabled={carregandoLoja} className="bg-[#048187] text-white px-5 py-3 rounded-lg font-semibold hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2"><Upload size={18} /> Importar vendas</button>
+            </form>
+          </div>
+
+          <CampoArquivoLoja titulo="Cadastro de unidades" chave="unidades" endpoint="/loja/upload-unidades" descricao="PDV, Cidade e Loja." exemplo="Ex.: 9071 | Viana | 9071 - M P DE MATTOS NETO" />
+          <CampoArquivoLoja titulo="Cadastro de consultoras" chave="consultoras" endpoint="/loja/upload-consultoras" descricao="Consultor(a) e PDV oficial. O número antes do nome é o ID." exemplo="Ex.: 83 - ADRYA MILENA TEIXEIRA CORREA | 17322" />
+          <CampoArquivoLoja titulo="Metas por unidade" chave="metasUnidade" endpoint="/loja/upload-metas-unidade" descricao="Meta ciclo, boleto médio, itens/boleto, Skin e Serviços por PDV." />
+          <CampoArquivoLoja titulo="Metas por consultora" chave="metasConsultora" endpoint="/loja/upload-metas-consultora" descricao="Meta ciclo, boleto médio, itens/boleto e Skin por consultora." />
+          <CampoArquivoLoja titulo="Realizado Skin" chave="skin" endpoint="/loja/upload-skin" descricao="Base de Cuidados Faciais/Botik/Skin por PDV e consultora." />
+          <CampoArquivoLoja titulo="Serviços" chave="servicos" endpoint="/loja/upload-servicos" descricao="Meta e realizado de serviços por PDV." />
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <form onSubmit={salvarUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+            <h2 className="text-base font-semibold text-gray-700">Cadastrar unidade manualmente</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              <input placeholder="PDV" value={lojaUnidadeForm.codigo_pdv} onChange={(e) => setLojaUnidadeForm({ ...lojaUnidadeForm, codigo_pdv: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-medium" required />
+              <input placeholder="Cidade" value={lojaUnidadeForm.cidade} onChange={(e) => setLojaUnidadeForm({ ...lojaUnidadeForm, cidade: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <input placeholder="Nome da loja" value={lojaUnidadeForm.nome_loja} onChange={(e) => setLojaUnidadeForm({ ...lojaUnidadeForm, nome_loja: e.target.value })} className="md:col-span-2 border border-gray-200 rounded-lg px-4 py-3 font-medium" required />
+            </div>
+            <button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-semibold">Salvar unidade</button>
+          </form>
+
+          <form onSubmit={salvarConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+            <h2 className="text-base font-semibold text-gray-700">Cadastrar consultora manualmente</h2>
+            <p className="text-xs text-gray-400 font-medium mt-1">O ID é o número que vem antes do nome.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              <input placeholder="ID consultora" value={lojaConsultoraForm.id_consultora} onChange={(e) => setLojaConsultoraForm({ ...lojaConsultoraForm, id_consultora: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-medium" required />
+              <select value={lojaConsultoraForm.codigo_pdv_oficial} onChange={(e) => setLojaConsultoraForm({ ...lojaConsultoraForm, codigo_pdv_oficial: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-medium" required><option value="">PDV oficial</option>{unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}</select>
+              <input placeholder="Nome da consultora" value={lojaConsultoraForm.nome_consultora} onChange={(e) => setLojaConsultoraForm({ ...lojaConsultoraForm, nome_consultora: e.target.value })} className="md:col-span-2 border border-gray-200 rounded-lg px-4 py-3 font-medium" required />
+            </div>
+            <button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-semibold">Salvar consultora</button>
+          </form>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <form onSubmit={salvarMetaUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+            <h2 className="text-base font-semibold text-gray-700">Meta manual por unidade</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              <input name="ciclo" placeholder="Ciclo" defaultValue={cicloAtualLoja} className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <select name="codigo_pdv" defaultValue="" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" required><option value="">PDV</option>{unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}</select>
+              <input name="meta_faturamento" inputMode="decimal" placeholder="Meta faturamento" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <input name="meta_skin" inputMode="decimal" placeholder="Meta Skin R$" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <input name="meta_boleto_medio" inputMode="decimal" placeholder="Boleto médio" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <input name="meta_itens_boleto" inputMode="decimal" placeholder="Itens/Boleto" defaultValue="4" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <input name="meta_servicos_mes" inputMode="numeric" placeholder="Meta serviços mês" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <input name="meta_servicos_ano" inputMode="numeric" placeholder="Meta serviços ano" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+            </div>
+            <button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-semibold">Salvar meta unidade</button>
+          </form>
+
+          <form onSubmit={salvarMetaConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+            <h2 className="text-base font-semibold text-gray-700">Meta manual por consultora</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              <input name="ciclo" placeholder="Ciclo" defaultValue={cicloAtualLoja} className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <select name="id_consultora" defaultValue="" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" required><option value="">Consultora</option>{consultoras.map((c) => <option key={c.id_consultora} value={c.id_consultora}>{c.id_consultora} - {c.nome_consultora}</option>)}</select>
+              <input name="meta_faturamento" inputMode="decimal" placeholder="Meta faturamento" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <input name="meta_skin" inputMode="decimal" placeholder="Meta Skin R$" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <input name="meta_boleto_medio" inputMode="decimal" placeholder="Boleto médio" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+              <input name="meta_itens_boleto" inputMode="decimal" placeholder="Itens/Boleto" defaultValue="4" className="border border-gray-200 rounded-lg px-4 py-3 font-medium" />
+            </div>
+            <button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-semibold">Salvar meta consultora</button>
+          </form>
+        </div>
       </div>
     );
 
@@ -7547,7 +7460,7 @@ const enviarArquivo = async (tipo) => {
       <div className="space-y-6 animate-fade-in">
         <LojaHeader />
         <AvisosLoja />
-        <div className="bg-[#e6f6f7] border border-[#ccecee] rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><p className="font-black text-[#048187]">Regra de apuração LOJA</p><p className="text-xs font-bold text-[#048187]/80 mt-1">Consultora soma tudo que ela vendeu. PDV soma somente vendas feitas dentro daquele PDV.</p></div><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={buscaLoja} onChange={(e) => setBuscaLoja(e.target.value)} placeholder="Buscar PDV ou consultora" className="pl-9 pr-4 py-2 rounded-lg border border-white/60 outline-none font-bold text-sm min-w-[260px]" /></div></div>
+        <div className="bg-[#e6f6f7] border border-[#ccecee] rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><p className="font-semibold text-[#048187]">Apuração</p><p className="text-xs font-medium text-[#048187]/80 mt-1">Consultora: tudo que vende. PDV: só o que foi vendido no PDV.</p></div><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={buscaLoja} onChange={(e) => setBuscaLoja(e.target.value)} placeholder="Buscar PDV ou consultora" className="pl-9 pr-4 py-2 rounded-lg border border-white/60 outline-none font-medium text-sm min-w-[260px]" /></div></div>
         {carregandoLoja && <DashboardSkeletons />}
         {!carregandoLoja && abaLoja === 'cadastro' && <CadastroLoja />}
         {!carregandoLoja && abaLoja === 'unidades' && <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700 mb-1">Resultado por unidade/PDV</h2><p className="text-xs text-gray-400 font-bold mb-4">Somente vendas que aconteceram dentro do PDV entram no resultado da unidade.</p><TabelaUnidades /></div>}
