@@ -70,7 +70,7 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'ADM', 'Configurações', 'Perfil'],
+  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'],
   gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
   visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
 };
@@ -82,11 +82,15 @@ const obterNomeAba = (nome) => ({
   N2: 'N2',
   Loja: 'LOJA',
   LojaVisaoGeral: 'Visão Geral',
+  LojaCadastro: 'Cadastro',
+  LojaUnidades: 'Unidades',
+  LojaConsultoras: 'Consultoras',
+  LojaRanking: 'Ranking',
   ADM: 'Painel ADM',
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'ADM', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -1686,13 +1690,6 @@ export default function App() {
   const [usuarioLogado, setUsuarioLogado] = useState(() => { const s = localStorage.getItem('usuarioLogado'); return s ? JSON.parse(s) : null; });
   const [tokenAuth, setTokenAuth] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || '');
   const [emailLogin, setEmailLogin] = useState(''); const [senhaLogin, setSenhaLogin] = useState(''); const [mostrarSenha, setMostrarSenha] = useState(false); const [erroLogin, setErroLogin] = useState(''); const [carregandoLogin, setCarregandoLogin] = useState(false);
-  const [modalRecuperacaoSenhaAberto, setModalRecuperacaoSenhaAberto] = useState(false);
-  const [etapaRecuperacaoSenha, setEtapaRecuperacaoSenha] = useState('solicitar');
-  const [carregandoRecuperacaoSenha, setCarregandoRecuperacaoSenha] = useState(false);
-  const [mensagemRecuperacaoSenha, setMensagemRecuperacaoSenha] = useState('');
-  const [erroRecuperacaoSenha, setErroRecuperacaoSenha] = useState('');
-  const [codigoGeradoRecuperacao, setCodigoGeradoRecuperacao] = useState('');
-  const [formRecuperacaoSenha, setFormRecuperacaoSenha] = useState({ email: '', codigo: '', nova_senha: '', confirmar_senha: '' });
   
   const [telaAtual, setTelaAtual] = useState(() => {
     const telaSalva = localStorage.getItem(TELA_ATUAL_STORAGE_KEY);
@@ -1849,6 +1846,18 @@ export default function App() {
   const [acaoCicloDetalhe, setAcaoCicloDetalhe] = useState(null);
   const [buscaEstruturaAcao, setBuscaEstruturaAcao] = useState('');
 
+  const [dadosLoja, setDadosLoja] = useState(null);
+  const [carregandoLoja, setCarregandoLoja] = useState(false);
+  const [erroLoja, setErroLoja] = useState('');
+  const [mensagemLoja, setMensagemLoja] = useState('');
+  const [cicloLoja, setCicloLoja] = useState('');
+  const [arquivoGerencialLoja, setArquivoGerencialLoja] = useState(null);
+  const [buscaLoja, setBuscaLoja] = useState('');
+  const [lojaUnidadeForm, setLojaUnidadeForm] = useState({ codigo_pdv: '', cidade: '', nome_loja: '', status_loja: 'ativo' });
+  const [lojaConsultoraForm, setLojaConsultoraForm] = useState({ id_consultora: '', nome_consultora: '', codigo_pdv_oficial: '', status_consultora: 'ativo' });
+  const [lojaMetaUnidadeForm, setLojaMetaUnidadeForm] = useState({ ciclo: '', codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
+  const [lojaMetaConsultoraForm, setLojaMetaConsultoraForm] = useState({ ciclo: '', id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' });
+
   const promessasEmAndamentoRef = useRef({});
   const ultimoCarregamentoTelaRef = useRef('');
   const debounceFiltroRapidoRef = useRef(null);
@@ -1859,7 +1868,11 @@ export default function App() {
 
   const itensMenuVD = itensMenuTopo;
   const itensMenuLoja = [
-    { nome: 'LojaVisaoGeral', icone: LayoutDashboard }
+    { nome: 'LojaVisaoGeral', icone: LayoutDashboard },
+    { nome: 'LojaUnidades', icone: IconeCanalLoja },
+    { nome: 'LojaConsultoras', icone: Users },
+    { nome: 'LojaRanking', icone: Trophy },
+    { nome: 'LojaCadastro', icone: Save }
   ];
 
   const navegarParaTelaVD = (nomeTela) => {
@@ -1942,7 +1955,7 @@ export default function App() {
 
   const usuarioPodeAcessarLoja = () => usuarioPodeAcessar('Loja') || usuarioPodeAcessar('LojaVisaoGeral');
 
-  const telaEhLoja = (tela) => ['Loja', 'LojaVisaoGeral'].includes(tela);
+  const telaEhLoja = (tela) => ['Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking'].includes(tela);
 
   const obterPermissoesUsuarioLista = (usuario) => normalizarListaPermissoesUsuario(
     Array.isArray(usuario?.permissoes) ? usuario.permissoes : (permissoesAtivas[usuario?.perfil] || []),
@@ -2752,6 +2765,107 @@ const carregarRevendedores = async () => {
     return { texto: 'Acontecendo', classe: 'bg-[#e6f6f7] text-[#048187]' };
   };
 
+  const cicloLojaSelecionado = () => (
+    cicloLoja
+    || dadosLoja?.resumo?.ciclo
+    || dados?.ciclo_atual
+    || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
+    || ciclos?.[0]?.ciclo
+    || ''
+  );
+
+  const carregarDadosLoja = async (cicloParam = '') => {
+    setCarregandoLoja(true);
+    setErroLoja('');
+    try {
+      const cicloConsulta = cicloParam || cicloLojaSelecionado();
+      const { data } = await axios.get(`${API_URL}/loja/dashboard`, { params: cicloConsulta ? { ciclo: cicloConsulta } : {} });
+      setDadosLoja(data || null);
+      if (data?.resumo?.ciclo && !cicloLoja) setCicloLoja(data.resumo.ciclo);
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao carregar dados da LOJA.');
+    } finally {
+      setCarregandoLoja(false);
+    }
+  };
+
+  const uploadGerencialLoja = async (e) => {
+    e.preventDefault();
+    if (!arquivoGerencialLoja) {
+      setErroLoja('Selecione a base gerencial de loja para importar.');
+      return;
+    }
+    setCarregandoLoja(true);
+    setErroLoja('');
+    setMensagemLoja('');
+    try {
+      const form = new FormData();
+      form.append('file', arquivoGerencialLoja);
+      form.append('ciclo', cicloLojaSelecionado());
+      form.append('substituir', 'true');
+      const { data } = await axios.post(`${API_URL}/loja/upload-gerencial`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setMensagemLoja(data?.mensagem || 'Base de LOJA importada com sucesso.');
+      setArquivoGerencialLoja(null);
+      await carregarDadosLoja(data?.ciclo || cicloLojaSelecionado());
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao importar base gerencial de loja.');
+    } finally {
+      setCarregandoLoja(false);
+    }
+  };
+
+  const salvarUnidadeLoja = async (e) => {
+    e.preventDefault();
+    setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
+    try {
+      await axios.post(`${API_URL}/loja/unidades`, lojaUnidadeForm);
+      setMensagemLoja('Unidade salva com sucesso.');
+      setLojaUnidadeForm({ codigo_pdv: '', cidade: '', nome_loja: '', status_loja: 'ativo' });
+      await carregarDadosLoja();
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao salvar unidade.');
+    } finally { setCarregandoLoja(false); }
+  };
+
+  const salvarConsultoraLoja = async (e) => {
+    e.preventDefault();
+    setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
+    try {
+      await axios.post(`${API_URL}/loja/consultoras`, lojaConsultoraForm);
+      setMensagemLoja('Consultora salva com sucesso.');
+      setLojaConsultoraForm({ id_consultora: '', nome_consultora: '', codigo_pdv_oficial: '', status_consultora: 'ativo' });
+      await carregarDadosLoja();
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao salvar consultora.');
+    } finally { setCarregandoLoja(false); }
+  };
+
+  const salvarMetaUnidadeLoja = async (e) => {
+    e.preventDefault();
+    setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
+    try {
+      await axios.post(`${API_URL}/loja/metas/unidade`, { ...lojaMetaUnidadeForm, ciclo: lojaMetaUnidadeForm.ciclo || cicloLojaSelecionado() });
+      setMensagemLoja('Meta da unidade salva com sucesso.');
+      setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
+      await carregarDadosLoja();
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao salvar meta da unidade.');
+    } finally { setCarregandoLoja(false); }
+  };
+
+  const salvarMetaConsultoraLoja = async (e) => {
+    e.preventDefault();
+    setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
+    try {
+      await axios.post(`${API_URL}/loja/metas/consultora`, { ...lojaMetaConsultoraForm, ciclo: lojaMetaConsultoraForm.ciclo || cicloLojaSelecionado() });
+      setMensagemLoja('Meta da consultora salva com sucesso.');
+      setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' });
+      await carregarDadosLoja();
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao salvar meta da consultora.');
+    } finally { setCarregandoLoja(false); }
+  };
+
   const carregarTelaAtual = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
 
@@ -2763,7 +2877,7 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Revendedores') return carregarRevendedores();
     if (telaAtual === 'Base') return carregarCiclos();
     if (telaAtual === 'Cadastro') return Promise.allSettled([carregarCiclos(), carregarListaConsultores(), carregarEstruturasConfig()]);
-    if (telaAtual === 'Loja' || telaAtual === 'LojaVisaoGeral') return carregarDashboard(filtros, forcarAtualizacao);
+    if (telaEhLoja(telaAtual)) return carregarDadosLoja();
     if (telaAtual === 'ADM') return carregarAuditoria();
     if (telaAtual === 'Configurações') return carregarUsuarios();
   };
@@ -3029,101 +3143,6 @@ const carregarRevendedores = async () => {
       setErroLogin(erro.response?.data?.detail || 'Erro ao realizar login.');
     } finally {
       setCarregandoLogin(false);
-    }
-  };
-
-  const abrirModalRecuperacaoSenha = () => {
-    setErroLogin('');
-    setErroRecuperacaoSenha('');
-    setMensagemRecuperacaoSenha('');
-    setCodigoGeradoRecuperacao('');
-    setEtapaRecuperacaoSenha('solicitar');
-    setFormRecuperacaoSenha({
-      email: emailLogin || '',
-      codigo: '',
-      nova_senha: '',
-      confirmar_senha: ''
-    });
-    setModalRecuperacaoSenhaAberto(true);
-  };
-
-  const fecharModalRecuperacaoSenha = () => {
-    if (carregandoRecuperacaoSenha) return;
-    setModalRecuperacaoSenhaAberto(false);
-    setErroRecuperacaoSenha('');
-    setMensagemRecuperacaoSenha('');
-    setCodigoGeradoRecuperacao('');
-  };
-
-  const solicitarCodigoRecuperacaoSenha = async (e) => {
-    e.preventDefault();
-    setErroRecuperacaoSenha('');
-    setMensagemRecuperacaoSenha('');
-    setCodigoGeradoRecuperacao('');
-
-    const email = String(formRecuperacaoSenha.email || '').trim().toLowerCase();
-    if (!email) {
-      setErroRecuperacaoSenha('Informe o e-mail cadastrado.');
-      return;
-    }
-
-    setCarregandoRecuperacaoSenha(true);
-    try {
-      const resposta = await axios.post(`${API_URL}/auth/recuperar-senha/solicitar`, { email });
-      setFormRecuperacaoSenha((atual) => ({ ...atual, email, codigo: '' }));
-      setCodigoGeradoRecuperacao('');
-      setEtapaRecuperacaoSenha('redefinir');
-      setMensagemRecuperacaoSenha(resposta.data?.mensagem || 'Enviamos o código para o e-mail cadastrado.');
-    } catch (erro) {
-      setErroRecuperacaoSenha(erro.response?.data?.detail || 'Erro ao gerar código de recuperação.');
-    } finally {
-      setCarregandoRecuperacaoSenha(false);
-    }
-  };
-
-  const redefinirSenhaRecuperacao = async (e) => {
-    e.preventDefault();
-    setErroRecuperacaoSenha('');
-    setMensagemRecuperacaoSenha('');
-
-    const email = String(formRecuperacaoSenha.email || '').trim().toLowerCase();
-    const codigo = String(formRecuperacaoSenha.codigo || '').trim();
-    const novaSenha = String(formRecuperacaoSenha.nova_senha || '');
-    const confirmarSenha = String(formRecuperacaoSenha.confirmar_senha || '');
-
-    if (!email || !codigo || !novaSenha || !confirmarSenha) {
-      setErroRecuperacaoSenha('Preencha todos os campos.');
-      return;
-    }
-    if (novaSenha.length < 6) {
-      setErroRecuperacaoSenha('A nova senha precisa ter no mínimo 6 caracteres.');
-      return;
-    }
-    if (novaSenha !== confirmarSenha) {
-      setErroRecuperacaoSenha('As senhas não conferem.');
-      return;
-    }
-
-    setCarregandoRecuperacaoSenha(true);
-    try {
-      const resposta = await axios.post(`${API_URL}/auth/recuperar-senha/redefinir`, {
-        email,
-        codigo,
-        nova_senha: novaSenha
-      });
-      setMensagemRecuperacaoSenha(resposta.data?.mensagem || 'Senha redefinida com sucesso.');
-      setSenhaLogin('');
-      setEmailLogin(email);
-      setErroLogin('');
-      setTimeout(() => {
-        setModalRecuperacaoSenhaAberto(false);
-        setMensagemRecuperacaoSenha('');
-        setCodigoGeradoRecuperacao('');
-      }, 1200);
-    } catch (erro) {
-      setErroRecuperacaoSenha(erro.response?.data?.detail || 'Erro ao redefinir senha.');
-    } finally {
-      setCarregandoRecuperacaoSenha(false);
     }
   };
 
@@ -7260,209 +7279,103 @@ const enviarArquivo = async (tipo) => {
   };
 
   const renderTelaLoja = () => {
-    const pvdLoja = [
-      { pvd: '9071', meta: 74937, realizado: 8117.7, deficit: 66819.3, itens: 4, boleto: 260, skinMeta: 1874, skinReal: 0, servMes: 14 },
-      { pvd: '9151', meta: 48985, realizado: 8038.52, deficit: 40946.48, itens: 4, boleto: 230, skinMeta: 1224.87, skinReal: 0, servMes: 16 },
-      { pvd: '17322', meta: 117263, realizado: 19936.93, deficit: 97326.07, itens: 4, boleto: 279, skinMeta: 2931.55, skinReal: 0, servMes: 19 },
-      { pvd: '17324', meta: 56234, realizado: 9249.99, deficit: 46984.01, itens: 4, boleto: 276, skinMeta: 1405.86, skinReal: 0, servMes: 14 },
-      { pvd: '20228', meta: 52572, realizado: 8760.01, deficit: 43811.99, itens: 4, boleto: 267, skinMeta: 1314.30, skinReal: 0, servMes: 9 },
-    ].map((item) => ({ ...item, percentual: calcPerc(item.realizado, item.meta) }));
+    const resumo = dadosLoja?.resumo || {};
+    const unidades = dadosLoja?.unidades || [];
+    const consultoras = dadosLoja?.consultoras || [];
+    const cicloAtualLoja = cicloLojaSelecionado();
+    const abaLoja = telaAtual === 'LojaCadastro' ? 'cadastro' : telaAtual === 'LojaUnidades' ? 'unidades' : telaAtual === 'LojaConsultoras' ? 'consultoras' : telaAtual === 'LojaRanking' ? 'ranking' : 'geral';
+    const busca = String(buscaLoja || '').toLowerCase();
+    const unidadesFiltradas = unidades.filter((u) => `${u.codigo_pdv} ${u.cidade} ${u.nome_loja}`.toLowerCase().includes(busca));
+    const consultorasFiltradas = consultoras.filter((c) => `${c.id_consultora} ${c.nome_consultora} ${c.codigo_pdv_oficial}`.toLowerCase().includes(busca));
 
-    const consultoresLoja = [
-      { nome: 'MANUELA LOPES COSTA', pvd: '9071', meta: 24979, realizado: 2421.47, boleto: 269.05, itens: 2.67 },
-      { nome: 'LAYNE RAQUEL MENDONÇA PINHEIRO', pvd: '9071', meta: 24979, realizado: 3476.60, boleto: 434.57, itens: 6.62 },
-      { nome: 'NANES GOMES DOS SANTOS', pvd: '9151', meta: 16331.66, realizado: 2391.39, boleto: 239.14, itens: 2.90 },
-      { nome: 'JOSÉ GABRIEL PINHEIRO PEREIRA', pvd: '17322', meta: 22807, realizado: 4935.21, boleto: 548.76, itens: 6.11 },
-      { nome: 'ADRAYLLENA TEIXEIRA CORREA', pvd: '17322', meta: 7036, realizado: 1098.50, boleto: 366.17, itens: 2.27 },
-      { nome: 'ELIANA MARIA FONSECA CABRAL', pvd: '20228', meta: 26286, realizado: 4088.80, boleto: 448.14, itens: 4.83 },
-    ].map((item) => ({ ...item, percentual: calcPerc(item.realizado, item.meta) }));
+    const corPorValorLoja = (valor, meta) => corPorFaixaMeta(calcPerc(valor, meta));
+    const rankingUnidades = [...unidades].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
+    const rankingConsultoras = [...consultoras].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
 
-    const vendasDiaLoja = [
-      { dia: '15/06', realizado: 8200, meta: 7000 },
-      { dia: '16/06', realizado: 10450, meta: 7000 },
-      { dia: '17/06', realizado: 12100, meta: 7000 },
-      { dia: '18/06', realizado: 9800, meta: 7000 },
-      { dia: '19/06', realizado: 13520, meta: 7000 },
-      { dia: '20/06', realizado: 11680, meta: 7000 },
-      { dia: '21/06', realizado: 14240, meta: 7000 },
-    ];
-
-    const resumo = {
-      metaCiclo: pvdLoja.reduce((acc, item) => acc + item.meta, 0),
-      realizado: pvdLoja.reduce((acc, item) => acc + item.realizado, 0),
-      deficit: pvdLoja.reduce((acc, item) => acc + item.deficit, 0),
-      itensPorBoletoMeta: 4,
-      itensPorBoletoReal: 4.15,
-      boletoMedioMeta: 262.40,
-      boletoMedioReal: 285.90,
-      skinMeta: pvdLoja.reduce((acc, item) => acc + item.skinMeta, 0),
-      skinReal: pvdLoja.reduce((acc, item) => acc + item.skinReal, 0),
-      servicosMetaMes: 25,
-      servicosRealMes: pvdLoja.reduce((acc, item) => acc + item.servMes, 0),
-    };
-    resumo.percentual = calcPerc(resumo.realizado, resumo.metaCiclo);
-    resumo.percentualSkin = calcPerc(resumo.skinReal, resumo.skinMeta);
-    resumo.percentualServicos = calcPerc(resumo.servicosRealMes, resumo.servicosMetaMes * pvdLoja.length);
-
-    const CardLoja = ({ titulo, valor, meta, percentual, icone: Icone, subtitulo }) => {
-      const cor = corPorFaixaMeta(percentual);
+    const CardLoja = ({ titulo, valor, meta, percentual, subtitulo, icone: Icone }) => {
+      const cor = corPorFaixaMeta(percentual || 0);
       return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 min-w-0">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 min-w-0 transition-all hover:shadow-md">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 truncate">{titulo}</p>
               <p className="text-xl sm:text-2xl font-black mt-2 truncate" style={{ color: cor }}>{valor}</p>
             </div>
-            {Icone && (
-              <div className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0">
-                <Icone size={18} />
-              </div>
-            )}
+            {Icone && <div className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><Icone size={18} /></div>}
           </div>
           <div className="mt-3">
             <div className="flex items-center justify-between gap-2 text-[10px] font-bold">
-              <span style={{ color: cor }}>{formatarNumeroBR(percentual, 1)}% da meta</span>
+              <span style={{ color: cor }}>{formatarNumeroBR(percentual || 0, 1)}% da meta</span>
               {meta && <span className="text-gray-400 truncate">Meta: {meta}</span>}
             </div>
-            <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${Math.min(Number(percentual || 0), 100)}%`, backgroundColor: cor }} />
-            </div>
+            <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.min(Number(percentual || 0), 100)}%`, backgroundColor: cor }} /></div>
           </div>
           {subtitulo && <p className="text-[11px] text-gray-400 font-bold mt-3 leading-relaxed">{subtitulo}</p>}
         </div>
       );
     };
 
+    const TabelaUnidades = ({ lista = unidadesFiltradas, compacta = false }) => (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1180px] text-sm">
+          <thead><tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black"><th className="py-3 px-3">PDV</th><th className="py-3 px-3">Cidade/Loja</th><th className="py-3 px-3 text-right">Meta ciclo</th><th className="py-3 px-3 text-right">Realizado no PDV</th><th className="py-3 px-3 text-right">Déficit</th><th className="py-3 px-3 text-right">%</th><th className="py-3 px-3 text-right">Boleto médio</th><th className="py-3 px-3 text-right">Itens/Boleto</th><th className="py-3 px-3 text-right">Meta Skin</th><th className="py-3 px-3 text-right">Serviços</th></tr></thead>
+          <tbody>{lista.map((u) => (<tr key={u.codigo_pdv} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]"><td className="py-3 px-3 font-black text-gray-700">{u.codigo_pdv}</td><td className="py-3 px-3"><p className="font-black text-gray-700 truncate max-w-[260px]">{u.cidade || '-'}</p><p className="text-[10px] text-gray-400 font-bold truncate max-w-[260px]">{u.nome_loja || '-'}</p></td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(u.meta_faturamento)}</td><td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(u.realizado)}</td><td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(u.deficit)}</td><td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(u.percentual) }}>{formatarNumeroBR(u.percentual, 1)}%</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.boleto_medio)}</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(u.itens_por_boleto, 2)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.meta_skin)}</td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarNumeroBR(u.realizado_servicos_mes, 0)} / {formatarNumeroBR(u.meta_servicos_mes, 0)}</td></tr>))}</tbody>
+        </table>
+        {!lista.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma unidade encontrada.</div>}
+      </div>
+    );
+
+    const TabelaConsultoras = ({ lista = consultorasFiltradas }) => (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1220px] text-sm">
+          <thead><tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black"><th className="py-3 px-3">ID</th><th className="py-3 px-3">Consultora</th><th className="py-3 px-3">PDV oficial</th><th className="py-3 px-3 text-right">Meta</th><th className="py-3 px-3 text-right">Realizado consultora</th><th className="py-3 px-3 text-right">Déficit</th><th className="py-3 px-3 text-right">%</th><th className="py-3 px-3 text-right">Boletos</th><th className="py-3 px-3 text-right">Boleto médio</th><th className="py-3 px-3 text-right">Itens/Boleto</th><th className="py-3 px-3 text-right">Meta Skin</th></tr></thead>
+          <tbody>{lista.map((c) => (<tr key={c.id_consultora} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]"><td className="py-3 px-3 font-black text-[#048187]">{c.id_consultora}</td><td className="py-3 px-3"><p className="font-black text-gray-700 truncate max-w-[280px]">{c.nome_consultora}</p><p className="text-[10px] text-gray-400 font-bold">Resultado soma todos os PDVs vendidos.</p></td><td className="py-3 px-3 font-bold text-gray-500">{c.codigo_pdv_oficial || '-'}</td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_faturamento)}</td><td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(c.realizado)}</td><td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(c.deficit)}</td><td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{formatarNumeroBR(c.percentual, 1)}%</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.qtd_boletos, 0)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.boleto_medio)}</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.itens_por_boleto, 2)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.meta_skin)}</td></tr>))}</tbody>
+        </table>
+        {!lista.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma consultora encontrada.</div>}
+      </div>
+    );
+
+    const LojaHeader = () => (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+        <div><h1 className="text-2xl font-black text-gray-700">LOJA • Acompanhamento Comercial</h1><p className="text-sm text-gray-400 font-bold mt-1">Acompanhamento por PDV e consultora. O número antes do nome é o ID da consultora.</p></div>
+        <div className="flex flex-wrap items-center gap-2"><select value={cicloLoja || resumo.ciclo || ''} onChange={(e) => { setCicloLoja(e.target.value); carregarDadosLoja(e.target.value); }} className="border border-gray-200 rounded-lg px-4 py-2 font-black text-gray-700 outline-none focus:border-[#048187]"><option value="">Ciclo ativo</option>{ciclos.map((c) => <option key={c.id || c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}</select><button onClick={() => carregarDadosLoja()} disabled={carregandoLoja} className="bg-[#048187] text-white px-4 py-2 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center gap-2"><RefreshCcw size={16} /> Atualizar</button></div>
+      </div>
+    );
+
+    const AvisosLoja = () => (<>{erroLoja && <div className="rounded-xl border border-red-100 bg-red-50 text-red-700 px-4 py-3 font-bold text-sm">{erroLoja}</div>}{mensagemLoja && <div className="rounded-xl border border-green-100 bg-green-50 text-green-700 px-4 py-3 font-bold text-sm">{mensagemLoja}</div>}</>);
+
+    const CadastroLoja = () => (
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 xl:col-span-2"><h2 className="text-lg font-black text-gray-700">Importar base gerencial LOJA</h2><p className="text-xs text-gray-400 font-bold mt-1">Aceita CSV/XLSX com colunas Listar Por Lojas e Quebrar Por Consultor. O ID antes do nome da consultora será salvo como ID oficial.</p><form onSubmit={uploadGerencialLoja} className="mt-4 flex flex-col md:flex-row gap-3"><input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setArquivoGerencialLoja(e.target.files?.[0] || null)} className="flex-1 border border-gray-200 rounded-lg px-4 py-3 font-bold text-gray-600" /><button disabled={carregandoLoja} className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2"><Upload size={18} /> Importar base</button></form></div>
+        <form onSubmit={salvarUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700">Cadastrar unidade/PDV</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"><input placeholder="PDV" value={lojaUnidadeForm.codigo_pdv} onChange={(e) => setLojaUnidadeForm({ ...lojaUnidadeForm, codigo_pdv: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required /><input placeholder="Cidade" value={lojaUnidadeForm.cidade} onChange={(e) => setLojaUnidadeForm({ ...lojaUnidadeForm, cidade: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input placeholder="Nome da loja" value={lojaUnidadeForm.nome_loja} onChange={(e) => setLojaUnidadeForm({ ...lojaUnidadeForm, nome_loja: e.target.value })} className="md:col-span-2 border border-gray-200 rounded-lg px-4 py-3 font-bold" required /></div><button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-black">Salvar unidade</button></form>
+        <form onSubmit={salvarConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700">Cadastrar consultora</h2><p className="text-xs text-gray-400 font-bold mt-1">O ID é o número que vem antes do nome na base.</p><div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"><input placeholder="ID consultora" value={lojaConsultoraForm.id_consultora} onChange={(e) => setLojaConsultoraForm({ ...lojaConsultoraForm, id_consultora: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required /><select value={lojaConsultoraForm.codigo_pdv_oficial} onChange={(e) => setLojaConsultoraForm({ ...lojaConsultoraForm, codigo_pdv_oficial: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required><option value="">PDV oficial</option>{unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}</select><input placeholder="Nome da consultora" value={lojaConsultoraForm.nome_consultora} onChange={(e) => setLojaConsultoraForm({ ...lojaConsultoraForm, nome_consultora: e.target.value })} className="md:col-span-2 border border-gray-200 rounded-lg px-4 py-3 font-bold" required /></div><button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-black">Salvar consultora</button></form>
+        <form onSubmit={salvarMetaUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700">Metas por unidade</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"><input placeholder="Ciclo" value={lojaMetaUnidadeForm.ciclo || cicloAtualLoja} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, ciclo: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><select value={lojaMetaUnidadeForm.codigo_pdv} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, codigo_pdv: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required><option value="">PDV</option>{unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}</select><input type="number" step="0.01" placeholder="Meta faturamento" value={lojaMetaUnidadeForm.meta_faturamento} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_faturamento: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Meta Skin R$" value={lojaMetaUnidadeForm.meta_skin} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_skin: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Boleto médio" value={lojaMetaUnidadeForm.meta_boleto_medio} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_boleto_medio: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Itens/Boleto" value={lojaMetaUnidadeForm.meta_itens_boleto} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_itens_boleto: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="1" placeholder="Meta serviços mês" value={lojaMetaUnidadeForm.meta_servicos_mes} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_servicos_mes: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="1" placeholder="Meta serviços ano" value={lojaMetaUnidadeForm.meta_servicos_ano} onChange={(e) => setLojaMetaUnidadeForm({ ...lojaMetaUnidadeForm, meta_servicos_ano: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /></div><button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-black">Salvar meta unidade</button></form>
+        <form onSubmit={salvarMetaConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700">Metas por consultora</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"><input placeholder="Ciclo" value={lojaMetaConsultoraForm.ciclo || cicloAtualLoja} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, ciclo: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><select value={lojaMetaConsultoraForm.id_consultora} onChange={(e) => { const cons = consultoras.find((c) => c.id_consultora === e.target.value); setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, id_consultora: e.target.value, codigo_pdv_oficial: cons?.codigo_pdv_oficial || lojaMetaConsultoraForm.codigo_pdv_oficial }); }} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" required><option value="">Consultora</option>{consultoras.map((c) => <option key={c.id_consultora} value={c.id_consultora}>{c.id_consultora} - {c.nome_consultora}</option>)}</select><input type="number" step="0.01" placeholder="Meta faturamento" value={lojaMetaConsultoraForm.meta_faturamento} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, meta_faturamento: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Meta Skin R$" value={lojaMetaConsultoraForm.meta_skin} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, meta_skin: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Boleto médio" value={lojaMetaConsultoraForm.meta_boleto_medio} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, meta_boleto_medio: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /><input type="number" step="0.01" placeholder="Itens/Boleto" value={lojaMetaConsultoraForm.meta_itens_boleto} onChange={(e) => setLojaMetaConsultoraForm({ ...lojaMetaConsultoraForm, meta_itens_boleto: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 font-bold" /></div><button className="mt-4 w-full bg-[#048187] text-white py-3 rounded-lg font-black">Salvar meta consultora</button></form>
+      </div>
+    );
+
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <CardLoja titulo="Meta Ciclo" valor={formatarMoeda(resumo.realizado)} meta={formatarMoeda(resumo.metaCiclo)} percentual={resumo.percentual} icone={BadgeDollarSign} subtitulo={`Déficit: ${formatarMoeda(resumo.deficit)}`} />
-          <CardLoja titulo="Itens por Boleto" valor={formatarNumeroBR(resumo.itensPorBoletoReal, 2)} meta={formatarNumeroBR(resumo.itensPorBoletoMeta, 0)} percentual={calcPerc(resumo.itensPorBoletoReal, resumo.itensPorBoletoMeta)} icone={FileSpreadsheet} subtitulo="Acompanha quantidade média de itens por boleto." />
-          <CardLoja titulo="Boleto Médio" valor={formatarMoeda(resumo.boletoMedioReal)} meta={formatarMoeda(resumo.boletoMedioMeta)} percentual={calcPerc(resumo.boletoMedioReal, resumo.boletoMedioMeta)} icone={Trophy} subtitulo="Valor médio realizado por boleto." />
-          <CardLoja titulo="Meta Skin" valor={formatarMoeda(resumo.skinReal)} meta={formatarMoeda(resumo.skinMeta)} percentual={resumo.percentualSkin} icone={Sparkles} subtitulo={`Faltam ${formatarMoeda(Math.max(resumo.skinMeta - resumo.skinReal, 0))}`} />
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-lg font-black text-gray-700">Vendas por dia</h2>
-                <p className="text-xs text-gray-400 font-bold">Exemplo de evolução diária do canal loja.</p>
-              </div>
-              <span className="text-xs font-black text-[#048187]">Exemplo</span>
+      <div className="space-y-6 animate-fade-in">
+        <LojaHeader />
+        <AvisosLoja />
+        <div className="bg-[#e6f6f7] border border-[#ccecee] rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><p className="font-black text-[#048187]">Regra de apuração LOJA</p><p className="text-xs font-bold text-[#048187]/80 mt-1">Consultora soma tudo que ela vendeu. PDV soma somente vendas feitas dentro daquele PDV.</p></div><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={buscaLoja} onChange={(e) => setBuscaLoja(e.target.value)} placeholder="Buscar PDV ou consultora" className="pl-9 pr-4 py-2 rounded-lg border border-white/60 outline-none font-bold text-sm min-w-[260px]" /></div></div>
+        {carregandoLoja && <DashboardSkeletons />}
+        {!carregandoLoja && abaLoja === 'cadastro' && <CadastroLoja />}
+        {!carregandoLoja && abaLoja === 'unidades' && <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700 mb-1">Resultado por unidade/PDV</h2><p className="text-xs text-gray-400 font-bold mb-4">Somente vendas que aconteceram dentro do PDV entram no resultado da unidade.</p><TabelaUnidades /></div>}
+        {!carregandoLoja && abaLoja === 'consultoras' && <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700 mb-1">Resultado por consultora</h2><p className="text-xs text-gray-400 font-bold mb-4">Todas as vendas da consultora entram para a meta dela, mesmo em outro PDV.</p><TabelaConsultoras /></div>}
+        {!carregandoLoja && abaLoja === 'ranking' && <div className="grid grid-cols-1 xl:grid-cols-2 gap-6"><div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="font-black text-gray-700 mb-4">Ranking de unidades</h2><TabelaUnidades lista={rankingUnidades} compacta /></div><div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="font-black text-gray-700 mb-4">Ranking de consultoras</h2><TabelaConsultoras lista={rankingConsultoras} /></div></div>}
+        {!carregandoLoja && abaLoja === 'geral' && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+              <CardLoja titulo="Faturamento realizado" valor={formatarMoeda(resumo.faturamento_realizado)} meta={formatarMoeda(resumo.meta_faturamento)} percentual={resumo.percentual_faturamento} icone={BadgeDollarSign} subtitulo={`Falta para a meta: ${formatarMoeda(resumo.deficit_faturamento)}`} />
+              <CardLoja titulo="Diário" valor={formatarMoeda(resumo.realizado_diario || 0)} meta={formatarMoeda(resumo.meta_diaria || 0)} percentual={calcPerc(resumo.realizado_diario || 0, resumo.meta_diaria || 0)} icone={CalendarDays} subtitulo="Meta diária ajustada pelo que falta no ciclo." />
+              <CardLoja titulo="Tendência" valor={formatarMoeda(resumo.tendencia || 0)} meta={formatarMoeda(resumo.meta_faturamento || 0)} percentual={calcPerc(resumo.tendencia || 0, resumo.meta_faturamento || 0)} icone={TrendingUp} subtitulo={`Gap tendência: ${formatarMoeda(resumo.gap_tendencia || 0)}`} />
+              <CardLoja titulo="Skin" valor={formatarMoeda(resumo.skin_realizado || 0)} meta={formatarMoeda(resumo.meta_skin || 0)} percentual={resumo.percentual_skin || 0} icone={Sparkles} subtitulo="Meta de Skin em R$ por loja/consultora." />
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5"><p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Desempenho</p><div className="mt-4 space-y-3"><div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Boleto médio</span><span className="font-black text-[#048187]">{formatarMoeda(resumo.boleto_medio || 0)}</span></div><div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Meta boleto</span><span className="font-black text-gray-700">{formatarMoeda(resumo.meta_boleto_medio || 0)}</span></div><div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Itens/Boleto</span><span className="font-black text-[#048187]">{formatarNumeroBR(resumo.itens_por_boleto || 0, 2)}</span></div><div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Meta itens</span><span className="font-black text-gray-700">{formatarNumeroBR(resumo.meta_itens_boleto || 4, 1)}</span></div></div></div>
             </div>
-            <div className="h-[300px] min-w-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={vendasDiaLoja} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gradVendasLojaDia" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#048187" stopOpacity={0.28} />
-                      <stop offset="95%" stopColor="#048187" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f4" />
-                  <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 700 }} />
-                  <YAxis tickFormatter={(v) => `R$${Math.round(v / 1000)}k`} tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <Tooltip formatter={(v) => formatarMoeda(v)} />
-                  <Area type="monotone" dataKey="realizado" name="Realizado" stroke="#048187" strokeWidth={3} fill="url(#gradVendasLojaDia)" dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                  <Area type="monotone" dataKey="meta" name="Meta diária" stroke="#7c1f31" strokeWidth={2} strokeDasharray="5 5" fill="transparent" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-            <h2 className="text-lg font-black text-gray-700">Serviços</h2>
-            <p className="text-xs text-gray-400 font-bold mt-1">Meta mensal por PVD e realizado consolidado.</p>
-            <div className="mt-5 bg-[#fcfbf7] rounded-2xl p-5 border border-gray-100">
-              <p className="text-[10px] uppercase font-black text-gray-400">Realizado mês</p>
-              <p className="text-3xl font-black mt-2" style={{ color: corPorFaixaMeta(resumo.percentualServicos) }}>{formatarNumeroBR(resumo.servicosRealMes, 0)}</p>
-              <p className="text-xs font-bold text-gray-400 mt-1">Meta: {formatarNumeroBR(resumo.servicosMetaMes * pvdLoja.length, 0)} serviços</p>
-              <div className="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${Math.min(resumo.percentualServicos, 100)}%`, backgroundColor: corPorFaixaMeta(resumo.percentualServicos) }} />
-              </div>
-              <p className="text-xs font-black mt-3" style={{ color: corPorFaixaMeta(resumo.percentualServicos) }}>{formatarNumeroBR(resumo.percentualServicos, 1)}% da meta</p>
-            </div>
-            <div className="mt-4 space-y-2">
-              {pvdLoja.map((item) => (
-                <div key={item.pvd} className="flex items-center justify-between gap-3 text-xs border-b border-gray-50 pb-2 last:border-0">
-                  <span className="font-black text-gray-500">PVD {item.pvd}</span>
-                  <span className="font-black text-[#048187]">{item.servMes} serviços</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-lg font-black text-gray-700">Resumo por PVD</h2>
-              <p className="text-xs text-gray-400 font-bold">Base visual para transformar a planilha em dashboard.</p>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm">
-              <thead>
-                <tr className="text-left text-[11px] uppercase text-gray-400 border-b border-gray-100">
-                  <th className="py-3 px-2">PVD</th>
-                  <th className="py-3 px-2 text-right">Meta ciclo</th>
-                  <th className="py-3 px-2 text-right">Realizado</th>
-                  <th className="py-3 px-2 text-right">Déficit</th>
-                  <th className="py-3 px-2 text-right">% Meta</th>
-                  <th className="py-3 px-2 text-right">Itens/Boleto</th>
-                  <th className="py-3 px-2 text-right">Boleto médio</th>
-                  <th className="py-3 px-2 text-right">Meta Skin</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pvdLoja.map((item) => (
-                  <tr key={item.pvd} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]">
-                    <td className="py-3 px-2 font-black text-gray-700">{item.pvd}</td>
-                    <td className="py-3 px-2 text-right font-bold text-gray-600">{formatarMoeda(item.meta)}</td>
-                    <td className="py-3 px-2 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td>
-                    <td className="py-3 px-2 text-right font-black text-[#7c1f31]">{formatarMoeda(item.deficit)}</td>
-                    <td className="py-3 px-2 text-right font-black" style={{ color: corPorFaixaMeta(item.percentual) }}>{formatarNumeroBR(item.percentual, 1)}%</td>
-                    <td className="py-3 px-2 text-right font-bold">{formatarNumeroBR(item.itens, 0)}</td>
-                    <td className="py-3 px-2 text-right font-bold">{formatarMoeda(item.boleto)}</td>
-                    <td className="py-3 px-2 text-right font-bold">{formatarMoeda(item.skinMeta)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-          <h2 className="text-lg font-black text-gray-700 mb-4">Consultoras destaque</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {consultoresLoja.map((item) => (
-              <div key={`${item.pvd}-${item.nome}`} className="border border-gray-100 rounded-2xl p-4 bg-[#fcfbf7]">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="font-black text-gray-700 truncate">{item.nome}</h3>
-                    <p className="text-xs text-gray-400 font-bold mt-1">PVD {item.pvd} • Itens por boleto: {formatarNumeroBR(item.itens, 2)}</p>
-                  </div>
-                  <span className="text-sm font-black" style={{ color: corPorFaixaMeta(item.percentual) }}>{formatarNumeroBR(item.percentual, 1)}%</span>
-                </div>
-                <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
-                  <div>
-                    <p className="uppercase text-[10px] font-black text-gray-400">Meta</p>
-                    <p className="font-black text-gray-700 mt-1">{formatarMoeda(item.meta)}</p>
-                  </div>
-                  <div>
-                    <p className="uppercase text-[10px] font-black text-gray-400">Realizado</p>
-                    <p className="font-black text-[#048187] mt-1">{formatarMoeda(item.realizado)}</p>
-                  </div>
-                  <div>
-                    <p className="uppercase text-[10px] font-black text-gray-400">Boleto médio</p>
-                    <p className="font-black text-gray-700 mt-1">{formatarMoeda(item.boleto)}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6"><div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700 mb-1">Unidades</h2><p className="text-xs text-gray-400 font-bold mb-4">Resultado pelo PDV onde a venda aconteceu.</p><TabelaUnidades lista={unidadesFiltradas.slice(0, 8)} /></div><div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700 mb-1">Consultoras</h2><p className="text-xs text-gray-400 font-bold mb-4">Resultado por ID da consultora, independente do PDV.</p><TabelaConsultoras lista={consultorasFiltradas.slice(0, 8)} /></div></div>
+          </>
+        )}
       </div>
     );
   };
@@ -7480,7 +7393,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'Revendedores') return renderTelaRevendedores();
     if (telaAtual === 'Base') return renderTelaBase();
     if (telaAtual === 'Cadastro') return renderTelaCadastro();
-    if (telaAtual === 'Loja' || telaAtual === 'LojaVisaoGeral') return renderTelaLoja();
+    if (telaEhLoja(telaAtual)) return renderTelaLoja();
     if (telaAtual === 'ADM') return renderTelaADM();
     if (telaAtual === 'Configurações') return renderTelaConfiguracoes();
     if (telaAtual === 'Perfil') return renderTelaPerfil();
@@ -7537,15 +7450,7 @@ const enviarArquivo = async (tipo) => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-bold text-gray-600">Senha</label>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        abrirModalRecuperacaoSenha();
-                      }}
-                      className="relative z-20 text-sm font-black text-[#048187] hover:text-[#036b70] underline underline-offset-4 cursor-pointer"
-                    >
+                    <button type="button" className="text-sm font-black text-[#048187] hover:text-[#036b70]">
                       Esqueci A Senha
                     </button>
                   </div>
@@ -7579,147 +7484,6 @@ const enviarArquivo = async (tipo) => {
             </div>
           </div>
         </div>
-
-        {modalRecuperacaoSenhaAberto && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-4 py-6">
-            <div className="w-full max-w-[460px] bg-white rounded-3xl shadow-2xl border border-white/80 overflow-hidden">
-              <div className="bg-[#048187] px-6 py-5 text-white flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-black">Recuperar senha</h2>
-                  <p className="text-sm text-white/80 mt-1">Receba o código no e-mail cadastrado e cadastre uma nova senha.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={fecharModalRecuperacaoSenha}
-                  disabled={carregandoRecuperacaoSenha}
-                  className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center disabled:opacity-60"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="px-6 py-6">
-                <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setEtapaRecuperacaoSenha('solicitar')}
-                    className={`rounded-xl py-2 text-xs font-black uppercase transition-colors ${etapaRecuperacaoSenha === 'solicitar' ? 'bg-white text-[#048187] shadow-sm' : 'text-gray-400'}`}
-                  >
-                    1. Código
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEtapaRecuperacaoSenha('redefinir')}
-                    className={`rounded-xl py-2 text-xs font-black uppercase transition-colors ${etapaRecuperacaoSenha === 'redefinir' ? 'bg-white text-[#048187] shadow-sm' : 'text-gray-400'}`}
-                  >
-                    2. Nova senha
-                  </button>
-                </div>
-
-                {erroRecuperacaoSenha && (
-                  <div className="mb-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-600">
-                    {erroRecuperacaoSenha}
-                  </div>
-                )}
-
-                {mensagemRecuperacaoSenha && (
-                  <div className="mb-4 rounded-xl border border-[#d0f0f1] bg-[#e6f6f7] p-3 text-sm font-bold text-[#048187]">
-                    {mensagemRecuperacaoSenha}
-                  </div>
-                )}
-
-                {etapaRecuperacaoSenha === 'redefinir' && (
-                  <div className="mb-4 rounded-2xl border border-[#ccecee] bg-[#e6f6f7] p-4">
-                    <p className="text-[11px] font-black uppercase tracking-wide text-[#048187]">Código enviado por e-mail</p>
-                    <p className="mt-1 text-xs font-bold text-[#048187]/80">
-                      Confira a caixa de entrada e o spam/lixo eletrônico do e-mail cadastrado. O código expira em 15 minutos.
-                    </p>
-                  </div>
-                )}
-
-                {etapaRecuperacaoSenha === 'solicitar' ? (
-                  <form onSubmit={solicitarCodigoRecuperacaoSenha} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-bold text-gray-600 mb-2">E-mail cadastrado</label>
-                      <input
-                        type="email"
-                        value={formRecuperacaoSenha.email}
-                        onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, email: e.target.value }))}
-                        placeholder="seuemail@mail.com"
-                        className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
-                        required
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={carregandoRecuperacaoSenha}
-                      className="w-full bg-[#048187] text-white font-black py-3.5 rounded-lg hover:bg-[#036b70] disabled:opacity-60 transition-all shadow-lg shadow-[#048187]/20"
-                    >
-                      {carregandoRecuperacaoSenha ? 'Enviando código...' : 'Enviar código por e-mail'}
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={redefinirSenhaRecuperacao} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-bold text-gray-600 mb-2">E-mail</label>
-                      <input
-                        type="email"
-                        value={formRecuperacaoSenha.email}
-                        onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, email: e.target.value }))}
-                        className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold text-gray-600 mb-2">Código</label>
-                      <input
-                        value={formRecuperacaoSenha.codigo}
-                        onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, codigo: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                        placeholder="000000"
-                        className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all tracking-[0.18em] font-black"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-bold text-gray-600 mb-2">Nova senha</label>
-                        <input
-                          type="password"
-                          value={formRecuperacaoSenha.nova_senha}
-                          onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, nova_senha: e.target.value }))}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-bold text-gray-600 mb-2">Confirmar</label>
-                        <input
-                          type="password"
-                          value={formRecuperacaoSenha.confirmar_senha}
-                          onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, confirmar_senha: e.target.value }))}
-                          className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={carregandoRecuperacaoSenha}
-                      className="w-full bg-[#048187] text-white font-black py-3.5 rounded-lg hover:bg-[#036b70] disabled:opacity-60 transition-all shadow-lg shadow-[#048187]/20"
-                    >
-                      {carregandoRecuperacaoSenha ? 'Salvando nova senha...' : 'Salvar nova senha'}
-                    </button>
-                  </form>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
