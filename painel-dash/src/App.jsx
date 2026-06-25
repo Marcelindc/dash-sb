@@ -129,6 +129,11 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
     if (!normalizadas[perfil].includes('Cadastro')) normalizadas[perfil].push('Cadastro');
   });
 
+  // LOJA: garante subabas para admin mesmo se a configuração antiga não tinha essas permissões.
+  ['Loja', 'LojaVisaoGeral', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'LojaCadastro'].forEach((abaLoja) => {
+    if (!normalizadas.admin.includes(abaLoja)) normalizadas.admin.push(abaLoja);
+  });
+
   // O admin nunca pode perder acesso à própria tela de configuração/perfil.
   ['ADM', 'Configurações', 'Perfil'].forEach((abaObrigatoria) => {
     if (!normalizadas.admin.includes(abaObrigatoria)) {
@@ -1690,6 +1695,13 @@ export default function App() {
   const [usuarioLogado, setUsuarioLogado] = useState(() => { const s = localStorage.getItem('usuarioLogado'); return s ? JSON.parse(s) : null; });
   const [tokenAuth, setTokenAuth] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || '');
   const [emailLogin, setEmailLogin] = useState(''); const [senhaLogin, setSenhaLogin] = useState(''); const [mostrarSenha, setMostrarSenha] = useState(false); const [erroLogin, setErroLogin] = useState(''); const [carregandoLogin, setCarregandoLogin] = useState(false);
+  const [modalRecuperacaoSenhaAberto, setModalRecuperacaoSenhaAberto] = useState(false);
+  const [etapaRecuperacaoSenha, setEtapaRecuperacaoSenha] = useState('solicitar');
+  const [carregandoRecuperacaoSenha, setCarregandoRecuperacaoSenha] = useState(false);
+  const [mensagemRecuperacaoSenha, setMensagemRecuperacaoSenha] = useState('');
+  const [erroRecuperacaoSenha, setErroRecuperacaoSenha] = useState('');
+  const [codigoGeradoRecuperacao, setCodigoGeradoRecuperacao] = useState('');
+  const [formRecuperacaoSenha, setFormRecuperacaoSenha] = useState({ email: '', codigo: '', nova_senha: '', confirmar_senha: '' });
   
   const [telaAtual, setTelaAtual] = useState(() => {
     const telaSalva = localStorage.getItem(TELA_ATUAL_STORAGE_KEY);
@@ -1788,7 +1800,7 @@ export default function App() {
   }, [usuarioLogado, estruturaSelecionada]);
 
 
-  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState('');
+  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
   const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' }); const [auditoriaDetalhe, setAuditoriaDetalhe] = useState(null);
 
   const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
@@ -1953,7 +1965,7 @@ export default function App() {
     return permissoesDoUsuarioAtual().includes(tela);
   };
 
-  const usuarioPodeAcessarLoja = () => usuarioPodeAcessar('Loja') || usuarioPodeAcessar('LojaVisaoGeral');
+  const usuarioPodeAcessarLoja = () => usuarioPodeAcessar('Loja') || usuarioPodeAcessar('LojaVisaoGeral') || usuarioPodeAcessar('LojaCadastro') || usuarioPodeAcessar('LojaUnidades') || usuarioPodeAcessar('LojaConsultoras') || usuarioPodeAcessar('LojaRanking');
 
   const telaEhLoja = (tela) => ['Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking'].includes(tela);
 
@@ -3146,6 +3158,101 @@ const carregarRevendedores = async () => {
     }
   };
 
+  const abrirModalRecuperacaoSenha = () => {
+    setErroLogin('');
+    setErroRecuperacaoSenha('');
+    setMensagemRecuperacaoSenha('');
+    setCodigoGeradoRecuperacao('');
+    setEtapaRecuperacaoSenha('solicitar');
+    setFormRecuperacaoSenha({
+      email: emailLogin || '',
+      codigo: '',
+      nova_senha: '',
+      confirmar_senha: ''
+    });
+    setModalRecuperacaoSenhaAberto(true);
+  };
+
+  const fecharModalRecuperacaoSenha = () => {
+    if (carregandoRecuperacaoSenha) return;
+    setModalRecuperacaoSenhaAberto(false);
+    setErroRecuperacaoSenha('');
+    setMensagemRecuperacaoSenha('');
+    setCodigoGeradoRecuperacao('');
+  };
+
+  const solicitarCodigoRecuperacaoSenha = async (e) => {
+    e.preventDefault();
+    setErroRecuperacaoSenha('');
+    setMensagemRecuperacaoSenha('');
+    setCodigoGeradoRecuperacao('');
+
+    const email = String(formRecuperacaoSenha.email || '').trim().toLowerCase();
+    if (!email) {
+      setErroRecuperacaoSenha('Informe o e-mail cadastrado.');
+      return;
+    }
+
+    setCarregandoRecuperacaoSenha(true);
+    try {
+      const resposta = await axios.post(`${API_URL}/auth/recuperar-senha/solicitar`, { email });
+      setFormRecuperacaoSenha((atual) => ({ ...atual, email, codigo: '', nova_senha: '', confirmar_senha: '' }));
+      setCodigoGeradoRecuperacao('');
+      setEtapaRecuperacaoSenha('solicitar');
+      setMensagemRecuperacaoSenha(resposta.data?.mensagem || 'Solicitação registrada. Procure um administrador do sistema.');
+    } catch (erro) {
+      setErroRecuperacaoSenha(erro.response?.data?.detail || 'Erro ao gerar código de recuperação.');
+    } finally {
+      setCarregandoRecuperacaoSenha(false);
+    }
+  };
+
+  const redefinirSenhaRecuperacao = async (e) => {
+    e.preventDefault();
+    setErroRecuperacaoSenha('');
+    setMensagemRecuperacaoSenha('');
+
+    const email = String(formRecuperacaoSenha.email || '').trim().toLowerCase();
+    const codigo = String(formRecuperacaoSenha.codigo || '').trim();
+    const novaSenha = String(formRecuperacaoSenha.nova_senha || '');
+    const confirmarSenha = String(formRecuperacaoSenha.confirmar_senha || '');
+
+    if (!email || !codigo || !novaSenha || !confirmarSenha) {
+      setErroRecuperacaoSenha('Preencha todos os campos.');
+      return;
+    }
+    if (novaSenha.length < 6) {
+      setErroRecuperacaoSenha('A nova senha precisa ter no mínimo 6 caracteres.');
+      return;
+    }
+    if (novaSenha !== confirmarSenha) {
+      setErroRecuperacaoSenha('As senhas não conferem.');
+      return;
+    }
+
+    setCarregandoRecuperacaoSenha(true);
+    try {
+      const resposta = await axios.post(`${API_URL}/auth/recuperar-senha/redefinir`, {
+        email,
+        codigo,
+        nova_senha: novaSenha
+      });
+      setMensagemRecuperacaoSenha(resposta.data?.mensagem || 'Senha redefinida com sucesso.');
+      setSenhaLogin('');
+      setEmailLogin(email);
+      setErroLogin('');
+      setTimeout(() => {
+        setModalRecuperacaoSenhaAberto(false);
+        setMensagemRecuperacaoSenha('');
+        setCodigoGeradoRecuperacao('');
+      }, 1200);
+    } catch (erro) {
+      setErroRecuperacaoSenha(erro.response?.data?.detail || 'Erro ao redefinir senha.');
+    } finally {
+      setCarregandoRecuperacaoSenha(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('usuarioLogado');
     localStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -3386,6 +3493,43 @@ const enviarArquivo = async (tipo) => {
   const salvarEdicaoUsuario = async (e) => { e.preventDefault(); try { await axios.put(`${API_URL}/auth/atualizar-usuario`, { id: usuarioEditando.id, nome: usuarioEditando.nome, perfil: usuarioEditando.perfil, status_usuario: usuarioEditando.status_usuario }); setModalEditarUsuarioAberto(false); setMensagemUsuarios('Atualizado com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
   const abrirExcluirUsuario = (usuario) => { setUsuarioParaExcluir(usuario); setModalExcluirUsuarioAberto(true); };
   const confirmarExclusaoUsuario = async () => { if (!usuarioParaExcluir) return; try { await axios.delete(`${API_URL}/auth/deletar-usuario/${usuarioParaExcluir.id}`); setModalExcluirUsuarioAberto(false); setUsuarioParaExcluir(null); setMensagemUsuarios('Excluído com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
+  const gerarSenhaTemporariaAdmin = () => {
+    const codigo = Math.floor(100000 + Math.random() * 900000);
+    setNovaSenhaAdmin(`Dash@${codigo}`);
+  };
+  const abrirResetSenhaAdmin = (usuario) => {
+    setUsuarioResetSenhaAdmin(usuario);
+    const codigo = Math.floor(100000 + Math.random() * 900000);
+    setNovaSenhaAdmin(`Dash@${codigo}`);
+    setErroUsuarios('');
+    setMensagemUsuarios('');
+    setModalResetSenhaAdminAberto(true);
+  };
+  const confirmarResetSenhaAdmin = async (e) => {
+    e.preventDefault();
+    if (!usuarioResetSenhaAdmin) return;
+    if (!novaSenhaAdmin || novaSenhaAdmin.length < 6) {
+      setErroUsuarios('A senha temporária precisa ter no mínimo 6 caracteres.');
+      return;
+    }
+    setCarregandoResetSenhaAdmin(true);
+    setErroUsuarios('');
+    setMensagemUsuarios('');
+    try {
+      await axios.post(`${API_URL}/auth/usuarios/resetar-senha`, {
+        email: usuarioResetSenhaAdmin.email,
+        nova_senha: novaSenhaAdmin
+      });
+      setMensagemUsuarios(`Senha temporária criada para ${usuarioResetSenhaAdmin.email}: ${novaSenhaAdmin}`);
+      setModalResetSenhaAdminAberto(false);
+      setUsuarioResetSenhaAdmin(null);
+      await carregarUsuarios();
+    } catch (erro) {
+      setErroUsuarios(erro.response?.data?.detail || 'Erro ao resetar senha.');
+    } finally {
+      setCarregandoResetSenhaAdmin(false);
+    }
+  };
   const alterarSenha = async (e) => { e.preventDefault(); setMensagemSenha(''); setErroSenha(''); if (senhaPerfil.nova_senha !== senhaPerfil.confirmar_senha) { setErroSenha('Senhas não conferem.'); return; } if (senhaPerfil.nova_senha.length < 6) { setErroSenha('Mínimo 6 caracteres.'); return; } try { await axios.post(`${API_URL}/auth/alterar-senha`, { email: usuarioLogado.email, senha_atual: senhaPerfil.senha_atual, nova_senha: senhaPerfil.nova_senha }); setMensagemSenha('Senha alterada.'); setSenhaPerfil({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); } catch (erro) { setErroSenha(erro.response?.data?.detail || 'Erro ao alterar senha.'); } };
   
   const criarCiclo = async (e) => { e.preventDefault(); setMensagemCiclo(''); setErroCiclo(''); try { await axios.post(`${API_URL}/ciclos`, { ciclo: cicloForm.ciclo, data_inicio: cicloForm.data_inicio, data_fim: cicloForm.data_fim, meta_ciclo: Number(cicloForm.meta_ciclo || 0), status_ciclo: cicloForm.status_ciclo }); setMensagemCiclo('Cadastrado com sucesso.'); setCicloForm(cicloFormVazio); limparCachesDados(); await carregarCiclos(); await carregarOpcoesFiltros(true); await carregarDashboard(filtrosAtivos, true); } catch (erro) { setErroCiclo(erro.response?.data?.detail || 'Erro.'); } };
@@ -6533,9 +6677,54 @@ const enviarArquivo = async (tipo) => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6"><h2 className="text-xl font-bold text-gray-700">Usuários cadastrados</h2><button onClick={carregarUsuarios} className="text-[#048187] font-bold text-sm hover:underline">Atualizar</button></div>
         {carregandoUsuarios ? (<p className="text-[#048187] font-bold">Carregando usuários...</p>) : (
-          <div className="overflow-x-auto"><table className="w-full text-sm min-w-[980px]"><thead><tr className="text-left text-gray-500 border-b border-gray-100"><th className="py-3 px-2">Nome</th><th className="py-3 px-2">E-mail</th><th className="py-3 px-2">Perfil</th><th className="py-3 px-2">Permissões</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>{usuariosSistema.map((u) => { const abasPerfil = obterPermissoesUsuarioLista(u); const podeConfigurarPermissoes = usuarioLogado?.perfil === 'admin'; return (<tr key={u.id} className="border-b border-gray-50"><td className="py-4 px-2 font-bold text-gray-700">{u.nome}</td><td className="py-4 px-2 text-gray-500">{u.email}</td><td className="py-4 px-2 text-[#048187] font-bold uppercase">{u.perfil}</td><td className="py-4 px-2"><div className="flex flex-col gap-2 min-w-[220px]"><div className="flex flex-wrap gap-1.5">{abasPerfil.slice(0, 3).map((aba) => (<span key={aba} className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold">{obterNomeAba(aba)}</span>))}{abasPerfil.length > 3 && (<span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold">+{abasPerfil.length - 3}</span>)}</div>{podeConfigurarPermissoes ? (<button type="button" onClick={() => abrirModalPermissoes(u)} className="w-fit bg-[#048187] text-white font-bold px-3 py-1.5 rounded-lg hover:bg-[#036b70] transition-colors text-xs inline-flex items-center gap-1"><ShieldCheck size={13} /> Configurar abas</button>) : (<span className="text-xs text-gray-400 font-medium">Somente admin pode alterar</span>)}</div></td><td className="py-4 px-2"><span className={`px-3 py-1 rounded-full text-xs font-bold ${u.status_usuario === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status_usuario}</span></td><td className="py-4 px-2 text-right"><button onClick={() => abrirEditarUsuario(u)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirUsuario(u)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>); })}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full text-sm min-w-[980px]"><thead><tr className="text-left text-gray-500 border-b border-gray-100"><th className="py-3 px-2">Nome</th><th className="py-3 px-2">E-mail</th><th className="py-3 px-2">Perfil</th><th className="py-3 px-2">Permissões</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>{usuariosSistema.map((u) => { const abasPerfil = obterPermissoesUsuarioLista(u); const podeConfigurarPermissoes = usuarioLogado?.perfil === 'admin'; return (<tr key={u.id} className="border-b border-gray-50"><td className="py-4 px-2 font-bold text-gray-700">{u.nome}</td><td className="py-4 px-2 text-gray-500">{u.email}</td><td className="py-4 px-2 text-[#048187] font-bold uppercase">{u.perfil}</td><td className="py-4 px-2"><div className="flex flex-col gap-2 min-w-[220px]"><div className="flex flex-wrap gap-1.5">{abasPerfil.slice(0, 3).map((aba) => (<span key={aba} className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold">{obterNomeAba(aba)}</span>))}{abasPerfil.length > 3 && (<span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold">+{abasPerfil.length - 3}</span>)}</div>{podeConfigurarPermissoes ? (<button type="button" onClick={() => abrirModalPermissoes(u)} className="w-fit bg-[#048187] text-white font-bold px-3 py-1.5 rounded-lg hover:bg-[#036b70] transition-colors text-xs inline-flex items-center gap-1"><ShieldCheck size={13} /> Configurar abas</button>) : (<span className="text-xs text-gray-400 font-medium">Somente admin pode alterar</span>)}</div></td><td className="py-4 px-2"><span className={`px-3 py-1 rounded-full text-xs font-bold ${u.status_usuario === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status_usuario}</span></td><td className="py-4 px-2 text-right"><button onClick={() => abrirResetSenhaAdmin(u)} className="text-orange-500 hover:text-orange-600 mr-3" title="Resetar senha"><KeyRound size={17} /></button><button onClick={() => abrirEditarUsuario(u)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar usuário"><Pencil size={17} /></button><button onClick={() => abrirExcluirUsuario(u)} className="text-red-500 hover:text-red-600" title="Excluir usuário"><Trash2 size={17} /></button></td></tr>); })}</tbody></table></div>
         )}
       </div>
+
+      {modalResetSenhaAdminAberto && usuarioResetSenhaAdmin && (
+        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[520px] overflow-hidden">
+            <div className="bg-[#048187] px-6 py-5 text-white flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black">Resetar senha</h2>
+                <p className="text-sm text-white/80 mt-1">Crie uma senha temporária para o usuário.</p>
+              </div>
+              <button type="button" onClick={() => setModalResetSenhaAdminAberto(false)} disabled={carregandoResetSenhaAdmin} className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center disabled:opacity-60">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={confirmarResetSenhaAdmin} className="p-6 space-y-4">
+              <div className="rounded-2xl bg-[#f7fafb] border border-gray-100 p-4">
+                <p className="text-[10px] uppercase font-black text-gray-400">Usuário</p>
+                <p className="mt-1 font-black text-gray-700">{usuarioResetSenhaAdmin.nome}</p>
+                <p className="text-xs font-bold text-gray-400">{usuarioResetSenhaAdmin.email}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-2">Senha temporária</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={novaSenhaAdmin}
+                    onChange={(e) => setNovaSenhaAdmin(e.target.value)}
+                    className="flex-1 border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all font-black"
+                    required
+                  />
+                  <button type="button" onClick={gerarSenhaTemporariaAdmin} className="px-4 py-3 rounded-lg bg-[#e6f6f7] text-[#048187] font-black hover:bg-[#d0f0f1]">
+                    Gerar
+                  </button>
+                </div>
+                <p className="mt-2 text-xs font-bold text-gray-400">Após salvar, copie essa senha e envie para a pessoa. Ela poderá alterar depois em Perfil.</p>
+              </div>
+
+              <button type="submit" disabled={carregandoResetSenhaAdmin} className="w-full bg-[#048187] text-white font-black py-3.5 rounded-lg hover:bg-[#036b70] disabled:opacity-60 transition-all shadow-lg shadow-[#048187]/20">
+                {carregandoResetSenhaAdmin ? 'Salvando...' : 'Salvar senha temporária'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -7450,7 +7639,15 @@ const enviarArquivo = async (tipo) => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-bold text-gray-600">Senha</label>
-                    <button type="button" className="text-sm font-black text-[#048187] hover:text-[#036b70]">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        abrirModalRecuperacaoSenha();
+                      }}
+                      className="relative z-20 text-sm font-black text-[#048187] hover:text-[#036b70] underline underline-offset-4 cursor-pointer"
+                    >
                       Esqueci A Senha
                     </button>
                   </div>
@@ -7484,6 +7681,147 @@ const enviarArquivo = async (tipo) => {
             </div>
           </div>
         </div>
+
+        {modalRecuperacaoSenhaAberto && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-4 py-6">
+            <div className="w-full max-w-[460px] bg-white rounded-3xl shadow-2xl border border-white/80 overflow-hidden">
+              <div className="bg-[#048187] px-6 py-5 text-white flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black">Recuperar senha</h2>
+                  <p className="text-sm text-white/80 mt-1">Registre a solicitação para o administrador resetar sua senha.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={fecharModalRecuperacaoSenha}
+                  disabled={carregandoRecuperacaoSenha}
+                  className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center disabled:opacity-60"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="px-6 py-6">
+                <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setEtapaRecuperacaoSenha('solicitar')}
+                    className={`rounded-xl py-2 text-xs font-black uppercase transition-colors ${etapaRecuperacaoSenha === 'solicitar' ? 'bg-white text-[#048187] shadow-sm' : 'text-gray-400'}`}
+                  >
+                    Solicitar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEtapaRecuperacaoSenha('redefinir')}
+                    className={`rounded-xl py-2 text-xs font-black uppercase transition-colors ${etapaRecuperacaoSenha === 'redefinir' ? 'bg-white text-[#048187] shadow-sm' : 'text-gray-400'}`}
+                  >
+                    Admin
+                  </button>
+                </div>
+
+                {erroRecuperacaoSenha && (
+                  <div className="mb-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-600">
+                    {erroRecuperacaoSenha}
+                  </div>
+                )}
+
+                {mensagemRecuperacaoSenha && (
+                  <div className="mb-4 rounded-xl border border-[#d0f0f1] bg-[#e6f6f7] p-3 text-sm font-bold text-[#048187]">
+                    {mensagemRecuperacaoSenha}
+                  </div>
+                )}
+
+                {etapaRecuperacaoSenha === 'redefinir' && (
+                  <div className="mb-4 rounded-2xl border border-[#ccecee] bg-[#e6f6f7] p-4">
+                    <p className="text-[11px] font-black uppercase tracking-wide text-[#048187]">Código enviado por e-mail</p>
+                    <p className="mt-1 text-xs font-bold text-[#048187]/80">
+                      Confira a caixa de entrada e o spam/lixo eletrônico do e-mail cadastrado. O código expira em 15 minutos.
+                    </p>
+                  </div>
+                )}
+
+                {etapaRecuperacaoSenha === 'solicitar' ? (
+                  <form onSubmit={solicitarCodigoRecuperacaoSenha} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-600 mb-2">E-mail cadastrado</label>
+                      <input
+                        type="email"
+                        value={formRecuperacaoSenha.email}
+                        onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, email: e.target.value }))}
+                        placeholder="seuemail@mail.com"
+                        className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
+                        required
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={carregandoRecuperacaoSenha}
+                      className="w-full bg-[#048187] text-white font-black py-3.5 rounded-lg hover:bg-[#036b70] disabled:opacity-60 transition-all shadow-lg shadow-[#048187]/20"
+                    >
+                      {carregandoRecuperacaoSenha ? 'Registrando solicitação...' : 'Solicitar reset ao administrador'}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={redefinirSenhaRecuperacao} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-600 mb-2">E-mail</label>
+                      <input
+                        type="email"
+                        value={formRecuperacaoSenha.email}
+                        onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, email: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-gray-600 mb-2">Código</label>
+                      <input
+                        value={formRecuperacaoSenha.codigo}
+                        onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, codigo: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                        placeholder="000000"
+                        className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all tracking-[0.18em] font-black"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-600 mb-2">Nova senha</label>
+                        <input
+                          type="password"
+                          value={formRecuperacaoSenha.nova_senha}
+                          onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, nova_senha: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-600 mb-2">Confirmar</label>
+                        <input
+                          type="password"
+                          value={formRecuperacaoSenha.confirmar_senha}
+                          onChange={(e) => setFormRecuperacaoSenha((atual) => ({ ...atual, confirmar_senha: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={carregandoRecuperacaoSenha}
+                      className="w-full bg-[#048187] text-white font-black py-3.5 rounded-lg hover:bg-[#036b70] disabled:opacity-60 transition-all shadow-lg shadow-[#048187]/20"
+                    >
+                      {carregandoRecuperacaoSenha ? 'Salvando nova senha...' : 'Salvar nova senha'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
