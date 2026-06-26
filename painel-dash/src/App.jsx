@@ -212,6 +212,14 @@ const formatarAbrev = (v) => {
   if (a >= 1000) return `${s}R$${(a / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} Mil`;
   return `${s}R$${a.toLocaleString('pt-BR')}`;
 };
+const formatarMoedaCompactaCard = (v) => {
+  const n = Number(v || 0);
+  const a = Math.abs(n);
+  const s = n < 0 ? '-' : '';
+  if (a >= 1000000) return `${s}R$${(a / 1000000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mi`;
+  if (a >= 1000) return `${s}R$${(a / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mil`;
+  return `${s}${formatarMoeda(a)}`;
+};
 const formatarTickMoeda = (v) => {
   const n = Number(v || 0);
   if (n >= 1000000) return `R$${(n / 1000000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} Mi`;
@@ -1940,8 +1948,6 @@ export default function App() {
   const itensMenuVD = itensMenuTopo;
   const itensMenuLoja = [
     { nome: 'LojaVisaoGeral', icone: LayoutDashboard },
-    { nome: 'LojaUnidades', icone: IconeCanalLoja },
-    { nome: 'LojaConsultoras', icone: Users },
     { nome: 'LojaRanking', icone: Trophy },
     { nome: 'LojaCadastro', icone: Save }
   ];
@@ -7702,7 +7708,7 @@ const enviarArquivo = async (tipo) => {
     const unidades = dadosLoja?.unidades || [];
     const consultoras = dadosLoja?.consultoras || [];
     const cicloAtualLoja = cicloLojaSelecionado();
-    const abaLoja = telaAtual === 'LojaCadastro' ? 'cadastro' : telaAtual === 'LojaUnidades' ? 'unidades' : telaAtual === 'LojaConsultoras' ? 'consultoras' : telaAtual === 'LojaRanking' ? 'ranking' : 'geral';
+    const abaLoja = telaAtual === 'LojaCadastro' ? 'cadastro' : telaAtual === 'LojaRanking' ? 'ranking' : 'geral';
     const busca = String(buscaLoja || '').toLowerCase();
     const filtroUnidadeLoja = String(filtrosLoja?.unidade || '');
     const filtroConsultoraLoja = String(filtrosLoja?.consultora || '');
@@ -7753,7 +7759,7 @@ const enviarArquivo = async (tipo) => {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 truncate">{titulo}</p>
-              <p className="text-xl sm:text-2xl font-black mt-2 truncate" style={{ color: cor }}>{valor}</p>
+              <p className="text-lg sm:text-xl 2xl:text-2xl font-black mt-2 whitespace-nowrap" style={{ color: cor }}>{valor}</p>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
@@ -8611,14 +8617,14 @@ const enviarArquivo = async (tipo) => {
 
         {!carregandoLoja && abaLoja === 'geral' && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
               <CardLoja
                 titulo="Faturamento realizado"
-                valor={formatarMoeda(resumo.faturamento_realizado)}
-                meta={formatarMoeda(resumo.meta_faturamento)}
+                valor={formatarMoedaCompactaCard(resumo.faturamento_realizado)}
+                meta={formatarMoedaCompactaCard(resumo.meta_faturamento)}
                 percentual={resumo.percentual_faturamento}
                 icone={BadgeDollarSign}
-                subtitulo={`Falta para a meta: ${formatarMoeda(resumo.deficit_faturamento)}`}
+                subtitulo={`Falta para a meta: ${formatarMoedaCompactaCard(resumo.deficit_faturamento)}`}
                 onDetalhes={() => abrirDetalheCardLoja('Faturamento LOJA', [
                   { label: 'Realizado', valor: formatarMoeda(resumo.faturamento_realizado || 0) },
                   { label: 'Meta ciclo', valor: formatarMoeda(resumo.meta_faturamento || 0) },
@@ -8627,25 +8633,12 @@ const enviarArquivo = async (tipo) => {
                 ], 'Faturamento LOJA = soma da coluna GMV-GMV da base de vendas.')}
               />
               <CardLoja
-                titulo="Diário"
-                valor={formatarMoeda(resumo.realizado_diario || 0)}
-                meta={formatarMoeda(resumo.meta_diaria || 0)}
-                percentual={calcPerc(resumo.realizado_diario || 0, resumo.meta_diaria || 0)}
-                icone={CalendarDays}
-                subtitulo="Meta diária ajustada pelo que falta no ciclo."
-                onDetalhes={() => abrirDetalheCardLoja('Diário LOJA', [
-                  { label: 'Realizado hoje', valor: formatarMoeda(resumo.realizado_diario || 0) },
-                  { label: 'Meta diária', valor: formatarMoeda(resumo.meta_diaria || 0) },
-                  { label: 'Dias restantes', valor: formatarNumeroBR(resumo.dias_restantes || 0, 0) }
-                ], 'Meta diária = falta para a meta / dias restantes do ciclo.')}
-              />
-              <CardLoja
                 titulo="Tendência"
-                valor={formatarMoeda(resumo.tendencia || 0)}
-                meta={formatarMoeda(resumo.meta_faturamento || 0)}
+                valor={formatarMoedaCompactaCard(resumo.tendencia || 0)}
+                meta={formatarMoedaCompactaCard(resumo.meta_faturamento || 0)}
                 percentual={calcPerc(resumo.tendencia || 0, resumo.meta_faturamento || 0)}
                 icone={TrendingUp}
-                subtitulo={`Gap tendência: ${formatarMoeda(resumo.gap_tendencia || 0)}`}
+                subtitulo={`Gap tendência: ${formatarMoedaCompactaCard(resumo.gap_tendencia || 0)}`}
                 onDetalhes={() => abrirDetalheCardLoja('Tendência LOJA', [
                   { label: 'Tendência', valor: formatarMoeda(resumo.tendencia || 0) },
                   { label: 'Meta ciclo', valor: formatarMoeda(resumo.meta_faturamento || 0) },
@@ -8656,8 +8649,8 @@ const enviarArquivo = async (tipo) => {
               />
               <CardLoja
                 titulo="Skin"
-                valor={formatarMoeda(resumo.skin_realizado || 0)}
-                meta={formatarMoeda(resumo.meta_skin || 0)}
+                valor={formatarMoedaCompactaCard(resumo.skin_realizado || 0)}
+                meta={formatarMoedaCompactaCard(resumo.meta_skin || 0)}
                 percentual={resumo.percentual_skin || 0}
                 icone={Sparkles}
                 subtitulo="Meta de Skin em R$ por loja/consultora."
