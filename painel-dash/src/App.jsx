@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2 } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoBrancaLogin from './assets/logo-branca.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
@@ -1878,6 +1878,7 @@ export default function App() {
   const [lojaConsultoraForm, setLojaConsultoraForm] = useState({ id_consultora: '', nome_consultora: '', codigo_pdv_oficial: '', status_consultora: 'ativo' });
   const [lojaMetaUnidadeForm, setLojaMetaUnidadeForm] = useState({ ciclo: '', codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
   const [lojaMetaConsultoraForm, setLojaMetaConsultoraForm] = useState({ ciclo: '', id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' });
+  const [tabelaLojaExpandida, setTabelaLojaExpandida] = useState(null);
 
   const promessasEmAndamentoRef = useRef({});
   const ultimoCarregamentoTelaRef = useRef('');
@@ -7532,7 +7533,22 @@ const enviarArquivo = async (tipo) => {
     const rankingUnidades = [...unidades].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
     const rankingConsultoras = [...consultoras].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
 
-    const CardLoja = ({ titulo, valor, meta, percentual, subtitulo, icone: Icone }) => {
+    const formatarDataHoraLoja = (valor) => {
+      if (!valor) return 'Sem atualização';
+      try { return new Date(valor).toLocaleString('pt-BR'); } catch (_) { return valor; }
+    };
+
+    const abrirDetalheCardLoja = (titulo, linhas = [], formula = '') => {
+      abrirModalValExp(
+        titulo,
+        linhas?.[0]?.valor || '-',
+        'Detalhamento do indicador da LOJA.',
+        linhas,
+        formula
+      );
+    };
+
+    const CardLoja = ({ titulo, valor, meta, percentual, subtitulo, icone: Icone, onDetalhes }) => {
       const cor = corPorFaixaMeta(percentual || 0);
       return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 min-w-0 transition-all hover:shadow-md">
@@ -7541,25 +7557,73 @@ const enviarArquivo = async (tipo) => {
               <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 truncate">{titulo}</p>
               <p className="text-xl sm:text-2xl font-black mt-2 truncate" style={{ color: cor }}>{valor}</p>
             </div>
-            {Icone && <div className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><Icone size={18} /></div>}
+
+            <div className="flex items-center gap-2 shrink-0">
+              {onDetalhes && (
+                <button
+                  type="button"
+                  onClick={onDetalhes}
+                  className="w-8 h-8 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] flex items-center justify-center"
+                  title={`Ver detalhes de ${titulo}`}
+                >
+                  <Eye size={15} />
+                </button>
+              )}
+              {Icone && <div className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Icone size={18} /></div>}
+            </div>
           </div>
+
           <div className="mt-3">
             <div className="flex items-center justify-between gap-2 text-[10px] font-bold">
               <span style={{ color: cor }}>{formatarNumeroBR(percentual || 0, 1)}% da meta</span>
               {meta && <span className="text-gray-400 truncate">Meta: {meta}</span>}
             </div>
-            <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.min(Number(percentual || 0), 100)}%`, backgroundColor: cor }} /></div>
+            <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${Math.min(Number(percentual || 0), 100)}%`, backgroundColor: cor }} />
+            </div>
           </div>
+
           {subtitulo && <p className="text-[11px] text-gray-400 font-bold mt-3 leading-relaxed">{subtitulo}</p>}
         </div>
       );
     };
 
-    const TabelaUnidades = ({ lista = unidadesFiltradas, compacta = false }) => (
+    const TabelaUnidades = ({ lista = unidadesFiltradas }) => (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1180px] text-sm">
-          <thead><tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black"><th className="py-3 px-3">PDV</th><th className="py-3 px-3">Cidade/Loja</th><th className="py-3 px-3 text-right">Meta ciclo</th><th className="py-3 px-3 text-right">Realizado no PDV</th><th className="py-3 px-3 text-right">Déficit</th><th className="py-3 px-3 text-right">%</th><th className="py-3 px-3 text-right">Boleto médio</th><th className="py-3 px-3 text-right">Itens/Boleto</th><th className="py-3 px-3 text-right">Meta Skin</th><th className="py-3 px-3 text-right">Serviços</th></tr></thead>
-          <tbody>{lista.map((u) => (<tr key={u.codigo_pdv} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]"><td className="py-3 px-3 font-black text-gray-700">{u.codigo_pdv}</td><td className="py-3 px-3"><p className="font-black text-gray-700 truncate max-w-[260px]">{u.cidade || '-'}</p><p className="text-[10px] text-gray-400 font-bold truncate max-w-[260px]">{u.nome_loja || '-'}</p></td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(u.meta_faturamento)}</td><td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(u.realizado)}</td><td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(u.deficit)}</td><td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(u.percentual) }}>{formatarNumeroBR(u.percentual, 1)}%</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.boleto_medio)}</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(u.itens_por_boleto, 2)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.meta_skin)}</td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarNumeroBR(u.realizado_servicos_mes, 0)} / {formatarNumeroBR(u.meta_servicos_mes, 0)}</td></tr>))}</tbody>
+          <thead>
+            <tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black">
+              <th className="py-3 px-3">PDV</th>
+              <th className="py-3 px-3">Cidade/Loja</th>
+              <th className="py-3 px-3 text-right">Meta ciclo</th>
+              <th className="py-3 px-3 text-right">Realizado no PDV</th>
+              <th className="py-3 px-3 text-right">Déficit</th>
+              <th className="py-3 px-3 text-right">%</th>
+              <th className="py-3 px-3 text-right">Boleto médio</th>
+              <th className="py-3 px-3 text-right">Itens/Boleto</th>
+              <th className="py-3 px-3 text-right">Skin</th>
+              <th className="py-3 px-3 text-right">Serviços</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((u) => (
+              <tr key={u.codigo_pdv} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]">
+                <td className="py-3 px-3 font-black text-gray-700">{u.codigo_pdv}</td>
+                <td className="py-3 px-3">
+                  <p className="font-black text-gray-700 truncate max-w-[260px]">{u.cidade || '-'}</p>
+                  <p className="text-[10px] text-gray-400 font-bold truncate max-w-[260px]">{u.nome_loja || '-'}</p>
+                </td>
+                <td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(u.meta_faturamento)}</td>
+                <td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(u.realizado)}</td>
+                <td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(u.deficit)}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(u.percentual) }}>{formatarNumeroBR(u.percentual, 1)}%</td>
+                <td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.boleto_medio)}</td>
+                <td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(u.itens_por_boleto, 2)}</td>
+                <td className="py-3 px-3 text-right font-bold text-[#048187]">{formatarMoeda(u.realizado_skin || 0)}</td>
+                <td className="py-3 px-3 text-right font-bold text-gray-600">{formatarNumeroBR(u.realizado_servicos_mes, 0)} / {formatarNumeroBR(u.meta_servicos_mes, 0)}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
         {!lista.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma unidade encontrada.</div>}
       </div>
@@ -7568,17 +7632,89 @@ const enviarArquivo = async (tipo) => {
     const TabelaConsultoras = ({ lista = consultorasFiltradas }) => (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1220px] text-sm">
-          <thead><tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black"><th className="py-3 px-3">ID</th><th className="py-3 px-3">Consultora</th><th className="py-3 px-3">PDV oficial</th><th className="py-3 px-3 text-right">Meta</th><th className="py-3 px-3 text-right">Realizado consultora</th><th className="py-3 px-3 text-right">Déficit</th><th className="py-3 px-3 text-right">%</th><th className="py-3 px-3 text-right">Boletos</th><th className="py-3 px-3 text-right">Boleto médio</th><th className="py-3 px-3 text-right">Itens/Boleto</th><th className="py-3 px-3 text-right">Meta Skin</th></tr></thead>
-          <tbody>{lista.map((c) => (<tr key={c.id_consultora} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]"><td className="py-3 px-3 font-black text-[#048187]">{c.id_consultora}</td><td className="py-3 px-3"><p className="font-black text-gray-700 truncate max-w-[280px]">{c.nome_consultora}</p><p className="text-[10px] text-gray-400 font-bold">Resultado soma todos os PDVs vendidos.</p></td><td className="py-3 px-3 font-bold text-gray-500">{c.codigo_pdv_oficial || '-'}</td><td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_faturamento)}</td><td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(c.realizado)}</td><td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(c.deficit)}</td><td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{formatarNumeroBR(c.percentual, 1)}%</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.qtd_boletos, 0)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.boleto_medio)}</td><td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.itens_por_boleto, 2)}</td><td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.meta_skin)}</td></tr>))}</tbody>
+          <thead>
+            <tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black">
+              <th className="py-3 px-3">ID</th>
+              <th className="py-3 px-3">Consultora</th>
+              <th className="py-3 px-3">PDV oficial</th>
+              <th className="py-3 px-3 text-right">Meta</th>
+              <th className="py-3 px-3 text-right">Realizado consultora</th>
+              <th className="py-3 px-3 text-right">Déficit</th>
+              <th className="py-3 px-3 text-right">%</th>
+              <th className="py-3 px-3 text-right">Boletos</th>
+              <th className="py-3 px-3 text-right">Boleto médio</th>
+              <th className="py-3 px-3 text-right">Itens/Boleto</th>
+              <th className="py-3 px-3 text-right">Skin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((c) => (
+              <tr key={c.id_consultora} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]">
+                <td className="py-3 px-3 font-black text-[#048187]">{c.id_consultora}</td>
+                <td className="py-3 px-3">
+                  <p className="font-black text-gray-700 truncate max-w-[280px]">{c.nome_consultora}</p>
+                  <p className="text-[10px] text-gray-400 font-bold">Soma todos os PDVs vendidos.</p>
+                </td>
+                <td className="py-3 px-3 font-bold text-gray-500">{c.codigo_pdv_oficial || '-'}</td>
+                <td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_faturamento)}</td>
+                <td className="py-3 px-3 text-right font-black text-[#048187]">{formatarMoeda(c.realizado)}</td>
+                <td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(c.deficit)}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{formatarNumeroBR(c.percentual, 1)}%</td>
+                <td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.qtd_boletos, 0)}</td>
+                <td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.boleto_medio)}</td>
+                <td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.itens_por_boleto, 2)}</td>
+                <td className="py-3 px-3 text-right font-bold text-[#048187]">{formatarMoeda(c.realizado_skin || 0)}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
         {!lista.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma consultora encontrada.</div>}
       </div>
     );
 
+    const BlocoTabelaLoja = ({ titulo, subtitulo, tipo, children }) => (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-black text-gray-700">{titulo}</h2>
+            {subtitulo && <p className="text-xs text-gray-400 font-bold mt-1">{subtitulo}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={() => setTabelaLojaExpandida(tipo)}
+            className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] flex items-center justify-center shrink-0"
+            title="Expandir resultados"
+          >
+            <Maximize2 size={17} />
+          </button>
+        </div>
+        {children}
+      </div>
+    );
+
+
+
     const LojaHeader = () => (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div><h1 className="text-2xl font-black text-gray-700">LOJA • Acompanhamento Comercial</h1><p className="text-sm text-gray-400 font-bold mt-1">Acompanhamento por PDV e consultora. O número antes do nome é o ID da consultora.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><select value={cicloLoja || resumo.ciclo || ''} onChange={(e) => { setCicloLoja(e.target.value); carregarDadosLoja(e.target.value); }} className="border border-gray-200 rounded-lg px-4 py-2 font-black text-gray-700 outline-none focus:border-[#048187]"><option value="">Ciclo ativo</option>{ciclos.map((c) => <option key={c.id || c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}</select><button onClick={() => carregarDadosLoja()} disabled={carregandoLoja} className="bg-[#048187] text-white px-4 py-2 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center gap-2"><RefreshCcw size={16} /> Atualizar</button></div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black text-gray-700">Visão Geral LOJA</h1>
+            <p className="text-sm text-gray-400 font-bold mt-1">Acompanhamento por PDV e consultora.</p>
+            <p className="text-xs text-gray-400 font-bold mt-2">Última atualização (Bases Loja): {formatarDataHoraLoja(resumo.ultima_atualizacao)}</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={cicloLoja || resumo.ciclo || ''}
+              onChange={(e) => { setCicloLoja(e.target.value); carregarDadosLoja(e.target.value); }}
+              className="border border-gray-200 rounded-lg px-4 py-2 font-black text-gray-700 outline-none focus:border-[#048187]"
+            >
+              <option value="">Ciclo ativo</option>
+              {ciclos.map((c) => <option key={c.id || c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}
+            </select>
+            <button onClick={() => carregarDadosLoja()} disabled={carregandoLoja} className="bg-[#048187] text-white px-4 py-2 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center gap-2"><RefreshCcw size={16} /> Atualizar</button>
+          </div>
+        </div>
       </div>
     );
 
@@ -7720,25 +7856,167 @@ const enviarArquivo = async (tipo) => {
       <div className="space-y-6 animate-fade-in">
         <LojaHeader />
         <AvisosLoja />
-        <div className="bg-[#e6f6f7] border border-[#ccecee] rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><p className="font-black text-[#048187]">Regra de apuração LOJA</p><p className="text-xs font-bold text-[#048187]/80 mt-1">Consultora soma tudo que ela vendeu. PDV soma somente vendas feitas dentro daquele PDV.</p></div><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={buscaLoja} onChange={(e) => setBuscaLoja(e.target.value)} placeholder="Buscar PDV ou consultora" className="pl-9 pr-4 py-2 rounded-lg border border-white/60 outline-none font-bold text-sm min-w-[260px]" /></div></div>
+
+        <div className="bg-[#e6f6f7] border border-[#ccecee] rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <p className="font-black text-[#048187]">Regra de apuração LOJA</p>
+            <p className="text-xs font-bold text-[#048187]/80 mt-1">Consultora soma tudo que vendeu. PDV soma somente vendas feitas dentro daquele PDV.</p>
+          </div>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={buscaLoja} onChange={(e) => setBuscaLoja(e.target.value)} placeholder="Buscar PDV ou consultora" className="pl-9 pr-4 py-2 rounded-lg border border-white/60 outline-none font-bold text-sm min-w-[260px]" />
+          </div>
+        </div>
+
         {carregandoLoja && <DashboardSkeletons />}
+
         {!carregandoLoja && abaLoja === 'cadastro' && <CadastroLoja />}
-        {!carregandoLoja && abaLoja === 'unidades' && <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700 mb-1">Resultado por unidade/PDV</h2><p className="text-xs text-gray-400 font-bold mb-4">Somente vendas que aconteceram dentro do PDV entram no resultado da unidade.</p><TabelaUnidades /></div>}
-        {!carregandoLoja && abaLoja === 'consultoras' && <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700 mb-1">Resultado por consultora</h2><p className="text-xs text-gray-400 font-bold mb-4">Todas as vendas da consultora entram para a meta dela, mesmo em outro PDV.</p><TabelaConsultoras /></div>}
-        {!carregandoLoja && abaLoja === 'ranking' && <div className="grid grid-cols-1 xl:grid-cols-2 gap-6"><div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="font-black text-gray-700 mb-4">Ranking de unidades</h2><TabelaUnidades lista={rankingUnidades} compacta /></div><div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="font-black text-gray-700 mb-4">Ranking de consultoras</h2><TabelaConsultoras lista={rankingConsultoras} /></div></div>}
+
+        {!carregandoLoja && abaLoja === 'unidades' && (
+          <BlocoTabelaLoja titulo="Resultado por unidade/PDV" subtitulo="Somente vendas que aconteceram dentro do PDV entram no resultado da unidade." tipo="unidades">
+            <TabelaUnidades />
+          </BlocoTabelaLoja>
+        )}
+
+        {!carregandoLoja && abaLoja === 'consultoras' && (
+          <BlocoTabelaLoja titulo="Resultado por consultora" subtitulo="Todas as vendas da consultora entram para a meta dela, mesmo em outro PDV." tipo="consultoras">
+            <TabelaConsultoras />
+          </BlocoTabelaLoja>
+        )}
+
+        {!carregandoLoja && abaLoja === 'ranking' && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <BlocoTabelaLoja titulo="Ranking de unidades" tipo="unidades">
+              <TabelaUnidades lista={rankingUnidades} />
+            </BlocoTabelaLoja>
+            <BlocoTabelaLoja titulo="Ranking de consultoras" tipo="consultoras">
+              <TabelaConsultoras lista={rankingConsultoras} />
+            </BlocoTabelaLoja>
+          </div>
+        )}
+
         {!carregandoLoja && abaLoja === 'geral' && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-              <CardLoja titulo="Faturamento realizado" valor={formatarMoeda(resumo.faturamento_realizado)} meta={formatarMoeda(resumo.meta_faturamento)} percentual={resumo.percentual_faturamento} icone={BadgeDollarSign} subtitulo={`Falta para a meta: ${formatarMoeda(resumo.deficit_faturamento)}`} />
-              <CardLoja titulo="Diário" valor={formatarMoeda(resumo.realizado_diario || 0)} meta={formatarMoeda(resumo.meta_diaria || 0)} percentual={calcPerc(resumo.realizado_diario || 0, resumo.meta_diaria || 0)} icone={CalendarDays} subtitulo="Meta diária ajustada pelo que falta no ciclo." />
-              <CardLoja titulo="Tendência" valor={formatarMoeda(resumo.tendencia || 0)} meta={formatarMoeda(resumo.meta_faturamento || 0)} percentual={calcPerc(resumo.tendencia || 0, resumo.meta_faturamento || 0)} icone={TrendingUp} subtitulo={`Gap tendência: ${formatarMoeda(resumo.gap_tendencia || 0)}`} />
-              <CardLoja titulo="Skin" valor={formatarMoeda(resumo.skin_realizado || 0)} meta={formatarMoeda(resumo.meta_skin || 0)} percentual={resumo.percentual_skin || 0} icone={Sparkles} subtitulo="Meta de Skin em R$ por loja/consultora." />
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5"><p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Desempenho</p><div className="mt-4 space-y-3"><div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Boleto médio</span><span className="font-black text-[#048187]">{formatarMoeda(resumo.boleto_medio || 0)}</span></div><div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Meta boleto</span><span className="font-black text-gray-700">{formatarMoeda(resumo.meta_boleto_medio || 0)}</span></div><div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Itens/Boleto</span><span className="font-black text-[#048187]">{formatarNumeroBR(resumo.itens_por_boleto || 0, 2)}</span></div><div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Meta itens</span><span className="font-black text-gray-700">{formatarNumeroBR(resumo.meta_itens_boleto || 4, 1)}</span></div></div></div>
+              <CardLoja
+                titulo="Faturamento realizado"
+                valor={formatarMoeda(resumo.faturamento_realizado)}
+                meta={formatarMoeda(resumo.meta_faturamento)}
+                percentual={resumo.percentual_faturamento}
+                icone={BadgeDollarSign}
+                subtitulo={`Falta para a meta: ${formatarMoeda(resumo.deficit_faturamento)}`}
+                onDetalhes={() => abrirDetalheCardLoja('Faturamento LOJA', [
+                  { label: 'Realizado', valor: formatarMoeda(resumo.faturamento_realizado || 0) },
+                  { label: 'Meta ciclo', valor: formatarMoeda(resumo.meta_faturamento || 0) },
+                  { label: '% da meta', valor: `${formatarNumeroBR(resumo.percentual_faturamento || 0, 1)}%` },
+                  { label: 'Falta para a meta', valor: formatarMoeda(resumo.deficit_faturamento || 0) }
+                ], 'Faturamento LOJA = soma da coluna GMV-GMV da base de vendas.')}
+              />
+              <CardLoja
+                titulo="Diário"
+                valor={formatarMoeda(resumo.realizado_diario || 0)}
+                meta={formatarMoeda(resumo.meta_diaria || 0)}
+                percentual={calcPerc(resumo.realizado_diario || 0, resumo.meta_diaria || 0)}
+                icone={CalendarDays}
+                subtitulo="Meta diária ajustada pelo que falta no ciclo."
+                onDetalhes={() => abrirDetalheCardLoja('Diário LOJA', [
+                  { label: 'Realizado hoje', valor: formatarMoeda(resumo.realizado_diario || 0) },
+                  { label: 'Meta diária', valor: formatarMoeda(resumo.meta_diaria || 0) },
+                  { label: 'Dias restantes', valor: formatarNumeroBR(resumo.dias_restantes || 0, 0) }
+                ], 'Meta diária = falta para a meta / dias restantes do ciclo.')}
+              />
+              <CardLoja
+                titulo="Tendência"
+                valor={formatarMoeda(resumo.tendencia || 0)}
+                meta={formatarMoeda(resumo.meta_faturamento || 0)}
+                percentual={calcPerc(resumo.tendencia || 0, resumo.meta_faturamento || 0)}
+                icone={TrendingUp}
+                subtitulo={`Gap tendência: ${formatarMoeda(resumo.gap_tendencia || 0)}`}
+                onDetalhes={() => abrirDetalheCardLoja('Tendência LOJA', [
+                  { label: 'Tendência', valor: formatarMoeda(resumo.tendencia || 0) },
+                  { label: 'Meta ciclo', valor: formatarMoeda(resumo.meta_faturamento || 0) },
+                  { label: 'Gap tendência', valor: formatarMoeda(resumo.gap_tendencia || 0) },
+                  { label: 'Dias passados', valor: formatarNumeroBR(resumo.dias_passados || 0, 0) },
+                  { label: 'Dias do ciclo', valor: formatarNumeroBR(resumo.dias_total || 0, 0) }
+                ], 'Tendência = média diária realizada × dias totais do ciclo.')}
+              />
+              <CardLoja
+                titulo="Skin"
+                valor={formatarMoeda(resumo.skin_realizado || 0)}
+                meta={formatarMoeda(resumo.meta_skin || 0)}
+                percentual={resumo.percentual_skin || 0}
+                icone={Sparkles}
+                subtitulo="Meta de Skin em R$ por loja/consultora."
+                onDetalhes={() => abrirDetalheCardLoja('Skin LOJA', [
+                  { label: 'Realizado Skin', valor: formatarMoeda(resumo.skin_realizado || 0) },
+                  { label: 'Meta Skin', valor: formatarMoeda(resumo.meta_skin || 0) },
+                  { label: '% Skin', valor: `${formatarNumeroBR(resumo.percentual_skin || 0, 1)}%` }
+                ], 'Skin = soma da aba CONSULTOR, coluna RECEITA (R$), ignorando linhas de total.')}
+              />
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Desempenho</p>
+                  <button
+                    type="button"
+                    onClick={() => abrirDetalheCardLoja('Desempenho LOJA', [
+                      { label: 'Boleto médio', valor: formatarMoeda(resumo.boleto_medio || 0) },
+                      { label: 'Meta boleto', valor: formatarMoeda(resumo.meta_boleto_medio || 0) },
+                      { label: 'Itens/Boleto', valor: formatarNumeroBR(resumo.itens_por_boleto || 0, 2) },
+                      { label: 'Meta itens', valor: formatarNumeroBR(resumo.meta_itens_boleto || 4, 1) },
+                      { label: 'Pedidos/boletos', valor: formatarNumeroBR(resumo.pedidos || 0, 0) }
+                    ], 'Boleto médio = GMV-GMV / GMV-Qtd de boletos. Itens/Boleto vem da coluna GMV-Itens por boleto.')}
+                    className="w-8 h-8 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] flex items-center justify-center"
+                    title="Ver detalhes de desempenho"
+                  >
+                    <Eye size={15} />
+                  </button>
+                </div>
+                <div className="mt-4 space-y-3">
+                  <div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Boleto médio</span><span className="font-black text-[#048187]">{formatarMoeda(resumo.boleto_medio || 0)}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Meta boleto</span><span className="font-black text-gray-700">{formatarMoeda(resumo.meta_boleto_medio || 0)}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Itens/Boleto</span><span className="font-black text-[#048187]">{formatarNumeroBR(resumo.itens_por_boleto || 0, 2)}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Meta itens</span><span className="font-black text-gray-700">{formatarNumeroBR(resumo.meta_itens_boleto || 4, 1)}</span></div>
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6"><div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700 mb-1">Unidades</h2><p className="text-xs text-gray-400 font-bold mb-4">Resultado pelo PDV onde a venda aconteceu.</p><TabelaUnidades lista={unidadesFiltradas.slice(0, 8)} /></div><div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6"><h2 className="text-lg font-black text-gray-700 mb-1">Consultoras</h2><p className="text-xs text-gray-400 font-bold mb-4">Resultado por ID da consultora, independente do PDV.</p><TabelaConsultoras lista={consultorasFiltradas.slice(0, 8)} /></div></div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <BlocoTabelaLoja titulo="Unidades" subtitulo="Resultado pelo PDV onde a venda aconteceu." tipo="unidades">
+                <TabelaUnidades lista={unidadesFiltradas.slice(0, 8)} />
+              </BlocoTabelaLoja>
+              <BlocoTabelaLoja titulo="Consultoras" subtitulo="Resultado por ID da consultora, independente do PDV." tipo="consultoras">
+                <TabelaConsultoras lista={consultorasFiltradas.slice(0, 8)} />
+              </BlocoTabelaLoja>
+            </div>
           </>
         )}
+
+        {tabelaLojaExpandida && (
+          <div className="fixed inset-0 z-[9999] bg-black/45 backdrop-blur-sm p-4 sm:p-6 flex items-center justify-center">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[96vw] h-[88vh] overflow-hidden flex flex-col">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black text-gray-700">{tabelaLojaExpandida === 'unidades' ? 'Unidades - lista completa' : 'Consultoras - lista completa'}</h2>
+                  <p className="text-xs text-gray-400 font-bold mt-1">Ciclo {cicloAtualLoja || '-'} • {tabelaLojaExpandida === 'unidades' ? unidadesFiltradas.length : consultorasFiltradas.length} registros</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTabelaLojaExpandida(null)}
+                  className="w-10 h-10 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center justify-center"
+                >
+                  <Minimize2 size={18} />
+                </button>
+              </div>
+              <div className="p-5 overflow-auto">
+                {tabelaLojaExpandida === 'unidades'
+                  ? <TabelaUnidades lista={unidadesFiltradas} />
+                  : <TabelaConsultoras lista={consultorasFiltradas} />}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
     );
   };
 
@@ -7762,10 +8040,12 @@ const enviarArquivo = async (tipo) => {
     return null;
   };
 
-  const cicloTopoAtual = dados?.ciclo_atual
-    || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
-    || ciclos?.[0]?.ciclo
-    || '';
+  const cicloTopoAtual = telaEhLoja(telaAtual)
+    ? (cicloLoja || dadosLoja?.resumo?.ciclo || dados?.ciclo_atual || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo || ciclos?.[0]?.ciclo || '')
+    : (dados?.ciclo_atual
+      || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
+      || ciclos?.[0]?.ciclo
+      || '');
 
   if (!usuarioLogado) {
     return (
