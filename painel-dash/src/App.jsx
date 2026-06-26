@@ -1864,7 +1864,7 @@ export default function App() {
   const [mensagemLoja, setMensagemLoja] = useState('');
   const [cicloLoja, setCicloLoja] = useState('');
   const [arquivoGerencialLoja, setArquivoGerencialLoja] = useState(null);
-  const [arquivosLoja, setArquivosLoja] = useState({
+  const [arquivosLojaUpload, setArquivosLojaUpload] = useState({
     vendas: null,
     unidades: null,
     consultoras: null,
@@ -2836,14 +2836,14 @@ const carregarRevendedores = async () => {
   };
 
 
-  const selecionarArquivoLoja = (tipo, file) => {
-    setArquivosLoja((atual) => ({ ...atual, [tipo]: file || null }));
+  const selecionarArquivoLojaUpload = (tipo, file) => {
+    setArquivosLojaUpload((atual) => ({ ...atual, [tipo]: file || null }));
   };
 
-  const uploadBaseLoja = async (tipo, endpoint, nomeBase, opcoes = {}) => {
-    const arquivo = arquivosLoja?.[tipo];
+  const importarBaseLojaUpload = async (tipo, endpoint, titulo, opcoes = {}) => {
+    const arquivo = arquivosLojaUpload?.[tipo];
     if (!arquivo) {
-      setErroLoja(`Selecione o arquivo de ${nomeBase}.`);
+      setErroLoja(`Selecione o arquivo: ${titulo}.`);
       return;
     }
 
@@ -2867,11 +2867,11 @@ const carregarRevendedores = async () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      setMensagemLoja(data?.mensagem || `${nomeBase} importada com sucesso.`);
-      setArquivosLoja((atual) => ({ ...atual, [tipo]: null }));
+      setMensagemLoja(data?.mensagem || `${titulo} importada.`);
+      setArquivosLojaUpload((atual) => ({ ...atual, [tipo]: null }));
       await carregarDadosLoja(data?.ciclo || cicloLojaSelecionado());
     } catch (erro) {
-      setErroLoja(erro.response?.data?.detail || `Erro ao importar ${nomeBase}.`);
+      setErroLoja(erro.response?.data?.detail || `Erro ao importar ${titulo}.`);
     } finally {
       setCarregandoLoja(false);
     }
@@ -7585,52 +7585,48 @@ const enviarArquivo = async (tipo) => {
     const AvisosLoja = () => (<>{erroLoja && <div className="rounded-xl border border-red-100 bg-red-50 text-red-700 px-4 py-3 font-bold text-sm">{erroLoja}</div>}{mensagemLoja && <div className="rounded-xl border border-green-100 bg-green-50 text-green-700 px-4 py-3 font-bold text-sm">{mensagemLoja}</div>}</>);
 
     const CadastroLoja = () => {
-      const bases = [
+      const basesUpload = [
         {
           tipo: 'vendas',
-          titulo: 'Base Vendas / GMV',
-          descricao: 'Arquivo gerencial com Listar Por Lojas, Quebrar Por Consultor e GMV-GMV.',
+          titulo: 'Vendas / GMV',
+          descricao: 'Base gerencial do sistema. Usa GMV-GMV como faturamento.',
           endpoint: '/loja/upload-gerencial',
           usaCiclo: true,
           substituir: true,
-          obrigatorio: true
+          destaque: true
         },
         {
           tipo: 'unidades',
-          titulo: 'Cadastro de Unidades',
-          descricao: 'Planilha com PDV, CIDADE e LOJA.',
+          titulo: 'Unidades',
+          descricao: 'PDV, cidade e nome da loja.',
           endpoint: '/loja/upload-unidades',
-          usaCiclo: false,
-          substituir: false
+          usaCiclo: false
         },
         {
           tipo: 'consultoras',
-          titulo: 'Cadastro de Consultoras',
-          descricao: 'Planilha com Consultor(a) e PDV oficial. O número antes do nome vira o ID.',
+          titulo: 'Consultoras',
+          descricao: 'ID, nome e PDV oficial.',
           endpoint: '/loja/upload-consultoras',
-          usaCiclo: false,
-          substituir: false
+          usaCiclo: false
         },
         {
           tipo: 'metas_unidade',
-          titulo: 'Metas por Unidade',
-          descricao: 'Metas de faturamento, boleto médio, itens por boleto, Skin e serviços por PDV.',
+          titulo: 'Metas das unidades',
+          descricao: 'Faturamento, Skin, boleto, itens e serviços por PDV.',
           endpoint: '/loja/upload-metas-unidade',
-          usaCiclo: true,
-          substituir: false
+          usaCiclo: true
         },
         {
           tipo: 'metas_consultora',
-          titulo: 'Metas por Consultora',
-          descricao: 'Metas individuais por ID da consultora. As vendas dela somam mesmo em outros PDVs.',
+          titulo: 'Metas das consultoras',
+          descricao: 'Faturamento, Skin, boleto e itens por consultora.',
           endpoint: '/loja/upload-metas-consultora',
-          usaCiclo: true,
-          substituir: false
+          usaCiclo: true
         },
         {
           tipo: 'skin',
           titulo: 'Realizado Skin',
-          descricao: 'Base de Skin/Botik por PDV e consultora.',
+          descricao: 'Realizado de Skin/Botik por consultora e PDV.',
           endpoint: '/loja/upload-skin',
           usaCiclo: true,
           substituir: true
@@ -7640,80 +7636,79 @@ const enviarArquivo = async (tipo) => {
           titulo: 'Serviços',
           descricao: 'Meta e realizado de serviços por unidade.',
           endpoint: '/loja/upload-servicos',
-          usaCiclo: true,
-          substituir: false
+          usaCiclo: true
         }
       ];
 
       return (
         <div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black text-gray-700">Cadastro LOJA</h2>
-                <p className="text-sm text-gray-400 font-bold mt-1">Importe as bases separadas da loja. Para vendas, o faturamento principal é GMV-GMV.</p>
+                <p className="text-[11px] font-black uppercase tracking-wide text-[#048187]">Cadastro LOJA V2</p>
+                <h2 className="text-2xl font-black text-gray-700 mt-1">Bases da loja</h2>
+                <p className="text-sm text-gray-400 font-bold mt-1">Importe cada base no seu campo. Sem digitação lenta de metas.</p>
               </div>
-              <div className="rounded-xl bg-[#e6f6f7] px-4 py-3 text-[#048187]">
-                <p className="text-[10px] font-black uppercase tracking-wide">Ciclo usado nas metas</p>
-                <p className="text-lg font-black">{cicloAtualLoja || '-'}</p>
+
+              <div className="rounded-xl bg-[#e6f6f7] px-4 py-3 min-w-[150px]">
+                <p className="text-[10px] font-black uppercase text-[#048187]">Ciclo</p>
+                <p className="text-lg font-black text-[#048187]">{cicloAtualLoja || '-'}</p>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            {bases.map((base) => (
-              <div key={base.tipo} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {basesUpload.map((base) => (
+              <div key={base.tipo} className={`rounded-xl border p-5 shadow-sm bg-white ${base.destaque ? 'border-[#048187]/30 ring-2 ring-[#048187]/5' : 'border-gray-100'}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-black text-gray-700">{base.titulo}</h3>
-                      {base.obrigatorio && <span className="rounded-full bg-[#fff2e8] px-2 py-0.5 text-[9px] font-black text-[#ff6f03]">obrigatória</span>}
-                    </div>
+                    <h3 className="text-base font-black text-gray-700">{base.titulo}</h3>
                     <p className="text-xs text-gray-400 font-bold mt-1 leading-relaxed">{base.descricao}</p>
                   </div>
-                  <div className="w-10 h-10 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0">
-                    <FileSpreadsheet size={18} />
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${base.destaque ? 'bg-[#048187] text-white' : 'bg-[#e6f6f7] text-[#048187]'}`}>
+                    <Upload size={18} />
                   </div>
                 </div>
 
                 <div className="mt-4 flex flex-col md:flex-row gap-3">
-                  <label className="flex-1 border border-gray-200 rounded-lg px-4 py-3 font-bold text-gray-500 bg-[#fbfcfd] cursor-pointer hover:border-[#048187]/40 transition-colors truncate">
+                  <label className="flex-1 border border-gray-200 rounded-lg px-4 py-3 bg-[#fbfcfd] text-gray-500 font-bold cursor-pointer hover:border-[#048187]/40 truncate">
                     <input
                       type="file"
                       accept=".csv,.xlsx,.xls"
                       className="hidden"
-                      onChange={(e) => selecionarArquivoLoja(base.tipo, e.target.files?.[0] || null)}
+                      onChange={(e) => selecionarArquivoLojaUpload(base.tipo, e.target.files?.[0] || null)}
                     />
-                    {arquivosLoja?.[base.tipo]?.name || 'Escolher arquivo'}
+                    {arquivosLojaUpload?.[base.tipo]?.name || 'Escolher arquivo'}
                   </label>
 
                   <button
                     type="button"
-                    onClick={() => uploadBaseLoja(base.tipo, base.endpoint, base.titulo, { usaCiclo: base.usaCiclo, substituir: base.substituir })}
-                    disabled={carregandoLoja || !arquivosLoja?.[base.tipo]}
-                    className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                    disabled={carregandoLoja || !arquivosLojaUpload?.[base.tipo]}
+                    onClick={() => importarBaseLojaUpload(base.tipo, base.endpoint, base.titulo, { usaCiclo: base.usaCiclo, substituir: base.substituir })}
+                    className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Upload size={17} /> Importar
+                    Importar
                   </button>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="bg-[#f7fafb] rounded-xl border border-gray-100 p-5">
-            <h3 className="text-sm font-black text-gray-700">Regra de cálculo</h3>
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-bold text-gray-500">
-              <div className="bg-white rounded-lg border border-gray-100 p-3">
-                <span className="text-[#048187] font-black">Consultora:</span> soma tudo que ela vendeu, mesmo em outro PDV.
-              </div>
-              <div className="bg-white rounded-lg border border-gray-100 p-3">
-                <span className="text-[#048187] font-black">PDV:</span> soma somente as vendas feitas dentro daquele PDV.
-              </div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h3 className="text-base font-black text-gray-700">Regra consultora</h3>
+              <p className="text-sm text-gray-500 font-bold mt-2">Soma tudo que ela vendeu, mesmo quando vende em outro PDV.</p>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h3 className="text-base font-black text-gray-700">Regra PDV</h3>
+              <p className="text-sm text-gray-500 font-bold mt-2">Soma apenas o que foi vendido dentro daquele PDV.</p>
             </div>
           </div>
         </div>
       );
     };
+
 
     return (
       <div className="space-y-6 animate-fade-in">
