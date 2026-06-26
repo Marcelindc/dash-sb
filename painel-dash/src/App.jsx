@@ -7737,6 +7737,65 @@ const enviarArquivo = async (tipo) => {
     const rankingUnidades = [...unidadesFiltradas].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
     const rankingConsultoras = [...consultorasFiltradas].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
 
+    const mediaValoresLoja = (lista = [], campo = '') => {
+      const valores = lista
+        .map((item) => Number(item?.[campo] || 0))
+        .filter((valor) => Number.isFinite(valor) && valor > 0);
+      if (!valores.length) return 0;
+      return valores.reduce((acc, valor) => acc + valor, 0) / valores.length;
+    };
+
+    const construirResumoCardsLoja = (lista = [], origem = 'unidades') => {
+      const itens = Array.isArray(lista) ? lista : [];
+      const faturamento = itens.reduce((acc, item) => acc + Number(item?.realizado || 0), 0);
+      const metaFaturamento = itens.reduce((acc, item) => acc + Number(item?.meta_faturamento || 0), 0);
+      const skinRealizado = itens.reduce((acc, item) => acc + Number(item?.realizado_skin || 0), 0);
+      const metaSkin = itens.reduce((acc, item) => acc + Number(item?.meta_skin || 0), 0);
+      const pedidos = itens.reduce((acc, item) => acc + Number(item?.qtd_boletos || item?.pedidos || 0), 0);
+      const somaItensPonderados = itens.reduce((acc, item) => acc + (Number(item?.itens_por_boleto || 0) * Number(item?.qtd_boletos || item?.pedidos || 0)), 0);
+      const boletoMedio = pedidos > 0 ? faturamento / pedidos : mediaValoresLoja(itens, 'boleto_medio');
+      const itensPorBoleto = pedidos > 0 ? somaItensPonderados / pedidos : mediaValoresLoja(itens, 'itens_por_boleto');
+      const metaBoletoMedio = mediaValoresLoja(itens, 'meta_boleto_medio') || Number(resumo.meta_boleto_medio || 0);
+      const metaItensBoleto = mediaValoresLoja(itens, 'meta_itens_boleto') || Number(resumo.meta_itens_boleto || 4);
+      const diasPassados = Math.max(Number(resumo.dias_passados || 0), 0);
+      const diasTotal = Math.max(Number(resumo.dias_total || 0), 0);
+      const tendencia = diasPassados > 0 && diasTotal > 0
+        ? (faturamento / diasPassados) * diasTotal
+        : (Number(resumo.faturamento_realizado || 0) > 0 ? (Number(resumo.tendencia || 0) * faturamento) / Number(resumo.faturamento_realizado || 1) : faturamento);
+      const metaDiaria = Number(resumo.dias_restantes || 0) > 0
+        ? Math.max(metaFaturamento - faturamento, 0) / Number(resumo.dias_restantes || 1)
+        : 0;
+
+      return {
+        ...resumo,
+        origem_filtro: origem,
+        faturamento_realizado: faturamento,
+        meta_faturamento: metaFaturamento,
+        deficit_faturamento: Math.max(metaFaturamento - faturamento, 0),
+        percentual_faturamento: calcPerc(faturamento, metaFaturamento),
+        tendencia,
+        gap_tendencia: tendencia - metaFaturamento,
+        realizado_diario: 0,
+        meta_diaria: metaDiaria,
+        skin_realizado: skinRealizado,
+        meta_skin: metaSkin,
+        percentual_skin: calcPerc(skinRealizado, metaSkin),
+        boleto_medio: boletoMedio,
+        meta_boleto_medio: metaBoletoMedio,
+        itens_por_boleto: itensPorBoleto,
+        meta_itens_boleto: metaItensBoleto,
+        pedidos,
+        ultima_atualizacao: resumo.ultima_atualizacao
+      };
+    };
+
+    const temFiltroCardsLoja = Boolean(busca || filtroUnidadeLoja || filtroConsultoraLoja);
+    const resumoCardsLoja = !temFiltroCardsLoja
+      ? resumo
+      : filtroConsultoraLoja
+        ? construirResumoCardsLoja(consultorasFiltradas, 'consultora')
+        : construirResumoCardsLoja(unidadesFiltradas, 'unidade');
+
     const formatarDataHoraLoja = (valor) => {
       if (!valor) return 'Sem atualização';
       try { return new Date(valor).toLocaleString('pt-BR'); } catch (_) { return valor; }
@@ -8620,78 +8679,81 @@ const enviarArquivo = async (tipo) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
               <CardLoja
                 titulo="Faturamento realizado"
-                valor={formatarMoedaCompactaCard(resumo.faturamento_realizado)}
-                meta={formatarMoedaCompactaCard(resumo.meta_faturamento)}
-                percentual={resumo.percentual_faturamento}
+                valor={formatarMoedaCompactaCard(resumoCardsLoja.faturamento_realizado)}
+                meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_faturamento)}
+                percentual={resumoCardsLoja.percentual_faturamento}
                 icone={BadgeDollarSign}
-                subtitulo={`Falta para a meta: ${formatarMoedaCompactaCard(resumo.deficit_faturamento)}`}
+                subtitulo={`Falta para a meta: ${formatarMoedaCompactaCard(resumoCardsLoja.deficit_faturamento)}`}
                 onDetalhes={() => abrirDetalheCardLoja('Faturamento LOJA', [
-                  { label: 'Realizado', valor: formatarMoeda(resumo.faturamento_realizado || 0) },
-                  { label: 'Meta ciclo', valor: formatarMoeda(resumo.meta_faturamento || 0) },
-                  { label: '% da meta', valor: `${formatarNumeroBR(resumo.percentual_faturamento || 0, 1)}%` },
-                  { label: 'Falta para a meta', valor: formatarMoeda(resumo.deficit_faturamento || 0) }
+                  { label: 'Realizado', valor: formatarMoeda(resumoCardsLoja.faturamento_realizado || 0) },
+                  { label: 'Meta ciclo', valor: formatarMoeda(resumoCardsLoja.meta_faturamento || 0) },
+                  { label: '% da meta', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_faturamento || 0, 1)}%` },
+                  { label: 'Falta para a meta', valor: formatarMoeda(resumoCardsLoja.deficit_faturamento || 0) }
                 ], 'Faturamento LOJA = soma da coluna GMV-GMV da base de vendas.')}
               />
               <CardLoja
                 titulo="Tendência"
-                valor={formatarMoedaCompactaCard(resumo.tendencia || 0)}
-                meta={formatarMoedaCompactaCard(resumo.meta_faturamento || 0)}
-                percentual={calcPerc(resumo.tendencia || 0, resumo.meta_faturamento || 0)}
+                valor={formatarMoedaCompactaCard(resumoCardsLoja.tendencia || 0)}
+                meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_faturamento || 0)}
+                percentual={calcPerc(resumoCardsLoja.tendencia || 0, resumoCardsLoja.meta_faturamento || 0)}
                 icone={TrendingUp}
-                subtitulo={`Gap tendência: ${formatarMoedaCompactaCard(resumo.gap_tendencia || 0)}`}
+                subtitulo={`Gap tendência: ${formatarMoedaCompactaCard(resumoCardsLoja.gap_tendencia || 0)}`}
                 onDetalhes={() => abrirDetalheCardLoja('Tendência LOJA', [
-                  { label: 'Tendência', valor: formatarMoeda(resumo.tendencia || 0) },
-                  { label: 'Meta ciclo', valor: formatarMoeda(resumo.meta_faturamento || 0) },
-                  { label: 'Gap tendência', valor: formatarMoeda(resumo.gap_tendencia || 0) },
-                  { label: 'Dias passados', valor: formatarNumeroBR(resumo.dias_passados || 0, 0) },
-                  { label: 'Dias do ciclo', valor: formatarNumeroBR(resumo.dias_total || 0, 0) }
+                  { label: 'Tendência', valor: formatarMoeda(resumoCardsLoja.tendencia || 0) },
+                  { label: 'Meta ciclo', valor: formatarMoeda(resumoCardsLoja.meta_faturamento || 0) },
+                  { label: 'Gap tendência', valor: formatarMoeda(resumoCardsLoja.gap_tendencia || 0) },
+                  { label: 'Dias passados', valor: formatarNumeroBR(resumoCardsLoja.dias_passados || 0, 0) },
+                  { label: 'Dias do ciclo', valor: formatarNumeroBR(resumoCardsLoja.dias_total || 0, 0) }
                 ], 'Tendência = média diária realizada × dias totais do ciclo.')}
               />
               <CardLoja
                 titulo="Skin"
-                valor={formatarMoedaCompactaCard(resumo.skin_realizado || 0)}
-                meta={formatarMoedaCompactaCard(resumo.meta_skin || 0)}
-                percentual={resumo.percentual_skin || 0}
+                valor={formatarMoedaCompactaCard(resumoCardsLoja.skin_realizado || 0)}
+                meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_skin || 0)}
+                percentual={resumoCardsLoja.percentual_skin || 0}
                 icone={Sparkles}
                 subtitulo="Meta de Skin em R$ por loja/consultora."
                 onDetalhes={() => abrirDetalheCardLoja('Skin LOJA', [
-                  { label: 'Realizado Skin', valor: formatarMoeda(resumo.skin_realizado || 0) },
-                  { label: 'Meta Skin', valor: formatarMoeda(resumo.meta_skin || 0) },
-                  { label: '% Skin', valor: `${formatarNumeroBR(resumo.percentual_skin || 0, 1)}%` }
+                  { label: 'Realizado Skin', valor: formatarMoeda(resumoCardsLoja.skin_realizado || 0) },
+                  { label: 'Meta Skin', valor: formatarMoeda(resumoCardsLoja.meta_skin || 0) },
+                  { label: '% Skin', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_skin || 0, 1)}%` }
                 ], 'Skin = soma da aba CONSULTOR, coluna RECEITA (R$), ignorando linhas de total.')}
               />
               <CardLoja
                 titulo="Boleto médio"
-                valor={formatarMoeda(resumo.boleto_medio || 0)}
-                meta={formatarMoeda(resumo.meta_boleto_medio || 0)}
-                percentual={calcPerc(resumo.boleto_medio || 0, resumo.meta_boleto_medio || 0)}
+                valor={formatarMoeda(resumoCardsLoja.boleto_medio || 0)}
+                meta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || 0)}
+                percentual={calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || 0)}
                 icone={BadgeDollarSign}
-                subtitulo={`Pedidos/boletos: ${formatarNumeroBR(resumo.pedidos || 0, 0)}`}
+                subtitulo={`Pedidos/boletos: ${formatarNumeroBR(resumoCardsLoja.pedidos || 0, 0)}`}
                 onDetalhes={() => abrirDetalheCardLoja('Boleto médio LOJA', [
-                  { label: 'Boleto médio', valor: formatarMoeda(resumo.boleto_medio || 0) },
-                  { label: 'Meta boleto', valor: formatarMoeda(resumo.meta_boleto_medio || 0) },
-                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumo.boleto_medio || 0, resumo.meta_boleto_medio || 0), 1)}%` },
-                  { label: 'Qtd de boletos/pedidos', valor: formatarNumeroBR(resumo.pedidos || 0, 0) }
+                  { label: 'Boleto médio', valor: formatarMoeda(resumoCardsLoja.boleto_medio || 0) },
+                  { label: 'Meta boleto', valor: formatarMoeda(resumoCardsLoja.meta_boleto_medio || 0) },
+                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || 0), 1)}%` },
+                  { label: 'Qtd de boletos/pedidos', valor: formatarNumeroBR(resumoCardsLoja.pedidos || 0, 0) }
                 ], 'Boleto médio = GMV-GMV / GMV-Qtd de boletos.')}
               />
               <CardLoja
                 titulo="Itens por boleto"
-                valor={formatarNumeroBR(resumo.itens_por_boleto || 0, 2)}
-                meta={formatarNumeroBR(resumo.meta_itens_boleto || 4, 1)}
-                percentual={calcPerc(resumo.itens_por_boleto || 0, resumo.meta_itens_boleto || 4)}
+                valor={formatarNumeroBR(resumoCardsLoja.itens_por_boleto || 0, 2)}
+                meta={formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1)}
+                percentual={calcPerc(resumoCardsLoja.itens_por_boleto || 0, resumoCardsLoja.meta_itens_boleto || 4)}
                 icone={Database}
                 subtitulo="Indicador de itens médios por compra."
                 onDetalhes={() => abrirDetalheCardLoja('Itens por boleto LOJA', [
-                  { label: 'Itens por boleto', valor: formatarNumeroBR(resumo.itens_por_boleto || 0, 2) },
-                  { label: 'Meta itens', valor: formatarNumeroBR(resumo.meta_itens_boleto || 4, 1) },
-                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumo.itens_por_boleto || 0, resumo.meta_itens_boleto || 4), 1)}%` },
+                  { label: 'Itens por boleto', valor: formatarNumeroBR(resumoCardsLoja.itens_por_boleto || 0, 2) },
+                  { label: 'Meta itens', valor: formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1) },
+                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.itens_por_boleto || 0, resumoCardsLoja.meta_itens_boleto || 4), 1)}%` },
                   { label: 'Regra', valor: 'Coluna GMV-Itens por boleto' }
                 ], 'Itens/Boleto usa a coluna GMV-Itens por boleto da base de vendas.')}
               />
             </div>
 
-            <div className="flex justify-end -mt-1">
-              <p className="text-xs text-gray-400 font-bold">Última atualização (Bases Loja): {formatarDataHoraLoja(resumo.ultima_atualizacao)}</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 -mt-1">
+              <p className="text-xs text-gray-400 font-bold">
+                {temFiltroCardsLoja ? 'Cards calculados com os filtros aplicados.' : ''}
+              </p>
+              <p className="text-xs text-gray-400 font-bold">Última atualização (Bases Loja): {formatarDataHoraLoja(resumoCardsLoja.ultima_atualizacao)}</p>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
