@@ -8492,7 +8492,7 @@ const enviarArquivo = async (tipo) => {
 
         {carregandoLoja && <DashboardSkeletons />}
 
-        {!carregandoLoja && abaLoja === 'cadastro' && <CadastroLoja />}
+        {!carregandoLoja && abaLoja === 'cadastro' && CadastroLoja()}
 
         {!carregandoLoja && abaLoja === 'unidades' && (
           <BlocoTabelaLoja titulo="Resultado por unidade/PDV" subtitulo="Somente vendas que aconteceram dentro do PDV entram no resultado da unidade." tipo="unidades">
