@@ -1874,6 +1874,7 @@ export default function App() {
     servicos: null
   });
   const [buscaLoja, setBuscaLoja] = useState('');
+  const [filtrosLoja, setFiltrosLoja] = useState({ unidade: '', consultora: '' });
   const [lojaUnidadeForm, setLojaUnidadeForm] = useState({ codigo_pdv: '', cidade: '', nome_loja: '', status_loja: 'ativo' });
   const [lojaConsultoraForm, setLojaConsultoraForm] = useState({ id_consultora: '', nome_consultora: '', codigo_pdv_oficial: '', status_consultora: 'ativo' });
   const [lojaMetaUnidadeForm, setLojaMetaUnidadeForm] = useState({ ciclo: '', codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
@@ -2928,6 +2929,104 @@ const carregarRevendedores = async () => {
       await carregarDadosLoja();
     } catch (erro) {
       setErroLoja(erro.response?.data?.detail || 'Erro ao salvar meta da consultora.');
+    } finally { setCarregandoLoja(false); }
+  };
+
+
+  const editarUnidadeLoja = (u) => {
+    setLojaUnidadeForm({
+      codigo_pdv: String(u?.codigo_pdv || ''),
+      cidade: String(u?.cidade || ''),
+      nome_loja: String(u?.nome_loja || ''),
+      status_loja: String(u?.status_loja || 'ativo')
+    });
+    setMensagemLoja('Edite a unidade e clique em Salvar.');
+  };
+
+  const editarConsultoraLoja = (c) => {
+    setLojaConsultoraForm({
+      id_consultora: String(c?.id_consultora || ''),
+      nome_consultora: String(c?.nome_consultora || ''),
+      codigo_pdv_oficial: String(c?.codigo_pdv_oficial || ''),
+      status_consultora: String(c?.status_consultora || 'ativo')
+    });
+    setMensagemLoja('Edite a consultora e clique em Salvar.');
+  };
+
+  const editarMetaUnidadeLoja = (u) => {
+    setLojaMetaUnidadeForm({
+      ciclo: cicloLojaSelecionado(),
+      codigo_pdv: String(u?.codigo_pdv || ''),
+      meta_faturamento: String(u?.meta_faturamento || ''),
+      meta_boleto_medio: String(u?.meta_boleto_medio || ''),
+      meta_itens_boleto: String(u?.meta_itens_boleto || 4),
+      meta_skin: String(u?.meta_skin || ''),
+      meta_servicos_mes: String(u?.meta_servicos_mes || ''),
+      meta_servicos_ano: String(u?.meta_servicos_ano || '')
+    });
+    setMensagemLoja('Edite a meta da unidade e clique em Salvar.');
+  };
+
+  const editarMetaConsultoraLoja = (c) => {
+    setLojaMetaConsultoraForm({
+      ciclo: cicloLojaSelecionado(),
+      id_consultora: String(c?.id_consultora || ''),
+      codigo_pdv_oficial: String(c?.codigo_pdv_oficial || ''),
+      meta_faturamento: String(c?.meta_faturamento || ''),
+      meta_boleto_medio: String(c?.meta_boleto_medio || ''),
+      meta_itens_boleto: String(c?.meta_itens_boleto || 4),
+      meta_skin: String(c?.meta_skin || '')
+    });
+    setMensagemLoja('Edite a meta da consultora e clique em Salvar.');
+  };
+
+  const excluirUnidadeLoja = async (codigo) => {
+    if (!codigo || !window.confirm(`Apagar a unidade ${codigo}?`)) return;
+    setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
+    try {
+      await axios.delete(`${API_URL}/loja/unidades/${encodeURIComponent(codigo)}`);
+      setMensagemLoja('Unidade apagada com sucesso.');
+      await carregarDadosLoja();
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao apagar unidade.');
+    } finally { setCarregandoLoja(false); }
+  };
+
+  const excluirConsultoraLoja = async (id) => {
+    if (!id || !window.confirm(`Apagar a consultora ${id}?`)) return;
+    setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
+    try {
+      await axios.delete(`${API_URL}/loja/consultoras/${encodeURIComponent(id)}`);
+      setMensagemLoja('Consultora apagada com sucesso.');
+      await carregarDadosLoja();
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao apagar consultora.');
+    } finally { setCarregandoLoja(false); }
+  };
+
+  const excluirMetaUnidadeLoja = async (codigo) => {
+    const ciclo = cicloLojaSelecionado();
+    if (!codigo || !window.confirm(`Apagar a meta da unidade ${codigo} no ciclo ${ciclo}?`)) return;
+    setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
+    try {
+      await axios.delete(`${API_URL}/loja/metas/unidade`, { params: { ciclo, codigo_pdv: codigo } });
+      setMensagemLoja('Meta da unidade apagada com sucesso.');
+      await carregarDadosLoja(ciclo);
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao apagar meta da unidade.');
+    } finally { setCarregandoLoja(false); }
+  };
+
+  const excluirMetaConsultoraLoja = async (id) => {
+    const ciclo = cicloLojaSelecionado();
+    if (!id || !window.confirm(`Apagar a meta da consultora ${id} no ciclo ${ciclo}?`)) return;
+    setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
+    try {
+      await axios.delete(`${API_URL}/loja/metas/consultora`, { params: { ciclo, id_consultora: id } });
+      setMensagemLoja('Meta da consultora apagada com sucesso.');
+      await carregarDadosLoja(ciclo);
+    } catch (erro) {
+      setErroLoja(erro.response?.data?.detail || 'Erro ao apagar meta da consultora.');
     } finally { setCarregandoLoja(false); }
   };
 
@@ -7527,12 +7626,32 @@ const enviarArquivo = async (tipo) => {
     const cicloAtualLoja = cicloLojaSelecionado();
     const abaLoja = telaAtual === 'LojaCadastro' ? 'cadastro' : telaAtual === 'LojaUnidades' ? 'unidades' : telaAtual === 'LojaConsultoras' ? 'consultoras' : telaAtual === 'LojaRanking' ? 'ranking' : 'geral';
     const busca = String(buscaLoja || '').toLowerCase();
-    const unidadesFiltradas = unidades.filter((u) => `${u.codigo_pdv} ${u.cidade} ${u.nome_loja}`.toLowerCase().includes(busca));
-    const consultorasFiltradas = consultoras.filter((c) => `${c.id_consultora} ${c.nome_consultora} ${c.codigo_pdv_oficial}`.toLowerCase().includes(busca));
+    const filtroUnidadeLoja = String(filtrosLoja?.unidade || '');
+    const filtroConsultoraLoja = String(filtrosLoja?.consultora || '');
+    const unidadesFiltradas = unidades.filter((u) => {
+      const texto = `${u.codigo_pdv} ${u.cidade} ${u.nome_loja}`.toLowerCase();
+      const okBusca = !busca || texto.includes(busca);
+      const okUnidade = !filtroUnidadeLoja || String(u.codigo_pdv) === filtroUnidadeLoja;
+      return okBusca && okUnidade;
+    });
+    const consultorasFiltradas = consultoras.filter((c) => {
+      const texto = `${c.id_consultora} ${c.nome_consultora} ${c.codigo_pdv_oficial}`.toLowerCase();
+      const okBusca = !busca || texto.includes(busca);
+      const okUnidade = !filtroUnidadeLoja || String(c.codigo_pdv_oficial) === filtroUnidadeLoja;
+      const okConsultora = !filtroConsultoraLoja || String(c.id_consultora) === filtroConsultoraLoja;
+      return okBusca && okUnidade && okConsultora;
+    });
+
+    const opcoesUnidadesLoja = unidades
+      .map((u) => ({ codigo: String(u.codigo_pdv || ''), label: `${u.codigo_pdv} - ${u.cidade || u.nome_loja || ''}`.trim() }))
+      .filter((u) => u.codigo);
+    const opcoesConsultorasLoja = consultoras
+      .map((c) => ({ id: String(c.id_consultora || ''), label: `${c.id_consultora} - ${c.nome_consultora || ''}`.trim() }))
+      .filter((c) => c.id);
 
     const corPorValorLoja = (valor, meta) => corPorFaixaMeta(calcPerc(valor, meta));
-    const rankingUnidades = [...unidades].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
-    const rankingConsultoras = [...consultoras].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
+    const rankingUnidades = [...unidadesFiltradas].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
+    const rankingConsultoras = [...consultorasFiltradas].sort((a, b) => Number(b.percentual || 0) - Number(a.percentual || 0));
 
     const formatarDataHoraLoja = (valor) => {
       if (!valor) return 'Sem atualização';
@@ -7591,7 +7710,7 @@ const enviarArquivo = async (tipo) => {
 
     const TabelaUnidades = ({ lista = unidadesFiltradas }) => (
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1180px] text-sm">
+        <table className="w-full min-w-[1420px] text-sm">
           <thead>
             <tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black">
               <th className="py-3 px-3">PDV</th>
@@ -7601,9 +7720,13 @@ const enviarArquivo = async (tipo) => {
               <th className="py-3 px-3 text-right">Déficit</th>
               <th className="py-3 px-3 text-right">%</th>
               <th className="py-3 px-3 text-right">Boleto médio</th>
+              <th className="py-3 px-3 text-right">% Boleto</th>
               <th className="py-3 px-3 text-right">Itens/Boleto</th>
+              <th className="py-3 px-3 text-right">% Itens</th>
               <th className="py-3 px-3 text-right">Skin</th>
+              <th className="py-3 px-3 text-right">% Skin</th>
               <th className="py-3 px-3 text-right">Serviços</th>
+              <th className="py-3 px-3 text-right">% Serv.</th>
             </tr>
           </thead>
           <tbody>
@@ -7619,9 +7742,13 @@ const enviarArquivo = async (tipo) => {
                 <td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(u.deficit)}</td>
                 <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(u.percentual) }}>{formatarNumeroBR(u.percentual, 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.boleto_medio)}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.boleto_medio || 0, u.meta_boleto_medio || 0)) }}>{formatarNumeroBR(calcPerc(u.boleto_medio || 0, u.meta_boleto_medio || 0), 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(u.itens_por_boleto, 2)}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.itens_por_boleto || 0, u.meta_itens_boleto || 0)) }}>{formatarNumeroBR(calcPerc(u.itens_por_boleto || 0, u.meta_itens_boleto || 0), 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold text-[#048187]">{formatarMoeda(u.realizado_skin || 0)}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.realizado_skin || 0, u.meta_skin || 0)) }}>{formatarNumeroBR(calcPerc(u.realizado_skin || 0, u.meta_skin || 0), 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold text-gray-600">{formatarNumeroBR(u.realizado_servicos_mes, 0)} / {formatarNumeroBR(u.meta_servicos_mes, 0)}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.realizado_servicos_mes || 0, u.meta_servicos_mes || 0)) }}>{formatarNumeroBR(calcPerc(u.realizado_servicos_mes || 0, u.meta_servicos_mes || 0), 1)}%</td>
               </tr>
             ))}
           </tbody>
@@ -7632,7 +7759,7 @@ const enviarArquivo = async (tipo) => {
 
     const TabelaConsultoras = ({ lista = consultorasFiltradas }) => (
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1220px] text-sm">
+        <table className="w-full min-w-[1450px] text-sm">
           <thead>
             <tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black">
               <th className="py-3 px-3">ID</th>
@@ -7644,8 +7771,11 @@ const enviarArquivo = async (tipo) => {
               <th className="py-3 px-3 text-right">%</th>
               <th className="py-3 px-3 text-right">Boletos</th>
               <th className="py-3 px-3 text-right">Boleto médio</th>
+              <th className="py-3 px-3 text-right">% Boleto</th>
               <th className="py-3 px-3 text-right">Itens/Boleto</th>
+              <th className="py-3 px-3 text-right">% Itens</th>
               <th className="py-3 px-3 text-right">Skin</th>
+              <th className="py-3 px-3 text-right">% Skin</th>
             </tr>
           </thead>
           <tbody>
@@ -7663,8 +7793,11 @@ const enviarArquivo = async (tipo) => {
                 <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{formatarNumeroBR(c.percentual, 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.qtd_boletos, 0)}</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.boleto_medio)}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(c.boleto_medio || 0, c.meta_boleto_medio || 0)) }}>{formatarNumeroBR(calcPerc(c.boleto_medio || 0, c.meta_boleto_medio || 0), 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.itens_por_boleto, 2)}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(c.itens_por_boleto || 0, c.meta_itens_boleto || 0)) }}>{formatarNumeroBR(calcPerc(c.itens_por_boleto || 0, c.meta_itens_boleto || 0), 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold text-[#048187]">{formatarMoeda(c.realizado_skin || 0)}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(c.realizado_skin || 0, c.meta_skin || 0)) }}>{formatarNumeroBR(calcPerc(c.realizado_skin || 0, c.meta_skin || 0), 1)}%</td>
               </tr>
             ))}
           </tbody>
@@ -7778,48 +7911,86 @@ const enviarArquivo = async (tipo) => {
     const CadastroLoja = () => {
       const modulosCadastroLoja = [
         {
-          chave: 'bases',
-          titulo: 'Bases principais',
-          descricao: 'Envie a base de vendas/GMV e a base Skin/Botik, que alimentam a visão geral da LOJA.',
-          icone: FileSpreadsheet,
-          destaque: true
-        },
-        {
-          chave: 'unidades',
-          titulo: 'Unidades',
-          descricao: 'Cadastre a base de PDV, cidade e nome da loja.',
-          icone: IconeCanalLoja
-        },
-        {
           chave: 'consultoras',
           titulo: 'Consultoras',
-          descricao: 'Cadastre ID, nome e PDV oficial da consultora.',
-          icone: Users
-        },
-        {
-          chave: 'metas_unidade',
-          titulo: 'Metas por unidade',
-          descricao: 'Importe faturamento, Skin, boleto médio, itens por boleto e serviços por PDV.',
-          icone: Target
+          descricao: 'Cadastre, edite e apague consultoras com ID e PDV oficial.',
+          icone: Users,
+          destaque: true
         },
         {
           chave: 'metas_consultora',
           titulo: 'Metas por consultora',
-          descricao: 'Importe metas individuais. A venda soma para a consultora, mesmo quando ela vende em outro PDV.',
+          descricao: 'Lance e edite meta individual, Skin, boleto médio e itens por boleto.',
           icone: BadgeDollarSign
+        },
+        {
+          chave: 'metas_unidade',
+          titulo: 'Metas por unidade',
+          descricao: 'Lance e edite metas das lojas/PDVs.',
+          icone: Target
+        },
+        {
+          chave: 'unidades',
+          titulo: 'Unidades',
+          descricao: 'Cadastre, edite e apague PDV, cidade e nome da loja.',
+          icone: IconeCanalLoja
+        },
+        {
+          chave: 'bases',
+          titulo: 'Bases de vendas e Skin',
+          descricao: 'Apenas para atualizar realizado: GMV e Skin/Botik.',
+          icone: FileSpreadsheet
         },
         {
           chave: 'servicos',
           titulo: 'Serviços',
-          descricao: 'Importe meta e realizado de serviços por unidade.',
+          descricao: 'Lance serviços por unidade quando necessário.',
           icone: Sparkles
         }
       ];
 
+      const inputBaseLoja = "w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all font-bold bg-white";
+
+      const CampoLoja = ({ label, value, onChange, placeholder, type = 'text', disabled = false }) => (
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">{label}</label>
+          <input
+            type={type}
+            inputMode={type === 'number' ? 'decimal' : undefined}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            disabled={disabled}
+            className={`${inputBaseLoja} ${disabled ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
+          />
+        </div>
+      );
+
+      const SelectLoja = ({ label, value, onChange, children }) => (
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">{label}</label>
+          <select value={value} onChange={(e) => onChange(e.target.value)} className={inputBaseLoja}>
+            {children}
+          </select>
+        </div>
+      );
+
+      const BotaoSalvarLoja = ({ children, carregando = false }) => (
+        <button type="submit" disabled={carregando} className="bg-[#048187] text-white font-black px-5 py-3 rounded-lg hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2">
+          <Save size={17} /> {children}
+        </button>
+      );
+
+      const BotaoLimparLoja = ({ onClick }) => (
+        <button type="button" onClick={onClick} className="border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-lg hover:bg-gray-50">
+          Limpar
+        </button>
+      );
+
       if (visaoCadastroLoja === 'bases') {
         return (
           <div className="space-y-6 animate-fade-in">
-            <CabecalhoSubCadastroLoja titulo="Bases principais da LOJA" descricao="Faça o upload das duas bases que alimentam a visão geral: GMV e Skin/Botik." />
+            <CabecalhoSubCadastroLoja titulo="Bases de vendas e Skin" descricao="Use apenas para atualizar o realizado da LOJA. Cadastros e metas são lançados nas telas próprias." />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <ModuloUploadLoja
                 titulo="Base de vendas / GMV"
@@ -7845,8 +8016,61 @@ const enviarArquivo = async (tipo) => {
       if (visaoCadastroLoja === 'unidades') {
         return (
           <div className="space-y-6 animate-fade-in">
-            <CabecalhoSubCadastroLoja titulo="Cadastro de unidades" descricao="Importe a base com PDV, cidade e nome da loja." />
-            <ModuloUploadLoja titulo="Upload de unidades" descricao="Planilha com PDV, cidade e loja." tipo="unidades" endpoint="/loja/upload-unidades" />
+            <CabecalhoSubCadastroLoja titulo="Cadastro de unidades" descricao="Cadastre, edite ou apague lojas/PDVs." />
+
+            <form onSubmit={salvarUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+              <h2 className="text-lg font-black text-gray-700 mb-4">Dados da unidade</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <CampoLoja label="PDV" value={lojaUnidadeForm.codigo_pdv} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, codigo_pdv: v }))} placeholder="Ex.: 17322" />
+                <CampoLoja label="Cidade" value={lojaUnidadeForm.cidade} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, cidade: v }))} placeholder="Ex.: Pinheiro Centro" />
+                <CampoLoja label="Nome da loja" value={lojaUnidadeForm.nome_loja} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, nome_loja: v }))} placeholder="Nome completo da loja" />
+                <SelectLoja label="Status" value={lojaUnidadeForm.status_loja} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, status_loja: v }))}>
+                  <option value="ativo">Ativo</option>
+                  <option value="inativo">Inativo</option>
+                </SelectLoja>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <BotaoSalvarLoja carregando={carregandoLoja}>Salvar unidade</BotaoSalvarLoja>
+                <BotaoLimparLoja onClick={() => setLojaUnidadeForm({ codigo_pdv: '', cidade: '', nome_loja: '', status_loja: 'ativo' })} />
+              </div>
+            </form>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-black text-gray-700">Unidades cadastradas</h2>
+                  <p className="text-xs font-bold text-gray-400 mt-1">{unidades.length} unidades</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[850px] text-sm">
+                  <thead className="bg-[#f3fbfb] text-[10px] uppercase text-gray-400 font-black">
+                    <tr>
+                      <th className="py-3 px-4 text-left">PDV</th>
+                      <th className="py-3 px-4 text-left">Cidade</th>
+                      <th className="py-3 px-4 text-left">Loja</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unidades.map((u) => (
+                      <tr key={u.codigo_pdv} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-4 px-4 font-black text-gray-700">{u.codigo_pdv}</td>
+                        <td className="py-4 px-4 font-bold text-gray-600">{u.cidade}</td>
+                        <td className="py-4 px-4 font-bold text-gray-600">{u.nome_loja}</td>
+                        <td className="py-4 px-4 text-center"><span className="rounded-full bg-[#e6f6f7] px-3 py-1 text-[10px] font-black text-[#048187]">{u.status_loja || 'ativo'}</span></td>
+                        <td className="py-4 px-4 text-right">
+                          <button type="button" onClick={() => editarUnidadeLoja(u)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar"><Pencil size={17} /></button>
+                          <button type="button" onClick={() => excluirUnidadeLoja(u.codigo_pdv)} className="text-red-500 hover:text-red-600" title="Apagar"><Trash2 size={17} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!unidades.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma unidade cadastrada.</div>}
+              </div>
+            </div>
           </div>
         );
       }
@@ -7854,8 +8078,66 @@ const enviarArquivo = async (tipo) => {
       if (visaoCadastroLoja === 'consultoras') {
         return (
           <div className="space-y-6 animate-fade-in">
-            <CabecalhoSubCadastroLoja titulo="Cadastro de consultoras" descricao="Importe ID, nome e PDV oficial da consultora." />
-            <ModuloUploadLoja titulo="Upload de consultoras" descricao="ID, nome e PDV oficial da consultora." tipo="consultoras" endpoint="/loja/upload-consultoras" />
+            <CabecalhoSubCadastroLoja titulo="Cadastro de consultoras" descricao="Cadastre, edite ou apague consultoras. O ID é o número antes do nome na base de vendas." />
+
+            <form onSubmit={salvarConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+              <h2 className="text-lg font-black text-gray-700 mb-4">Dados da consultora</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <CampoLoja label="ID consultora" value={lojaConsultoraForm.id_consultora} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, id_consultora: v }))} placeholder="Ex.: 83" />
+                <CampoLoja label="Nome" value={lojaConsultoraForm.nome_consultora} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, nome_consultora: v }))} placeholder="Nome da consultora" />
+                <SelectLoja label="PDV oficial" value={lojaConsultoraForm.codigo_pdv_oficial} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, codigo_pdv_oficial: v }))}>
+                  <option value="">Selecione</option>
+                  {unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}
+                </SelectLoja>
+                <SelectLoja label="Status" value={lojaConsultoraForm.status_consultora} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, status_consultora: v }))}>
+                  <option value="ativo">Ativo</option>
+                  <option value="inativo">Inativo</option>
+                </SelectLoja>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <BotaoSalvarLoja carregando={carregandoLoja}>Salvar consultora</BotaoSalvarLoja>
+                <BotaoLimparLoja onClick={() => setLojaConsultoraForm({ id_consultora: '', nome_consultora: '', codigo_pdv_oficial: '', status_consultora: 'ativo' })} />
+              </div>
+            </form>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-black text-gray-700">Consultoras cadastradas</h2>
+                  <p className="text-xs font-bold text-gray-400 mt-1">{consultoras.length} consultoras</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[950px] text-sm">
+                  <thead className="bg-[#f3fbfb] text-[10px] uppercase text-gray-400 font-black">
+                    <tr>
+                      <th className="py-3 px-4 text-left">ID</th>
+                      <th className="py-3 px-4 text-left">Consultora</th>
+                      <th className="py-3 px-4 text-left">PDV oficial</th>
+                      <th className="py-3 px-4 text-right">Realizado</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consultoras.map((c) => (
+                      <tr key={c.id_consultora} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-4 px-4 font-black text-[#048187]">{c.id_consultora}</td>
+                        <td className="py-4 px-4 font-black text-gray-700">{c.nome_consultora}</td>
+                        <td className="py-4 px-4 font-bold text-gray-500">{c.codigo_pdv_oficial}</td>
+                        <td className="py-4 px-4 text-right font-black text-[#048187]">{formatarMoeda(c.realizado || 0)}</td>
+                        <td className="py-4 px-4 text-center"><span className="rounded-full bg-[#e6f6f7] px-3 py-1 text-[10px] font-black text-[#048187]">{c.status_consultora || 'ativo'}</span></td>
+                        <td className="py-4 px-4 text-right">
+                          <button type="button" onClick={() => editarConsultoraLoja(c)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar"><Pencil size={17} /></button>
+                          <button type="button" onClick={() => excluirConsultoraLoja(c.id_consultora)} className="text-red-500 hover:text-red-600" title="Apagar"><Trash2 size={17} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!consultoras.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma consultora cadastrada.</div>}
+              </div>
+            </div>
           </div>
         );
       }
@@ -7863,8 +8145,67 @@ const enviarArquivo = async (tipo) => {
       if (visaoCadastroLoja === 'metas_unidade') {
         return (
           <div className="space-y-6 animate-fade-in">
-            <CabecalhoSubCadastroLoja titulo="Metas por unidade" descricao="Importe as metas por PDV no mesmo padrão do cadastro da VD." />
-            <ModuloUploadLoja titulo="Upload de metas por unidade" descricao="Faturamento, Skin, boleto médio, itens por boleto e serviços por PDV." tipo="metas_unidade" endpoint="/loja/upload-metas-unidade" usaCiclo />
+            <CabecalhoSubCadastroLoja titulo="Metas por unidade" descricao="Lance, edite ou apague metas das unidades no ciclo selecionado." />
+
+            <form onSubmit={salvarMetaUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+              <h2 className="text-lg font-black text-gray-700 mb-4">Meta da unidade</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <CampoLoja label="Ciclo" value={lojaMetaUnidadeForm.ciclo || cicloAtualLoja} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, ciclo: v }))} placeholder="09/2026" />
+                <SelectLoja label="PDV" value={lojaMetaUnidadeForm.codigo_pdv} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, codigo_pdv: v }))}>
+                  <option value="">Selecione</option>
+                  {unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}
+                </SelectLoja>
+                <CampoLoja label="Meta faturamento" value={lojaMetaUnidadeForm.meta_faturamento} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_faturamento: v }))} placeholder="Ex.: 74037" />
+                <CampoLoja label="Meta Skin R$" value={lojaMetaUnidadeForm.meta_skin} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_skin: v }))} placeholder="Ex.: 1874" />
+                <CampoLoja label="Boleto médio" value={lojaMetaUnidadeForm.meta_boleto_medio} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 279" />
+                <CampoLoja label="Itens por boleto" value={lojaMetaUnidadeForm.meta_itens_boleto} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
+                <CampoLoja label="Meta serviços mês" value={lojaMetaUnidadeForm.meta_servicos_mes} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_servicos_mes: v }))} placeholder="Ex.: 25" />
+                <CampoLoja label="Meta serviços ano" value={lojaMetaUnidadeForm.meta_servicos_ano} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_servicos_ano: v }))} placeholder="Ex.: 300" />
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <BotaoSalvarLoja carregando={carregandoLoja}>Salvar meta unidade</BotaoSalvarLoja>
+                <BotaoLimparLoja onClick={() => setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' })} />
+              </div>
+            </form>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-5 border-b border-gray-100"><h2 className="text-lg font-black text-gray-700">Metas das unidades</h2></div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1200px] text-sm">
+                  <thead className="bg-[#f3fbfb] text-[10px] uppercase text-gray-400 font-black">
+                    <tr>
+                      <th className="py-3 px-4 text-left">PDV</th>
+                      <th className="py-3 px-4 text-left">Unidade</th>
+                      <th className="py-3 px-4 text-right">Meta fat.</th>
+                      <th className="py-3 px-4 text-right">Realizado</th>
+                      <th className="py-3 px-4 text-right">% Fat.</th>
+                      <th className="py-3 px-4 text-right">Meta Skin</th>
+                      <th className="py-3 px-4 text-right">Skin</th>
+                      <th className="py-3 px-4 text-right">% Skin</th>
+                      <th className="py-3 px-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unidades.map((u) => (
+                      <tr key={u.codigo_pdv} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-4 px-4 font-black text-gray-700">{u.codigo_pdv}</td>
+                        <td className="py-4 px-4 font-bold text-gray-600">{u.cidade || u.nome_loja}</td>
+                        <td className="py-4 px-4 text-right font-black text-[#048187]">{formatarMoeda(u.meta_faturamento || 0)}</td>
+                        <td className="py-4 px-4 text-right font-black text-gray-700">{formatarMoeda(u.realizado || 0)}</td>
+                        <td className="py-4 px-4 text-right font-black" style={{ color: corPorFaixaMeta(u.percentual || 0) }}>{formatarNumeroBR(u.percentual || 0, 1)}%</td>
+                        <td className="py-4 px-4 text-right font-bold">{formatarMoeda(u.meta_skin || 0)}</td>
+                        <td className="py-4 px-4 text-right font-bold text-[#048187]">{formatarMoeda(u.realizado_skin || 0)}</td>
+                        <td className="py-4 px-4 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.realizado_skin || 0, u.meta_skin || 0)) }}>{formatarNumeroBR(calcPerc(u.realizado_skin || 0, u.meta_skin || 0), 1)}%</td>
+                        <td className="py-4 px-4 text-right">
+                          <button type="button" onClick={() => editarMetaUnidadeLoja(u)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar"><Pencil size={17} /></button>
+                          <button type="button" onClick={() => excluirMetaUnidadeLoja(u.codigo_pdv)} className="text-red-500 hover:text-red-600" title="Apagar meta"><Trash2 size={17} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         );
       }
@@ -7872,8 +8213,74 @@ const enviarArquivo = async (tipo) => {
       if (visaoCadastroLoja === 'metas_consultora') {
         return (
           <div className="space-y-6 animate-fade-in">
-            <CabecalhoSubCadastroLoja titulo="Metas por consultora" descricao="Importe as metas individuais de cada consultora." />
-            <ModuloUploadLoja titulo="Upload de metas por consultora" descricao="Metas individuais. A venda soma para a consultora, mesmo quando vender em outro PDV." tipo="metas_consultora" endpoint="/loja/upload-metas-consultora" usaCiclo />
+            <CabecalhoSubCadastroLoja titulo="Metas por consultora" descricao="Lance, edite ou apague metas individuais por consultora." />
+
+            <form onSubmit={salvarMetaConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+              <h2 className="text-lg font-black text-gray-700 mb-4">Meta da consultora</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <CampoLoja label="Ciclo" value={lojaMetaConsultoraForm.ciclo || cicloAtualLoja} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, ciclo: v }))} placeholder="09/2026" />
+                <SelectLoja label="Consultora" value={lojaMetaConsultoraForm.id_consultora} onChange={(v) => {
+                  const escolhida = consultoras.find((c) => String(c.id_consultora) === String(v));
+                  setLojaMetaConsultoraForm((f) => ({ ...f, id_consultora: v, codigo_pdv_oficial: escolhida?.codigo_pdv_oficial || f.codigo_pdv_oficial }));
+                }}>
+                  <option value="">Selecione</option>
+                  {consultoras.map((c) => <option key={c.id_consultora} value={c.id_consultora}>{c.id_consultora} - {c.nome_consultora}</option>)}
+                </SelectLoja>
+                <SelectLoja label="PDV oficial" value={lojaMetaConsultoraForm.codigo_pdv_oficial} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, codigo_pdv_oficial: v }))}>
+                  <option value="">Selecione</option>
+                  {unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}
+                </SelectLoja>
+                <CampoLoja label="Meta faturamento" value={lojaMetaConsultoraForm.meta_faturamento} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_faturamento: v }))} placeholder="Ex.: 24979" />
+                <CampoLoja label="Meta Skin R$" value={lojaMetaConsultoraForm.meta_skin} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_skin: v }))} placeholder="Ex.: 624" />
+                <CampoLoja label="Boleto médio" value={lojaMetaConsultoraForm.meta_boleto_medio} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 250" />
+                <CampoLoja label="Itens por boleto" value={lojaMetaConsultoraForm.meta_itens_boleto} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <BotaoSalvarLoja carregando={carregandoLoja}>Salvar meta consultora</BotaoSalvarLoja>
+                <BotaoLimparLoja onClick={() => setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' })} />
+              </div>
+            </form>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-5 border-b border-gray-100"><h2 className="text-lg font-black text-gray-700">Metas das consultoras</h2></div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1250px] text-sm">
+                  <thead className="bg-[#f3fbfb] text-[10px] uppercase text-gray-400 font-black">
+                    <tr>
+                      <th className="py-3 px-4 text-left">ID</th>
+                      <th className="py-3 px-4 text-left">Consultora</th>
+                      <th className="py-3 px-4 text-left">PDV</th>
+                      <th className="py-3 px-4 text-right">Meta fat.</th>
+                      <th className="py-3 px-4 text-right">Realizado</th>
+                      <th className="py-3 px-4 text-right">% Fat.</th>
+                      <th className="py-3 px-4 text-right">Meta Skin</th>
+                      <th className="py-3 px-4 text-right">Skin</th>
+                      <th className="py-3 px-4 text-right">% Skin</th>
+                      <th className="py-3 px-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consultoras.map((c) => (
+                      <tr key={c.id_consultora} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-4 px-4 font-black text-[#048187]">{c.id_consultora}</td>
+                        <td className="py-4 px-4 font-black text-gray-700">{c.nome_consultora}</td>
+                        <td className="py-4 px-4 font-bold text-gray-500">{c.codigo_pdv_oficial}</td>
+                        <td className="py-4 px-4 text-right font-black text-[#048187]">{formatarMoeda(c.meta_faturamento || 0)}</td>
+                        <td className="py-4 px-4 text-right font-black text-gray-700">{formatarMoeda(c.realizado || 0)}</td>
+                        <td className="py-4 px-4 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual || 0) }}>{formatarNumeroBR(c.percentual || 0, 1)}%</td>
+                        <td className="py-4 px-4 text-right font-bold">{formatarMoeda(c.meta_skin || 0)}</td>
+                        <td className="py-4 px-4 text-right font-bold text-[#048187]">{formatarMoeda(c.realizado_skin || 0)}</td>
+                        <td className="py-4 px-4 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(c.realizado_skin || 0, c.meta_skin || 0)) }}>{formatarNumeroBR(calcPerc(c.realizado_skin || 0, c.meta_skin || 0), 1)}%</td>
+                        <td className="py-4 px-4 text-right">
+                          <button type="button" onClick={() => editarMetaConsultoraLoja(c)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar"><Pencil size={17} /></button>
+                          <button type="button" onClick={() => excluirMetaConsultoraLoja(c.id_consultora)} className="text-red-500 hover:text-red-600" title="Apagar meta"><Trash2 size={17} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         );
       }
@@ -7881,7 +8288,7 @@ const enviarArquivo = async (tipo) => {
       if (visaoCadastroLoja === 'servicos') {
         return (
           <div className="space-y-6 animate-fade-in">
-            <CabecalhoSubCadastroLoja titulo="Serviços da LOJA" descricao="Importe meta e realizado de serviços por unidade." />
+            <CabecalhoSubCadastroLoja titulo="Serviços da LOJA" descricao="Por enquanto, serviços pode ser atualizado por upload até criarmos o lançamento manual detalhado." />
             <ModuloUploadLoja titulo="Upload de serviços" descricao="Meta e realizado de serviços por unidade." tipo="servicos" endpoint="/loja/upload-servicos" usaCiclo />
           </div>
         );
@@ -7892,7 +8299,7 @@ const enviarArquivo = async (tipo) => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Cadastro LOJA</h1>
-              <p className="text-sm text-gray-400 font-semibold">Organize uploads e metas da LOJA no mesmo conceito da aba Cadastro do VD: menos poluição visual e módulos separados.</p>
+              <p className="text-sm text-gray-400 font-semibold">Cadastre consultoras, unidades e metas manualmente, no mesmo padrão de trabalho da aba Cadastro do VD.</p>
             </div>
           </div>
 
@@ -7900,7 +8307,7 @@ const enviarArquivo = async (tipo) => {
             <div className="mb-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
               <div>
                 <h2 className="text-lg sm:text-xl font-bold text-gray-700">Módulos de cadastro</h2>
-                <p className="text-sm text-gray-400 font-semibold mt-1">Escolha um módulo para abrir o upload específico da LOJA.</p>
+                <p className="text-sm text-gray-400 font-semibold mt-1">Escolha um módulo para cadastrar, editar, salvar ou apagar informações da LOJA.</p>
               </div>
               <div className="rounded-xl bg-[#e6f6f7] px-4 py-3 min-w-[150px]">
                 <p className="text-[10px] font-black uppercase text-[#048187]">Ciclo</p>
@@ -7925,33 +8332,9 @@ const enviarArquivo = async (tipo) => {
     };
 
 
-
     return (
       <div className="space-y-6 animate-fade-in">
-        <LojaHeader />
         <AvisosLoja />
-
-        {!carregandoLoja && abaLoja !== 'cadastro' && (
-          <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_0.95fr] gap-4">
-            <div className="bg-[#e6f6f7] border border-[#ccecee] rounded-xl p-4">
-              <p className="font-black text-[#048187]">Regra de apuração LOJA</p>
-              <p className="text-xs font-bold text-[#048187]/80 mt-1">Consultora soma tudo que vendeu. PDV soma somente vendas feitas dentro daquele PDV.</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-              <div className="flex items-center gap-2 text-[#048187]">
-                <SlidersHorizontal size={16} />
-                <p className="font-black">Painel de filtros</p>
-              </div>
-              <div className="mt-3 flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input value={buscaLoja} onChange={(e) => setBuscaLoja(e.target.value)} placeholder="Buscar PDV ou consultora" className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-[#048187] font-bold text-sm" />
-                </div>
-                <button type="button" onClick={() => setBuscaLoja('')} className="px-4 py-2.5 rounded-lg border border-gray-200 font-black text-gray-600 hover:bg-gray-50">Limpar</button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {carregandoLoja && <DashboardSkeletons />}
 
@@ -8525,10 +8908,68 @@ const enviarArquivo = async (tipo) => {
 
         <div className={`fixed right-0 top-0 h-[100dvh] w-full sm:w-[28rem] bg-white shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${painelFiltrosAberto ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="p-5 border-b border-gray-100 bg-[#f7fafb] flex items-start justify-between shrink-0">
-            <div><h3 className="text-xl font-bold text-gray-700">Filtros</h3><p className="text-sm text-gray-400">{telaAtual === 'Revendedores' ? 'Refine somente a aba Revendedores.' : 'Refine os dados do dashboard.'}</p></div>
+            <div><h3 className="text-xl font-bold text-gray-700">Filtros</h3><p className="text-sm text-gray-400">{telaEhLoja(telaAtual) ? 'Refine os dados da LOJA.' : telaAtual === 'Revendedores' ? 'Refine somente a aba Revendedores.' : 'Refine os dados do dashboard.'}</p></div>
             <button onClick={() => setPainelFiltrosAberto(false)} className="text-gray-400 hover:text-red-500 bg-white rounded-full p-2 shadow-sm"><X size={20} /></button>
           </div>
-          {telaAtual === 'Revendedores' ? (
+          {telaEhLoja(telaAtual) ? (
+            <>
+              <div className="flex-1 overflow-y-auto p-5 space-y-6">
+                <div>
+                  <h4 className="font-bold text-gray-600 mb-2 text-sm uppercase">Ciclo</h4>
+                  <select
+                    value={cicloLoja || dadosLoja?.resumo?.ciclo || ''}
+                    onChange={(e) => { setCicloLoja(e.target.value); carregarDadosLoja(e.target.value); }}
+                    className="w-full text-sm p-3 border border-gray-200 rounded-lg outline-none focus:border-[#048187] font-bold"
+                  >
+                    <option value="">Ciclo ativo</option>
+                    {ciclos.map((c) => <option key={c.id || c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-gray-600 mb-2 text-sm uppercase">Unidade / PDV</h4>
+                  <select
+                    value={filtrosLoja.unidade}
+                    onChange={(e) => setFiltrosLoja((atual) => ({ ...atual, unidade: e.target.value }))}
+                    className="w-full text-sm p-3 border border-gray-200 rounded-lg outline-none focus:border-[#048187] font-bold"
+                  >
+                    <option value="">Todas as unidades</option>
+                    {(dadosLoja?.unidades || []).map((u) => (
+                      <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-gray-600 mb-2 text-sm uppercase">Consultora</h4>
+                  <select
+                    value={filtrosLoja.consultora}
+                    onChange={(e) => setFiltrosLoja((atual) => ({ ...atual, consultora: e.target.value }))}
+                    className="w-full text-sm p-3 border border-gray-200 rounded-lg outline-none focus:border-[#048187] font-bold"
+                  >
+                    <option value="">Todas as consultoras</option>
+                    {(dadosLoja?.consultoras || []).map((c) => (
+                      <option key={c.id_consultora} value={c.id_consultora}>{c.id_consultora} - {c.nome_consultora}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-gray-600 mb-2 text-sm uppercase">Busca rápida</h4>
+                  <input
+                    value={buscaLoja}
+                    onChange={(e) => setBuscaLoja(e.target.value)}
+                    placeholder="Buscar PDV, cidade ou consultora"
+                    className="w-full text-sm p-3 border border-gray-200 rounded-lg outline-none focus:border-[#048187] font-bold"
+                  />
+                </div>
+              </div>
+              <div className="p-5 border-t border-gray-100 bg-white shrink-0 space-y-3">
+                <button onClick={() => setPainelFiltrosAberto(false)} className="w-full bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70]">Aplicar Filtros</button>
+                <button onClick={() => { setFiltrosLoja({ unidade: '', consultora: '' }); setBuscaLoja(''); setPainelFiltrosAberto(false); }} className="w-full border-2 border-red-500 text-red-500 font-bold py-2.5 rounded-lg hover:bg-red-50">Remover Todos</button>
+              </div>
+            </>
+          ) : telaAtual === 'Revendedores' ? (
             <>
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
                 <GrupoFiltro cat="estruturas" tit="Estrutura" busca={buscaFiltrosRevendedores} setBusca={setBuscaFiltrosRevendedores} opc={obterOpcoesRevendedores(dadosRevendedores?.revendedores || [])} ativos={filtrosRevendedores} toggle={toggleFiltroRevendedoresArray} />
@@ -8578,7 +9019,7 @@ const enviarArquivo = async (tipo) => {
                 {cicloTopoAtual ? `CICLO ${cicloTopoAtual}` : 'SEM CICLO'}
               </span>
               <div className="flex items-center gap-3 sm:gap-5 min-w-0">
-                {(telaAtual === 'Dashboard' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores') && (
+                {(telaAtual === 'Dashboard' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
                   <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#4a9394] px-3 py-1.5 rounded-full font-medium">
                     <SlidersHorizontal size={18} /><span className="hidden sm:inline">Filtros</span>
                   </button>
