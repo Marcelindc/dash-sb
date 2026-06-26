@@ -1879,6 +1879,7 @@ export default function App() {
   const [lojaMetaUnidadeForm, setLojaMetaUnidadeForm] = useState({ ciclo: '', codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
   const [lojaMetaConsultoraForm, setLojaMetaConsultoraForm] = useState({ ciclo: '', id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' });
   const [tabelaLojaExpandida, setTabelaLojaExpandida] = useState(null);
+  const [visaoCadastroLoja, setVisaoCadastroLoja] = useState('geral');
 
   const promessasEmAndamentoRef = useRef({});
   const ultimoCarregamentoTelaRef = useRef('');
@@ -7695,19 +7696,18 @@ const enviarArquivo = async (tipo) => {
 
 
     const LojaHeader = () => (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-gray-700">Visão Geral LOJA</h1>
             <p className="text-sm text-gray-400 font-bold mt-1">Acompanhamento por PDV e consultora.</p>
-            <p className="text-xs text-gray-400 font-bold mt-2">Última atualização (Bases Loja): {formatarDataHoraLoja(resumo.ultima_atualizacao)}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={cicloLoja || resumo.ciclo || ''}
               onChange={(e) => { setCicloLoja(e.target.value); carregarDadosLoja(e.target.value); }}
-              className="border border-gray-200 rounded-lg px-4 py-2 font-black text-gray-700 outline-none focus:border-[#048187]"
+              className="border border-gray-200 rounded-lg px-4 py-2 font-black text-gray-700 outline-none focus:border-[#048187] bg-white"
             >
               <option value="">Ciclo ativo</option>
               {ciclos.map((c) => <option key={c.id || c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}
@@ -7718,133 +7718,206 @@ const enviarArquivo = async (tipo) => {
       </div>
     );
 
-    const AvisosLoja = () => (<>{erroLoja && <div className="rounded-xl border border-red-100 bg-red-50 text-red-700 px-4 py-3 font-bold text-sm">{erroLoja}</div>}{mensagemLoja && <div className="rounded-xl border border-green-100 bg-green-50 text-green-700 px-4 py-3 font-bold text-sm">{mensagemLoja}</div>}</>);
+    const AvisosLoja = () => (
+      <>
+        {erroLoja && <div className="rounded-xl border border-red-100 bg-red-50 text-red-700 px-4 py-3 font-bold text-sm">{erroLoja}</div>}
+        {mensagemLoja && <div className="rounded-xl border border-green-100 bg-green-50 text-green-700 px-4 py-3 font-bold text-sm">{mensagemLoja}</div>}
+      </>
+    );
+
+    const ModuloUploadLoja = ({ titulo, descricao, tipo, endpoint, usaCiclo = false, substituir = false, aceitar = '.csv,.xlsx,.xls' }) => (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-black text-gray-700">{titulo}</h2>
+            <p className="text-sm text-gray-400 font-semibold mt-1 leading-relaxed">{descricao}</p>
+          </div>
+          <div className="w-11 h-11 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><Upload size={20} /></div>
+        </div>
+
+        <div className="rounded-2xl border border-dashed border-[#048187]/25 bg-[#fbfcfd] p-4 sm:p-5">
+          <div className="flex flex-col lg:flex-row gap-3">
+            <label className="flex-1 border border-gray-200 rounded-lg px-4 py-3 bg-white text-gray-500 font-bold cursor-pointer hover:border-[#048187]/40 truncate">
+              <input
+                type="file"
+                accept={aceitar}
+                className="hidden"
+                onChange={(e) => selecionarArquivoLojaUpload(tipo, e.target.files?.[0] || null)}
+              />
+              {arquivosLojaUpload?.[tipo]?.name || 'Escolher arquivo'}
+            </label>
+
+            <button
+              type="button"
+              disabled={carregandoLoja || !arquivosLojaUpload?.[tipo]}
+              onClick={() => importarBaseLojaUpload(tipo, endpoint, titulo, { usaCiclo, substituir })}
+              className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Importar
+            </button>
+          </div>
+          {usaCiclo && <p className="text-xs text-gray-400 font-bold mt-3">Ciclo usado no upload: {cicloAtualLoja || '-'}</p>}
+        </div>
+      </div>
+    );
+
+    const CabecalhoSubCadastroLoja = ({ titulo, descricao }) => (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+        <button
+          type="button"
+          onClick={() => setVisaoCadastroLoja('geral')}
+          className="mb-4 inline-flex items-center gap-2 text-[#048187] font-black text-sm bg-[#e6f6f7] hover:bg-[#d0f0f1] rounded-lg px-4 py-2"
+        >
+          <ChevronLeft size={18} /> Voltar
+        </button>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">{titulo}</h1>
+        <p className="text-sm text-gray-400 font-semibold">{descricao}</p>
+      </div>
+    );
 
     const CadastroLoja = () => {
-      const basesUpload = [
+      const modulosCadastroLoja = [
         {
-          tipo: 'vendas',
-          titulo: '1. Base de vendas / GMV',
-          descricao: 'Sistema de vendas. Faturamento = coluna GMV-GMV. Boleto médio = GMV-Boleto médio. Itens/Boleto = GMV-Itens por boleto.',
-          endpoint: '/loja/upload-gerencial',
-          usaCiclo: true,
-          substituir: true,
+          chave: 'bases',
+          titulo: 'Bases principais',
+          descricao: 'Envie a base de vendas/GMV e a base Skin/Botik, que alimentam a visão geral da LOJA.',
+          icone: FileSpreadsheet,
           destaque: true
         },
         {
-          tipo: 'skin',
-          titulo: '2. Base Skin / Botik',
-          descricao: 'Arquivo cuidados faciais. Usar aba CONSULTOR. Indicador = coluna RECEITA (R$). Totais são ignorados.',
-          endpoint: '/loja/upload-skin',
-          usaCiclo: true,
-          substituir: true,
-          destaque: true
+          chave: 'unidades',
+          titulo: 'Unidades',
+          descricao: 'Cadastre a base de PDV, cidade e nome da loja.',
+          icone: IconeCanalLoja
         },
         {
-          tipo: 'unidades',
-          titulo: '3. Unidades',
-          descricao: 'Planilha com PDV, cidade e loja.',
-          endpoint: '/loja/upload-unidades',
-          usaCiclo: false
+          chave: 'consultoras',
+          titulo: 'Consultoras',
+          descricao: 'Cadastre ID, nome e PDV oficial da consultora.',
+          icone: Users
         },
         {
-          tipo: 'consultoras',
-          titulo: '4. Consultoras',
-          descricao: 'ID, nome e PDV oficial da consultora.',
-          endpoint: '/loja/upload-consultoras',
-          usaCiclo: false
+          chave: 'metas_unidade',
+          titulo: 'Metas por unidade',
+          descricao: 'Importe faturamento, Skin, boleto médio, itens por boleto e serviços por PDV.',
+          icone: Target
         },
         {
-          tipo: 'metas_unidade',
-          titulo: '5. Metas por unidade',
-          descricao: 'Faturamento, Skin, boleto médio, itens por boleto e serviços por PDV.',
-          endpoint: '/loja/upload-metas-unidade',
-          usaCiclo: true
+          chave: 'metas_consultora',
+          titulo: 'Metas por consultora',
+          descricao: 'Importe metas individuais. A venda soma para a consultora, mesmo quando ela vende em outro PDV.',
+          icone: BadgeDollarSign
         },
         {
-          tipo: 'metas_consultora',
-          titulo: '6. Metas por consultora',
-          descricao: 'Metas individuais. A venda da consultora soma para ela mesmo quando vender em outro PDV.',
-          endpoint: '/loja/upload-metas-consultora',
-          usaCiclo: true
-        },
-        {
-          tipo: 'servicos',
-          titulo: '7. Serviços',
-          descricao: 'Meta e realizado de serviços por unidade.',
-          endpoint: '/loja/upload-servicos',
-          usaCiclo: true
+          chave: 'servicos',
+          titulo: 'Serviços',
+          descricao: 'Importe meta e realizado de serviços por unidade.',
+          icone: Sparkles
         }
       ];
 
-      return (
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-            <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-wide text-[#048187]">Cadastro LOJA V3</p>
-                <h2 className="text-2xl font-black text-gray-700 mt-1">Bases e metas</h2>
-                <p className="text-sm text-gray-400 font-bold mt-1">Upload separado por base. Sem digitação lenta de metas nesta etapa.</p>
-              </div>
+      if (visaoCadastroLoja === 'bases') {
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <CabecalhoSubCadastroLoja titulo="Bases principais da LOJA" descricao="Faça o upload das duas bases que alimentam a visão geral: GMV e Skin/Botik." />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <ModuloUploadLoja
+                titulo="Base de vendas / GMV"
+                descricao="Sistema de vendas. Faturamento = coluna GMV-GMV. Boleto médio = GMV-Boleto médio. Itens/Boleto = GMV-Itens por boleto."
+                tipo="vendas"
+                endpoint="/loja/upload-gerencial"
+                usaCiclo
+                substituir
+              />
+              <ModuloUploadLoja
+                titulo="Base Skin / Botik"
+                descricao="Arquivo cuidados faciais. Use a aba CONSULTOR. Indicador = coluna RECEITA (R$). Linhas de total são ignoradas."
+                tipo="skin"
+                endpoint="/loja/upload-skin"
+                usaCiclo
+                substituir
+              />
+            </div>
+          </div>
+        );
+      }
 
+      if (visaoCadastroLoja === 'unidades') {
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <CabecalhoSubCadastroLoja titulo="Cadastro de unidades" descricao="Importe a base com PDV, cidade e nome da loja." />
+            <ModuloUploadLoja titulo="Upload de unidades" descricao="Planilha com PDV, cidade e loja." tipo="unidades" endpoint="/loja/upload-unidades" />
+          </div>
+        );
+      }
+
+      if (visaoCadastroLoja === 'consultoras') {
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <CabecalhoSubCadastroLoja titulo="Cadastro de consultoras" descricao="Importe ID, nome e PDV oficial da consultora." />
+            <ModuloUploadLoja titulo="Upload de consultoras" descricao="ID, nome e PDV oficial da consultora." tipo="consultoras" endpoint="/loja/upload-consultoras" />
+          </div>
+        );
+      }
+
+      if (visaoCadastroLoja === 'metas_unidade') {
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <CabecalhoSubCadastroLoja titulo="Metas por unidade" descricao="Importe as metas por PDV no mesmo padrão do cadastro da VD." />
+            <ModuloUploadLoja titulo="Upload de metas por unidade" descricao="Faturamento, Skin, boleto médio, itens por boleto e serviços por PDV." tipo="metas_unidade" endpoint="/loja/upload-metas-unidade" usaCiclo />
+          </div>
+        );
+      }
+
+      if (visaoCadastroLoja === 'metas_consultora') {
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <CabecalhoSubCadastroLoja titulo="Metas por consultora" descricao="Importe as metas individuais de cada consultora." />
+            <ModuloUploadLoja titulo="Upload de metas por consultora" descricao="Metas individuais. A venda soma para a consultora, mesmo quando vender em outro PDV." tipo="metas_consultora" endpoint="/loja/upload-metas-consultora" usaCiclo />
+          </div>
+        );
+      }
+
+      if (visaoCadastroLoja === 'servicos') {
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <CabecalhoSubCadastroLoja titulo="Serviços da LOJA" descricao="Importe meta e realizado de serviços por unidade." />
+            <ModuloUploadLoja titulo="Upload de serviços" descricao="Meta e realizado de serviços por unidade." tipo="servicos" endpoint="/loja/upload-servicos" usaCiclo />
+          </div>
+        );
+      }
+
+      return (
+        <div className="space-y-6 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Cadastro LOJA</h1>
+              <p className="text-sm text-gray-400 font-semibold">Organize uploads e metas da LOJA no mesmo conceito da aba Cadastro do VD: menos poluição visual e módulos separados.</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+            <div className="mb-5 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-700">Módulos de cadastro</h2>
+                <p className="text-sm text-gray-400 font-semibold mt-1">Escolha um módulo para abrir o upload específico da LOJA.</p>
+              </div>
               <div className="rounded-xl bg-[#e6f6f7] px-4 py-3 min-w-[150px]">
                 <p className="text-[10px] font-black uppercase text-[#048187]">Ciclo</p>
                 <p className="text-lg font-black text-[#048187]">{cicloAtualLoja || '-'}</p>
               </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {basesUpload.map((base) => (
-              <div key={base.tipo} className={`rounded-xl border p-5 shadow-sm bg-white ${base.destaque ? 'border-[#048187]/30 ring-2 ring-[#048187]/5' : 'border-gray-100'}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h3 className="text-base font-black text-gray-700">{base.titulo}</h3>
-                    <p className="text-xs text-gray-400 font-bold mt-1 leading-relaxed">{base.descricao}</p>
-                  </div>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${base.destaque ? 'bg-[#048187] text-white' : 'bg-[#e6f6f7] text-[#048187]'}`}>
-                    <Upload size={18} />
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-col md:flex-row gap-3">
-                  <label className="flex-1 border border-gray-200 rounded-lg px-4 py-3 bg-[#fbfcfd] text-gray-500 font-bold cursor-pointer hover:border-[#048187]/40 truncate">
-                    <input
-                      type="file"
-                      accept=".csv,.xlsx,.xls"
-                      className="hidden"
-                      onChange={(e) => selecionarArquivoLojaUpload(base.tipo, e.target.files?.[0] || null)}
-                    />
-                    {arquivosLojaUpload?.[base.tipo]?.name || 'Escolher arquivo'}
-                  </label>
-
-                  <button
-                    type="button"
-                    disabled={carregandoLoja || !arquivosLojaUpload?.[base.tipo]}
-                    onClick={() => importarBaseLojaUpload(base.tipo, base.endpoint, base.titulo, { usaCiclo: base.usaCiclo, substituir: base.substituir })}
-                    className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Importar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h3 className="text-base font-black text-gray-700">Faturamento</h3>
-              <p className="text-sm text-gray-500 font-bold mt-2">Usa somente GMV-GMV da base de vendas.</p>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h3 className="text-base font-black text-gray-700">Skin</h3>
-              <p className="text-sm text-gray-500 font-bold mt-2">Usa aba CONSULTOR e a coluna RECEITA (R$), ignorando linhas de total.</p>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h3 className="text-base font-black text-gray-700">Regra PDV x Consultora</h3>
-              <p className="text-sm text-gray-500 font-bold mt-2">Consultora soma tudo que vendeu. PDV soma só o que foi vendido nele.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {modulosCadastroLoja.map((modulo) => (
+                <CardOpcaoCadastro
+                  key={modulo.chave}
+                  titulo={modulo.titulo}
+                  descricao={modulo.descricao}
+                  icone={modulo.icone}
+                  destaque={Boolean(modulo.destaque)}
+                  onClick={() => setVisaoCadastroLoja(modulo.chave)}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -7852,21 +7925,33 @@ const enviarArquivo = async (tipo) => {
     };
 
 
+
     return (
       <div className="space-y-6 animate-fade-in">
         <LojaHeader />
         <AvisosLoja />
 
-        <div className="bg-[#e6f6f7] border border-[#ccecee] rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <p className="font-black text-[#048187]">Regra de apuração LOJA</p>
-            <p className="text-xs font-bold text-[#048187]/80 mt-1">Consultora soma tudo que vendeu. PDV soma somente vendas feitas dentro daquele PDV.</p>
+        {!carregandoLoja && abaLoja !== 'cadastro' && (
+          <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_0.95fr] gap-4">
+            <div className="bg-[#e6f6f7] border border-[#ccecee] rounded-xl p-4">
+              <p className="font-black text-[#048187]">Regra de apuração LOJA</p>
+              <p className="text-xs font-bold text-[#048187]/80 mt-1">Consultora soma tudo que vendeu. PDV soma somente vendas feitas dentro daquele PDV.</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 text-[#048187]">
+                <SlidersHorizontal size={16} />
+                <p className="font-black">Painel de filtros</p>
+              </div>
+              <div className="mt-3 flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={buscaLoja} onChange={(e) => setBuscaLoja(e.target.value)} placeholder="Buscar PDV ou consultora" className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-[#048187] font-bold text-sm" />
+                </div>
+                <button type="button" onClick={() => setBuscaLoja('')} className="px-4 py-2.5 rounded-lg border border-gray-200 font-black text-gray-600 hover:bg-gray-50">Limpar</button>
+              </div>
+            </div>
           </div>
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={buscaLoja} onChange={(e) => setBuscaLoja(e.target.value)} placeholder="Buscar PDV ou consultora" className="pl-9 pr-4 py-2 rounded-lg border border-white/60 outline-none font-bold text-sm min-w-[260px]" />
-          </div>
-        </div>
+        )}
 
         {carregandoLoja && <DashboardSkeletons />}
 
@@ -7897,7 +7982,7 @@ const enviarArquivo = async (tipo) => {
 
         {!carregandoLoja && abaLoja === 'geral' && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
               <CardLoja
                 titulo="Faturamento realizado"
                 valor={formatarMoeda(resumo.faturamento_realizado)}
@@ -7953,31 +8038,38 @@ const enviarArquivo = async (tipo) => {
                   { label: '% Skin', valor: `${formatarNumeroBR(resumo.percentual_skin || 0, 1)}%` }
                 ], 'Skin = soma da aba CONSULTOR, coluna RECEITA (R$), ignorando linhas de total.')}
               />
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Desempenho</p>
-                  <button
-                    type="button"
-                    onClick={() => abrirDetalheCardLoja('Desempenho LOJA', [
-                      { label: 'Boleto médio', valor: formatarMoeda(resumo.boleto_medio || 0) },
-                      { label: 'Meta boleto', valor: formatarMoeda(resumo.meta_boleto_medio || 0) },
-                      { label: 'Itens/Boleto', valor: formatarNumeroBR(resumo.itens_por_boleto || 0, 2) },
-                      { label: 'Meta itens', valor: formatarNumeroBR(resumo.meta_itens_boleto || 4, 1) },
-                      { label: 'Pedidos/boletos', valor: formatarNumeroBR(resumo.pedidos || 0, 0) }
-                    ], 'Boleto médio = GMV-GMV / GMV-Qtd de boletos. Itens/Boleto vem da coluna GMV-Itens por boleto.')}
-                    className="w-8 h-8 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] flex items-center justify-center"
-                    title="Ver detalhes de desempenho"
-                  >
-                    <Eye size={15} />
-                  </button>
-                </div>
-                <div className="mt-4 space-y-3">
-                  <div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Boleto médio</span><span className="font-black text-[#048187]">{formatarMoeda(resumo.boleto_medio || 0)}</span></div>
-                  <div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Meta boleto</span><span className="font-black text-gray-700">{formatarMoeda(resumo.meta_boleto_medio || 0)}</span></div>
-                  <div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Itens/Boleto</span><span className="font-black text-[#048187]">{formatarNumeroBR(resumo.itens_por_boleto || 0, 2)}</span></div>
-                  <div className="flex justify-between gap-3"><span className="text-xs font-bold text-gray-400">Meta itens</span><span className="font-black text-gray-700">{formatarNumeroBR(resumo.meta_itens_boleto || 4, 1)}</span></div>
-                </div>
-              </div>
+              <CardLoja
+                titulo="Boleto médio"
+                valor={formatarMoeda(resumo.boleto_medio || 0)}
+                meta={formatarMoeda(resumo.meta_boleto_medio || 0)}
+                percentual={calcPerc(resumo.boleto_medio || 0, resumo.meta_boleto_medio || 0)}
+                icone={BadgeDollarSign}
+                subtitulo={`Pedidos/boletos: ${formatarNumeroBR(resumo.pedidos || 0, 0)}`}
+                onDetalhes={() => abrirDetalheCardLoja('Boleto médio LOJA', [
+                  { label: 'Boleto médio', valor: formatarMoeda(resumo.boleto_medio || 0) },
+                  { label: 'Meta boleto', valor: formatarMoeda(resumo.meta_boleto_medio || 0) },
+                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumo.boleto_medio || 0, resumo.meta_boleto_medio || 0), 1)}%` },
+                  { label: 'Qtd de boletos/pedidos', valor: formatarNumeroBR(resumo.pedidos || 0, 0) }
+                ], 'Boleto médio = GMV-GMV / GMV-Qtd de boletos.')}
+              />
+              <CardLoja
+                titulo="Itens por boleto"
+                valor={formatarNumeroBR(resumo.itens_por_boleto || 0, 2)}
+                meta={formatarNumeroBR(resumo.meta_itens_boleto || 4, 1)}
+                percentual={calcPerc(resumo.itens_por_boleto || 0, resumo.meta_itens_boleto || 4)}
+                icone={Database}
+                subtitulo="Indicador de itens médios por compra."
+                onDetalhes={() => abrirDetalheCardLoja('Itens por boleto LOJA', [
+                  { label: 'Itens por boleto', valor: formatarNumeroBR(resumo.itens_por_boleto || 0, 2) },
+                  { label: 'Meta itens', valor: formatarNumeroBR(resumo.meta_itens_boleto || 4, 1) },
+                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumo.itens_por_boleto || 0, resumo.meta_itens_boleto || 4), 1)}%` },
+                  { label: 'Regra', valor: 'Coluna GMV-Itens por boleto' }
+                ], 'Itens/Boleto usa a coluna GMV-Itens por boleto da base de vendas.')}
+              />
+            </div>
+
+            <div className="flex justify-end -mt-1">
+              <p className="text-xs text-gray-400 font-bold">Última atualização (Bases Loja): {formatarDataHoraLoja(resumo.ultima_atualizacao)}</p>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -7990,7 +8082,6 @@ const enviarArquivo = async (tipo) => {
             </div>
           </>
         )}
-
         {tabelaLojaExpandida && (
           <div className="fixed inset-0 z-[9999] bg-black/45 backdrop-blur-sm p-4 sm:p-6 flex items-center justify-center">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[96vw] h-[88vh] overflow-hidden flex flex-col">
