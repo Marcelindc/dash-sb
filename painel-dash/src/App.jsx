@@ -1866,11 +1866,11 @@ export default function App() {
   const [arquivoGerencialLoja, setArquivoGerencialLoja] = useState(null);
   const [arquivosLojaUpload, setArquivosLojaUpload] = useState({
     vendas: null,
+    skin: null,
     unidades: null,
     consultoras: null,
     metas_unidade: null,
     metas_consultora: null,
-    skin: null,
     servicos: null
   });
   const [buscaLoja, setBuscaLoja] = useState('');
@@ -7588,52 +7588,53 @@ const enviarArquivo = async (tipo) => {
       const basesUpload = [
         {
           tipo: 'vendas',
-          titulo: 'Vendas / GMV',
-          descricao: 'Base gerencial do sistema. Usa GMV-GMV como faturamento.',
+          titulo: '1. Base de vendas / GMV',
+          descricao: 'Sistema de vendas. Faturamento = coluna GMV-GMV. Boleto médio = GMV-Boleto médio. Itens/Boleto = GMV-Itens por boleto.',
           endpoint: '/loja/upload-gerencial',
           usaCiclo: true,
           substituir: true,
           destaque: true
         },
         {
+          tipo: 'skin',
+          titulo: '2. Base Skin / Botik',
+          descricao: 'Arquivo cuidados faciais. Usar aba CONSULTOR. Indicador = coluna RECEITA (R$). Totais são ignorados.',
+          endpoint: '/loja/upload-skin',
+          usaCiclo: true,
+          substituir: true,
+          destaque: true
+        },
+        {
           tipo: 'unidades',
-          titulo: 'Unidades',
-          descricao: 'PDV, cidade e nome da loja.',
+          titulo: '3. Unidades',
+          descricao: 'Planilha com PDV, cidade e loja.',
           endpoint: '/loja/upload-unidades',
           usaCiclo: false
         },
         {
           tipo: 'consultoras',
-          titulo: 'Consultoras',
-          descricao: 'ID, nome e PDV oficial.',
+          titulo: '4. Consultoras',
+          descricao: 'ID, nome e PDV oficial da consultora.',
           endpoint: '/loja/upload-consultoras',
           usaCiclo: false
         },
         {
           tipo: 'metas_unidade',
-          titulo: 'Metas das unidades',
-          descricao: 'Faturamento, Skin, boleto, itens e serviços por PDV.',
+          titulo: '5. Metas por unidade',
+          descricao: 'Faturamento, Skin, boleto médio, itens por boleto e serviços por PDV.',
           endpoint: '/loja/upload-metas-unidade',
           usaCiclo: true
         },
         {
           tipo: 'metas_consultora',
-          titulo: 'Metas das consultoras',
-          descricao: 'Faturamento, Skin, boleto e itens por consultora.',
+          titulo: '6. Metas por consultora',
+          descricao: 'Metas individuais. A venda da consultora soma para ela mesmo quando vender em outro PDV.',
           endpoint: '/loja/upload-metas-consultora',
           usaCiclo: true
         },
         {
-          tipo: 'skin',
-          titulo: 'Realizado Skin',
-          descricao: 'Realizado de Skin/Botik por consultora e PDV.',
-          endpoint: '/loja/upload-skin',
-          usaCiclo: true,
-          substituir: true
-        },
-        {
           tipo: 'servicos',
-          titulo: 'Serviços',
+          titulo: '7. Serviços',
           descricao: 'Meta e realizado de serviços por unidade.',
           endpoint: '/loja/upload-servicos',
           usaCiclo: true
@@ -7645,9 +7646,9 @@ const enviarArquivo = async (tipo) => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
             <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-wide text-[#048187]">Cadastro LOJA V2</p>
-                <h2 className="text-2xl font-black text-gray-700 mt-1">Bases da loja</h2>
-                <p className="text-sm text-gray-400 font-bold mt-1">Importe cada base no seu campo. Sem digitação lenta de metas.</p>
+                <p className="text-[11px] font-black uppercase tracking-wide text-[#048187]">Cadastro LOJA V3</p>
+                <h2 className="text-2xl font-black text-gray-700 mt-1">Bases e metas</h2>
+                <p className="text-sm text-gray-400 font-bold mt-1">Upload separado por base. Sem digitação lenta de metas nesta etapa.</p>
               </div>
 
               <div className="rounded-xl bg-[#e6f6f7] px-4 py-3 min-w-[150px]">
@@ -7694,15 +7695,20 @@ const enviarArquivo = async (tipo) => {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h3 className="text-base font-black text-gray-700">Regra consultora</h3>
-              <p className="text-sm text-gray-500 font-bold mt-2">Soma tudo que ela vendeu, mesmo quando vende em outro PDV.</p>
+              <h3 className="text-base font-black text-gray-700">Faturamento</h3>
+              <p className="text-sm text-gray-500 font-bold mt-2">Usa somente GMV-GMV da base de vendas.</p>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h3 className="text-base font-black text-gray-700">Regra PDV</h3>
-              <p className="text-sm text-gray-500 font-bold mt-2">Soma apenas o que foi vendido dentro daquele PDV.</p>
+              <h3 className="text-base font-black text-gray-700">Skin</h3>
+              <p className="text-sm text-gray-500 font-bold mt-2">Usa aba CONSULTOR e a coluna RECEITA (R$), ignorando linhas de total.</p>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h3 className="text-base font-black text-gray-700">Regra PDV x Consultora</h3>
+              <p className="text-sm text-gray-500 font-bold mt-2">Consultora soma tudo que vendeu. PDV soma só o que foi vendido nele.</p>
             </div>
           </div>
         </div>
