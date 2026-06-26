@@ -8474,16 +8474,108 @@ const enviarArquivo = async (tipo) => {
           </BlocoTabelaLoja>
         )}
 
-        {!carregandoLoja && abaLoja === 'ranking' && (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <BlocoTabelaLoja titulo="Ranking de unidades" tipo="unidades">
-              <TabelaUnidades lista={rankingUnidades} />
-            </BlocoTabelaLoja>
-            <BlocoTabelaLoja titulo="Ranking de consultoras" tipo="consultoras">
-              <TabelaConsultoras lista={rankingConsultoras} />
-            </BlocoTabelaLoja>
-          </div>
-        )}
+        {!carregandoLoja && abaLoja === 'ranking' && (() => {
+          const rankingBaseLoja = visaoRanking === 'consultores'
+            ? consultorasFiltradas.map((c) => ({
+                id_colaborador: c.id_consultora,
+                nome: c.nome_consultora,
+                estrutura: `${c.codigo_pdv_oficial || '-'} • ${formatarNumeroBR(c.qtd_boletos || 0, 0)} boletos`,
+                realizado: Number(c.realizado || 0),
+                meta_faturamento: Number(c.meta_faturamento || 0),
+                percentual_faturamento: Number(c.percentual || calcPerc(c.realizado || 0, c.meta_faturamento || 0)),
+                realizado_skin: Number(c.realizado_skin || 0),
+                meta_skin: Number(c.meta_skin || 0),
+                percentual_skin: calcPerc(c.realizado_skin || 0, c.meta_skin || 0),
+                boleto_medio: Number(c.boleto_medio || 0),
+                meta_boleto_medio: Number(c.meta_boleto_medio || 0),
+                percentual_boleto: calcPerc(c.boleto_medio || 0, c.meta_boleto_medio || 0),
+                itens_por_boleto: Number(c.itens_por_boleto || 0),
+                meta_itens_boleto: Number(c.meta_itens_boleto || 4),
+                percentual_itens: calcPerc(c.itens_por_boleto || 0, c.meta_itens_boleto || 4)
+              }))
+            : unidadesFiltradas.map((u) => ({
+                id_colaborador: u.codigo_pdv,
+                nome: u.cidade || u.nome_loja || u.codigo_pdv,
+                estrutura: `${u.codigo_pdv || '-'} • ${formatarNumeroBR(u.qtd_boletos || 0, 0)} boletos`,
+                realizado: Number(u.realizado || 0),
+                meta_faturamento: Number(u.meta_faturamento || 0),
+                percentual_faturamento: Number(u.percentual || calcPerc(u.realizado || 0, u.meta_faturamento || 0)),
+                realizado_skin: Number(u.realizado_skin || 0),
+                meta_skin: Number(u.meta_skin || 0),
+                percentual_skin: calcPerc(u.realizado_skin || 0, u.meta_skin || 0),
+                boleto_medio: Number(u.boleto_medio || 0),
+                meta_boleto_medio: Number(u.meta_boleto_medio || 0),
+                percentual_boleto: calcPerc(u.boleto_medio || 0, u.meta_boleto_medio || 0),
+                itens_por_boleto: Number(u.itens_por_boleto || 0),
+                meta_itens_boleto: Number(u.meta_itens_boleto || 4),
+                percentual_itens: calcPerc(u.itens_por_boleto || 0, u.meta_itens_boleto || 4),
+                realizado_servicos_mes: Number(u.realizado_servicos_mes || 0),
+                meta_servicos_mes: Number(u.meta_servicos_mes || 0),
+                percentual_servicos: calcPerc(u.realizado_servicos_mes || 0, u.meta_servicos_mes || 0)
+              }));
+
+          const topFatLoja = [...rankingBaseLoja].sort((a, b) => Number(b.percentual_faturamento || 0) - Number(a.percentual_faturamento || 0));
+          const podioLoja = [topFatLoja[1], topFatLoja[0], topFatLoja[2]];
+          const tituloVisaoLoja = visaoRanking === 'consultores' ? 'Consultoras' : 'Unidades';
+
+          const blocoPodioLoja = (item, posicao, classeAltura, classeBox) => (
+            <div className="flex flex-col items-center justify-end min-w-0">
+              {item && (
+                <div className="mb-3 w-full rounded-2xl bg-white border border-gray-100 px-3 py-3 text-center min-h-[96px] flex flex-col items-center justify-center">
+                  <span className="text-[10px] font-black uppercase tracking-wide" style={{ color: posicao === 1 ? '#f0b400' : posicao === 2 ? '#6b7280' : '#ff6f03' }}>{posicao}º lugar</span>
+                  <p className="mt-1 text-sm font-black text-gray-700 leading-tight line-clamp-2" title={item.nome}>{item.nome}</p>
+                  <p className="mt-1 text-lg font-black" style={{ color: corPorFaixaMeta(item.percentual_faturamento || 0) }}>{formatarNumeroBR(item.percentual_faturamento || 0, 1)}%</p>
+                  <p className="text-[10px] font-bold text-gray-400">{formatarMoeda(item.realizado || 0)}</p>
+                </div>
+              )}
+              <div className={`w-full rounded-t-xl shadow-inner flex items-start justify-center pt-5 text-white font-black text-2xl ${classeAltura} ${classeBox}`}>
+                {posicao}º
+              </div>
+            </div>
+          );
+
+          return (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 min-w-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-full bg-yellow-500 text-white flex items-center justify-center shrink-0"><Trophy size={25}/></div>
+                  <div className="min-w-0">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-700 truncate">Ranking LOJA</h1>
+                    <p className="text-sm text-gray-400 truncate">Separado por indicador, igual ao Ranking VD</p>
+                  </div>
+                </div>
+
+                <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
+                  <button onClick={() => setVisaoRanking('consultores')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'consultores' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Consultoras"><User size={18} /></button>
+                  <button onClick={() => setVisaoRanking('estruturas')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'estruturas' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Unidades"><IconeCanalLoja size={18} /></button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-7 min-h-[360px] overflow-hidden">
+                <h2 className="text-base sm:text-lg font-black text-gray-700 mb-8 uppercase tracking-widest text-center">
+                  Top 3 % de Faturamento ({tituloVisaoLoja})
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 items-end justify-center w-full max-w-4xl mx-auto gap-5 sm:gap-6">
+                  {blocoPodioLoja(podioLoja[0], 2, 'h-24 sm:h-32', 'bg-gradient-to-b from-slate-200 to-slate-300')}
+                  {blocoPodioLoja(podioLoja[1], 1, 'h-32 sm:h-44', 'bg-gradient-to-b from-yellow-200 to-yellow-400')}
+                  {blocoPodioLoja(podioLoja[2], 3, 'h-20 sm:h-28', 'bg-gradient-to-b from-orange-200 to-orange-400')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <CardTop5 titulo="Maior % Faturamento" dados={rankingBaseLoja} propValor="percentual_faturamento" formatter={(v) => `${formatarNumeroBR(v || 0, 1)}%`} corValor="#048187" propSubValor="realizado" subFormatter={(v) => formatarMoeda(v || 0)} subLabel="" />
+                <CardTop5 titulo="Maior Faturamento" dados={rankingBaseLoja} propValor="realizado" formatter={(v) => formatarMoeda(v || 0)} corValor="#048187" propSubValor="percentual_faturamento" subFormatter={(v) => `${formatarNumeroBR(v || 0, 1)}%`} subLabel="" />
+                <CardTop5 titulo="Melhor % Skin" dados={rankingBaseLoja} propValor="percentual_skin" formatter={(v) => `${formatarNumeroBR(v || 0, 1)}%`} corValor="#7c1f31" propSubValor="realizado_skin" subFormatter={(v) => formatarMoeda(v || 0)} subLabel="" />
+                <CardTop5 titulo="Maior Skin" dados={rankingBaseLoja} propValor="realizado_skin" formatter={(v) => formatarMoeda(v || 0)} corValor="#7c1f31" propSubValor="percentual_skin" subFormatter={(v) => `${formatarNumeroBR(v || 0, 1)}%`} subLabel="" />
+                <CardTop5 titulo="Maior Boleto Médio" dados={rankingBaseLoja} propValor="boleto_medio" formatter={(v) => formatarMoeda(v || 0)} corValor="#6366f1" propSubValor="percentual_boleto" subFormatter={(v) => `${formatarNumeroBR(v || 0, 1)}%`} subLabel="" />
+                <CardTop5 titulo="Melhor Itens/Boleto" dados={rankingBaseLoja} propValor="itens_por_boleto" formatter={(v) => formatarNumeroBR(v || 0, 2)} corValor="#ff6f03" propSubValor="percentual_itens" subFormatter={(v) => `${formatarNumeroBR(v || 0, 1)}%`} subLabel="" />
+                {visaoRanking !== 'consultores' && (
+                  <CardTop5 titulo="Melhor % Serviços" dados={rankingBaseLoja} propValor="percentual_servicos" formatter={(v) => `${formatarNumeroBR(v || 0, 1)}%`} corValor="#048187" propSubValor="realizado_servicos_mes" subFormatter={(v) => formatarNumeroBR(v || 0, 0)} subLabel="" />
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {!carregandoLoja && abaLoja === 'geral' && (
           <>
