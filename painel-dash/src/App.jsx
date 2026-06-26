@@ -14,6 +14,38 @@ const ESTRUTURA_META_STORAGE_KEY = 'dashSbEstruturaMeta';
 const CANAL_ATUAL_STORAGE_KEY = 'dashSbCanalAtual';
 const APP_NAME = 'DASH COMERCIAL SB';
 
+const CLASSE_INPUT_CADASTRO_LOJA = "w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all font-bold bg-white";
+
+const CampoLojaCadastroLoja = React.memo(({ label, value, onChange, placeholder, type = 'text', disabled = false }) => (
+  <div>
+    <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">{label}</label>
+    <input
+      type={type}
+      inputMode={type === 'number' ? 'decimal' : undefined}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      disabled={disabled}
+      autoComplete="off"
+      className={`${CLASSE_INPUT_CADASTRO_LOJA} ${disabled ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
+    />
+  </div>
+));
+
+const SelectLojaCadastroLoja = React.memo(({ label, value, onChange, children }) => (
+  <div>
+    <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">{label}</label>
+    <select
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      className={CLASSE_INPUT_CADASTRO_LOJA}
+    >
+      {children}
+    </select>
+  </div>
+));
+
+
 const aplicarTokenAxios = (token) => {
   if (token) axios.defaults.headers.common.Authorization = `Bearer ${token}`;
   else delete axios.defaults.headers.common.Authorization;
@@ -8067,13 +8099,13 @@ const enviarArquivo = async (tipo) => {
             <form onSubmit={salvarUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
               <h2 className="text-lg font-black text-gray-700 mb-4">Dados da unidade</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <CampoLoja label="PDV" value={lojaUnidadeForm.codigo_pdv} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, codigo_pdv: v }))} placeholder="Ex.: 17322" />
-                <CampoLoja label="Cidade" value={lojaUnidadeForm.cidade} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, cidade: v }))} placeholder="Ex.: Pinheiro Centro" />
-                <CampoLoja label="Nome da loja" value={lojaUnidadeForm.nome_loja} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, nome_loja: v }))} placeholder="Nome completo da loja" />
-                <SelectLoja label="Status" value={lojaUnidadeForm.status_loja} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, status_loja: v }))}>
+                <CampoLojaCadastroLoja label="PDV" value={lojaUnidadeForm.codigo_pdv} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, codigo_pdv: v }))} placeholder="Ex.: 17322" />
+                <CampoLojaCadastroLoja label="Cidade" value={lojaUnidadeForm.cidade} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, cidade: v }))} placeholder="Ex.: Pinheiro Centro" />
+                <CampoLojaCadastroLoja label="Nome da loja" value={lojaUnidadeForm.nome_loja} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, nome_loja: v }))} placeholder="Nome completo da loja" />
+                <SelectLojaCadastroLoja label="Status" value={lojaUnidadeForm.status_loja} onChange={(v) => setLojaUnidadeForm((f) => ({ ...f, status_loja: v }))}>
                   <option value="ativo">Ativo</option>
                   <option value="inativo">Inativo</option>
-                </SelectLoja>
+                </SelectLojaCadastroLoja>
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <BotaoSalvarLoja carregando={carregandoLoja}>Salvar unidade</BotaoSalvarLoja>
@@ -8129,16 +8161,16 @@ const enviarArquivo = async (tipo) => {
             <form onSubmit={salvarConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
               <h2 className="text-lg font-black text-gray-700 mb-4">Dados da consultora</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <CampoLoja label="ID consultora" value={lojaConsultoraForm.id_consultora} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, id_consultora: v }))} placeholder="Ex.: 83" />
-                <CampoLoja label="Nome" value={lojaConsultoraForm.nome_consultora} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, nome_consultora: v }))} placeholder="Nome da consultora" />
-                <SelectLoja label="PDV oficial" value={lojaConsultoraForm.codigo_pdv_oficial} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, codigo_pdv_oficial: v }))}>
+                <CampoLojaCadastroLoja label="ID consultora" value={lojaConsultoraForm.id_consultora} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, id_consultora: v }))} placeholder="Ex.: 83" />
+                <CampoLojaCadastroLoja label="Nome" value={lojaConsultoraForm.nome_consultora} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, nome_consultora: v }))} placeholder="Nome da consultora" />
+                <SelectLojaCadastroLoja label="PDV oficial" value={lojaConsultoraForm.codigo_pdv_oficial} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, codigo_pdv_oficial: v }))}>
                   <option value="">Selecione</option>
                   {unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}
-                </SelectLoja>
-                <SelectLoja label="Status" value={lojaConsultoraForm.status_consultora} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, status_consultora: v }))}>
+                </SelectLojaCadastroLoja>
+                <SelectLojaCadastroLoja label="Status" value={lojaConsultoraForm.status_consultora} onChange={(v) => setLojaConsultoraForm((f) => ({ ...f, status_consultora: v }))}>
                   <option value="ativo">Ativo</option>
                   <option value="inativo">Inativo</option>
-                </SelectLoja>
+                </SelectLojaCadastroLoja>
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <BotaoSalvarLoja carregando={carregandoLoja}>Salvar consultora</BotaoSalvarLoja>
@@ -8196,17 +8228,17 @@ const enviarArquivo = async (tipo) => {
             <form onSubmit={salvarMetaUnidadeLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
               <h2 className="text-lg font-black text-gray-700 mb-4">Meta da unidade</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <CampoLoja label="Ciclo" value={lojaMetaUnidadeForm.ciclo || cicloAtualLoja} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, ciclo: v }))} placeholder="09/2026" />
-                <SelectLoja label="PDV" value={lojaMetaUnidadeForm.codigo_pdv} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, codigo_pdv: v }))}>
+                <CampoLojaCadastroLoja label="Ciclo" value={lojaMetaUnidadeForm.ciclo || cicloAtualLoja} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, ciclo: v }))} placeholder="09/2026" />
+                <SelectLojaCadastroLoja label="PDV" value={lojaMetaUnidadeForm.codigo_pdv} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, codigo_pdv: v }))}>
                   <option value="">Selecione</option>
                   {unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}
-                </SelectLoja>
-                <CampoLoja label="Meta faturamento" value={lojaMetaUnidadeForm.meta_faturamento} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_faturamento: v }))} placeholder="Ex.: 74037" />
-                <CampoLoja label="Meta Skin R$" value={lojaMetaUnidadeForm.meta_skin} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_skin: v }))} placeholder="Ex.: 1874" />
-                <CampoLoja label="Boleto médio" value={lojaMetaUnidadeForm.meta_boleto_medio} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 279" />
-                <CampoLoja label="Itens por boleto" value={lojaMetaUnidadeForm.meta_itens_boleto} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
-                <CampoLoja label="Meta serviços mês" value={lojaMetaUnidadeForm.meta_servicos_mes} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_servicos_mes: v }))} placeholder="Ex.: 25" />
-                <CampoLoja label="Meta serviços ano" value={lojaMetaUnidadeForm.meta_servicos_ano} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_servicos_ano: v }))} placeholder="Ex.: 300" />
+                </SelectLojaCadastroLoja>
+                <CampoLojaCadastroLoja label="Meta faturamento" value={lojaMetaUnidadeForm.meta_faturamento} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_faturamento: v }))} placeholder="Ex.: 74037" />
+                <CampoLojaCadastroLoja label="Meta Skin R$" value={lojaMetaUnidadeForm.meta_skin} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_skin: v }))} placeholder="Ex.: 1874" />
+                <CampoLojaCadastroLoja label="Boleto médio" value={lojaMetaUnidadeForm.meta_boleto_medio} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 279" />
+                <CampoLojaCadastroLoja label="Itens por boleto" value={lojaMetaUnidadeForm.meta_itens_boleto} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
+                <CampoLojaCadastroLoja label="Meta serviços mês" value={lojaMetaUnidadeForm.meta_servicos_mes} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_servicos_mes: v }))} placeholder="Ex.: 25" />
+                <CampoLojaCadastroLoja label="Meta serviços ano" value={lojaMetaUnidadeForm.meta_servicos_ano} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_servicos_ano: v }))} placeholder="Ex.: 300" />
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <BotaoSalvarLoja carregando={carregandoLoja}>Salvar meta unidade</BotaoSalvarLoja>
@@ -8296,22 +8328,22 @@ const enviarArquivo = async (tipo) => {
             <form onSubmit={salvarMetaConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
               <h2 className="text-lg font-black text-gray-700 mb-4">Meta da consultora</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <CampoLoja label="Ciclo" value={lojaMetaConsultoraForm.ciclo || cicloAtualLoja} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, ciclo: v }))} placeholder="09/2026" />
-                <SelectLoja label="Consultora" value={lojaMetaConsultoraForm.id_consultora} onChange={(v) => {
+                <CampoLojaCadastroLoja label="Ciclo" value={lojaMetaConsultoraForm.ciclo || cicloAtualLoja} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, ciclo: v }))} placeholder="09/2026" />
+                <SelectLojaCadastroLoja label="Consultora" value={lojaMetaConsultoraForm.id_consultora} onChange={(v) => {
                   const escolhida = consultoras.find((c) => String(c.id_consultora) === String(v));
                   setLojaMetaConsultoraForm((f) => ({ ...f, id_consultora: v, codigo_pdv_oficial: escolhida?.codigo_pdv_oficial || f.codigo_pdv_oficial }));
                 }}>
                   <option value="">Selecione</option>
                   {consultoras.map((c) => <option key={c.id_consultora} value={c.id_consultora}>{c.id_consultora} - {c.nome_consultora}</option>)}
-                </SelectLoja>
-                <SelectLoja label="PDV oficial" value={lojaMetaConsultoraForm.codigo_pdv_oficial} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, codigo_pdv_oficial: v }))}>
+                </SelectLojaCadastroLoja>
+                <SelectLojaCadastroLoja label="PDV oficial" value={lojaMetaConsultoraForm.codigo_pdv_oficial} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, codigo_pdv_oficial: v }))}>
                   <option value="">Selecione</option>
                   {unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}
-                </SelectLoja>
-                <CampoLoja label="Meta faturamento" value={lojaMetaConsultoraForm.meta_faturamento} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_faturamento: v }))} placeholder="Ex.: 24979" />
-                <CampoLoja label="Meta Skin R$" value={lojaMetaConsultoraForm.meta_skin} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_skin: v }))} placeholder="Ex.: 624" />
-                <CampoLoja label="Boleto médio" value={lojaMetaConsultoraForm.meta_boleto_medio} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 250" />
-                <CampoLoja label="Itens por boleto" value={lojaMetaConsultoraForm.meta_itens_boleto} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
+                </SelectLojaCadastroLoja>
+                <CampoLojaCadastroLoja label="Meta faturamento" value={lojaMetaConsultoraForm.meta_faturamento} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_faturamento: v }))} placeholder="Ex.: 24979" />
+                <CampoLojaCadastroLoja label="Meta Skin R$" value={lojaMetaConsultoraForm.meta_skin} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_skin: v }))} placeholder="Ex.: 624" />
+                <CampoLojaCadastroLoja label="Boleto médio" value={lojaMetaConsultoraForm.meta_boleto_medio} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 250" />
+                <CampoLojaCadastroLoja label="Itens por boleto" value={lojaMetaConsultoraForm.meta_itens_boleto} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <BotaoSalvarLoja carregando={carregandoLoja}>Salvar meta consultora</BotaoSalvarLoja>
