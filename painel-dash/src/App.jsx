@@ -872,14 +872,6 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     try {
       await axios.put(`${apiUrl}/metas-reais/${metaOriginal.id}`, payload);
 
-      const metasAgrupadasParaLimpar = Array.isArray(metaOriginal._metasAgrupadas)
-        ? metaOriginal._metasAgrupadas.filter((metaFilha) => String(metaFilha.id) !== String(metaOriginal.id))
-        : [];
-
-      for (const metaFilha of metasAgrupadasParaLimpar) {
-        await axios.delete(`${apiUrl}/metas-reais/${metaFilha.id}`);
-      }
-
       if (!metaTemMultiplasEstruturas) {
         await axios.post(`${apiUrl}/estruturas-config`, {
           cod_estrutura: codEstrutura,
@@ -909,17 +901,11 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   };
 
   const excluirMeta = async (meta) => {
-    const metasParaExcluir = Array.isArray(meta?._metasAgrupadas) && meta._metasAgrupadas.length
-      ? meta._metasAgrupadas
-      : [meta];
-    const textoQtd = metasParaExcluir.length > 1 ? ` e suas ${metasParaExcluir.length} estruturas/metas vinculadas` : '';
-    const ok = window.confirm(`Excluir a meta real "${meta.nome_meta}"${textoQtd}?`);
+    const ok = window.confirm(`Excluir a meta real "${meta.nome_meta}"?`);
     if (!ok) return;
     setErro('');
     try {
-      for (const metaFilha of metasParaExcluir) {
-        if (metaFilha?.id) await axios.delete(`${apiUrl}/metas-reais/${metaFilha.id}`);
-      }
+      if (meta?.id) await axios.delete(`${apiUrl}/metas-reais/${meta.id}`);
       setMensagem('Meta real excluída.');
       await carregarMetas();
       if (onAtualizacao) onAtualizacao();
@@ -1051,26 +1037,40 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     }));
   };
 
-  const agruparLinhasValidasNovoCiclo = (linhasValidas) => {
-    const grupos = new Map();
-
-    linhasValidas.forEach((linha) => {
+  const agruparLinhasValidasNovoCiclo = (linhasComEstrutura = []) => {
+    /*
+      Regra segura do Cadastro de Metas VD:
+      - cada linha com Receita > 0 vira uma meta própria;
+      - linhas com Receita zerada só entram como estrutura vinculada quando existir exatamente
+        uma linha positiva com o mesmo nome limpo;
+      - nunca somar automaticamente duas linhas positivas com o mesmo nome, porque isso fazia
+        algumas metas dobrarem ou mudarem depois de salvar.
+    */
+    const positivas = linhasComEstrutura.filter((linha) => converterMetaRealParaNumero(linha.meta_real) > 0);
+    const zeradas = linhasComEstrutura.filter((linha) => converterMetaRealParaNumero(linha.meta_real) <= 0);
+    const grupos = positivas.map((linha, index) => {
       const cicloLinha = String(linha.ciclo || form.ciclo || cicloPadrao || '').trim();
       const nomeLinha = String(linha.nome_meta || obterNomeLimpoEstrutura(linha.estrutura) || linha.estrutura || '').trim();
-      const chave = `${cicloLinha}__${normalizarEstruturaMeta(nomeLinha)}`;
-
-      if (!grupos.has(chave)) {
-        grupos.set(chave, {
-          ciclo: cicloLinha,
-          nome_meta: nomeLinha,
-          linhas: []
-        });
-      }
-
-      grupos.get(chave).linhas.push(linha);
+      return {
+        ciclo: cicloLinha,
+        nome_meta: nomeLinha,
+        chave_segura: `${cicloLinha}__${normalizarEstruturaMeta(linha.estrutura)}__${index}`,
+        linhas: [linha]
+      };
     });
 
-    return Array.from(grupos.values());
+    zeradas.forEach((linhaZerada) => {
+      const nomeZerado = normalizarEstruturaMeta(linhaZerada.nome_meta || obterNomeLimpoEstrutura(linhaZerada.estrutura) || linhaZerada.estrutura);
+      if (!nomeZerado) return;
+      const gruposMesmoNome = grupos.filter((grupo) => normalizarEstruturaMeta(grupo.nome_meta) === nomeZerado);
+      if (gruposMesmoNome.length === 1) {
+        const grupoDestino = gruposMesmoNome[0];
+        const estruturaJaExiste = grupoDestino.linhas.some((linha) => normalizarEstruturaMeta(linha.estrutura) === normalizarEstruturaMeta(linhaZerada.estrutura));
+        if (!estruturaJaExiste) grupoDestino.linhas.push(linhaZerada);
+      }
+    });
+
+    return grupos;
   };
 
   const localizarMetaExistenteDoGrupo = (grupo) => {
@@ -1088,10 +1088,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     );
 
     return metas.find((meta) => {
-      const mesmoNome = normalizarEstruturaMeta(meta.nome_meta) === nomeNormalizado;
       const mesmoCiclo = String(meta.ciclo || '').trim() === cicloNormalizado;
-      if (mesmoNome && mesmoCiclo) return true;
-
       if (!mesmoCiclo) return false;
       return (meta.estruturas || []).some((estruturaMeta) => {
         const estruturaNorm = normalizarEstruturaMeta(estruturaMeta.estrutura);
@@ -1104,14 +1101,16 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const salvarTabelaNovoCiclo = async () => {
     setErro('');
     setMensagem('');
-    const linhasValidas = linhasNovoCiclo.filter((linha) => String(linha.estrutura || '').trim() && converterMetaRealParaNumero(linha.meta_real) > 0);
+    const linhasComEstrutura = linhasNovoCiclo.filter((linha) => String(linha.estrutura || '').trim());
+    const gruposValidos = agruparLinhasValidasNovoCiclo(linhasComEstrutura)
+      .filter((grupo) => grupo.linhas.some((linha) => converterMetaRealParaNumero(linha.meta_real) > 0));
 
-    if (!linhasValidas.length) {
+    if (!gruposValidos.length) {
       setErro('Preencha pelo menos uma estrutura com Receita maior que zero.');
       return;
     }
 
-    const gruposValidos = agruparLinhasValidasNovoCiclo(linhasValidas);
+    const linhasValidas = gruposValidos.flatMap((grupo) => grupo.linhas).filter((linha) => converterMetaRealParaNumero(linha.meta_real) > 0);
 
     setSalvandoTabela(true);
     let salvas = 0;
@@ -1120,8 +1119,9 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
     try {
       for (const grupo of gruposValidos) {
-        const primeira = grupo.linhas[0] || {};
-        const metaRealTotal = grupo.linhas.reduce((soma, linha) => soma + converterMetaRealParaNumero(linha.meta_real), 0);
+        const linhasComReceitaGrupo = grupo.linhas.filter((linha) => converterMetaRealParaNumero(linha.meta_real) > 0);
+        const primeira = linhasComReceitaGrupo[0] || grupo.linhas[0] || {};
+        const metaRealTotal = linhasComReceitaGrupo.reduce((soma, linha) => soma + converterMetaRealParaNumero(linha.meta_real), 0);
         const estruturasPayload = grupo.linhas.map((linha) => ({
           cod_estrutura: linha.cod_estrutura || String(linha.estrutura || '').split('-')[0] || '',
           estrutura: linha.estrutura
@@ -1209,51 +1209,32 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const obterConsultoresMeta = (meta) => (Array.isArray(meta?.consultores) ? meta.consultores : []);
 
   const agruparMetasParaVisualizacao = (listaMetas = []) => {
-    const grupos = new Map();
-
-    listaMetas.forEach((meta) => {
-      const chave = `${String(meta.ciclo || '').trim()}__${normalizarEstruturaMeta(meta.nome_meta)}`;
-      if (!grupos.has(chave)) {
-        grupos.set(chave, {
-          ...meta,
-          id: meta.id,
-          _metasAgrupadas: [],
-          estruturas: [],
-          consultores: [],
-          meta_real: 0,
-          realizado: 0,
-          pedidos: 0,
-          ativos: 0
-        });
-      }
-
-      const grupo = grupos.get(chave);
-      grupo._metasAgrupadas.push(meta);
-      grupo.estruturas.push(...obterEstruturasMeta(meta));
-      grupo.consultores.push(...obterConsultoresMeta(meta));
-      grupo.meta_real += Number(meta.meta_real || 0);
-      grupo.realizado += Number(meta.realizado || 0);
-      grupo.pedidos += Number(meta.pedidos || 0);
-      grupo.ativos += Number(meta.ativos || 0);
-    });
-
-    return Array.from(grupos.values()).map((grupo) => {
-      const percentual = grupo.meta_real > 0 ? (grupo.realizado / grupo.meta_real) * 100 : 0;
+    // Uma linha visual por meta salva. Não agrupamos mais por nome_meta, pois existem equipes
+    // com o mesmo nome em códigos diferentes e isso fazia a tela somar/deletar metas sem o usuário perceber.
+    return (listaMetas || []).map((meta) => {
       const estruturasUnicas = [];
       const chavesEstruturas = new Set();
-
-      grupo.estruturas.forEach((estruturaItem) => {
+      obterEstruturasMeta(meta).forEach((estruturaItem) => {
         const chaveEstrutura = normalizarEstruturaMeta(`${estruturaItem.cod_estrutura || ''}__${estruturaItem.estrutura || ''}`);
         if (!chaveEstrutura || chavesEstruturas.has(chaveEstrutura)) return;
         chavesEstruturas.add(chaveEstrutura);
         estruturasUnicas.push(estruturaItem);
       });
 
+      const metaReal = Number(meta.meta_real || 0);
+      const realizado = Number(meta.realizado || 0);
+      const percentual = metaReal > 0 ? (realizado / metaReal) * 100 : 0;
+
       return {
-        ...grupo,
+        ...meta,
+        _metasAgrupadas: [meta],
         estruturas: estruturasUnicas,
+        meta_real: metaReal,
+        realizado,
+        pedidos: Number(meta.pedidos || 0),
+        ativos: Number(meta.ativos || 0),
         percentual,
-        tipo_meta: estruturasUnicas.length > 1 ? 'grupo_estruturas' : grupo.tipo_meta
+        tipo_meta: estruturasUnicas.length > 1 ? 'grupo_estruturas' : meta.tipo_meta
       };
     });
   };
@@ -1936,6 +1917,16 @@ export default function App() {
   const [visaoCadastroLoja, setVisaoCadastroLoja] = useState('geral');
   const [linhaMetaUnidadeLojaEditando, setLinhaMetaUnidadeLojaEditando] = useState(null);
   const [linhaMetaConsultoraLojaEditando, setLinhaMetaConsultoraLojaEditando] = useState(null);
+
+  useEffect(() => {
+    if (!mensagemLoja) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setMensagemLoja('');
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [mensagemLoja]);
 
   const promessasEmAndamentoRef = useRef({});
   const ultimoCarregamentoTelaRef = useRef('');
