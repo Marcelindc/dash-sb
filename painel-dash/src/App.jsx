@@ -102,9 +102,9 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
-  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
+  admin: ['Dashboard', 'Metas', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'],
+  gestor: ['Dashboard', 'Metas', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
+  visualizador: ['Dashboard', 'Metas', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
 };
 
 const obterNomeAba = (nome) => ({
@@ -122,7 +122,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -1933,7 +1933,7 @@ export default function App() {
   const debounceFiltroRapidoRef = useRef(null);
 
   const itensMenuTopo = [
-    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'N3', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Ações', icone: Sparkles }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
+    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Ações', icone: Sparkles }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
   ];
 
   const itensMenuVD = itensMenuTopo;
