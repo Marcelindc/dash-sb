@@ -102,9 +102,9 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
-  visualizador: ['Dashboard', 'Metas', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
+  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'],
+  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
+  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
 };
 
 const obterNomeAba = (nome) => ({
@@ -122,7 +122,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -1724,6 +1724,439 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   );
 }
 
+
+
+const EXCLUSAO_REVENDEDOR_VAZIA = {
+  codigo_revendedor: '',
+  nome_revendedor: '',
+  motivo: '',
+  ciclo: 'TODOS',
+  tipo_exclusao: 'todos',
+  ativo: true
+};
+
+const TIPOS_EXCLUSAO_REVENDEDOR = [
+  { value: 'todos', label: 'Todos os cálculos' },
+  { value: 'metas', label: 'Somente Metas' },
+  { value: 'dashboard', label: 'Somente Dashboard' },
+  { value: 'ranking', label: 'Somente Ranking' },
+  { value: 'historico', label: 'Somente Histórico' },
+  { value: 'revendedores', label: 'Somente Revendedores' }
+];
+
+function TelaExclusoesRevendedores({ apiUrl = API_URL, onAtualizacao }) {
+  const [exclusoes, setExclusoes] = useState([]);
+  const [form, setForm] = useState(EXCLUSAO_REVENDEDOR_VAZIA);
+  const [editandoId, setEditandoId] = useState(null);
+  const [busca, setBusca] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState('ativos');
+  const [carregando, setCarregando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [mensagem, setMensagem] = useState('');
+  const [erro, setErro] = useState('');
+
+  const normalizarBusca = (valor) => String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+  const carregarExclusoes = async () => {
+    setCarregando(true);
+    setErro('');
+    try {
+      const { data } = await axios.get(`${apiUrl}/exclusoes-revendedores`);
+      const lista = Array.isArray(data)
+        ? data
+        : (data?.exclusoes || data?.itens || data?.dados || []);
+      setExclusoes(Array.isArray(lista) ? lista : []);
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao carregar exclusões de revendedores. Verifique se o backend já foi atualizado com as rotas /exclusoes-revendedores.');
+      setExclusoes([]);
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  useEffect(() => {
+    carregarExclusoes();
+  }, []);
+
+  const exclusoesFiltradas = exclusoes.filter((item) => {
+    const ativo = item?.ativo !== false;
+    const statusOk =
+      filtroStatus === 'todos' ||
+      (filtroStatus === 'ativos' && ativo) ||
+      (filtroStatus === 'inativos' && !ativo);
+
+    if (!statusOk) return false;
+
+    const termo = normalizarBusca(busca);
+    if (!termo) return true;
+
+    const texto = normalizarBusca([
+      item?.codigo_revendedor,
+      item?.nome_revendedor,
+      item?.motivo,
+      item?.ciclo,
+      item?.tipo_exclusao
+    ].join(' '));
+
+    return texto.includes(termo);
+  });
+
+  const atualizarCampo = (campo, valor) => {
+    setForm((atual) => ({ ...atual, [campo]: valor }));
+  };
+
+  const limparFormulario = () => {
+    setForm(EXCLUSAO_REVENDEDOR_VAZIA);
+    setEditandoId(null);
+    setErro('');
+    setMensagem('');
+  };
+
+  const validarFormulario = () => {
+    if (!String(form.codigo_revendedor || '').trim()) return 'Informe o código do revendedor.';
+    if (!String(form.nome_revendedor || '').trim()) return 'Informe o nome do revendedor.';
+    if (!String(form.motivo || '').trim()) return 'Informe o motivo da exclusão.';
+    if (!String(form.ciclo || '').trim()) return 'Informe o ciclo. Use TODOS para aplicar em todos os ciclos.';
+    if (!String(form.tipo_exclusao || '').trim()) return 'Informe o tipo de exclusão.';
+    return '';
+  };
+
+  const salvarExclusao = async (e) => {
+    e.preventDefault();
+
+    const erroValidacao = validarFormulario();
+    if (erroValidacao) {
+      setErro(erroValidacao);
+      setMensagem('');
+      return;
+    }
+
+    setSalvando(true);
+    setErro('');
+    setMensagem('');
+
+    const payload = {
+      codigo_revendedor: String(form.codigo_revendedor || '').trim(),
+      nome_revendedor: String(form.nome_revendedor || '').trim(),
+      motivo: String(form.motivo || '').trim(),
+      ciclo: String(form.ciclo || 'TODOS').trim().toUpperCase(),
+      tipo_exclusao: String(form.tipo_exclusao || 'todos').trim(),
+      ativo: form.ativo !== false
+    };
+
+    try {
+      const mensagemSucesso = editandoId
+        ? 'Exclusão atualizada com sucesso.'
+        : 'Exclusão cadastrada com sucesso.';
+
+      if (editandoId) {
+        await axios.put(`${apiUrl}/exclusoes-revendedores/${editandoId}`, payload);
+      } else {
+        await axios.post(`${apiUrl}/exclusoes-revendedores`, payload);
+      }
+
+      limparFormulario();
+      setMensagem(mensagemSucesso);
+      await carregarExclusoes();
+      if (onAtualizacao) onAtualizacao();
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao salvar exclusão de revendedor.');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const editarExclusao = (item) => {
+    setEditandoId(item.id);
+    setForm({
+      codigo_revendedor: item.codigo_revendedor || '',
+      nome_revendedor: item.nome_revendedor || '',
+      motivo: item.motivo || '',
+      ciclo: item.ciclo || 'TODOS',
+      tipo_exclusao: item.tipo_exclusao || 'todos',
+      ativo: item.ativo !== false
+    });
+    setErro('');
+    setMensagem('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const desativarExclusao = async (item) => {
+    const nome = item?.nome_revendedor || item?.codigo_revendedor || 'este revendedor';
+    if (!window.confirm(`Desativar a exclusão de ${nome}?`)) return;
+
+    setCarregando(true);
+    setErro('');
+    setMensagem('');
+
+    try {
+      await axios.delete(`${apiUrl}/exclusoes-revendedores/${item.id}`);
+      setMensagem('Exclusão desativada com sucesso.');
+      await carregarExclusoes();
+      if (onAtualizacao) onAtualizacao();
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao desativar exclusão.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const obterLabelTipo = (tipo) => TIPOS_EXCLUSAO_REVENDEDOR.find((item) => item.value === tipo)?.label || tipo || 'Não informado';
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#e6f6f7] text-[#048187] px-3 py-1 text-[11px] font-black uppercase tracking-wide mb-3">
+              <ShieldCheck size={14} /> Configuração automática
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-gray-700">Exclusões de Revendedores</h2>
+            <p className="text-sm text-gray-400 font-semibold mt-2 max-w-3xl">
+              Cadastre revendedores que não devem entrar nos cálculos. Depois de salvar, o backend exclui automaticamente dos indicadores sem alterar a base original.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={carregarExclusoes}
+            disabled={carregando || salvando}
+            className="bg-[#e6f6f7] text-[#048187] font-black rounded-lg px-5 py-3 hover:bg-[#d0f0f1] disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            <RefreshCcw size={18} /> {carregando ? 'Atualizando...' : 'Atualizar lista'}
+          </button>
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-[#048187]/15 bg-[#e6f6f7] p-4 text-sm text-[#036b70] font-semibold leading-relaxed">
+          Use <strong>TODOS</strong> no ciclo para excluir em todos os ciclos. Para uma exclusão pontual, informe o ciclo no formato usado no sistema, por exemplo <strong>08/2026</strong>.
+        </div>
+      </div>
+
+      {erro && (
+        <div className="bg-red-50 border border-red-100 text-red-600 rounded-xl p-4 text-sm font-bold flex items-start gap-2">
+          <AlertCircle size={18} className="shrink-0 mt-0.5" /> <span>{erro}</span>
+        </div>
+      )}
+
+      {mensagem && (
+        <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl p-4 text-sm font-bold flex items-start gap-2">
+          <CheckCircle size={18} className="shrink-0 mt-0.5" /> <span>{mensagem}</span>
+        </div>
+      )}
+
+      <form onSubmit={salvarExclusao} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+          <div>
+            <h3 className="text-lg font-black text-gray-700">{editandoId ? 'Editar exclusão' : 'Nova exclusão'}</h3>
+            <p className="text-xs text-gray-400 font-bold mt-1">Preencha os dados do revendedor que deve ser ignorado nos cálculos.</p>
+          </div>
+
+          {editandoId && (
+            <button
+              type="button"
+              onClick={limparFormulario}
+              className="bg-gray-100 text-gray-500 font-black rounded-lg px-4 py-2 hover:bg-gray-200"
+            >
+              Cancelar edição
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div>
+            <label className="text-xs font-black text-gray-400 uppercase block mb-1">Código do Revendedor</label>
+            <input
+              value={form.codigo_revendedor}
+              onChange={(e) => atualizarCampo('codigo_revendedor', e.target.value)}
+              placeholder="Ex.: 16492472"
+              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-black text-gray-400 uppercase block mb-1">Nome do Revendedor</label>
+            <input
+              value={form.nome_revendedor}
+              onChange={(e) => atualizarCampo('nome_revendedor', e.target.value)}
+              placeholder="Ex.: MEYRE"
+              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-black text-gray-400 uppercase block mb-1">Ciclo</label>
+            <input
+              value={form.ciclo}
+              onChange={(e) => atualizarCampo('ciclo', e.target.value)}
+              placeholder="TODOS ou 08/2026"
+              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-black text-gray-400 uppercase block mb-1">Tipo de exclusão</label>
+            <select
+              value={form.tipo_exclusao}
+              onChange={(e) => atualizarCampo('tipo_exclusao', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 bg-white"
+            >
+              {TIPOS_EXCLUSAO_REVENDEDOR.map((tipo) => (
+                <option key={tipo.value} value={tipo.value}>{tipo.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="md:col-span-2 xl:col-span-3">
+            <label className="text-xs font-black text-gray-400 uppercase block mb-1">Motivo</label>
+            <textarea
+              value={form.motivo}
+              onChange={(e) => atualizarCampo('motivo', e.target.value)}
+              placeholder="Ex.: Cadastro teste - não contar nas metas"
+              rows={3}
+              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 resize-y"
+              required
+            />
+          </div>
+
+          <label className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-4 font-black text-gray-600">
+            <input
+              type="checkbox"
+              checked={form.ativo}
+              onChange={(e) => atualizarCampo('ativo', e.target.checked)}
+              className="w-5 h-5 accent-[#048187]"
+            />
+            Exclusão ativa
+          </label>
+        </div>
+
+        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-5">
+          <button
+            type="button"
+            onClick={limparFormulario}
+            disabled={salvando}
+            className="bg-gray-100 text-gray-500 font-black rounded-lg px-5 py-3 hover:bg-gray-200 disabled:opacity-60"
+          >
+            Limpar
+          </button>
+          <button
+            type="submit"
+            disabled={salvando}
+            className="bg-[#048187] text-white font-black rounded-lg px-5 py-3 hover:bg-[#036b70] disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            <Save size={18} /> {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar exclusão'}
+          </button>
+        </div>
+      </form>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-5">
+          <div>
+            <h3 className="text-lg font-black text-gray-700">Revendedores excluídos</h3>
+            <p className="text-xs text-gray-400 font-bold mt-1">{exclusoesFiltradas.length} registro(s) encontrado(s).</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 xl:min-w-[520px]">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar por código, nome, ciclo ou motivo..."
+                className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-3 text-sm outline-none focus:border-[#048187]"
+              />
+            </div>
+
+            <select
+              value={filtroStatus}
+              onChange={(e) => setFiltroStatus(e.target.value)}
+              className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] bg-white font-bold text-gray-600"
+            >
+              <option value="ativos">Ativos</option>
+              <option value="inativos">Inativos</option>
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <table className="w-full min-w-[980px] text-left">
+            <thead className="bg-[#048187] text-white">
+              <tr>
+                <th className="px-4 py-3 text-[11px] font-black uppercase">Código</th>
+                <th className="px-4 py-3 text-[11px] font-black uppercase">Revendedor</th>
+                <th className="px-4 py-3 text-[11px] font-black uppercase">Ciclo</th>
+                <th className="px-4 py-3 text-[11px] font-black uppercase">Tipo</th>
+                <th className="px-4 py-3 text-[11px] font-black uppercase">Motivo</th>
+                <th className="px-4 py-3 text-[11px] font-black uppercase">Status</th>
+                <th className="px-4 py-3 text-[11px] font-black uppercase text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {carregando ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm font-bold text-gray-400">Carregando exclusões...</td>
+                </tr>
+              ) : exclusoesFiltradas.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm font-bold text-gray-400">Nenhuma exclusão encontrada.</td>
+                </tr>
+              ) : (
+                exclusoesFiltradas.map((item) => {
+                  const ativo = item?.ativo !== false;
+                  return (
+                    <tr key={item.id || `${item.codigo_revendedor}-${item.ciclo}-${item.tipo_exclusao}`} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-black text-gray-700">{item.codigo_revendedor}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-gray-700">{item.nome_revendedor || '-'}</td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-full bg-[#e6f6f7] px-3 py-1 text-[11px] font-black text-[#048187]">{item.ciclo || 'TODOS'}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-600">{obterLabelTipo(item.tipo_exclusao)}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-500 max-w-[340px]">{item.motivo || '-'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-black ${ativo ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                          {ativo ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editarExclusao(item)}
+                            className="bg-[#e6f6f7] text-[#048187] rounded-lg px-3 py-2 text-xs font-black hover:bg-[#d0f0f1] flex items-center gap-1"
+                          >
+                            <Pencil size={14} /> Editar
+                          </button>
+                          {ativo && (
+                            <button
+                              type="button"
+                              onClick={() => desativarExclusao(item)}
+                              className="bg-red-50 text-red-600 rounded-lg px-3 py-2 text-xs font-black hover:bg-red-100 flex items-center gap-1"
+                            >
+                              <Trash2 size={14} /> Desativar
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function App() {
   const [usuarioLogado, setUsuarioLogado] = useState(() => { const s = localStorage.getItem('usuarioLogado'); return s ? JSON.parse(s) : null; });
   const [tokenAuth, setTokenAuth] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || '');
@@ -1933,7 +2366,7 @@ export default function App() {
   const debounceFiltroRapidoRef = useRef(null);
 
   const itensMenuTopo = [
-    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Ações', icone: Sparkles }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
+    { nome: 'Dashboard', icone: LayoutDashboard }, { nome: 'Metas', icone: BarChart2 }, { nome: 'N1', icone: Target }, { nome: 'N2', icone: Target }, { nome: 'N3', icone: Target }, { nome: 'Ranking', icone: Medal }, { nome: 'Comparativo', icone: Scale }, { nome: 'Ações', icone: Sparkles }, { nome: 'Histórico', icone: CalendarDays }, { nome: 'Revendedores', icone: UserCircle }, { nome: 'Cadastro', icone: Users }, { nome: 'Base', icone: Database }
   ];
 
   const itensMenuVD = itensMenuTopo;
@@ -6407,6 +6840,19 @@ const enviarArquivo = async (tipo) => {
     }
 
 
+    if (visaoCadastro === 'exclusoes-revendedores') {
+      return (
+        <div className="space-y-6 animate-fade-in">
+          <CabecalhoSubCadastro titulo="Exclusões de Revendedores" descricao="Cadastre revendedores que devem ficar fora dos cálculos sem mexer na base original." />
+          <TelaExclusoesRevendedores
+            apiUrl={API_URL}
+            onAtualizacao={atualizarTelasAposMudancaBanco}
+          />
+        </div>
+      );
+    }
+
+
     const obterNumeroLinhaMeta = (valor, fallback = 0) => {
       const numero = Number(valor);
       if (Number.isFinite(numero)) return numero;
@@ -6553,7 +6999,7 @@ const enviarArquivo = async (tipo) => {
             <h2 className="text-lg sm:text-xl font-bold text-gray-700">Módulos de cadastro</h2>
             <p className="text-sm text-gray-400 font-semibold mt-1">Escolha uma opção para editar. Use o botão Voltar para retornar a esta tela.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <CardOpcaoCadastro
               titulo="Metas por Ciclo"
               descricao="Tabela estilo planilha para receita, atividade, RPA, ticket, UPA, Make, Cabelo e divisão por consultor."
@@ -6572,6 +7018,12 @@ const enviarArquivo = async (tipo) => {
               descricao="Gerencie nome social, status, estrutura e peso de meta dos consultores."
               icone={Users}
               onClick={() => setVisaoCadastro('consultores')}
+            />
+            <CardOpcaoCadastro
+              titulo="Exclusões de Revendedores"
+              descricao="Remova cadastros teste ou exceções dos cálculos sem alterar a base de pedidos."
+              icone={ShieldCheck}
+              onClick={() => setVisaoCadastro('exclusoes-revendedores')}
             />
           </div>
         </div>
