@@ -9102,6 +9102,8 @@ const enviarArquivo = async (tipo) => {
                 endpoint="/loja/upload-skin"
                 usaCiclo
                 substituir
+                permiteSgi
+                tipoSgi="skin"
               />
             </div>
           </div>
@@ -10457,3 +10459,4 @@ const enviarArquivo = async (tipo) => {
     </>
   );
 }
+
