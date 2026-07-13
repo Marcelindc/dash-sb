@@ -2354,6 +2354,8 @@ export default function App() {
   const [sgiLojaForm, setSgiLojaForm] = useState({ usuario: '', senha: '' });
   const [sgiLojaExecutando, setSgiLojaExecutando] = useState(false);
   const [statusSgiLoja, setStatusSgiLoja] = useState('');
+  const sgiLojaUsuarioRef = useRef(null);
+  const sgiLojaSenhaRef = useRef(null);
 
   useEffect(() => {
     if (!mensagemLoja) return undefined;
@@ -3367,6 +3369,12 @@ const carregarRevendedores = async () => {
     setStatusSgiLoja('');
     setSgiLojaForm({ usuario: '', senha: '' });
     setModalSgiLojaAberto(true);
+
+    window.setTimeout(() => {
+      if (sgiLojaUsuarioRef.current) sgiLojaUsuarioRef.current.value = '';
+      if (sgiLojaSenhaRef.current) sgiLojaSenhaRef.current.value = '';
+      sgiLojaUsuarioRef.current?.focus?.();
+    }, 80);
   };
 
   const enviarComandoExtensaoLojaSgi = (payload) => new Promise((resolve, reject) => {
@@ -3401,8 +3409,8 @@ const carregarRevendedores = async () => {
   const iniciarAtualizacaoLojaViaSgi = async (e) => {
     e.preventDefault();
 
-    const usuario = String(sgiLojaForm.usuario || '').trim();
-    const senha = String(sgiLojaForm.senha || '').trim();
+    const usuario = String(sgiLojaUsuarioRef.current?.value || '').trim();
+    const senha = String(sgiLojaSenhaRef.current?.value || '').trim();
     const ciclo = cicloLojaSelecionado();
 
     if (!usuario) {
@@ -3444,6 +3452,8 @@ const carregarRevendedores = async () => {
       setMensagemLoja(resposta.mensagem || 'Base de vendas LOJA atualizada via SGI com sucesso.');
       setStatusSgiLoja('');
       setSgiLojaForm({ usuario: '', senha: '' });
+      if (sgiLojaUsuarioRef.current) sgiLojaUsuarioRef.current.value = '';
+      if (sgiLojaSenhaRef.current) sgiLojaSenhaRef.current.value = '';
       setModalSgiLojaAberto(false);
       await carregarDadosLoja(ciclo);
     } catch (erro) {
@@ -8638,11 +8648,11 @@ const enviarArquivo = async (tipo) => {
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Usuário SGI</label>
                 <input
+                  ref={sgiLojaUsuarioRef}
                   type="text"
                   autoComplete="username"
-                  value={sgiLojaForm.usuario}
+                  defaultValue=""
                   disabled={sgiLojaExecutando}
-                  onChange={(e) => setSgiLojaForm((f) => ({ ...f, usuario: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 font-bold"
                   placeholder="Digite seu usuário do SGI"
                 />
@@ -8651,11 +8661,11 @@ const enviarArquivo = async (tipo) => {
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Senha SGI</label>
                 <input
+                  ref={sgiLojaSenhaRef}
                   type="password"
                   autoComplete="current-password"
-                  value={sgiLojaForm.senha}
+                  defaultValue=""
                   disabled={sgiLojaExecutando}
-                  onChange={(e) => setSgiLojaForm((f) => ({ ...f, senha: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 font-bold"
                   placeholder="Digite sua senha do SGI"
                 />
@@ -9329,7 +9339,7 @@ const enviarArquivo = async (tipo) => {
 
         {!carregandoLoja && abaLoja === 'geral' && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
               <CardLoja
                 titulo="Faturamento realizado"
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.faturamento_realizado)}
@@ -9343,6 +9353,20 @@ const enviarArquivo = async (tipo) => {
                   { label: '% da meta', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_faturamento || 0, 1)}%` },
                   { label: 'Falta para a meta', valor: formatarMoeda(resumoCardsLoja.deficit_faturamento || 0) }
                 ], 'Faturamento LOJA = soma da coluna GMV-GMV da base de vendas.')}
+              />
+              <CardLoja
+                titulo="Venda diária"
+                valor={formatarMoedaCompactaCard(resumoCardsLoja.realizado_diario || 0)}
+                meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_diaria || 0)}
+                percentual={calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0)}
+                icone={CalendarDays}
+                subtitulo={`Hoje vs meta diária: ${formatarNumeroBR(calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0), 1)}%`}
+                onDetalhes={() => abrirDetalheCardLoja('Venda diária LOJA', [
+                  { label: 'Venda diária realizada', valor: formatarMoeda(resumoCardsLoja.realizado_diario || 0) },
+                  { label: 'Meta diária', valor: formatarMoeda(resumoCardsLoja.meta_diaria || 0) },
+                  { label: '% da meta diária', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0), 1)}%` },
+                  { label: 'Data de referência', valor: formatarDataBR(resumoCardsLoja.data_referencia_diaria || new Date().toISOString().slice(0, 10)) }
+                ], 'Venda diária = base diária baixada no SGI com período de hoje até hoje. Meta diária = valor calculado para o dia dentro do ciclo.')}
               />
               <CardLoja
                 titulo="Tendência"
