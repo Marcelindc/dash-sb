@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2 } from 'lucide-react';
@@ -2428,6 +2428,7 @@ export default function App() {
   const [modalSgiLojaAberto, setModalSgiLojaAberto] = useState(false);
   const [sgiLojaForm, setSgiLojaForm] = useState({ usuario: '', senha: '' });
   const [sgiLojaExecutando, setSgiLojaExecutando] = useState(false);
+  const [sgiLojaTipo, setSgiLojaTipo] = useState('vendas');
   const [statusSgiLoja, setStatusSgiLoja] = useState('');
   const sgiLojaUsuarioRef = useRef(null);
   const sgiLojaSenhaRef = useRef(null);
@@ -3446,7 +3447,7 @@ const carregarRevendedores = async () => {
     }
   };
 
-  const abrirModalAtualizacaoLojaSgi = () => {
+  const abrirModalAtualizacaoLojaSgi = (tipoAutomacao = 'vendas') => {
     setErroLoja('');
     setMensagemLoja('');
     setStatusSgiLoja('');
@@ -3483,7 +3484,7 @@ const carregarRevendedores = async () => {
     window.addEventListener('message', listener);
     window.postMessage({
       origem: 'dash-sb-painel',
-      acao: 'ATUALIZAR_LOJA_GMV_SGI',
+      acao: payload?.tipoAutomacao === 'skin' ? 'ATUALIZAR_LOJA_SKIN_SGI' : 'ATUALIZAR_LOJA_GMV_SGI',
       requestId,
       payload
     }, window.location.origin);
@@ -3532,7 +3533,7 @@ const carregarRevendedores = async () => {
         dataReferenciaDiaria: new Date().toISOString().slice(0, 10)
       });
 
-      setMensagemLoja(resposta.mensagem || 'Base de vendas LOJA atualizada via SGI com sucesso.');
+      setMensagemLoja(resposta.mensagem || (sgiLojaTipo === 'skin' ? 'Base Skin/Botik LOJA atualizada via SGI com sucesso.' : 'Base de vendas LOJA atualizada via SGI com sucesso.'));
       setStatusSgiLoja('');
       setSgiLojaForm({ usuario: '', senha: '' });
       if (sgiLojaUsuarioRef.current) sgiLojaUsuarioRef.current.value = '';
@@ -8840,7 +8841,7 @@ const enviarArquivo = async (tipo) => {
       </>
     );
 
-    const ModuloUploadLoja = ({ titulo, descricao, tipo, endpoint, usaCiclo = false, substituir = false, aceitar = '.csv,.xlsx,.xls', permiteSgi = false }) => (
+    const ModuloUploadLoja = ({ titulo, descricao, tipo, endpoint, usaCiclo = false, substituir = false, aceitar = '.csv,.xlsx,.xls', permiteSgi = false, tipoSgi = 'vendas' }) => (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
@@ -8876,7 +8877,7 @@ const enviarArquivo = async (tipo) => {
             <button
               type="button"
               disabled={carregandoLoja || sgiLojaExecutando}
-              onClick={abrirModalAtualizacaoLojaSgi}
+              onClick={() => abrirModalAtualizacaoLojaSgi(tipoSgi)}
               className="mt-3 w-full bg-[#e6f6f7] text-[#048187] px-5 py-3 rounded-lg font-black hover:bg-[#d0f0f1] disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
             >
               <RefreshCcw size={17} />
@@ -8885,7 +8886,7 @@ const enviarArquivo = async (tipo) => {
           )}
 
           {usaCiclo && <p className="text-xs text-gray-400 font-bold mt-3">Ciclo usado no upload: {cicloAtualLoja || '-'}</p>}
-          {permiteSgi && <p className="text-[11px] text-gray-400 font-bold mt-2">Baixa o acumulado do ciclo e a venda diária, envia ao banco, apaga os CSVs e fecha a aba do SGI.</p>}
+          {permiteSgi && <p className="text-[11px] text-gray-400 font-bold mt-2">{tipoSgi === 'skin' ? 'Baixa a base Skin/Botik na Extranet GI, envia ao banco, apaga o arquivo e fecha a aba.' : 'Baixa o acumulado do ciclo e a venda diária, envia ao banco, apaga os CSVs e fecha a aba do SGI.'}</p>}
         </div>
       </div>
     );
@@ -8913,7 +8914,7 @@ const enviarArquivo = async (tipo) => {
             <div className="p-5 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wide text-[#048187] mb-1">Atualização automática</p>
-                <h2 className="text-xl font-black text-gray-700">Atualizar vendas LOJA via SGI</h2>
+                <h2 className="text-xl font-black text-gray-700">{sgiLojaTipo === 'skin' ? 'Atualizar Skin/Botik LOJA via SGI' : 'Atualizar vendas LOJA via SGI'}</h2>
                 <p className="text-sm text-gray-400 font-semibold mt-1 leading-relaxed">
                   Informe suas credenciais do SGI. Elas não serão salvas; serão usadas apenas nesta execução.
                 </p>
@@ -8930,7 +8931,7 @@ const enviarArquivo = async (tipo) => {
 
             <form onSubmit={iniciarAtualizacaoLojaViaSgi} className="p-5 sm:p-6 space-y-4">
               <div className="rounded-xl bg-[#e6f6f7] border border-[#048187]/15 px-4 py-3 text-xs font-bold text-[#036b70] leading-relaxed">
-                A automação vai baixar duas bases: acumulado do ciclo e venda diária. Depois vai enviar ao backend, apagar os arquivos baixados e fechar a aba do SGI.
+                {sgiLojaTipo === 'skin' ? 'A automação vai abrir a Extranet GI, baixar a base Skin/Botik, enviar ao backend, apagar o arquivo baixado e fechar a aba.' : 'A automação vai baixar duas bases: acumulado do ciclo e venda diária. Depois vai enviar ao backend, apagar os arquivos baixados e fechar a aba do SGI.'}
               </div>
 
               <div>
