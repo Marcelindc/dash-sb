@@ -8457,42 +8457,144 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
-    const CardLoja = ({ titulo, valor, meta, percentual, subtitulo, icone: Icone, onDetalhes }) => {
-      const cor = corPorFaixaMeta(percentual || 0);
-      return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 min-w-0 transition-all hover:shadow-md">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 truncate">{titulo}</p>
-              <p className="text-lg sm:text-xl 2xl:text-2xl font-black mt-2 whitespace-nowrap" style={{ color: cor }}>{valor}</p>
-            </div>
+    const obterCampanhasCalendarioLoja = (dataBase) => {
+      const data = dataBase ? new Date(`${dataBase}T00:00:00`) : new Date();
+      const mes = data.getMonth() + 1;
+      const campanhasFixas = {
+        1: ['volta de férias', 'organização da rotina', 'autocuidado de início de ano'],
+        2: ['pré-carnaval', 'combos rápidos para presente', 'itens de bolso e experimentação'],
+        3: ['Dia do Consumidor', 'mês da mulher', 'kits presenteáveis'],
+        4: ['Páscoa', 'renovação de rotina', 'presentes de ticket médio'],
+        5: ['Dia das Mães', 'kits premium', 'campanha compre e ganhe'],
+        6: ['Dia dos Namorados', 'combos para casal', 'perfumaria e presentes'],
+        7: ['férias escolares', 'autocuidado de inverno', 'retomada de fluxo na loja'],
+        8: ['Dia dos Pais', 'presentes masculinos', 'combos prontos no caixa'],
+        9: ['primavera', 'lançamentos', 'renovação de vitrine'],
+        10: ['Dia das Crianças', 'mês do professor', 'campanhas temáticas'],
+        11: ['Black Friday', 'esquenta promocional', 'combos de alto giro'],
+        12: ['Natal', 'amigo oculto', 'kits presenteáveis e cestas']
+      };
+      return campanhasFixas[mes] || ['kits promocionais', 'ações de vitrine', 'campanhas rápidas de conversão'];
+    };
 
-            <div className="flex items-center gap-2 shrink-0">
+    const calcularPlanoInteligenteTendenciaLoja = () => {
+      const metaCiclo = Number(resumoCardsLoja?.meta_faturamento || 0);
+      const realizadoCiclo = Number(resumoCardsLoja?.faturamento_realizado || 0);
+      const realizadoDiario = Number(resumoCardsLoja?.realizado_diario || 0);
+      const metaDiaria = Number(resumoCardsLoja?.meta_diaria || 0);
+      const tendencia = Number(resumoCardsLoja?.tendencia || 0);
+      const gap = Number(resumoCardsLoja?.gap_tendencia || 0);
+      const valorFaltante = Math.max(metaCiclo - realizadoCiclo, 0);
+      const diasRestantes = Math.max(Number(resumoCardsLoja?.dias_restantes || 0), 0);
+      const mediaNecessaria = diasRestantes > 0 ? valorFaltante / diasRestantes : 0;
+      const percentualMetaDiaria = calcPerc(realizadoDiario, metaDiaria);
+      const campanhasMes = obterCampanhasCalendarioLoja(resumoCardsLoja?.data_referencia_diaria || new Date().toISOString().slice(0, 10));
+      const faltaHoje = Math.max(metaDiaria - realizadoDiario, 0);
+      const sobraHoje = Math.max(realizadoDiario - metaDiaria, 0);
+      const precisaAcelerar = gap < 0;
+
+      let titulo = '';
+      let resumo = '';
+      let sugestoes = [];
+
+      if (metaCiclo <= 0) {
+        titulo = 'Cadastre a meta do ciclo para gerar uma recomendação.';
+        resumo = 'Sem meta cadastrada, o sistema não consegue calcular o esforço necessário para bater o ciclo da LOJA.';
+        sugestoes = [
+          'Cadastre a meta do ciclo das unidades e consultoras da LOJA.',
+          'Depois atualize o dashboard para recalcular a tendência e o gap.'
+        ];
+      } else if (valorFaltante <= 0 || tendencia >= metaCiclo) {
+        titulo = 'A tendência está positiva. O foco agora é manter o fluxo da loja.';
+        resumo = `Mantendo a média atual, a projeção fecha em ${formatarMoeda(tendencia)}, com folga aproximada de ${formatarMoeda(Math.max(gap, 0))}.`;
+        sugestoes = [
+          'Mantenha vitrine, exposição e abordagem ativa nos PDVs com melhor conversão.',
+          'Aumente ticket médio oferecendo complemento, kits e itens de recompra no caixa.',
+          `Aproveite o calendário comercial do mês: ${campanhasMes.join(', ')}.`,
+          'Direcione reforço para unidades ou consultoras abaixo de 80% da meta para ampliar a folga.'
+        ];
+      } else {
+        titulo = 'Plano sugerido para recuperar a meta da LOJA';
+        resumo = `Faltam ${formatarMoeda(valorFaltante)} para bater a meta do ciclo. Para recuperar, a LOJA precisa vender em média ${formatarMoeda(mediaNecessaria)} por dia restante do ciclo.`;
+        sugestoes = [
+          faltaHoje > 0
+            ? `Hoje faltaram ${formatarMoeda(faltaHoje)} para a meta diária. Use esse valor como meta mínima adicional no próximo dia.`
+            : `Hoje a meta diária foi superada em ${formatarMoeda(sobraHoje)}. Mantenha esse ritmo para reduzir o gap.`,
+          'Monte combos prontos e kits presenteáveis para aumentar conversão e ticket médio do cliente final.',
+          'Acione clientes por WhatsApp, listas de transmissão e CRM com oferta objetiva, validade curta e chamada para retirada imediata.',
+          'Reforce abordagem no salão de vendas: demonstração, experimentação e sugestão de compra complementar no fechamento.',
+          `Crie uma ação temática alinhada ao mês: ${campanhasMes.join(', ')}.`,
+          'Monitore diariamente quais unidades e consultoras têm maior déficit e concentre esforço nelas até reduzir o gap.'
+        ];
+      }
+
+      return {
+        titulo,
+        resumo,
+        status: precisaAcelerar ? 'risco' : 'ok',
+        cards: [
+          { label: 'Falta para meta', valor: formatarMoeda(valorFaltante) },
+          { label: 'Média necessária/dia', valor: formatarMoeda(mediaNecessaria) },
+          { label: 'Dias restantes', valor: formatarNumeroBR(diasRestantes, 0) },
+          { label: '% da meta diária', valor: `${formatarNumeroBR(percentualMetaDiaria, 1)}%` }
+        ],
+        sugestoes
+      };
+    };
+
+    const abrirDetTendenciaLoja = () => {
+      const plano = calcularPlanoInteligenteTendenciaLoja();
+      setModalDetalhes({
+        titulo: 'Tendência LOJA',
+        subtitulo: 'Projeção final com plano inteligente de recuperação para cliente final',
+        tipo: 'tendencia',
+        itens: [
+          { label: 'Tendência', valor: formatarMoeda(resumoCardsLoja?.tendencia || 0) },
+          { label: 'Meta ciclo', valor: formatarMoeda(resumoCardsLoja?.meta_faturamento || 0) },
+          { label: 'Gap tendência', valor: formatarMoeda(resumoCardsLoja?.gap_tendencia || 0) },
+          { label: 'Venda diária', valor: formatarMoeda(resumoCardsLoja?.realizado_diario || 0) }
+        ],
+        plano
+      });
+    };
+
+    const CardLoja = ({ titulo, valor, meta, percentual, labelMeta, valorMeta, onDetalhes, isTendencia = false, tendenciaIcon: TIcon, tendenciaStatus }) => {
+      const percentualNumero = Number(percentual || 0);
+      const percFix = Math.min(percentualNumero, 100);
+      const corDesempenho = isTendencia
+        ? (percentualNumero >= 100 ? '#16a34a' : '#ef4444')
+        : (percentual !== undefined ? corPorFaixaMeta(percentualNumero) : '#048187');
+
+      return (
+        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full min-w-0 transition-all hover:shadow-md">
+          <div className="min-w-0">
+            <div className="flex items-center justify-between mb-0.5 min-w-0">
+              <h3 className="text-[10px] font-bold uppercase text-gray-500 truncate pr-1">{titulo}</h3>
               {onDetalhes && (
-                <button
-                  type="button"
-                  onClick={onDetalhes}
-                  className="w-8 h-8 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] flex items-center justify-center"
-                  title={`Ver detalhes de ${titulo}`}
-                >
-                  <Eye size={15} />
+                <button type="button" onClick={onDetalhes} className="text-[#048187] hover:text-[#036b70] shrink-0" title={`Ver detalhes de ${titulo}`}>
+                  <Eye size={14} />
                 </button>
               )}
-              {Icone && <div className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Icone size={18} /></div>}
             </div>
+            <div className="flex items-center gap-1 min-w-0">
+              <p className="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tighter truncate leading-tight" style={{ color: corDesempenho }}>{valor}</p>
+              {isTendencia && TIcon && <TIcon size={16} className="shrink-0" style={{ color: corDesempenho }} />}
+            </div>
+            {percentual !== undefined && (
+              <div className="mt-1">
+                {isTendencia ? (
+                  <p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{tendenciaStatus}</p>
+                ) : (
+                  <p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span></p>
+                )}
+                <div className="w-full bg-gray-100 h-1 rounded-full"><div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} /></div>
+              </div>
+            )}
           </div>
-
-          <div className="mt-3">
-            <div className="flex items-center justify-between gap-2 text-[10px] font-bold">
-              <span style={{ color: cor }}>{formatarNumeroBR(percentual || 0, 1)}% da meta</span>
-              {meta && <span className="text-gray-400 truncate">Meta: {meta}</span>}
-            </div>
-            <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${Math.min(Number(percentual || 0), 100)}%`, backgroundColor: cor }} />
-            </div>
+          <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-2">
+            <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta || 'Meta:'}</p>
+            <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta || meta || '-'}</p>
           </div>
-
-          {subtitulo && <p className="text-[11px] text-gray-400 font-bold mt-3 leading-relaxed">{subtitulo}</p>}
         </div>
       );
     };
@@ -8573,7 +8675,6 @@ const enviarArquivo = async (tipo) => {
                 <td className="py-3 px-3 font-black text-[#048187]">{c.id_consultora}</td>
                 <td className="py-3 px-3">
                   <p className="font-black text-gray-700 truncate max-w-[280px]">{c.nome_consultora}</p>
-                  <p className="text-[10px] text-gray-400 font-bold">Soma todos os PDVs vendidos.</p>
                 </td>
                 <td className="py-3 px-3 font-bold text-gray-500">{c.codigo_pdv_oficial || '-'}</td>
                 <td className="py-3 px-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_faturamento)}</td>
@@ -9462,8 +9563,8 @@ const enviarArquivo = async (tipo) => {
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.faturamento_realizado)}
                 meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_faturamento)}
                 percentual={resumoCardsLoja.percentual_faturamento}
-                icone={BadgeDollarSign}
-                subtitulo={`Falta para a meta: ${formatarMoedaCompactaCard(resumoCardsLoja.deficit_faturamento)}`}
+                labelMeta="Meta faturamento:"
+                valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_faturamento)}
                 onDetalhes={() => abrirDetalheCardLoja('Faturamento LOJA', [
                   { label: 'Realizado', valor: formatarMoeda(resumoCardsLoja.faturamento_realizado || 0) },
                   { label: 'Meta ciclo', valor: formatarMoeda(resumoCardsLoja.meta_faturamento || 0) },
@@ -9476,8 +9577,8 @@ const enviarArquivo = async (tipo) => {
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.realizado_diario || 0)}
                 meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_diaria || 0)}
                 percentual={calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0)}
-                icone={CalendarDays}
-                subtitulo={`Hoje vs meta diária: ${formatarNumeroBR(calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0), 1)}%`}
+                labelMeta="Meta diária:"
+                valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_diaria || 0)}
                 onDetalhes={() => abrirDetalheCardLoja('Venda diária LOJA', [
                   { label: 'Venda diária realizada', valor: formatarMoeda(resumoCardsLoja.realizado_diario || 0) },
                   { label: 'Meta diária', valor: formatarMoeda(resumoCardsLoja.meta_diaria || 0) },
@@ -9490,23 +9591,20 @@ const enviarArquivo = async (tipo) => {
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.tendencia || 0)}
                 meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_faturamento || 0)}
                 percentual={calcPerc(resumoCardsLoja.tendencia || 0, resumoCardsLoja.meta_faturamento || 0)}
-                icone={TrendingUp}
-                subtitulo={`Gap tendência: ${formatarMoedaCompactaCard(resumoCardsLoja.gap_tendencia || 0)}`}
-                onDetalhes={() => abrirDetalheCardLoja('Tendência LOJA', [
-                  { label: 'Tendência', valor: formatarMoeda(resumoCardsLoja.tendencia || 0) },
-                  { label: 'Meta ciclo', valor: formatarMoeda(resumoCardsLoja.meta_faturamento || 0) },
-                  { label: 'Gap tendência', valor: formatarMoeda(resumoCardsLoja.gap_tendencia || 0) },
-                  { label: 'Dias passados', valor: formatarNumeroBR(resumoCardsLoja.dias_passados || 0, 0) },
-                  { label: 'Dias do ciclo', valor: formatarNumeroBR(resumoCardsLoja.dias_total || 0, 0) }
-                ], 'Tendência = média diária realizada × dias totais do ciclo.')}
+                labelMeta="Gap tendência:"
+                valorMeta={formatarMoedaCompactaCard(Math.abs(resumoCardsLoja.gap_tendencia || 0))}
+                isTendencia
+                tendenciaIcon={Number(resumoCardsLoja.gap_tendencia || 0) >= 0 ? TrendingUp : TrendingDown}
+                tendenciaStatus={Number(resumoCardsLoja.gap_tendencia || 0) >= 0 ? 'Tendência positiva' : 'Risco de não bater'}
+                onDetalhes={abrirDetTendenciaLoja}
               />
               <CardLoja
                 titulo="Skin"
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.skin_realizado || 0)}
                 meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_skin || 0)}
                 percentual={resumoCardsLoja.percentual_skin || 0}
-                icone={Sparkles}
-                subtitulo="Meta de Skin em R$ por loja/consultora."
+                labelMeta="Meta skin:"
+                valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_skin || 0)}
                 onDetalhes={() => abrirDetalheCardLoja('Skin LOJA', [
                   { label: 'Realizado Skin', valor: formatarMoeda(resumoCardsLoja.skin_realizado || 0) },
                   { label: 'Meta Skin', valor: formatarMoeda(resumoCardsLoja.meta_skin || 0) },
@@ -9518,8 +9616,8 @@ const enviarArquivo = async (tipo) => {
                 valor={formatarMoeda(resumoCardsLoja.boleto_medio || 0)}
                 meta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || 0)}
                 percentual={calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || 0)}
-                icone={BadgeDollarSign}
-                subtitulo={`Pedidos/boletos: ${formatarNumeroBR(resumoCardsLoja.pedidos || 0, 0)}`}
+                labelMeta="Meta boleto:"
+                valorMeta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || 0)}
                 onDetalhes={() => abrirDetalheCardLoja('Boleto médio LOJA', [
                   { label: 'Boleto médio', valor: formatarMoeda(resumoCardsLoja.boleto_medio || 0) },
                   { label: 'Meta boleto', valor: formatarMoeda(resumoCardsLoja.meta_boleto_medio || 0) },
@@ -9532,8 +9630,8 @@ const enviarArquivo = async (tipo) => {
                 valor={formatarNumeroBR(resumoCardsLoja.itens_por_boleto || 0, 2)}
                 meta={formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1)}
                 percentual={calcPerc(resumoCardsLoja.itens_por_boleto || 0, resumoCardsLoja.meta_itens_boleto || 4)}
-                icone={Database}
-                subtitulo="Indicador de itens médios por compra."
+                labelMeta="Meta itens:"
+                valorMeta={formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1)}
                 onDetalhes={() => abrirDetalheCardLoja('Itens por boleto LOJA', [
                   { label: 'Itens por boleto', valor: formatarNumeroBR(resumoCardsLoja.itens_por_boleto || 0, 2) },
                   { label: 'Meta itens', valor: formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1) },
