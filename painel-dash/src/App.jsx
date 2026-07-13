@@ -201,58 +201,6 @@ const estruturaConfigVazia = { cod_estrutura: '', estrutura: '', canal: 'VD', nu
 
 const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(v || 0));
 const formatarNumeroBR = (v, casas = 0) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
-
-const PERCENTUAL_META_SKIN_PADRAO_LOJA = 2;
-
-const numeroInputLoja = (valor, padrao = 0) => {
-  if (valor === null || valor === undefined) return Number(padrao || 0);
-  const textoOriginal = String(valor).trim();
-  if (!textoOriginal || ['nan', 'none', 'null', '-'].includes(textoOriginal.toLowerCase())) return Number(padrao || 0);
-
-  let texto = textoOriginal
-    .replace(/R\$/gi, '')
-    .replace(/%/g, '')
-    .replace(/\s/g, '')
-    .replace(/[^0-9,.-]/g, '');
-
-  if (texto.includes(',') && texto.includes('.')) {
-    texto = texto.replace(/\./g, '').replace(',', '.');
-  } else if (texto.includes(',')) {
-    texto = texto.replace(',', '.');
-  }
-
-  const numero = Number(texto);
-  return Number.isFinite(numero) ? numero : Number(padrao || 0);
-};
-
-const formatarPercentualInputLoja = (valor, padrao = PERCENTUAL_META_SKIN_PADRAO_LOJA) => {
-  const numero = numeroInputLoja(valor, padrao);
-  return numero.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-};
-
-const calcularMetaSkinLoja = (metaFaturamento, percentualMetaSkin = PERCENTUAL_META_SKIN_PADRAO_LOJA) => {
-  const meta = numeroInputLoja(metaFaturamento, 0);
-  const percentual = numeroInputLoja(percentualMetaSkin, PERCENTUAL_META_SKIN_PADRAO_LOJA);
-  return (meta * percentual) / 100;
-};
-
-const obterPercentualMetaSkinLoja = (item = {}) => {
-  const percentualSalvo = item?.percentual_meta_skin;
-
-  if (percentualSalvo !== null && percentualSalvo !== undefined && String(percentualSalvo).trim() !== '') {
-    return numeroInputLoja(percentualSalvo, PERCENTUAL_META_SKIN_PADRAO_LOJA);
-  }
-
-  const metaFaturamento = numeroInputLoja(item?.meta_faturamento, 0);
-  const metaSkin = numeroInputLoja(item?.meta_skin, 0);
-
-  if (metaFaturamento > 0 && metaSkin > 0) {
-    return (metaSkin / metaFaturamento) * 100;
-  }
-
-  return PERCENTUAL_META_SKIN_PADRAO_LOJA;
-};
-
 const calcularUpa = (totalItens, atividadeRealizada) => {
   const itens = Number(totalItens || 0);
   const atividade = Number(atividadeRealizada || 0);
@@ -283,6 +231,81 @@ const calcPerc = (r, m) => {
   const meta = Number(m || 0);
   if (!meta || meta <= 0) return 0;
   return (Number(r || 0) / meta) * 100;
+};
+
+const PERCENTUAL_META_SKIN_PADRAO_LOJA = 2;
+
+const converterNumeroLoja = (valor, padrao = 0) => {
+  if (valor === null || valor === undefined || valor === '') return padrao;
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : padrao;
+  let texto = String(valor).trim();
+  if (!texto) return padrao;
+  texto = texto.replace(/R\$/gi, '').replace(/%/g, '').replace(/\s/g, '');
+  texto = texto.replace(/[^0-9,.-]/g, '');
+  if (texto.includes(',')) texto = texto.replace(/\./g, '').replace(',', '.');
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : padrao;
+};
+
+const obterPercentualMetaSkinLoja = (item = {}) => {
+  const percentualInformado = converterNumeroLoja(item?.percentual_meta_skin, 0);
+  if (percentualInformado > 0) return percentualInformado;
+
+  const metaFaturamento = converterNumeroLoja(item?.meta_faturamento, 0);
+  const metaSkin = converterNumeroLoja(item?.meta_skin, 0);
+
+  if (metaFaturamento > 0 && metaSkin > 0) {
+    return (metaSkin / metaFaturamento) * 100;
+  }
+
+  return PERCENTUAL_META_SKIN_PADRAO_LOJA;
+};
+
+const calcularMetaSkinLoja = (metaFaturamento, percentualMetaSkin = PERCENTUAL_META_SKIN_PADRAO_LOJA) => {
+  const meta = converterNumeroLoja(metaFaturamento, 0);
+  const percentual = converterNumeroLoja(percentualMetaSkin, PERCENTUAL_META_SKIN_PADRAO_LOJA);
+  if (!meta || meta <= 0) return 0;
+  return meta * (percentual / 100);
+};
+
+const aplicarMetaSkinCalculadaLoja = (item = {}) => {
+  const percentualMetaSkin = obterPercentualMetaSkinLoja(item);
+  const metaSkinCalculada = calcularMetaSkinLoja(item?.meta_faturamento, percentualMetaSkin);
+  const realizadoSkin = converterNumeroLoja(item?.realizado_skin, 0);
+
+  return {
+    ...item,
+    percentual_meta_skin: percentualMetaSkin,
+    meta_skin: metaSkinCalculada,
+    percentual_skin: calcPerc(realizadoSkin, metaSkinCalculada)
+  };
+};
+
+const normalizarDadosLojaMetaSkinPercentual = (dadosLojaApi) => {
+  if (!dadosLojaApi) return dadosLojaApi;
+
+  const unidadesNormalizadas = Array.isArray(dadosLojaApi.unidades)
+    ? dadosLojaApi.unidades.map(aplicarMetaSkinCalculadaLoja)
+    : [];
+
+  const consultorasNormalizadas = Array.isArray(dadosLojaApi.consultoras)
+    ? dadosLojaApi.consultoras.map(aplicarMetaSkinCalculadaLoja)
+    : [];
+
+  const baseResumo = unidadesNormalizadas.length ? unidadesNormalizadas : consultorasNormalizadas;
+  const metaSkinTotal = baseResumo.reduce((acc, item) => acc + converterNumeroLoja(item?.meta_skin, 0), 0);
+  const skinRealizadoTotal = baseResumo.reduce((acc, item) => acc + converterNumeroLoja(item?.realizado_skin, 0), 0);
+
+  return {
+    ...dadosLojaApi,
+    unidades: unidadesNormalizadas,
+    consultoras: consultorasNormalizadas,
+    resumo: {
+      ...(dadosLojaApi.resumo || {}),
+      meta_skin: metaSkinTotal,
+      percentual_skin: calcPerc(skinRealizadoTotal, metaSkinTotal)
+    }
+  };
 };
 const corPorFaixaMeta = (percentual) => {
   const valor = Number(percentual || 0);
@@ -2395,8 +2418,8 @@ export default function App() {
   const [filtrosLoja, setFiltrosLoja] = useState({ unidade: '', consultora: '' });
   const [lojaUnidadeForm, setLojaUnidadeForm] = useState({ codigo_pdv: '', cidade: '', nome_loja: '', status_loja: 'ativo' });
   const [lojaConsultoraForm, setLojaConsultoraForm] = useState({ id_consultora: '', nome_consultora: '', codigo_pdv_oficial: '', status_consultora: 'ativo' });
-  const [lojaMetaUnidadeForm, setLojaMetaUnidadeForm] = useState({ ciclo: '', codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
-  const [lojaMetaConsultoraForm, setLojaMetaConsultoraForm] = useState({ ciclo: '', id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, percentual_meta_skin: String(PERCENTUAL_META_SKIN_PADRAO_LOJA), meta_skin: '' });
+  const [lojaMetaUnidadeForm, setLojaMetaUnidadeForm] = useState({ ciclo: '', codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
+  const [lojaMetaConsultoraForm, setLojaMetaConsultoraForm] = useState({ ciclo: '', id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' });
   const [tabelaLojaExpandida, setTabelaLojaExpandida] = useState(null);
   const [tabelaCadastroLojaExpandida, setTabelaCadastroLojaExpandida] = useState(null);
   const [visaoCadastroLoja, setVisaoCadastroLoja] = useState('geral');
@@ -3339,7 +3362,7 @@ const carregarRevendedores = async () => {
     try {
       const cicloConsulta = cicloParam || cicloLojaSelecionado();
       const { data } = await axios.get(`${API_URL}/loja/dashboard`, { params: cicloConsulta ? { ciclo: cicloConsulta } : {} });
-      setDadosLoja(data || null);
+      setDadosLoja(normalizarDadosLojaMetaSkinPercentual(data || null));
       if (data?.resumo?.ciclo && !cicloLoja) setCicloLoja(data.resumo.ciclo);
     } catch (erro) {
       setErroLoja(erro.response?.data?.detail || 'Erro ao carregar dados da LOJA.');
@@ -3547,9 +3570,18 @@ const carregarRevendedores = async () => {
     e.preventDefault();
     setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
     try {
-      await axios.post(`${API_URL}/loja/metas/unidade`, { ...lojaMetaUnidadeForm, ciclo: lojaMetaUnidadeForm.ciclo || cicloLojaSelecionado() });
-      setMensagemLoja('Meta da unidade salva com sucesso.');
-      setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
+      const percentualSkin = converterNumeroLoja(lojaMetaUnidadeForm.percentual_meta_skin, PERCENTUAL_META_SKIN_PADRAO_LOJA);
+      const metaSkinCalculada = calcularMetaSkinLoja(lojaMetaUnidadeForm.meta_faturamento, percentualSkin);
+      const payload = {
+        ...lojaMetaUnidadeForm,
+        ciclo: lojaMetaUnidadeForm.ciclo || cicloLojaSelecionado(),
+        percentual_meta_skin: percentualSkin,
+        meta_skin: metaSkinCalculada
+      };
+
+      await axios.post(`${API_URL}/loja/metas/unidade`, payload);
+      setMensagemLoja(`Meta da unidade salva com sucesso. Meta Skin calculada em ${formatarMoeda(metaSkinCalculada)} (${formatarNumeroBR(percentualSkin, 2)}% da meta de faturamento).`);
+      setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
       setLinhaMetaUnidadeLojaEditando(null);
       await carregarDadosLoja();
     } catch (erro) {
@@ -3561,18 +3593,18 @@ const carregarRevendedores = async () => {
     e.preventDefault();
     setCarregandoLoja(true); setErroLoja(''); setMensagemLoja('');
     try {
-      const percentualSkin = numeroInputLoja(lojaMetaConsultoraForm.percentual_meta_skin, PERCENTUAL_META_SKIN_PADRAO_LOJA);
+      const percentualSkin = converterNumeroLoja(lojaMetaConsultoraForm.percentual_meta_skin, PERCENTUAL_META_SKIN_PADRAO_LOJA);
       const metaSkinCalculada = calcularMetaSkinLoja(lojaMetaConsultoraForm.meta_faturamento, percentualSkin);
-
-      await axios.post(`${API_URL}/loja/metas/consultora`, {
+      const payload = {
         ...lojaMetaConsultoraForm,
         ciclo: lojaMetaConsultoraForm.ciclo || cicloLojaSelecionado(),
         percentual_meta_skin: percentualSkin,
         meta_skin: metaSkinCalculada
-      });
+      };
 
-      setMensagemLoja('Meta da consultora salva com sucesso.');
-      setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, percentual_meta_skin: String(PERCENTUAL_META_SKIN_PADRAO_LOJA), meta_skin: '' });
+      await axios.post(`${API_URL}/loja/metas/consultora`, payload);
+      setMensagemLoja(`Meta da consultora salva com sucesso. Meta Skin calculada em ${formatarMoeda(metaSkinCalculada)} (${formatarNumeroBR(percentualSkin, 2)}% da meta de faturamento).`);
+      setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' });
       setLinhaMetaConsultoraLojaEditando(null);
       await carregarDadosLoja();
     } catch (erro) {
@@ -3606,9 +3638,10 @@ const carregarRevendedores = async () => {
       ciclo: cicloLojaSelecionado(),
       codigo_pdv: String(u?.codigo_pdv || ''),
       meta_faturamento: String(u?.meta_faturamento || ''),
+      percentual_meta_skin: formatarNumeroBR(obterPercentualMetaSkinLoja(u), 2),
       meta_boleto_medio: String(u?.meta_boleto_medio || ''),
       meta_itens_boleto: String(u?.meta_itens_boleto || 4),
-      meta_skin: String(u?.meta_skin || ''),
+      meta_skin: String(calcularMetaSkinLoja(u?.meta_faturamento || 0, obterPercentualMetaSkinLoja(u)) || ''),
       meta_servicos_mes: String(u?.meta_servicos_mes || ''),
       meta_servicos_ano: String(u?.meta_servicos_ano || '')
     });
@@ -3617,17 +3650,15 @@ const carregarRevendedores = async () => {
   };
 
   const editarMetaConsultoraLoja = (c) => {
-    const percentualSkin = obterPercentualMetaSkinLoja(c);
-    const metaFaturamento = String(c?.meta_faturamento || '');
     setLojaMetaConsultoraForm({
       ciclo: cicloLojaSelecionado(),
       id_consultora: String(c?.id_consultora || ''),
       codigo_pdv_oficial: String(c?.codigo_pdv_oficial || ''),
-      meta_faturamento: metaFaturamento,
+      meta_faturamento: String(c?.meta_faturamento || ''),
+      percentual_meta_skin: formatarNumeroBR(obterPercentualMetaSkinLoja(c), 2),
       meta_boleto_medio: String(c?.meta_boleto_medio || ''),
       meta_itens_boleto: String(c?.meta_itens_boleto || 4),
-      percentual_meta_skin: formatarPercentualInputLoja(percentualSkin),
-      meta_skin: String(c?.meta_skin || calcularMetaSkinLoja(metaFaturamento, percentualSkin) || '')
+      meta_skin: String(calcularMetaSkinLoja(c?.meta_faturamento || 0, obterPercentualMetaSkinLoja(c)) || '')
     });
     setLinhaMetaConsultoraLojaEditando(String(c?.id_consultora || ''));
     setMensagemLoja('Edite a meta da consultora na própria linha e clique em Salvar.');
@@ -8365,7 +8396,7 @@ const enviarArquivo = async (tipo) => {
       const faturamento = itens.reduce((acc, item) => acc + Number(item?.realizado || 0), 0);
       const metaFaturamento = itens.reduce((acc, item) => acc + Number(item?.meta_faturamento || 0), 0);
       const skinRealizado = itens.reduce((acc, item) => acc + Number(item?.realizado_skin || 0), 0);
-      const metaSkin = itens.reduce((acc, item) => acc + Number(item?.meta_skin || 0), 0);
+      const metaSkin = itens.reduce((acc, item) => acc + calcularMetaSkinLoja(item?.meta_faturamento || 0, obterPercentualMetaSkinLoja(item)), 0);
       const pedidos = itens.reduce((acc, item) => acc + Number(item?.qtd_boletos || item?.pedidos || 0), 0);
       const somaItensPonderados = itens.reduce((acc, item) => acc + (Number(item?.itens_por_boleto || 0) * Number(item?.qtd_boletos || item?.pedidos || 0)), 0);
       const boletoMedio = pedidos > 0 ? faturamento / pedidos : mediaValoresLoja(itens, 'boleto_medio');
@@ -9026,7 +9057,10 @@ const enviarArquivo = async (tipo) => {
                   {unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}
                 </SelectLojaCadastroLoja>
                 <CampoLojaCadastroLoja label="Meta faturamento" value={lojaMetaUnidadeForm.meta_faturamento} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_faturamento: v }))} placeholder="Ex.: 74037" />
-                <CampoLojaCadastroLoja label="Meta Skin R$" value={lojaMetaUnidadeForm.meta_skin} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_skin: v }))} placeholder="Ex.: 1874" />
+                <div>
+                  <CampoLojaCadastroLoja label="% Meta Skin" value={lojaMetaUnidadeForm.percentual_meta_skin} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, percentual_meta_skin: v }))} placeholder="2,00" />
+                  <p className="mt-1 text-[10px] font-black text-[#048187]">Meta Skin: {formatarMoeda(calcularMetaSkinLoja(lojaMetaUnidadeForm.meta_faturamento, lojaMetaUnidadeForm.percentual_meta_skin))}</p>
+                </div>
                 <CampoLojaCadastroLoja label="Boleto médio" value={lojaMetaUnidadeForm.meta_boleto_medio} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 279" />
                 <CampoLojaCadastroLoja label="Itens por boleto" value={lojaMetaUnidadeForm.meta_itens_boleto} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
                 <CampoLojaCadastroLoja label="Meta serviços mês" value={lojaMetaUnidadeForm.meta_servicos_mes} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_servicos_mes: v }))} placeholder="Ex.: 25" />
@@ -9034,7 +9068,7 @@ const enviarArquivo = async (tipo) => {
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <BotaoSalvarLoja carregando={carregandoLoja}>Salvar meta unidade</BotaoSalvarLoja>
-                <BotaoLimparLoja onClick={() => { setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' }); setLinhaMetaUnidadeLojaEditando(null); }} />
+                <BotaoLimparLoja onClick={() => { setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' }); setLinhaMetaUnidadeLojaEditando(null); }} />
               </div>
             </form>
 
@@ -9085,16 +9119,24 @@ const enviarArquivo = async (tipo) => {
                           <td className="py-4 px-4 text-right font-black" style={{ color: corPorFaixaMeta(u.percentual || 0) }}>{formatarNumeroBR(u.percentual || 0, 1)}%</td>
                           <td className="py-4 px-4 text-right font-bold">
                             {editando ? (
-                              <input value={lojaMetaUnidadeForm.meta_skin} onChange={(e) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_skin: e.target.value }))} className="w-24 text-right border border-gray-200 rounded-lg px-2 py-2 font-black outline-none focus:border-[#048187]" />
-                            ) : formatarMoeda(u.meta_skin || 0)}
+                              <div className="flex flex-col items-end gap-1">
+                                <input value={lojaMetaUnidadeForm.percentual_meta_skin} onChange={(e) => setLojaMetaUnidadeForm((f) => ({ ...f, percentual_meta_skin: e.target.value }))} className="w-20 text-right border border-gray-200 rounded-lg px-2 py-2 font-black outline-none focus:border-[#048187]" />
+                                <span className="text-[10px] font-black text-[#048187]">{formatarMoeda(calcularMetaSkinLoja(lojaMetaUnidadeForm.meta_faturamento, lojaMetaUnidadeForm.percentual_meta_skin))}</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-end">
+                                <span>{formatarMoeda(u.meta_skin || 0)}</span>
+                                <span className="text-[10px] font-black text-gray-400">{formatarNumeroBR(obterPercentualMetaSkinLoja(u), 2)}%</span>
+                              </div>
+                            )}
                           </td>
                           <td className="py-4 px-4 text-right font-bold text-[#048187]">{formatarMoeda(u.realizado_skin || 0)}</td>
-                          <td className="py-4 px-4 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.realizado_skin || 0, editando ? lojaMetaUnidadeForm.meta_skin : u.meta_skin || 0)) }}>{formatarNumeroBR(calcPerc(u.realizado_skin || 0, editando ? lojaMetaUnidadeForm.meta_skin : u.meta_skin || 0), 1)}%</td>
+                          <td className="py-4 px-4 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.realizado_skin || 0, editando ? calcularMetaSkinLoja(lojaMetaUnidadeForm.meta_faturamento, lojaMetaUnidadeForm.percentual_meta_skin) : u.meta_skin || 0)) }}>{formatarNumeroBR(calcPerc(u.realizado_skin || 0, editando ? calcularMetaSkinLoja(lojaMetaUnidadeForm.meta_faturamento, lojaMetaUnidadeForm.percentual_meta_skin) : u.meta_skin || 0), 1)}%</td>
                           <td className="py-4 px-4 text-right whitespace-nowrap">
                             {editando ? (
                               <>
                                 <button type="button" onClick={(e) => salvarMetaUnidadeLoja({ preventDefault: () => {} })} className="text-[#048187] hover:text-[#036b70] mr-3" title="Salvar"><Save size={17} /></button>
-                                <button type="button" onClick={() => { setLinhaMetaUnidadeLojaEditando(null); setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' }); }} className="text-gray-400 hover:text-gray-600 mr-3" title="Cancelar"><X size={17} /></button>
+                                <button type="button" onClick={() => { setLinhaMetaUnidadeLojaEditando(null); setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' }); }} className="text-gray-400 hover:text-gray-600 mr-3" title="Cancelar"><X size={17} /></button>
                               </>
                             ) : (
                               <button type="button" onClick={() => editarMetaUnidadeLoja(u)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar"><Pencil size={17} /></button>
@@ -9132,19 +9174,17 @@ const enviarArquivo = async (tipo) => {
                   <option value="">Selecione</option>
                   {unidades.map((u) => <option key={u.codigo_pdv} value={u.codigo_pdv}>{u.codigo_pdv} - {u.cidade || u.nome_loja}</option>)}
                 </SelectLojaCadastroLoja>
-                <CampoLojaCadastroLoja label="Meta faturamento" value={lojaMetaConsultoraForm.meta_faturamento} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_faturamento: v, meta_skin: calcularMetaSkinLoja(v, f.percentual_meta_skin) }))} placeholder="Ex.: 24979" />
-                <CampoLojaCadastroLoja label="% Meta Skin" value={lojaMetaConsultoraForm.percentual_meta_skin ?? String(PERCENTUAL_META_SKIN_PADRAO_LOJA)} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, percentual_meta_skin: v, meta_skin: calcularMetaSkinLoja(f.meta_faturamento, v) }))} placeholder="2" />
-                <div className="rounded-lg border border-[#d9eff0] bg-[#f3fbfb] px-4 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-wide text-[#048187] mb-1">Meta Skin calculada</p>
-                  <p className="text-lg font-black text-[#048187]">{formatarMoeda(calcularMetaSkinLoja(lojaMetaConsultoraForm.meta_faturamento, lojaMetaConsultoraForm.percentual_meta_skin))}</p>
-                  <p className="text-[10px] font-bold text-gray-400 mt-1">Meta faturamento × {formatarPercentualInputLoja(lojaMetaConsultoraForm.percentual_meta_skin)}%</p>
+                <CampoLojaCadastroLoja label="Meta faturamento" value={lojaMetaConsultoraForm.meta_faturamento} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_faturamento: v }))} placeholder="Ex.: 24979" />
+                <div>
+                  <CampoLojaCadastroLoja label="% Meta Skin" value={lojaMetaConsultoraForm.percentual_meta_skin} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, percentual_meta_skin: v }))} placeholder="2,00" />
+                  <p className="mt-1 text-[10px] font-black text-[#048187]">Meta Skin: {formatarMoeda(calcularMetaSkinLoja(lojaMetaConsultoraForm.meta_faturamento, lojaMetaConsultoraForm.percentual_meta_skin))}</p>
                 </div>
                 <CampoLojaCadastroLoja label="Boleto médio" value={lojaMetaConsultoraForm.meta_boleto_medio} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 250" />
                 <CampoLojaCadastroLoja label="Itens por boleto" value={lojaMetaConsultoraForm.meta_itens_boleto} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <BotaoSalvarLoja carregando={carregandoLoja}>Salvar meta consultora</BotaoSalvarLoja>
-                <BotaoLimparLoja onClick={() => { setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, percentual_meta_skin: String(PERCENTUAL_META_SKIN_PADRAO_LOJA), meta_skin: '' }); setLinhaMetaConsultoraLojaEditando(null); }} />
+                <BotaoLimparLoja onClick={() => { setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' }); setLinhaMetaConsultoraLojaEditando(null); }} />
               </div>
             </form>
 
@@ -9197,7 +9237,7 @@ const enviarArquivo = async (tipo) => {
                           </td>
                           <td className="py-4 px-4 text-right font-black text-[#048187]">
                             {editando ? (
-                              <input value={lojaMetaConsultoraForm.meta_faturamento} onChange={(e) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_faturamento: e.target.value, meta_skin: calcularMetaSkinLoja(e.target.value, f.percentual_meta_skin) }))} className="w-28 text-right border border-gray-200 rounded-lg px-2 py-2 font-black outline-none focus:border-[#048187]" />
+                              <input value={lojaMetaConsultoraForm.meta_faturamento} onChange={(e) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_faturamento: e.target.value }))} className="w-28 text-right border border-gray-200 rounded-lg px-2 py-2 font-black outline-none focus:border-[#048187]" />
                             ) : formatarMoeda(c.meta_faturamento || 0)}
                           </td>
                           <td className="py-4 px-4 text-right font-black text-gray-700">{formatarMoeda(c.realizado || 0)}</td>
@@ -9205,16 +9245,13 @@ const enviarArquivo = async (tipo) => {
                           <td className="py-4 px-4 text-right font-bold">
                             {editando ? (
                               <div className="flex flex-col items-end gap-1">
-                                <div className="flex items-center justify-end gap-1">
-                                  <input value={lojaMetaConsultoraForm.percentual_meta_skin ?? String(PERCENTUAL_META_SKIN_PADRAO_LOJA)} onChange={(e) => setLojaMetaConsultoraForm((f) => ({ ...f, percentual_meta_skin: e.target.value, meta_skin: calcularMetaSkinLoja(f.meta_faturamento, e.target.value) }))} className="w-20 text-right border border-gray-200 rounded-lg px-2 py-2 font-black outline-none focus:border-[#048187]" />
-                                  <span className="text-[10px] font-black text-gray-400">%</span>
-                                </div>
+                                <input value={lojaMetaConsultoraForm.percentual_meta_skin} onChange={(e) => setLojaMetaConsultoraForm((f) => ({ ...f, percentual_meta_skin: e.target.value }))} className="w-20 text-right border border-gray-200 rounded-lg px-2 py-2 font-black outline-none focus:border-[#048187]" />
                                 <span className="text-[10px] font-black text-[#048187]">{formatarMoeda(calcularMetaSkinLoja(lojaMetaConsultoraForm.meta_faturamento, lojaMetaConsultoraForm.percentual_meta_skin))}</span>
                               </div>
                             ) : (
                               <div className="flex flex-col items-end">
                                 <span>{formatarMoeda(c.meta_skin || 0)}</span>
-                                <span className="text-[10px] font-black text-gray-400">{formatarPercentualInputLoja(obterPercentualMetaSkinLoja(c))}% da meta fat.</span>
+                                <span className="text-[10px] font-black text-gray-400">{formatarNumeroBR(obterPercentualMetaSkinLoja(c), 2)}%</span>
                               </div>
                             )}
                           </td>
@@ -9224,7 +9261,7 @@ const enviarArquivo = async (tipo) => {
                             {editando ? (
                               <>
                                 <button type="button" onClick={(e) => salvarMetaConsultoraLoja({ preventDefault: () => {} })} className="text-[#048187] hover:text-[#036b70] mr-3" title="Salvar"><Save size={17} /></button>
-                                <button type="button" onClick={() => { setLinhaMetaConsultoraLojaEditando(null); setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', meta_boleto_medio: '', meta_itens_boleto: 4, percentual_meta_skin: String(PERCENTUAL_META_SKIN_PADRAO_LOJA), meta_skin: '' }); }} className="text-gray-400 hover:text-gray-600 mr-3" title="Cancelar"><X size={17} /></button>
+                                <button type="button" onClick={() => { setLinhaMetaConsultoraLojaEditando(null); setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' }); }} className="text-gray-400 hover:text-gray-600 mr-3" title="Cancelar"><X size={17} /></button>
                               </>
                             ) : (
                               <button type="button" onClick={() => editarMetaConsultoraLoja(c)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar"><Pencil size={17} /></button>
@@ -9324,8 +9361,8 @@ const enviarArquivo = async (tipo) => {
                 meta_faturamento: Number(c.meta_faturamento || 0),
                 percentual_faturamento: Number(c.percentual || calcPerc(c.realizado || 0, c.meta_faturamento || 0)),
                 realizado_skin: Number(c.realizado_skin || 0),
-                meta_skin: Number(c.meta_skin || 0),
-                percentual_skin: calcPerc(c.realizado_skin || 0, c.meta_skin || 0),
+                meta_skin: calcularMetaSkinLoja(c.meta_faturamento || 0, obterPercentualMetaSkinLoja(c)),
+                percentual_skin: calcPerc(c.realizado_skin || 0, calcularMetaSkinLoja(c.meta_faturamento || 0, obterPercentualMetaSkinLoja(c))),
                 boleto_medio: Number(c.boleto_medio || 0),
                 meta_boleto_medio: Number(c.meta_boleto_medio || 0),
                 percentual_boleto: calcPerc(c.boleto_medio || 0, c.meta_boleto_medio || 0),
@@ -9341,8 +9378,8 @@ const enviarArquivo = async (tipo) => {
                 meta_faturamento: Number(u.meta_faturamento || 0),
                 percentual_faturamento: Number(u.percentual || calcPerc(u.realizado || 0, u.meta_faturamento || 0)),
                 realizado_skin: Number(u.realizado_skin || 0),
-                meta_skin: Number(u.meta_skin || 0),
-                percentual_skin: calcPerc(u.realizado_skin || 0, u.meta_skin || 0),
+                meta_skin: calcularMetaSkinLoja(u.meta_faturamento || 0, obterPercentualMetaSkinLoja(u)),
+                percentual_skin: calcPerc(u.realizado_skin || 0, calcularMetaSkinLoja(u.meta_faturamento || 0, obterPercentualMetaSkinLoja(u))),
                 boleto_medio: Number(u.boleto_medio || 0),
                 meta_boleto_medio: Number(u.meta_boleto_medio || 0),
                 percentual_boleto: calcPerc(u.boleto_medio || 0, u.meta_boleto_medio || 0),
