@@ -2350,6 +2350,10 @@ export default function App() {
   const [visaoCadastroLoja, setVisaoCadastroLoja] = useState('geral');
   const [linhaMetaUnidadeLojaEditando, setLinhaMetaUnidadeLojaEditando] = useState(null);
   const [linhaMetaConsultoraLojaEditando, setLinhaMetaConsultoraLojaEditando] = useState(null);
+  const [modalSgiLojaAberto, setModalSgiLojaAberto] = useState(false);
+  const [sgiLojaForm, setSgiLojaForm] = useState({ usuario: '', senha: '' });
+  const [sgiLojaExecutando, setSgiLojaExecutando] = useState(false);
+  const [statusSgiLoja, setStatusSgiLoja] = useState('');
 
   useEffect(() => {
     if (!mensagemLoja) return undefined;
@@ -3353,6 +3357,100 @@ const carregarRevendedores = async () => {
     } catch (erro) {
       setErroLoja(erro.response?.data?.detail || `Erro ao importar ${titulo}.`);
     } finally {
+      setCarregandoLoja(false);
+    }
+  };
+
+  const abrirModalAtualizacaoLojaSgi = () => {
+    setErroLoja('');
+    setMensagemLoja('');
+    setStatusSgiLoja('');
+    setSgiLojaForm({ usuario: '', senha: '' });
+    setModalSgiLojaAberto(true);
+  };
+
+  const enviarComandoExtensaoLojaSgi = (payload) => new Promise((resolve, reject) => {
+    const requestId = `loja-sgi-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener('message', listener);
+      reject(new Error('A extensão não respondeu. Verifique se a extensão DASH SB está instalada e atualizada.'));
+    }, 15 * 60 * 1000);
+
+    function listener(event) {
+      if (event.source !== window) return;
+      const msg = event.data || {};
+      if (msg.origem !== 'dash-sb-extensao-loja-sgi') return;
+      if (msg.requestId !== requestId) return;
+
+      window.clearTimeout(timeout);
+      window.removeEventListener('message', listener);
+
+      if (msg.ok) resolve(msg);
+      else reject(new Error(msg.erro || 'A automação SGI falhou.'));
+    }
+
+    window.addEventListener('message', listener);
+    window.postMessage({
+      origem: 'dash-sb-painel',
+      acao: 'ATUALIZAR_LOJA_GMV_SGI',
+      requestId,
+      payload
+    }, window.location.origin);
+  });
+
+  const iniciarAtualizacaoLojaViaSgi = async (e) => {
+    e.preventDefault();
+
+    const usuario = String(sgiLojaForm.usuario || '').trim();
+    const senha = String(sgiLojaForm.senha || '').trim();
+    const ciclo = cicloLojaSelecionado();
+
+    if (!usuario) {
+      setStatusSgiLoja('Informe o usuário do SGI.');
+      return;
+    }
+
+    if (!senha) {
+      setStatusSgiLoja('Informe a senha do SGI.');
+      return;
+    }
+
+    if (!ciclo) {
+      setStatusSgiLoja('Não foi possível identificar o ciclo atual da LOJA.');
+      return;
+    }
+
+    setSgiLojaExecutando(true);
+    setCarregandoLoja(true);
+    setErroLoja('');
+    setMensagemLoja('');
+    setStatusSgiLoja('Iniciando automação no SGI. Não feche o navegador.');
+
+    try {
+      const cicloInfo = ciclos.find((c) => String(c.ciclo || '') === String(ciclo || '')) || {};
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+
+      const resposta = await enviarComandoExtensaoLojaSgi({
+        apiUrl: API_URL,
+        token,
+        usuario,
+        senha,
+        ciclo,
+        dataInicioCiclo: cicloInfo.data_inicio || dadosLoja?.resumo?.data_inicio || '',
+        dataFimCiclo: cicloInfo.data_fim || dadosLoja?.resumo?.data_fim || '',
+        dataReferenciaDiaria: new Date().toISOString().slice(0, 10)
+      });
+
+      setMensagemLoja(resposta.mensagem || 'Base de vendas LOJA atualizada via SGI com sucesso.');
+      setStatusSgiLoja('');
+      setSgiLojaForm({ usuario: '', senha: '' });
+      setModalSgiLojaAberto(false);
+      await carregarDadosLoja(ciclo);
+    } catch (erro) {
+      setErroLoja(erro.message || 'Erro ao atualizar vendas LOJA via SGI.');
+      setStatusSgiLoja(erro.message || 'Erro ao atualizar vendas LOJA via SGI.');
+    } finally {
+      setSgiLojaExecutando(false);
       setCarregandoLoja(false);
     }
   };
@@ -8444,7 +8542,7 @@ const enviarArquivo = async (tipo) => {
       </>
     );
 
-    const ModuloUploadLoja = ({ titulo, descricao, tipo, endpoint, usaCiclo = false, substituir = false, aceitar = '.csv,.xlsx,.xls' }) => (
+    const ModuloUploadLoja = ({ titulo, descricao, tipo, endpoint, usaCiclo = false, substituir = false, aceitar = '.csv,.xlsx,.xls', permiteSgi = false }) => (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
@@ -8475,7 +8573,21 @@ const enviarArquivo = async (tipo) => {
               Importar
             </button>
           </div>
+
+          {permiteSgi && (
+            <button
+              type="button"
+              disabled={carregandoLoja || sgiLojaExecutando}
+              onClick={abrirModalAtualizacaoLojaSgi}
+              className="mt-3 w-full bg-[#e6f6f7] text-[#048187] px-5 py-3 rounded-lg font-black hover:bg-[#d0f0f1] disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+            >
+              <RefreshCcw size={17} />
+              {sgiLojaExecutando ? 'Atualizando via SGI...' : 'Atualizar via SGI'}
+            </button>
+          )}
+
           {usaCiclo && <p className="text-xs text-gray-400 font-bold mt-3">Ciclo usado no upload: {cicloAtualLoja || '-'}</p>}
+          {permiteSgi && <p className="text-[11px] text-gray-400 font-bold mt-2">Baixa o acumulado do ciclo e a venda diária, envia ao banco, apaga os CSVs e fecha a aba do SGI.</p>}
         </div>
       </div>
     );
@@ -8493,6 +8605,102 @@ const enviarArquivo = async (tipo) => {
         <p className="text-sm text-gray-400 font-semibold">{descricao}</p>
       </div>
     );
+
+    const ModalAtualizacaoSgiLoja = () => {
+      if (!modalSgiLojaAberto) return null;
+
+      return (
+        <div className="fixed inset-0 z-[9999] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-lg overflow-hidden">
+            <div className="p-5 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wide text-[#048187] mb-1">Atualização automática</p>
+                <h2 className="text-xl font-black text-gray-700">Atualizar vendas LOJA via SGI</h2>
+                <p className="text-sm text-gray-400 font-semibold mt-1 leading-relaxed">
+                  Informe suas credenciais do SGI. Elas não serão salvas; serão usadas apenas nesta execução.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={sgiLojaExecutando}
+                onClick={() => setModalSgiLojaAberto(false)}
+                className="w-9 h-9 rounded-xl bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 flex items-center justify-center disabled:opacity-40"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={iniciarAtualizacaoLojaViaSgi} className="p-5 sm:p-6 space-y-4">
+              <div className="rounded-xl bg-[#e6f6f7] border border-[#048187]/15 px-4 py-3 text-xs font-bold text-[#036b70] leading-relaxed">
+                A automação vai baixar duas bases: acumulado do ciclo e venda diária. Depois vai enviar ao backend, apagar os arquivos baixados e fechar a aba do SGI.
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Usuário SGI</label>
+                <input
+                  type="text"
+                  autoComplete="username"
+                  value={sgiLojaForm.usuario}
+                  disabled={sgiLojaExecutando}
+                  onChange={(e) => setSgiLojaForm((f) => ({ ...f, usuario: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 font-bold"
+                  placeholder="Digite seu usuário do SGI"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Senha SGI</label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={sgiLojaForm.senha}
+                  disabled={sgiLojaExecutando}
+                  onChange={(e) => setSgiLojaForm((f) => ({ ...f, senha: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 font-bold"
+                  placeholder="Digite sua senha do SGI"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-bold text-gray-500">
+                <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+                  <span className="block text-gray-400 uppercase text-[9px] mb-1">Ciclo</span>
+                  {cicloAtualLoja || '-'}
+                </div>
+                <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+                  <span className="block text-gray-400 uppercase text-[9px] mb-1">Destino</span>
+                  Geral + diária
+                </div>
+              </div>
+
+              {statusSgiLoja && (
+                <div className={`rounded-xl px-4 py-3 text-xs font-bold leading-relaxed ${statusSgiLoja.toLowerCase().includes('erro') || statusSgiLoja.toLowerCase().includes('falh') ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-blue-50 text-blue-700 border border-blue-100'}`}>
+                  {statusSgiLoja}
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={sgiLojaExecutando}
+                  onClick={() => setModalSgiLojaAberto(false)}
+                  className="border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={sgiLojaExecutando}
+                  className="bg-[#048187] text-white font-black px-5 py-3 rounded-lg hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                >
+                  <RefreshCcw size={17} />
+                  {sgiLojaExecutando ? 'Executando...' : 'Iniciar atualização'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    };
 
     const CadastroLoja = () => {
       const modulosCadastroLoja = [
@@ -8577,6 +8785,7 @@ const enviarArquivo = async (tipo) => {
         return (
           <div className="space-y-6 animate-fade-in">
             <CabecalhoSubCadastroLoja titulo="Bases de vendas e Skin" descricao="Use apenas para atualizar o realizado da LOJA. Cadastros e metas são lançados nas telas próprias." />
+            <ModalAtualizacaoSgiLoja />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <ModuloUploadLoja
                 titulo="Base de vendas / GMV"
@@ -8585,6 +8794,7 @@ const enviarArquivo = async (tipo) => {
                 endpoint="/loja/upload-gerencial"
                 usaCiclo
                 substituir
+                permiteSgi
               />
               <ModuloUploadLoja
                 titulo="Base Skin / Botik"
