@@ -122,6 +122,10 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
+
+const ABAS_VD_OCULTAS_MENU_LATERAL = ['N1', 'N2', 'N3'];
+const deveOcultarAbaVDNoMenu = (aba) => ABAS_VD_OCULTAS_MENU_LATERAL.includes(String(aba || '').trim());
+
 const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
@@ -232,6 +236,28 @@ const calcPerc = (r, m) => {
   if (!meta || meta <= 0) return 0;
   return (Number(r || 0) / meta) * 100;
 };
+
+
+const primeiroNumeroPositivo = (obj = {}, campos = []) => {
+  for (const campo of campos) {
+    const valor = Number(obj?.[campo] || 0);
+    if (Number.isFinite(valor) && valor > 0) return valor;
+  }
+  return 0;
+};
+
+const percentualVDComFallback = (obj = {}, camposPercentual = [], camposRealizado = [], camposMeta = []) => {
+  const percentualApi = primeiroNumeroPositivo(obj, camposPercentual);
+  if (percentualApi > 0) return percentualApi;
+
+  const realizado = primeiroNumeroPositivo(obj, camposRealizado);
+  const meta = primeiroNumeroPositivo(obj, camposMeta);
+
+  return calcPerc(realizado, meta);
+};
+
+const valorVDComFallback = (obj = {}, campos = []) => primeiroNumeroPositivo(obj, campos);
+
 
 const PERCENTUAL_META_SKIN_PADRAO_LOJA = 2;
 
@@ -4685,7 +4711,7 @@ const enviarArquivo = async (tipo) => {
   const renderTelaDashboard = () => {
     if (carregandoDashboard && !dados) return <DashboardSkeletons />;
     if (!dados) return (<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8"><p className="text-gray-400">Nenhum dado carregado.</p></div>);
-    const pTot = calcPerc(dados.valor_total, metaFaturamentoDashboard); const pDia = Number(dados.percentual_meta_diaria || 0); const pMk = Number(dados.percentual_make || 0); const pCb = Number(dados.percentual_cabelo || 0); const tPos = Number(dados.gap_tendencia || 0) >= 0;
+    const pTot = calcPerc(dados.valor_total, metaFaturamentoDashboard); const pDia = Number(dados.percentual_meta_diaria || 0); const pMk = percentualVDComFallback(dados, ['percentual_make', 'perc_make'], ['make_realizado', 'make', 'realizado_make'], ['meta_make', 'make_meta']); const pCb = percentualVDComFallback(dados, ['percentual_cabelo', 'perc_cabelo'], ['cabelo_realizado', 'cabelo', 'realizado_cabelo'], ['meta_cabelo', 'cabelo_meta']); const tPos = Number(dados.gap_tendencia || 0) >= 0;
     const corMakeDashboard = corPorFaixaMeta(pMk);
     const corCabeloDashboard = corPorFaixaMeta(pCb);
     const corAtividadeDashboard = corPorFaixaMeta(Number(dados.percentual_atividade_geral || 0));
@@ -5746,15 +5772,15 @@ const enviarArquivo = async (tipo) => {
                   const faturamentoRealizado = Number(c.realizado || 0);
                   const faturamentoMeta = Number(c.meta_individual || 0);
                   const atividadeRealizadaItem = Number(c.atividade_realizada || 0);
-                  const percentualAtividadeItem = Number(c.percentual_atividade || 0);
+                  const percentualAtividadeItem = percentualVDComFallback(c, ['percentual_atividade', 'percentual_atividade_realizada', 'perc_atividade'], ['atividade_realizada', 'atividade', 'realizado_atividade'], ['meta_atividade', 'atividade_meta']);
                   const metaAtividadeItem = c.tipo_fallback_estrutura ? qtdMetaAtividadeDetalhe : calcularMetaDistribuida(qtdMetaAtividadeDetalhe, pesoConsultor, 0);
                   const percentualMetaAtividadeItem = metaAtividadeDetalhePercentual;
                   const makeRealizadoItem = Number(c.make_realizado || 0);
-                  const percentualMakeItem = Number(c.percentual_make || 0);
+                  const percentualMakeItem = percentualVDComFallback(c, ['percentual_make', 'perc_make'], ['make_realizado', 'make', 'realizado_make'], ['meta_make', 'make_meta']);
                   const percentualMetaMakeItem = metaMakeDetalhePercentual;
                   const metaMakeItem = Math.ceil((atividadeRealizadaItem * percentualMetaMakeItem) / 100);
                   const cabeloRealizadoItem = Number(c.cabelo_realizado || 0);
-                  const percentualCabeloItem = Number(c.percentual_cabelo || 0);
+                  const percentualCabeloItem = percentualVDComFallback(c, ['percentual_cabelo', 'perc_cabelo'], ['cabelo_realizado', 'cabelo', 'realizado_cabelo'], ['meta_cabelo', 'cabelo_meta']);
                   const percentualMetaCabeloItem = metaCabeloDetalhePercentual;
                   const metaCabeloItem = Math.ceil((atividadeRealizadaItem * percentualMetaCabeloItem) / 100);
                   const rpaRealizadoItem = atividadeRealizadaItem > 0 ? faturamentoRealizado / atividadeRealizadaItem : 0;
