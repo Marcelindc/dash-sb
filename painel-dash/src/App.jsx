@@ -234,6 +234,7 @@ const calcPerc = (r, m) => {
 };
 
 const PERCENTUAL_META_SKIN_PADRAO_LOJA = 2;
+const META_BOLETO_MEDIO_PADRAO_LOJA = 270;
 
 const converterNumeroLoja = (valor, padrao = 0) => {
   if (valor === null || valor === undefined || valor === '') return padrao;
@@ -245,6 +246,11 @@ const converterNumeroLoja = (valor, padrao = 0) => {
   if (texto.includes(',')) texto = texto.replace(/\./g, '').replace(',', '.');
   const numero = Number(texto);
   return Number.isFinite(numero) ? numero : padrao;
+};
+
+const obterMetaBoletoMedioLoja = (item = {}) => {
+  const metaBoleto = converterNumeroLoja(item?.meta_boleto_medio, 0);
+  return metaBoleto > 0 ? metaBoleto : META_BOLETO_MEDIO_PADRAO_LOJA;
 };
 
 const obterPercentualMetaSkinLoja = (item = {}) => {
@@ -277,7 +283,8 @@ const aplicarMetaSkinCalculadaLoja = (item = {}) => {
     ...item,
     percentual_meta_skin: percentualMetaSkin,
     meta_skin: metaSkinCalculada,
-    percentual_skin: calcPerc(realizadoSkin, metaSkinCalculada)
+    percentual_skin: calcPerc(realizadoSkin, metaSkinCalculada),
+    meta_boleto_medio: obterMetaBoletoMedioLoja(item)
   };
 };
 
@@ -295,6 +302,12 @@ const normalizarDadosLojaMetaSkinPercentual = (dadosLojaApi) => {
   const baseResumo = unidadesNormalizadas.length ? unidadesNormalizadas : consultorasNormalizadas;
   const metaSkinTotal = baseResumo.reduce((acc, item) => acc + converterNumeroLoja(item?.meta_skin, 0), 0);
   const skinRealizadoTotal = baseResumo.reduce((acc, item) => acc + converterNumeroLoja(item?.realizado_skin, 0), 0);
+  const metasBoletoResumo = baseResumo
+    .map((item) => obterMetaBoletoMedioLoja(item))
+    .filter((valor) => Number.isFinite(valor) && valor > 0);
+  const metaBoletoMedioResumo = metasBoletoResumo.length
+    ? metasBoletoResumo.reduce((acc, valor) => acc + valor, 0) / metasBoletoResumo.length
+    : META_BOLETO_MEDIO_PADRAO_LOJA;
 
   return {
     ...dadosLojaApi,
@@ -303,7 +316,8 @@ const normalizarDadosLojaMetaSkinPercentual = (dadosLojaApi) => {
     resumo: {
       ...(dadosLojaApi.resumo || {}),
       meta_skin: metaSkinTotal,
-      percentual_skin: calcPerc(skinRealizadoTotal, metaSkinTotal)
+      percentual_skin: calcPerc(skinRealizadoTotal, metaSkinTotal),
+      meta_boleto_medio: metaBoletoMedioResumo
     }
   };
 };
@@ -2418,8 +2432,8 @@ export default function App() {
   const [filtrosLoja, setFiltrosLoja] = useState({ unidade: '', consultora: '' });
   const [lojaUnidadeForm, setLojaUnidadeForm] = useState({ codigo_pdv: '', cidade: '', nome_loja: '', status_loja: 'ativo' });
   const [lojaConsultoraForm, setLojaConsultoraForm] = useState({ id_consultora: '', nome_consultora: '', codigo_pdv_oficial: '', status_consultora: 'ativo' });
-  const [lojaMetaUnidadeForm, setLojaMetaUnidadeForm] = useState({ ciclo: '', codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
-  const [lojaMetaConsultoraForm, setLojaMetaConsultoraForm] = useState({ ciclo: '', id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' });
+  const [lojaMetaUnidadeForm, setLojaMetaUnidadeForm] = useState({ ciclo: '', codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: META_BOLETO_MEDIO_PADRAO_LOJA, meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
+  const [lojaMetaConsultoraForm, setLojaMetaConsultoraForm] = useState({ ciclo: '', id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: META_BOLETO_MEDIO_PADRAO_LOJA, meta_itens_boleto: 4, meta_skin: '' });
   const [tabelaLojaExpandida, setTabelaLojaExpandida] = useState(null);
   const [tabelaCadastroLojaExpandida, setTabelaCadastroLojaExpandida] = useState(null);
   const [visaoCadastroLoja, setVisaoCadastroLoja] = useState('geral');
@@ -3586,12 +3600,13 @@ const carregarRevendedores = async () => {
         ...lojaMetaUnidadeForm,
         ciclo: lojaMetaUnidadeForm.ciclo || cicloLojaSelecionado(),
         percentual_meta_skin: percentualSkin,
+        meta_boleto_medio: converterNumeroLoja(lojaMetaUnidadeForm.meta_boleto_medio, META_BOLETO_MEDIO_PADRAO_LOJA),
         meta_skin: metaSkinCalculada
       };
 
       await axios.post(`${API_URL}/loja/metas/unidade`, payload);
       setMensagemLoja(`Meta da unidade salva com sucesso. Meta Skin calculada em ${formatarMoeda(metaSkinCalculada)} (${formatarNumeroBR(percentualSkin, 2)}% da meta de faturamento).`);
-      setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
+      setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: META_BOLETO_MEDIO_PADRAO_LOJA, meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' });
       setLinhaMetaUnidadeLojaEditando(null);
       await carregarDadosLoja();
     } catch (erro) {
@@ -3609,12 +3624,13 @@ const carregarRevendedores = async () => {
         ...lojaMetaConsultoraForm,
         ciclo: lojaMetaConsultoraForm.ciclo || cicloLojaSelecionado(),
         percentual_meta_skin: percentualSkin,
+        meta_boleto_medio: converterNumeroLoja(lojaMetaConsultoraForm.meta_boleto_medio, META_BOLETO_MEDIO_PADRAO_LOJA),
         meta_skin: metaSkinCalculada
       };
 
       await axios.post(`${API_URL}/loja/metas/consultora`, payload);
       setMensagemLoja(`Meta da consultora salva com sucesso. Meta Skin calculada em ${formatarMoeda(metaSkinCalculada)} (${formatarNumeroBR(percentualSkin, 2)}% da meta de faturamento).`);
-      setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' });
+      setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: META_BOLETO_MEDIO_PADRAO_LOJA, meta_itens_boleto: 4, meta_skin: '' });
       setLinhaMetaConsultoraLojaEditando(null);
       await carregarDadosLoja();
     } catch (erro) {
@@ -3649,7 +3665,7 @@ const carregarRevendedores = async () => {
       codigo_pdv: String(u?.codigo_pdv || ''),
       meta_faturamento: String(u?.meta_faturamento || ''),
       percentual_meta_skin: formatarNumeroBR(obterPercentualMetaSkinLoja(u), 2),
-      meta_boleto_medio: String(u?.meta_boleto_medio || ''),
+      meta_boleto_medio: String(obterMetaBoletoMedioLoja(u)),
       meta_itens_boleto: String(u?.meta_itens_boleto || 4),
       meta_skin: String(calcularMetaSkinLoja(u?.meta_faturamento || 0, obterPercentualMetaSkinLoja(u)) || ''),
       meta_servicos_mes: String(u?.meta_servicos_mes || ''),
@@ -3666,7 +3682,7 @@ const carregarRevendedores = async () => {
       codigo_pdv_oficial: String(c?.codigo_pdv_oficial || ''),
       meta_faturamento: String(c?.meta_faturamento || ''),
       percentual_meta_skin: formatarNumeroBR(obterPercentualMetaSkinLoja(c), 2),
-      meta_boleto_medio: String(c?.meta_boleto_medio || ''),
+      meta_boleto_medio: String(obterMetaBoletoMedioLoja(c)),
       meta_itens_boleto: String(c?.meta_itens_boleto || 4),
       meta_skin: String(calcularMetaSkinLoja(c?.meta_faturamento || 0, obterPercentualMetaSkinLoja(c)) || '')
     });
@@ -8495,7 +8511,7 @@ const enviarArquivo = async (tipo) => {
       const somaItensPonderados = itens.reduce((acc, item) => acc + (Number(item?.itens_por_boleto || 0) * Number(item?.qtd_boletos || item?.pedidos || 0)), 0);
       const boletoMedio = pedidos > 0 ? faturamento / pedidos : mediaValoresLoja(itens, 'boleto_medio');
       const itensPorBoleto = pedidos > 0 ? somaItensPonderados / pedidos : mediaValoresLoja(itens, 'itens_por_boleto');
-      const metaBoletoMedio = mediaValoresLoja(itens, 'meta_boleto_medio') || Number(resumo.meta_boleto_medio || 0);
+      const metaBoletoMedio = mediaValoresLoja(itens, 'meta_boleto_medio') || Number(resumo.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA);
       const metaItensBoleto = mediaValoresLoja(itens, 'meta_itens_boleto') || Number(resumo.meta_itens_boleto || 4);
       const diasPassados = Math.max(Number(resumo.dias_passados || 0), 0);
       const diasTotal = Math.max(Number(resumo.dias_total || 0), 0);
@@ -8727,7 +8743,7 @@ const enviarArquivo = async (tipo) => {
                 <td className="py-3 px-3 text-right font-black text-[#7c1f31]">{formatarMoeda(u.deficit)}</td>
                 <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(u.percentual) }}>{formatarNumeroBR(u.percentual, 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarMoeda(u.boleto_medio)}</td>
-                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.boleto_medio || 0, u.meta_boleto_medio || 0)) }}>{formatarNumeroBR(calcPerc(u.boleto_medio || 0, u.meta_boleto_medio || 0), 1)}%</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.boleto_medio || 0, obterMetaBoletoMedioLoja(u))) }}>{formatarNumeroBR(calcPerc(u.boleto_medio || 0, obterMetaBoletoMedioLoja(u)), 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(u.itens_por_boleto, 2)}</td>
                 <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(u.itens_por_boleto || 0, u.meta_itens_boleto || 0)) }}>{formatarNumeroBR(calcPerc(u.itens_por_boleto || 0, u.meta_itens_boleto || 0), 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold text-[#048187]">{formatarMoeda(u.realizado_skin || 0)}</td>
@@ -8777,7 +8793,7 @@ const enviarArquivo = async (tipo) => {
                 <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{formatarNumeroBR(c.percentual, 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.qtd_boletos, 0)}</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarMoeda(c.boleto_medio)}</td>
-                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(c.boleto_medio || 0, c.meta_boleto_medio || 0)) }}>{formatarNumeroBR(calcPerc(c.boleto_medio || 0, c.meta_boleto_medio || 0), 1)}%</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(c.boleto_medio || 0, obterMetaBoletoMedioLoja(c))) }}>{formatarNumeroBR(calcPerc(c.boleto_medio || 0, obterMetaBoletoMedioLoja(c)), 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold">{formatarNumeroBR(c.itens_por_boleto, 2)}</td>
                 <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(calcPerc(c.itens_por_boleto || 0, c.meta_itens_boleto || 0)) }}>{formatarNumeroBR(calcPerc(c.itens_por_boleto || 0, c.meta_itens_boleto || 0), 1)}%</td>
                 <td className="py-3 px-3 text-right font-bold text-[#048187]">{formatarMoeda(c.realizado_skin || 0)}</td>
@@ -9260,14 +9276,14 @@ const enviarArquivo = async (tipo) => {
                   <CampoLojaCadastroLoja label="% Meta Skin" value={lojaMetaUnidadeForm.percentual_meta_skin} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, percentual_meta_skin: v }))} placeholder="2,00" />
                   <p className="mt-1 text-[10px] font-black text-[#048187]">Meta Skin: {formatarMoeda(calcularMetaSkinLoja(lojaMetaUnidadeForm.meta_faturamento, lojaMetaUnidadeForm.percentual_meta_skin))}</p>
                 </div>
-                <CampoLojaCadastroLoja label="Boleto médio" value={lojaMetaUnidadeForm.meta_boleto_medio} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 279" />
+                <CampoLojaCadastroLoja label="Boleto médio" value={lojaMetaUnidadeForm.meta_boleto_medio} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="270" />
                 <CampoLojaCadastroLoja label="Itens por boleto" value={lojaMetaUnidadeForm.meta_itens_boleto} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
                 <CampoLojaCadastroLoja label="Meta serviços mês" value={lojaMetaUnidadeForm.meta_servicos_mes} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_servicos_mes: v }))} placeholder="Ex.: 25" />
                 <CampoLojaCadastroLoja label="Meta serviços ano" value={lojaMetaUnidadeForm.meta_servicos_ano} onChange={(v) => setLojaMetaUnidadeForm((f) => ({ ...f, meta_servicos_ano: v }))} placeholder="Ex.: 300" />
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <BotaoSalvarLoja carregando={carregandoLoja}>Salvar meta unidade</BotaoSalvarLoja>
-                <BotaoLimparLoja onClick={() => { setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' }); setLinhaMetaUnidadeLojaEditando(null); }} />
+                <BotaoLimparLoja onClick={() => { setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: META_BOLETO_MEDIO_PADRAO_LOJA, meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' }); setLinhaMetaUnidadeLojaEditando(null); }} />
               </div>
             </form>
 
@@ -9335,7 +9351,7 @@ const enviarArquivo = async (tipo) => {
                             {editando ? (
                               <>
                                 <button type="button" onClick={(e) => salvarMetaUnidadeLoja({ preventDefault: () => {} })} className="text-[#048187] hover:text-[#036b70] mr-3" title="Salvar"><Save size={17} /></button>
-                                <button type="button" onClick={() => { setLinhaMetaUnidadeLojaEditando(null); setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' }); }} className="text-gray-400 hover:text-gray-600 mr-3" title="Cancelar"><X size={17} /></button>
+                                <button type="button" onClick={() => { setLinhaMetaUnidadeLojaEditando(null); setLojaMetaUnidadeForm({ ciclo: cicloLojaSelecionado(), codigo_pdv: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: META_BOLETO_MEDIO_PADRAO_LOJA, meta_itens_boleto: 4, meta_skin: '', meta_servicos_mes: '', meta_servicos_ano: '' }); }} className="text-gray-400 hover:text-gray-600 mr-3" title="Cancelar"><X size={17} /></button>
                               </>
                             ) : (
                               <button type="button" onClick={() => editarMetaUnidadeLoja(u)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar"><Pencil size={17} /></button>
@@ -9378,12 +9394,12 @@ const enviarArquivo = async (tipo) => {
                   <CampoLojaCadastroLoja label="% Meta Skin" value={lojaMetaConsultoraForm.percentual_meta_skin} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, percentual_meta_skin: v }))} placeholder="2,00" />
                   <p className="mt-1 text-[10px] font-black text-[#048187]">Meta Skin: {formatarMoeda(calcularMetaSkinLoja(lojaMetaConsultoraForm.meta_faturamento, lojaMetaConsultoraForm.percentual_meta_skin))}</p>
                 </div>
-                <CampoLojaCadastroLoja label="Boleto médio" value={lojaMetaConsultoraForm.meta_boleto_medio} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="Ex.: 250" />
+                <CampoLojaCadastroLoja label="Boleto médio" value={lojaMetaConsultoraForm.meta_boleto_medio} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_boleto_medio: v }))} placeholder="270" />
                 <CampoLojaCadastroLoja label="Itens por boleto" value={lojaMetaConsultoraForm.meta_itens_boleto} onChange={(v) => setLojaMetaConsultoraForm((f) => ({ ...f, meta_itens_boleto: v }))} placeholder="4" />
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <BotaoSalvarLoja carregando={carregandoLoja}>Salvar meta consultora</BotaoSalvarLoja>
-                <BotaoLimparLoja onClick={() => { setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' }); setLinhaMetaConsultoraLojaEditando(null); }} />
+                <BotaoLimparLoja onClick={() => { setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: META_BOLETO_MEDIO_PADRAO_LOJA, meta_itens_boleto: 4, meta_skin: '' }); setLinhaMetaConsultoraLojaEditando(null); }} />
               </div>
             </form>
 
@@ -9460,7 +9476,7 @@ const enviarArquivo = async (tipo) => {
                             {editando ? (
                               <>
                                 <button type="button" onClick={(e) => salvarMetaConsultoraLoja({ preventDefault: () => {} })} className="text-[#048187] hover:text-[#036b70] mr-3" title="Salvar"><Save size={17} /></button>
-                                <button type="button" onClick={() => { setLinhaMetaConsultoraLojaEditando(null); setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: '', meta_itens_boleto: 4, meta_skin: '' }); }} className="text-gray-400 hover:text-gray-600 mr-3" title="Cancelar"><X size={17} /></button>
+                                <button type="button" onClick={() => { setLinhaMetaConsultoraLojaEditando(null); setLojaMetaConsultoraForm({ ciclo: cicloLojaSelecionado(), id_consultora: '', codigo_pdv_oficial: '', meta_faturamento: '', percentual_meta_skin: PERCENTUAL_META_SKIN_PADRAO_LOJA, meta_boleto_medio: META_BOLETO_MEDIO_PADRAO_LOJA, meta_itens_boleto: 4, meta_skin: '' }); }} className="text-gray-400 hover:text-gray-600 mr-3" title="Cancelar"><X size={17} /></button>
                               </>
                             ) : (
                               <button type="button" onClick={() => editarMetaConsultoraLoja(c)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar"><Pencil size={17} /></button>
@@ -9563,8 +9579,8 @@ const enviarArquivo = async (tipo) => {
                 meta_skin: calcularMetaSkinLoja(c.meta_faturamento || 0, obterPercentualMetaSkinLoja(c)),
                 percentual_skin: calcPerc(c.realizado_skin || 0, calcularMetaSkinLoja(c.meta_faturamento || 0, obterPercentualMetaSkinLoja(c))),
                 boleto_medio: Number(c.boleto_medio || 0),
-                meta_boleto_medio: Number(c.meta_boleto_medio || 0),
-                percentual_boleto: calcPerc(c.boleto_medio || 0, c.meta_boleto_medio || 0),
+                meta_boleto_medio: obterMetaBoletoMedioLoja(c),
+                percentual_boleto: calcPerc(c.boleto_medio || 0, obterMetaBoletoMedioLoja(c)),
                 itens_por_boleto: Number(c.itens_por_boleto || 0),
                 meta_itens_boleto: Number(c.meta_itens_boleto || 4),
                 percentual_itens: calcPerc(c.itens_por_boleto || 0, c.meta_itens_boleto || 4)
@@ -9580,8 +9596,8 @@ const enviarArquivo = async (tipo) => {
                 meta_skin: calcularMetaSkinLoja(u.meta_faturamento || 0, obterPercentualMetaSkinLoja(u)),
                 percentual_skin: calcPerc(u.realizado_skin || 0, calcularMetaSkinLoja(u.meta_faturamento || 0, obterPercentualMetaSkinLoja(u))),
                 boleto_medio: Number(u.boleto_medio || 0),
-                meta_boleto_medio: Number(u.meta_boleto_medio || 0),
-                percentual_boleto: calcPerc(u.boleto_medio || 0, u.meta_boleto_medio || 0),
+                meta_boleto_medio: obterMetaBoletoMedioLoja(u),
+                percentual_boleto: calcPerc(u.boleto_medio || 0, obterMetaBoletoMedioLoja(u)),
                 itens_por_boleto: Number(u.itens_por_boleto || 0),
                 meta_itens_boleto: Number(u.meta_itens_boleto || 4),
                 percentual_itens: calcPerc(u.itens_por_boleto || 0, u.meta_itens_boleto || 4),
@@ -9712,14 +9728,14 @@ const enviarArquivo = async (tipo) => {
               <CardLoja
                 titulo="Boleto médio"
                 valor={formatarMoeda(resumoCardsLoja.boleto_medio || 0)}
-                meta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || 0)}
-                percentual={calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || 0)}
+                meta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA)}
+                percentual={calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA)}
                 labelMeta="Meta boleto:"
-                valorMeta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || 0)}
+                valorMeta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA)}
                 onDetalhes={() => abrirDetalheCardLoja('Boleto médio LOJA', [
                   { label: 'Boleto médio', valor: formatarMoeda(resumoCardsLoja.boleto_medio || 0) },
-                  { label: 'Meta boleto', valor: formatarMoeda(resumoCardsLoja.meta_boleto_medio || 0) },
-                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || 0), 1)}%` },
+                  { label: 'Meta boleto', valor: formatarMoeda(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA) },
+                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA), 1)}%` },
                   { label: 'Qtd de boletos/pedidos', valor: formatarNumeroBR(resumoCardsLoja.pedidos || 0, 0) }
                 ], 'Boleto médio = GMV-GMV / GMV-Qtd de boletos.')}
               />
