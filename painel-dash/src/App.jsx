@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2 } from 'lucide-react';
@@ -3452,6 +3452,7 @@ const carregarRevendedores = async () => {
     setMensagemLoja('');
     setStatusSgiLoja('');
     setSgiLojaForm({ usuario: '', senha: '' });
+    setSgiLojaTipo(tipoAutomacao || 'vendas');
     setModalSgiLojaAberto(true);
 
     window.setTimeout(() => {
@@ -3484,7 +3485,7 @@ const carregarRevendedores = async () => {
     window.addEventListener('message', listener);
     window.postMessage({
       origem: 'dash-sb-painel',
-      acao: payload?.tipoAutomacao === 'skin' ? 'ATUALIZAR_LOJA_SKIN_SGI' : 'ATUALIZAR_LOJA_GMV_SGI',
+      acao: sgiLojaTipo === 'skin' ? 'ATUALIZAR_LOJA_SKIN_SGI' : 'ATUALIZAR_LOJA_GMV_SGI',
       requestId,
       payload
     }, window.location.origin);
@@ -8931,7 +8932,9 @@ const enviarArquivo = async (tipo) => {
 
             <form onSubmit={iniciarAtualizacaoLojaViaSgi} className="p-5 sm:p-6 space-y-4">
               <div className="rounded-xl bg-[#e6f6f7] border border-[#048187]/15 px-4 py-3 text-xs font-bold text-[#036b70] leading-relaxed">
-                {sgiLojaTipo === 'skin' ? 'A automação vai abrir a Extranet GI, baixar a base Skin/Botik, enviar ao backend, apagar o arquivo baixado e fechar a aba.' : 'A automação vai baixar duas bases: acumulado do ciclo e venda diária. Depois vai enviar ao backend, apagar os arquivos baixados e fechar a aba do SGI.'}
+                {sgiLojaTipo === 'skin'
+                  ? 'A automação vai abrir a Extranet GI, baixar a base Skin/Botik, enviar ao backend, apagar o arquivo baixado e fechar a aba.'
+                  : 'A automação vai baixar duas bases: acumulado do ciclo e venda diária. Depois vai enviar ao backend, apagar os arquivos baixados e fechar a aba do SGI.'}
               </div>
 
               <div>
@@ -8967,7 +8970,7 @@ const enviarArquivo = async (tipo) => {
                 </div>
                 <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
                   <span className="block text-gray-400 uppercase text-[9px] mb-1">Destino</span>
-                  Geral + diária
+                  {sgiLojaTipo === 'skin' ? 'Skin/Botik' : 'Geral + diária'}
                 </div>
               </div>
 
@@ -10459,4 +10462,6 @@ const enviarArquivo = async (tipo) => {
     </>
   );
 }
+
+
 
