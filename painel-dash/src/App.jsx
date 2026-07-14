@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2 } from 'lucide-react';
@@ -2421,6 +2421,7 @@ export default function App() {
   const [arquivoGerencialLoja, setArquivoGerencialLoja] = useState(null);
   const [arquivosLojaUpload, setArquivosLojaUpload] = useState({
     vendas: null,
+    vendas_diaria: null,
     skin: null,
     unidades: null,
     consultoras: null,
@@ -3425,6 +3426,14 @@ const carregarRevendedores = async () => {
     setArquivosLojaUpload((atual) => ({ ...atual, [tipo]: file || null }));
   };
 
+  const dataHojeLocalLoja = () => {
+    const agora = new Date();
+    const ano = agora.getFullYear();
+    const mes = String(agora.getMonth() + 1).padStart(2, '0');
+    const dia = String(agora.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+  };
+
   const importarBaseLojaUpload = async (tipo, endpoint, titulo, opcoes = {}) => {
     const arquivo = arquivosLojaUpload?.[tipo];
     if (!arquivo) {
@@ -3446,6 +3455,10 @@ const carregarRevendedores = async () => {
 
       if (opcoes.substituir) {
         form.append('substituir', 'true');
+      }
+
+      if (opcoes.dataReferenciaHoje) {
+        form.append('data_referencia', dataHojeLocalLoja());
       }
 
       const { data } = await axios.post(`${API_URL}${endpoint}`, form, {
@@ -8869,7 +8882,7 @@ const enviarArquivo = async (tipo) => {
       </>
     );
 
-    const ModuloUploadLoja = ({ titulo, descricao, tipo, endpoint, usaCiclo = false, substituir = false, aceitar = '.csv,.xlsx,.xls', permiteSgi = false, tipoSgi = 'vendas' }) => (
+    const ModuloUploadLoja = ({ titulo, descricao, tipo, endpoint, usaCiclo = false, substituir = false, dataReferenciaHoje = false, aceitar = '.csv,.xlsx,.xls', permiteSgi = false, tipoSgi = 'vendas' }) => (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
@@ -8894,7 +8907,7 @@ const enviarArquivo = async (tipo) => {
             <button
               type="button"
               disabled={carregandoLoja || !arquivosLojaUpload?.[tipo]}
-              onClick={() => importarBaseLojaUpload(tipo, endpoint, titulo, { usaCiclo, substituir })}
+              onClick={() => importarBaseLojaUpload(tipo, endpoint, titulo, { usaCiclo, substituir, dataReferenciaHoje })}
               className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Importar
@@ -8914,6 +8927,7 @@ const enviarArquivo = async (tipo) => {
           )}
 
           {usaCiclo && <p className="text-xs text-gray-400 font-bold mt-3">Ciclo usado no upload: {cicloAtualLoja || '-'}</p>}
+          {dataReferenciaHoje && <p className="text-xs text-gray-400 font-bold mt-2">Data de referência: {new Date().toLocaleDateString('pt-BR')}</p>}
           {permiteSgi && <p className="text-[11px] text-gray-400 font-bold mt-2">{tipoSgi === 'skin' ? 'Baixa a base Skin/Botik na Extranet GI, envia ao banco, apaga o arquivo e fecha a aba.' : 'Baixa o acumulado do ciclo e a venda diária, envia ao banco, apaga os CSVs e fecha a aba do SGI.'}</p>}
         </div>
       </div>
@@ -9155,14 +9169,25 @@ const enviarArquivo = async (tipo) => {
             )}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <ModuloUploadLoja
-                titulo="Base de vendas / GMV"
-                descricao="Sistema de vendas. Faturamento = coluna GMV-GMV. Boleto médio = GMV-Boleto médio. Itens/Boleto = GMV-Itens por boleto."
+                titulo="Base acumulada do ciclo / GMV"
+                descricao="Importe o relatório do início do ciclo até a data atual. Faturamento = GMV-GMV. Boleto médio = GMV-Boleto médio. Itens/Boleto = GMV-Itens por boleto."
                 tipo="vendas"
                 endpoint="/loja/upload-gerencial"
                 usaCiclo
                 substituir
                 permiteSgi
               />
+
+              <ModuloUploadLoja
+                titulo="Venda diária / GMV"
+                descricao="Importe o relatório contendo somente as vendas do dia atual. Este arquivo alimenta o indicador Venda do Dia sem alterar o acumulado do ciclo."
+                tipo="vendas_diaria"
+                endpoint="/loja/upload-gerencial-diaria-sgi"
+                usaCiclo
+                substituir
+                dataReferenciaHoje
+              />
+
               <ModuloUploadLoja
                 titulo="Base Skin / Botik"
                 descricao="Arquivo cuidados faciais. Use a aba CONSULTOR. Indicador = coluna RECEITA (R$). Linhas de total são ignoradas."
@@ -10527,8 +10552,6 @@ const enviarArquivo = async (tipo) => {
     </>
   );
 }
-
-
 
 
 
