@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2 } from 'lucide-react';
@@ -1451,7 +1451,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={adicionarLinhaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Plus size={15} /> Linha</button>
-                  <button type="button" onClick={fecharTabelaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 text-sm">Cancelar</button>
+                  <button type="button" onClick={fecharTabelaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 text-sm">{sgiLojaExecutando ? 'Continuar em segundo plano' : 'Cancelar'}</button>
                   <button type="button" onClick={salvarTabelaNovoCiclo} disabled={salvandoTabela} className="bg-[#048187] text-white font-black px-5 py-2.5 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2 text-sm"><Save size={15} /> {salvandoTabela ? 'Salvando...' : 'Salvar ciclo'}</button>
                 </div>
               </div>
@@ -2442,6 +2442,7 @@ export default function App() {
   const [modalSgiLojaAberto, setModalSgiLojaAberto] = useState(false);
   const [sgiLojaForm, setSgiLojaForm] = useState({ usuario: '', senha: '' });
   const [sgiLojaExecutando, setSgiLojaExecutando] = useState(false);
+  const [sgiLojaRodandoEmSegundoPlano, setSgiLojaRodandoEmSegundoPlano] = useState(false);
   const [sgiLojaTipo, setSgiLojaTipo] = useState('vendas');
   const [statusSgiLoja, setStatusSgiLoja] = useState('');
   const sgiLojaUsuarioRef = useRef(null);
@@ -3467,6 +3468,7 @@ const carregarRevendedores = async () => {
     setStatusSgiLoja('');
     setSgiLojaForm({ usuario: '', senha: '' });
     setSgiLojaTipo(tipoAutomacao || 'vendas');
+    setSgiLojaRodandoEmSegundoPlano(false);
     setModalSgiLojaAberto(true);
 
     window.setTimeout(() => {
@@ -3486,7 +3488,7 @@ const carregarRevendedores = async () => {
     function listener(event) {
       if (event.source !== window) return;
       const msg = event.data || {};
-      if (msg.origem !== 'dash-sb-extensao-loja-sgi-v20') return;
+      if (msg.origem !== 'dash-sb-extensao-loja-sgi-v21') return;
       if (msg.requestId !== requestId) return;
 
       if (msg.progresso) {
@@ -3503,7 +3505,7 @@ const carregarRevendedores = async () => {
 
     window.addEventListener('message', listener);
     window.postMessage({
-      origem: 'dash-sb-painel-v20',
+      origem: 'dash-sb-painel-v21',
       acao: sgiLojaTipo === 'skin' ? 'ATUALIZAR_LOJA_SKIN_SGI' : 'ATUALIZAR_LOJA_GMV_SGI',
       requestId,
       payload
@@ -3535,7 +3537,9 @@ const carregarRevendedores = async () => {
     setSgiLojaExecutando(true);
     setErroLoja('');
     setMensagemLoja('');
-    setStatusSgiLoja('Iniciando automação. Não feche o navegador.');
+    setStatusSgiLoja('Iniciando automação em segundo plano. Você pode usar o DASH normalmente.');
+    setSgiLojaRodandoEmSegundoPlano(true);
+    setModalSgiLojaAberto(false);
 
     try {
       const cicloInfo = ciclos.find((c) => String(c.ciclo || '') === String(ciclo || '')) || {};
@@ -3552,6 +3556,7 @@ const carregarRevendedores = async () => {
         dataReferenciaDiaria: new Date().toISOString().slice(0, 10)
       });
 
+      setStatusSgiLoja('Automação concluída. Atualizando dados do dashboard...');
       setMensagemLoja(resposta.mensagem || (sgiLojaTipo === 'skin' ? 'Base Skin/Botik LOJA atualizada via SGI com sucesso.' : 'Base de vendas LOJA atualizada via SGI com sucesso.'));
       setStatusSgiLoja('');
       setSgiLojaForm({ usuario: '', senha: '' });
@@ -3564,6 +3569,8 @@ const carregarRevendedores = async () => {
       setStatusSgiLoja(erro.message || 'Erro ao atualizar vendas LOJA via SGI.');
     } finally {
       setSgiLojaExecutando(false);
+      setSgiLojaRodandoEmSegundoPlano(false);
+      setSgiLojaRodandoEmSegundoPlano(false);
       setCarregandoLoja(false);
     }
   };
@@ -8926,6 +8933,16 @@ const enviarArquivo = async (tipo) => {
       </div>
     );
 
+    const fecharModalSgiLoja = () => {
+      if (sgiLojaExecutando) {
+        setSgiLojaRodandoEmSegundoPlano(true);
+        setModalSgiLojaAberto(false);
+        return;
+      }
+
+      setModalSgiLojaAberto(false);
+    };
+
     const ModalAtualizacaoSgiLoja = () => {
       if (!modalSgiLojaAberto) return null;
 
@@ -8942,8 +8959,8 @@ const enviarArquivo = async (tipo) => {
               </div>
               <button
                 type="button"
-                disabled={sgiLojaExecutando}
-                onClick={() => setModalSgiLojaAberto(false)}
+                disabled={false}
+                onClick={fecharModalSgiLoja}
                 className="w-9 h-9 rounded-xl bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 flex items-center justify-center disabled:opacity-40"
               >
                 <X size={18} />
@@ -8964,7 +8981,7 @@ const enviarArquivo = async (tipo) => {
                   type="text"
                   autoComplete="username"
                   defaultValue=""
-                  disabled={sgiLojaExecutando}
+                  disabled={false}
                   className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 font-bold"
                   placeholder="Digite seu usuário do SGI"
                 />
@@ -8977,7 +8994,7 @@ const enviarArquivo = async (tipo) => {
                   type="password"
                   autoComplete="current-password"
                   defaultValue=""
-                  disabled={sgiLojaExecutando}
+                  disabled={false}
                   className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 font-bold"
                   placeholder="Digite sua senha do SGI"
                 />
@@ -8996,15 +9013,20 @@ const enviarArquivo = async (tipo) => {
 
               {statusSgiLoja && (
                 <div className={`rounded-xl px-4 py-3 text-xs font-bold leading-relaxed ${statusSgiLoja.toLowerCase().includes('erro') || statusSgiLoja.toLowerCase().includes('falh') ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-blue-50 text-blue-700 border border-blue-100'}`}>
-                  {statusSgiLoja}
+                  <div className="flex items-start gap-2">
+                    {sgiLojaExecutando && !statusSgiLoja.toLowerCase().includes('erro') && !statusSgiLoja.toLowerCase().includes('falh') && (
+                      <RefreshCcw size={15} className="shrink-0 mt-0.5 animate-spin" />
+                    )}
+                    <span>{statusSgiLoja}</span>
+                  </div>
                 </div>
               )}
 
               <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  disabled={sgiLojaExecutando}
-                  onClick={() => setModalSgiLojaAberto(false)}
+                  disabled={false}
+                  onClick={fecharModalSgiLoja}
                   className="border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-lg hover:bg-gray-50 disabled:opacity-50"
                 >
                   Cancelar
@@ -9108,6 +9130,29 @@ const enviarArquivo = async (tipo) => {
           <div className="space-y-6 animate-fade-in">
             <CabecalhoSubCadastroLoja titulo="Bases de vendas e Skin" descricao="Use apenas para atualizar o realizado da LOJA. Cadastros e metas são lançados nas telas próprias." />
             <ModalAtualizacaoSgiLoja />
+            {sgiLojaExecutando && !modalSgiLojaAberto && (
+              <div className="rounded-2xl border border-[#bde7ea] bg-[#f2fbfc] px-5 py-4 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-white text-[#048187] flex items-center justify-center shrink-0">
+                    <RefreshCcw size={18} className="animate-spin" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-[#048187] mb-1">Automação LOJA em andamento</p>
+                    <p className="text-sm font-bold text-gray-700 leading-snug">{statusSgiLoja || 'Processando automação...'}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSgiLojaRodandoEmSegundoPlano(false);
+                    setModalSgiLojaAberto(true);
+                  }}
+                  className="shrink-0 rounded-xl bg-white border border-[#bde7ea] px-4 py-2 text-xs font-black text-[#048187] hover:bg-[#e6f6f7]"
+                >
+                  Ver detalhes
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <ModuloUploadLoja
                 titulo="Base de vendas / GMV"
@@ -10399,7 +10444,7 @@ const enviarArquivo = async (tipo) => {
       )}
 
       {modalCriarConsultorAberto && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Novo consultor</h2></div><button onClick={() => setModalCriarConsultorAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarNovoConsultor} className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">ID Colaborador</label><input type="text" value={novoConsultor.id_colaborador} onChange={(e) => setNovoConsultor({...novoConsultor, id_colaborador: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome cadastral</label><input type="text" value={novoConsultor.nome} onChange={(e) => setNovoConsultor({...novoConsultor, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome social</label><input type="text" value={novoConsultor.nome_social || ''} onChange={(e) => setNovoConsultor({...novoConsultor, nome_social: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" placeholder="Preencha somente se houver" /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Estrutura</label><input type="text" value={novoConsultor.estrutura} onChange={(e) => setNovoConsultor({...novoConsultor, estrutura: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Canal</label><input type="text" value={novoConsultor.canal} onChange={(e) => setNovoConsultor({...novoConsultor, canal: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={novoConsultor.status_consultor} onChange={(e) => setNovoConsultor({...novoConsultor, status_consultor: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Peso Meta (%)</label><input type="number" step="0.01" value={novoConsultor.peso_meta} onChange={(e) => setNovoConsultor({...novoConsultor, peso_meta: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" /></div></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setModalCriarConsultorAberto(false)} className="px-5 py-3 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button type="submit" className="px-5 py-3 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Criar Consultor</button></div></form></div></div>
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Novo consultor</h2></div><button onClick={() => setModalCriarConsultorAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarNovoConsultor} className="p-6 space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">ID Colaborador</label><input type="text" value={novoConsultor.id_colaborador} onChange={(e) => setNovoConsultor({...novoConsultor, id_colaborador: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome cadastral</label><input type="text" value={novoConsultor.nome} onChange={(e) => setNovoConsultor({...novoConsultor, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome social</label><input type="text" value={novoConsultor.nome_social || ''} onChange={(e) => setNovoConsultor({...novoConsultor, nome_social: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" placeholder="Preencha somente se houver" /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Estrutura</label><input type="text" value={novoConsultor.estrutura} onChange={(e) => setNovoConsultor({...novoConsultor, estrutura: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Canal</label><input type="text" value={novoConsultor.canal} onChange={(e) => setNovoConsultor({...novoConsultor, canal: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={novoConsultor.status_consultor} onChange={(e) => setNovoConsultor({...novoConsultor, status_consultor: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Peso Meta (%)</label><input type="number" step="0.01" value={novoConsultor.peso_meta} onChange={(e) => setNovoConsultor({...novoConsultor, peso_meta: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" /></div></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setModalCriarConsultorAberto(false)} className="px-5 py-3 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">{sgiLojaExecutando ? 'Continuar em segundo plano' : 'Cancelar'}</button><button type="submit" className="px-5 py-3 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Criar Consultor</button></div></form></div></div>
       )}
 
       {modalEditarConsultorAberto && consultorEditando && (
@@ -10482,12 +10527,6 @@ const enviarArquivo = async (tipo) => {
     </>
   );
 }
-
-
-
-
-
-
 
 
 
