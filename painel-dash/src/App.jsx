@@ -3486,7 +3486,7 @@ const carregarRevendedores = async () => {
     function listener(event) {
       if (event.source !== window) return;
       const msg = event.data || {};
-      if (msg.origem !== 'dash-sb-extensao-loja-sgi-v17') return;
+      if (msg.origem !== 'dash-sb-extensao-loja-sgi-v18') return;
       if (msg.requestId !== requestId) return;
 
       if (msg.progresso) {
@@ -3503,7 +3503,7 @@ const carregarRevendedores = async () => {
 
     window.addEventListener('message', listener);
     window.postMessage({
-      origem: 'dash-sb-painel-v17',
+      origem: 'dash-sb-painel-v18',
       acao: sgiLojaTipo === 'skin' ? 'ATUALIZAR_LOJA_SKIN_SGI' : 'ATUALIZAR_LOJA_GMV_SGI',
       requestId,
       payload
@@ -10482,6 +10482,7 @@ const enviarArquivo = async (tipo) => {
     </>
   );
 }
+
 
 
 
