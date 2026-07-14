@@ -3486,8 +3486,13 @@ const carregarRevendedores = async () => {
     function listener(event) {
       if (event.source !== window) return;
       const msg = event.data || {};
-      if (msg.origem !== 'dash-sb-extensao-loja-sgi-v16-v16') return;
+      if (msg.origem !== 'dash-sb-extensao-loja-sgi-v17') return;
       if (msg.requestId !== requestId) return;
+
+      if (msg.progresso) {
+        setStatusSgiLoja(msg.status || 'Processando automação...');
+        return;
+      }
 
       window.clearTimeout(timeout);
       window.removeEventListener('message', listener);
@@ -3498,7 +3503,7 @@ const carregarRevendedores = async () => {
 
     window.addEventListener('message', listener);
     window.postMessage({
-      origem: 'dash-sb-painel-v16-v16',
+      origem: 'dash-sb-painel-v17',
       acao: sgiLojaTipo === 'skin' ? 'ATUALIZAR_LOJA_SKIN_SGI' : 'ATUALIZAR_LOJA_GMV_SGI',
       requestId,
       payload
@@ -3512,12 +3517,12 @@ const carregarRevendedores = async () => {
     const senha = String(sgiLojaSenhaRef.current?.value || '').trim();
     const ciclo = cicloLojaSelecionado();
 
-    if (!usuario) {
+    if (sgiLojaTipo !== 'skin' && !usuario) {
       setStatusSgiLoja('Informe o usuário do SGI.');
       return;
     }
 
-    if (!senha) {
+    if (sgiLojaTipo !== 'skin' && !senha) {
       setStatusSgiLoja('Informe a senha do SGI.');
       return;
     }
@@ -10477,6 +10482,7 @@ const enviarArquivo = async (tipo) => {
     </>
   );
 }
+
 
 
 
