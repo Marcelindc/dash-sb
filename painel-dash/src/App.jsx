@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2 } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2 } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoBrancaLogin from './assets/logo-branca.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
@@ -12,7 +12,318 @@ const TELA_ATUAL_STORAGE_KEY = 'dashSbTelaAtual';
 const VISAO_METAS_STORAGE_KEY = 'dashSbVisaoMetas';
 const ESTRUTURA_META_STORAGE_KEY = 'dashSbEstruturaMeta';
 const CANAL_ATUAL_STORAGE_KEY = 'dashSbCanalAtual';
+const CICLO_VD_STORAGE_KEY = 'dashSbCicloSelecionadoVD';
+const CICLO_LOJA_STORAGE_KEY = 'dashSbCicloSelecionadoLoja';
+const CICLO_UPLOAD_VD_STORAGE_KEY = 'dashSbCicloUploadVD';
+const CICLO_UPLOAD_LOJA_STORAGE_KEY = 'dashSbCicloUploadLoja';
+const CICLO_ATUAL_CONHECIDO_STORAGE_KEY = 'dashSbCicloAtualConhecido';
 const APP_NAME = 'DASH COMERCIAL SB';
+
+const AREAS_GESTAO = [
+  { id: 'VD', label: 'VD' },
+  { id: 'LOJA', label: 'LOJA' },
+  { id: 'AMBOS', label: 'VD + LOJA' },
+];
+
+const normalizarAreaGestao = (valor, perfil = '') => {
+  if (String(perfil || '').toLowerCase() === 'admin') {
+    return 'AMBOS';
+  }
+
+  const area = String(valor || '').trim().toUpperCase();
+  return ['VD', 'LOJA', 'AMBOS'].includes(area)
+    ? area
+    : 'AMBOS';
+};
+
+
+
+const iniciaisNomeColaborador = (nome) => {
+  const partes = String(nome || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!partes.length) return '?';
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return `${partes[0][0] || ''}${partes[partes.length - 1][0] || ''}`.toUpperCase();
+};
+
+const AvatarColaborador = ({
+  src,
+  nome,
+  tamanho = 44,
+  borda = '#d9eff0',
+  className = '',
+}) => (
+  <div
+    className={`rounded-full overflow-hidden flex items-center justify-center shrink-0 bg-[#e6f6f7] text-[#048187] font-black ${className}`}
+    style={{
+      width: tamanho,
+      height: tamanho,
+      border: `3px solid ${borda}`,
+    }}
+    title={nome || 'Colaborador'}
+  >
+    {src ? (
+      <img
+        src={src}
+        alt={nome || 'Foto do colaborador'}
+        className="w-full h-full object-cover"
+      />
+    ) : (
+      <span style={{ fontSize: Math.max(10, Math.round(tamanho * 0.28)) }}>
+        {iniciaisNomeColaborador(nome)}
+      </span>
+    )}
+  </div>
+);
+
+const compactarFotoColaborador = (
+  arquivo,
+  configuracao = {}
+) => new Promise((resolve, reject) => {
+  if (!arquivo) {
+    reject(new Error('Selecione uma imagem.'));
+    return;
+  }
+
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(arquivo.type)) {
+    reject(new Error('Use uma imagem JPG, PNG ou WebP.'));
+    return;
+  }
+
+  if (arquivo.size > 5 * 1024 * 1024) {
+    reject(new Error('A imagem original deve ter no máximo 5 MB.'));
+    return;
+  }
+
+  const leitor = new FileReader();
+  leitor.onerror = () => reject(
+    new Error('Não foi possível ler a imagem.')
+  );
+
+  leitor.onload = () => {
+    const imagem = new Image();
+
+    imagem.onerror = () => reject(
+      new Error('Arquivo de imagem inválido.')
+    );
+
+    imagem.onload = () => {
+      const tamanhoSaida = 256;
+      const tamanhoPreview = Number(
+        configuracao.tamanhoPreview || 320
+      );
+      const zoom = Math.max(
+        1,
+        Math.min(Number(configuracao.zoom || 1), 3)
+      );
+      const deslocamentoX = Number(
+        configuracao.deslocamentoX || 0
+      );
+      const deslocamentoY = Number(
+        configuracao.deslocamentoY || 0
+      );
+
+      const escalaBasePreview = Math.max(
+        tamanhoPreview / imagem.width,
+        tamanhoPreview / imagem.height
+      );
+      const escalaPreview = escalaBasePreview * zoom;
+
+      const larguraPreview = imagem.width * escalaPreview;
+      const alturaPreview = imagem.height * escalaPreview;
+
+      const limiteX = Math.max(
+        (larguraPreview - tamanhoPreview) / 2,
+        0
+      );
+      const limiteY = Math.max(
+        (alturaPreview - tamanhoPreview) / 2,
+        0
+      );
+
+      const deslocamentoSeguroX = Math.max(
+        -limiteX,
+        Math.min(deslocamentoX, limiteX)
+      );
+      const deslocamentoSeguroY = Math.max(
+        -limiteY,
+        Math.min(deslocamentoY, limiteY)
+      );
+
+      const proporcaoSaida = tamanhoSaida / tamanhoPreview;
+      const larguraSaida = larguraPreview * proporcaoSaida;
+      const alturaSaida = alturaPreview * proporcaoSaida;
+      const origemX = (
+        (tamanhoPreview - larguraPreview) / 2
+        + deslocamentoSeguroX
+      ) * proporcaoSaida;
+      const origemY = (
+        (tamanhoPreview - alturaPreview) / 2
+        + deslocamentoSeguroY
+      ) * proporcaoSaida;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = tamanhoSaida;
+      canvas.height = tamanhoSaida;
+
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        reject(
+          new Error('O navegador não permitiu processar a foto.')
+        );
+        return;
+      }
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, tamanhoSaida, tamanhoSaida);
+
+      ctx.drawImage(
+        imagem,
+        origemX,
+        origemY,
+        larguraSaida,
+        alturaSaida
+      );
+
+      const finalizar = (qualidade) => {
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(
+              new Error('Não foi possível compactar a foto.')
+            );
+            return;
+          }
+
+          if (
+            blob.size > 210 * 1024
+            && qualidade > 0.52
+          ) {
+            finalizar(qualidade - 0.1);
+            return;
+          }
+
+          const leitorBlob = new FileReader();
+
+          leitorBlob.onerror = () => reject(
+            new Error('Não foi possível preparar a foto.')
+          );
+
+          leitorBlob.onload = () => resolve({
+            foto_base64: String(leitorBlob.result || ''),
+            foto_mime: 'image/webp',
+            tamanho_bytes: blob.size,
+          });
+
+          leitorBlob.readAsDataURL(blob);
+        }, 'image/webp', qualidade);
+      };
+
+      finalizar(0.82);
+    };
+
+    imagem.src = String(leitor.result || '');
+  };
+
+  leitor.readAsDataURL(arquivo);
+});
+
+const lerFotoParaEdicao = (arquivo) => new Promise(
+  (resolve, reject) => {
+    if (!arquivo) {
+      reject(new Error('Selecione uma imagem.'));
+      return;
+    }
+
+    if (
+      !['image/jpeg', 'image/png', 'image/webp'].includes(
+        arquivo.type
+      )
+    ) {
+      reject(new Error('Use uma imagem JPG, PNG ou WebP.'));
+      return;
+    }
+
+    if (arquivo.size > 5 * 1024 * 1024) {
+      reject(
+        new Error('A imagem original deve ter no máximo 5 MB.')
+      );
+      return;
+    }
+
+    const leitor = new FileReader();
+
+    leitor.onerror = () => reject(
+      new Error('Não foi possível ler a imagem.')
+    );
+
+    leitor.onload = () => {
+      const imagem = new Image();
+
+      imagem.onerror = () => reject(
+        new Error('Arquivo de imagem inválido.')
+      );
+
+      imagem.onload = () => resolve({
+        arquivo,
+        imagemSrc: String(leitor.result || ''),
+        larguraOriginal: imagem.width,
+        alturaOriginal: imagem.height,
+      });
+
+      imagem.src = String(leitor.result || '');
+    };
+
+    leitor.readAsDataURL(arquivo);
+  }
+);
+
+const limitarDeslocamentoFoto = ({
+  larguraOriginal,
+  alturaOriginal,
+  tamanhoPreview = 320,
+  zoom = 1,
+  deslocamentoX = 0,
+  deslocamentoY = 0,
+}) => {
+  if (!larguraOriginal || !alturaOriginal) {
+    return {
+      deslocamentoX: 0,
+      deslocamentoY: 0,
+    };
+  }
+
+  const escalaBase = Math.max(
+    tamanhoPreview / larguraOriginal,
+    tamanhoPreview / alturaOriginal
+  );
+  const escala = escalaBase * zoom;
+  const larguraRenderizada = larguraOriginal * escala;
+  const alturaRenderizada = alturaOriginal * escala;
+  const limiteX = Math.max(
+    (larguraRenderizada - tamanhoPreview) / 2,
+    0
+  );
+  const limiteY = Math.max(
+    (alturaRenderizada - tamanhoPreview) / 2,
+    0
+  );
+
+  return {
+    deslocamentoX: Math.max(
+      -limiteX,
+      Math.min(deslocamentoX, limiteX)
+    ),
+    deslocamentoY: Math.max(
+      -limiteY,
+      Math.min(deslocamentoY, limiteY)
+    ),
+  };
+};
 
 const CLASSE_INPUT_CADASTRO_LOJA = "w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all font-bold bg-white";
 
@@ -193,7 +504,7 @@ const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') =>
   return normalizadas;
 };
 
-const filtroVazio = { nucleos: [], unidades: [], estruturas: [], consultores: [], situacoes: [], meios_captacao: [], modelos_comerciais: [], canais_venda: [], data_inicio: '', data_fim: '' };
+const filtroVazio = { ciclo: '', nucleos: [], unidades: [], estruturas: [], consultores: [], situacoes: [], meios_captacao: [], modelos_comerciais: [], canais_venda: [], data_inicio: '', data_fim: '' };
 const buscaFiltrosVazia = { nucleos: '', unidades: '', estruturas: '', consultores: '', situacoes: '', meios_captacao: '', modelos_comerciais: '', canais_venda: '' };
 const cicloFormVazio = { ciclo: '', data_inicio: '', data_fim: '', meta_ciclo: '', status_ciclo: 'ativo' };
 const consultorVazio = { id_colaborador: '', nome: '', nome_social: '', estrutura: '', canal: 'ESPAÇO DO REVENDEDOR', status_consultor: 'ativo', peso_meta: 0 };
@@ -227,6 +538,2489 @@ const formatarTickMoeda = (v) => {
   return `R$${n.toLocaleString('pt-BR')}`;
 };
 const formatarDataBR = (d) => { if (!d) return '-'; const p = String(d).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d; };
+
+
+const CONFIG_RELATORIO_METAS_PADRAO = {
+  nucleos: [],
+  modoEstruturas: 'todas',
+  estruturas: [],
+  incluirConsultores: false,
+};
+
+const normalizarNucleoRelatorioMetas = (valor) => {
+  const texto = String(valor || '').toUpperCase().trim();
+  if (!texto) return '';
+  if (texto === 'N1' || texto.includes('NUCLEO 1') || texto.includes('NÚCLEO 1')) return 'N1';
+  if (texto === 'N2' || texto.includes('NUCLEO 2') || texto.includes('NÚCLEO 2')) return 'N2';
+  if (texto === 'N3' || texto.includes('NUCLEO 3') || texto.includes('NÚCLEO 3')) return 'N3';
+  return texto;
+};
+
+const obterNucleosDoItemRelatorioMetas = (item) => {
+  const valores = String(item?.nucleo || '')
+    .split(',')
+    .map((valor) => normalizarNucleoRelatorioMetas(valor))
+    .filter(Boolean);
+  return Array.from(new Set(valores));
+};
+
+const slugArquivoRelatorioMetas = (valor) => String(valor || 'relatorio')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '')
+  .toLowerCase();
+
+const corDesempenhoRelatorioMetas = (percentual) => {
+  const valor = Number(percentual || 0);
+  if (valor < 70) return '#7c1f31';
+  if (valor < 91) return '#ff6f03';
+  return '#048187';
+};
+
+const calcularPercentualRelatorioMetas = (realizado, meta) => {
+  const metaNumero = Number(meta || 0);
+  if (metaNumero <= 0) return 0;
+  return (Number(realizado || 0) / metaNumero) * 100;
+};
+
+const arredondarRetanguloCanvas = (ctx, x, y, largura, altura, raio = 20) => {
+  const r = Math.min(raio, largura / 2, altura / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + largura, y, x + largura, y + altura, r);
+  ctx.arcTo(x + largura, y + altura, x, y + altura, r);
+  ctx.arcTo(x, y + altura, x, y, r);
+  ctx.arcTo(x, y, x + largura, y, r);
+  ctx.closePath();
+};
+
+const quebrarTextoCanvas = (ctx, texto, larguraMaxima) => {
+  const palavras = String(texto || '').split(/\s+/).filter(Boolean);
+  const linhas = [];
+  let linha = '';
+
+  palavras.forEach((palavra) => {
+    const tentativa = linha ? `${linha} ${palavra}` : palavra;
+    if (!linha || ctx.measureText(tentativa).width <= larguraMaxima) {
+      linha = tentativa;
+    } else {
+      linhas.push(linha);
+      linha = palavra;
+    }
+  });
+
+  if (linha) linhas.push(linha);
+  return linhas.length ? linhas : ['-'];
+};
+
+const desenharTextoCanvas = (
+  ctx,
+  texto,
+  x,
+  y,
+  larguraMaxima,
+  alturaLinha,
+  maxLinhas = 2
+) => {
+  const linhas = quebrarTextoCanvas(ctx, texto, larguraMaxima).slice(0, maxLinhas);
+  linhas.forEach((linha, indice) => {
+    let linhaFinal = linha;
+    if (indice === maxLinhas - 1 && quebrarTextoCanvas(ctx, texto, larguraMaxima).length > maxLinhas) {
+      while (ctx.measureText(`${linhaFinal}...`).width > larguraMaxima && linhaFinal.length > 1) {
+        linhaFinal = linhaFinal.slice(0, -1);
+      }
+      linhaFinal = `${linhaFinal}...`;
+    }
+    ctx.fillText(linhaFinal, x, y + (indice * alturaLinha));
+  });
+  return linhas.length * alturaLinha;
+};
+
+const carregarImagemCanvas = (src) => new Promise((resolve) => {
+  const imagem = new Image();
+  imagem.onload = () => resolve(imagem);
+  imagem.onerror = () => resolve(null);
+  imagem.src = src;
+});
+
+const canvasParaBlob = (canvas) => new Promise((resolve, reject) => {
+  canvas.toBlob((blob) => {
+    if (blob) resolve(blob);
+    else reject(new Error('Não foi possível criar a imagem PNG.'));
+  }, 'image/png', 1);
+});
+
+const baixarBlobRelatorioMetas = (blob, nomeArquivo) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nomeArquivo;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+};
+
+const criarImagemRelatorioMetas = async ({
+  itemRelatorio,
+  ciclo,
+  nucleos,
+  incluirConsultores,
+  geradoPor,
+  logoSrc,
+}) => {
+  const resumo = itemRelatorio?.resumo || {};
+  const detalhe = itemRelatorio?.detalhe || {};
+
+  const obterNumero = (...valores) => {
+    const numeros = valores
+      .map((valor) => Number(valor))
+      .filter((valor) => Number.isFinite(valor));
+    const primeiroNaoZero = numeros.find((valor) => Math.abs(valor) > 0.000001);
+    return primeiroNaoZero ?? numeros[0] ?? 0;
+  };
+
+  const nomeEstrutura = String(
+    resumo.estrutura
+    || detalhe.estrutura
+    || detalhe.nome_meta_real
+    || '-'
+  ).trim();
+
+  const consultores = incluirConsultores
+    ? [...(detalhe?.consultores || [])]
+        .sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0))
+    : [];
+
+  const largura = 1920;
+  const margem = 28;
+  const margemInterna = 22;
+  const alturaCabecalho = 178;
+  const alturaFaixaEstrutura = 88;
+  const alturaMetricas = 168;
+  const alturaTituloConsultores = incluirConsultores ? 50 : 0;
+  const alturaLinhaConsultor = 116;
+  const alturaRodape = 56;
+  const espacamento = 18;
+
+  const alturaCalculada = alturaCabecalho
+    + espacamento
+    + alturaFaixaEstrutura
+    + alturaMetricas
+    + (incluirConsultores
+      ? alturaTituloConsultores + Math.max(consultores.length, 1) * alturaLinhaConsultor
+      : 0)
+    + espacamento
+    + alturaRodape;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = largura;
+  canvas.height = Math.max(720, Math.ceil(alturaCalculada));
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) throw new Error('Seu navegador não permitiu criar a imagem.');
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  const desenharTextoAjustado = ({
+    texto,
+    x,
+    y,
+    larguraMaxima,
+    tamanho = 22,
+    tamanhoMinimo = 11,
+    peso = 900,
+    cor = '#2d3748',
+    alinhamento = 'left',
+  }) => {
+    const valor = String(texto ?? '-');
+    let tamanhoAtual = tamanho;
+    ctx.textAlign = alinhamento;
+    ctx.fillStyle = cor;
+
+    do {
+      ctx.font = `${peso} ${tamanhoAtual}px Arial`;
+      if (ctx.measureText(valor).width <= larguraMaxima || tamanhoAtual <= tamanhoMinimo) break;
+      tamanhoAtual -= 1;
+    } while (tamanhoAtual > tamanhoMinimo);
+
+    ctx.fillText(valor, x, y);
+    ctx.textAlign = 'left';
+  };
+
+  const desenharBarra = ({ x, y, larguraBarra, percentual, cor }) => {
+    const percentualSeguro = Math.max(0, Math.min(Number(percentual || 0), 100));
+    ctx.fillStyle = '#e8eff1';
+    arredondarRetanguloCanvas(ctx, x, y, larguraBarra, 7, 4);
+    ctx.fill();
+
+    if (percentualSeguro > 0) {
+      ctx.fillStyle = cor;
+      arredondarRetanguloCanvas(
+        ctx,
+        x,
+        y,
+        Math.max(5, larguraBarra * (percentualSeguro / 100)),
+        7,
+        4
+      );
+      ctx.fill();
+    }
+  };
+
+  ctx.fillStyle = '#f2f6f7';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Cabeçalho principal em formato paisagem.
+  ctx.fillStyle = '#048187';
+  ctx.fillRect(0, 0, largura, alturaCabecalho - 18);
+  ctx.fillStyle = '#5bb2b4';
+  ctx.fillRect(0, alturaCabecalho - 18, largura, 18);
+
+  const logo = await carregarImagemCanvas(logoSrc);
+  if (logo) {
+    ctx.save();
+    arredondarRetanguloCanvas(ctx, margem + 12, 31, 104, 104, 24);
+    ctx.clip();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(margem + 12, 31, 104, 104);
+    ctx.drawImage(logo, margem + 20, 39, 88, 88);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#ffffff';
+    arredondarRetanguloCanvas(ctx, margem + 12, 31, 104, 104, 24);
+    ctx.fill();
+    desenharTextoAjustado({
+      texto: 'SB',
+      x: margem + 64,
+      y: 98,
+      larguraMaxima: 90,
+      tamanho: 42,
+      cor: '#048187',
+      alinhamento: 'center',
+    });
+  }
+
+  desenharTextoAjustado({
+    texto: 'RESULTADO COMERCIAL',
+    x: 166,
+    y: 70,
+    larguraMaxima: 700,
+    tamanho: 36,
+    cor: '#ffffff',
+  });
+  desenharTextoAjustado({
+    texto: 'METAS POR ESTRUTURA',
+    x: 166,
+    y: 104,
+    larguraMaxima: 500,
+    tamanho: 21,
+    peso: 800,
+    cor: '#dff8f8',
+  });
+
+  const cicloTexto = `Ciclo ${ciclo || '-'}`;
+  ctx.fillStyle = '#ffffff';
+  arredondarRetanguloCanvas(ctx, 166, 119, 190, 34, 17);
+  ctx.fill();
+  desenharTextoAjustado({
+    texto: cicloTexto,
+    x: 261,
+    y: 142,
+    larguraMaxima: 164,
+    tamanho: 15,
+    tamanhoMinimo: 12,
+    cor: '#048187',
+    alinhamento: 'center',
+  });
+
+  desenharTextoAjustado({
+    texto: `Núcleo(s): ${(nucleos || []).join(', ') || '-'}`,
+    x: 382,
+    y: 142,
+    larguraMaxima: 420,
+    tamanho: 15,
+    peso: 800,
+    cor: '#dff8f8',
+  });
+
+  const geradoTexto = `Gerado por ${geradoPor || '-'} • ${new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date())}`;
+
+  desenharTextoAjustado({
+    texto: geradoTexto,
+    x: largura - margem - 12,
+    y: 141,
+    larguraMaxima: 670,
+    tamanho: 14,
+    tamanhoMinimo: 11,
+    peso: 700,
+    cor: '#dff8f8',
+    alinhamento: 'right',
+  });
+
+  const larguraConteudo = largura - (margem * 2);
+  let y = alturaCabecalho + espacamento;
+
+  const metaReceita = obterNumero(
+    resumo.receita,
+    resumo.meta_faturamento,
+    detalhe?.meta?.receita
+  );
+  const realizadoReceita = obterNumero(
+    resumo.realizado,
+    resumo.valor_realizado,
+    detalhe.realizado
+  );
+  const percentualReceita = obterNumero(
+    resumo.percentual,
+    resumo.percentual_realizado,
+    detalhe.percentual,
+    calcularPercentualRelatorioMetas(realizadoReceita, metaReceita)
+  );
+
+  const atividadeRealizada = obterNumero(
+    resumo.atividade_realizada,
+    resumo.atividade,
+    detalhe.atividade_realizada
+  );
+  const baseAtiva = obterNumero(
+    resumo.base_ativa,
+    detalhe.base_ativa
+  );
+  const metaAtividadePercentual = obterNumero(
+    resumo.meta_atividade,
+    detalhe?.meta?.atividade
+  );
+  const metaAtividadeQuantidade = metaAtividadePercentual > 0 && baseAtiva > 0
+    ? Math.ceil((baseAtiva * metaAtividadePercentual) / 100)
+    : 0;
+  const percentualAtividade = obterNumero(
+    resumo.percentual_atividade,
+    detalhe.percentual_atividade,
+    calcularPercentualRelatorioMetas(atividadeRealizada, baseAtiva)
+  );
+
+  const pedidos = obterNumero(
+    resumo.quantidade_pedidos,
+    resumo.pedidos,
+    detalhe.quantidade_pedidos
+  );
+  const totalItens = obterNumero(
+    resumo.total_itens,
+    detalhe.total_itens
+  );
+
+  const rpaRealizado = obterNumero(
+    resumo.rpa,
+    detalhe.rpa,
+    atividadeRealizada > 0 ? realizadoReceita / atividadeRealizada : 0
+  );
+  const rpaMeta = obterNumero(
+    resumo.meta_rpa,
+    detalhe?.meta?.rpa
+  );
+
+  const ticketRealizado = obterNumero(
+    resumo.tkt_medio,
+    resumo.ticket_medio,
+    detalhe.tkt_medio,
+    pedidos > 0 ? realizadoReceita / pedidos : 0
+  );
+  const ticketMeta = obterNumero(
+    resumo.meta_tkt_medio,
+    resumo.meta_ticket_medio,
+    detalhe?.meta?.tkt_medio
+  );
+
+  const upaRealizado = obterNumero(
+    resumo.upa,
+    resumo.upa_realizada,
+    detalhe.upa_realizada,
+    atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0
+  );
+  const upaMeta = obterNumero(
+    resumo.meta_upa,
+    detalhe?.meta?.upa
+  );
+
+  const percentualMake = obterNumero(
+    resumo.percentual_make,
+    detalhe.percentual_make,
+    calcularPercentualRelatorioMetas(
+      obterNumero(resumo.make_realizado, resumo.make, detalhe.make_realizado),
+      atividadeRealizada
+    )
+  );
+  const metaMake = obterNumero(
+    resumo.meta_make,
+    detalhe?.meta?.make
+  );
+
+  const percentualCabelo = obterNumero(
+    resumo.percentual_cabelo,
+    detalhe.percentual_cabelo,
+    calcularPercentualRelatorioMetas(
+      obterNumero(resumo.cabelo_realizado, resumo.cabelo, detalhe.cabelo_realizado),
+      atividadeRealizada
+    )
+  );
+  const metaCabelo = obterNumero(
+    resumo.meta_cabelo,
+    detalhe?.meta?.cabelo
+  );
+
+  const corEstrutura = corDesempenhoRelatorioMetas(percentualReceita);
+  const nucleosItem = obterNucleosDoItemRelatorioMetas(resumo);
+
+  // Cartão principal da estrutura.
+  ctx.save();
+  ctx.shadowColor = 'rgba(15, 35, 45, 0.10)';
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 7;
+  ctx.fillStyle = '#ffffff';
+  arredondarRetanguloCanvas(
+    ctx,
+    margem,
+    y,
+    larguraConteudo,
+    canvas.height - y - alturaRodape - espacamento,
+    28
+  );
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = corEstrutura;
+  arredondarRetanguloCanvas(ctx, margem, y, larguraConteudo, alturaFaixaEstrutura, 28);
+  ctx.fill();
+  ctx.fillRect(margem, y + 44, larguraConteudo, 44);
+
+  desenharTextoAjustado({
+    texto: nomeEstrutura,
+    x: margem + 34,
+    y: y + 38,
+    larguraMaxima: 1140,
+    tamanho: 29,
+    tamanhoMinimo: 20,
+    cor: '#ffffff',
+  });
+  desenharTextoAjustado({
+    texto: `Núcleo: ${nucleosItem.join(', ') || (nucleos || []).join(', ') || '-'}`,
+    x: margem + 34,
+    y: y + 69,
+    larguraMaxima: 600,
+    tamanho: 14,
+    peso: 700,
+    cor: 'rgba(255,255,255,0.88)',
+  });
+
+  desenharTextoAjustado({
+    texto: `${formatarNumeroBR(percentualReceita, 1)}%`,
+    x: largura - margem - 34,
+    y: y + 39,
+    larguraMaxima: 240,
+    tamanho: 34,
+    tamanhoMinimo: 24,
+    cor: '#ffffff',
+    alinhamento: 'right',
+  });
+  desenharTextoAjustado({
+    texto: 'ATINGIMENTO DA META',
+    x: largura - margem - 34,
+    y: y + 68,
+    larguraMaxima: 260,
+    tamanho: 13,
+    peso: 800,
+    cor: 'rgba(255,255,255,0.88)',
+    alinhamento: 'right',
+  });
+
+  const metricasEstrutura = [
+    {
+      titulo: 'Faturamento',
+      meta: formatarMoeda(metaReceita),
+      realizado: formatarMoeda(realizadoReceita),
+      percentual: percentualReceita,
+      moeda: true,
+    },
+    {
+      titulo: '% Receita',
+      meta: '100,0%',
+      realizado: `${formatarNumeroBR(percentualReceita, 1)}%`,
+      percentual: percentualReceita,
+    },
+    {
+      titulo: 'Atividade',
+      meta: formatarNumeroBR(metaAtividadeQuantidade, 0),
+      realizado: formatarNumeroBR(atividadeRealizada, 0),
+      percentual: calcularPercentualRelatorioMetas(
+        atividadeRealizada,
+        metaAtividadeQuantidade
+      ),
+    },
+    {
+      titulo: '% Ativ.',
+      meta: `${formatarNumeroBR(metaAtividadePercentual, 1)}%`,
+      realizado: `${formatarNumeroBR(percentualAtividade, 1)}%`,
+      percentual: calcularPercentualRelatorioMetas(
+        percentualAtividade,
+        metaAtividadePercentual
+      ),
+    },
+    {
+      titulo: 'RPA',
+      meta: formatarMoeda(rpaMeta),
+      realizado: formatarMoeda(rpaRealizado),
+      percentual: calcularPercentualRelatorioMetas(rpaRealizado, rpaMeta),
+      moeda: true,
+    },
+    {
+      titulo: 'Tkt Médio',
+      meta: formatarMoeda(ticketMeta),
+      realizado: formatarMoeda(ticketRealizado),
+      percentual: calcularPercentualRelatorioMetas(ticketRealizado, ticketMeta),
+      moeda: true,
+    },
+    {
+      titulo: 'UPA',
+      meta: formatarNumeroBR(upaMeta, 1),
+      realizado: formatarNumeroBR(upaRealizado, 1),
+      percentual: calcularPercentualRelatorioMetas(upaRealizado, upaMeta),
+    },
+    {
+      titulo: '% MAKE',
+      meta: `${formatarNumeroBR(metaMake, 1)}%`,
+      realizado: `${formatarNumeroBR(percentualMake, 1)}%`,
+      percentual: calcularPercentualRelatorioMetas(percentualMake, metaMake),
+    },
+    {
+      titulo: '% CAB.',
+      meta: `${formatarNumeroBR(metaCabelo, 1)}%`,
+      realizado: `${formatarNumeroBR(percentualCabelo, 1)}%`,
+      percentual: calcularPercentualRelatorioMetas(percentualCabelo, metaCabelo),
+    },
+  ];
+
+  const yMetricas = y + alturaFaixaEstrutura + 18;
+  const gapMetrica = 10;
+  const larguraMetricasDisponivel = larguraConteudo - (margemInterna * 2);
+  const larguraMetrica = (
+    larguraMetricasDisponivel
+    - (gapMetrica * (metricasEstrutura.length - 1))
+  ) / metricasEstrutura.length;
+  const alturaCardMetrica = alturaMetricas - 32;
+
+  metricasEstrutura.forEach((metrica, indice) => {
+    const x = margem + margemInterna + indice * (larguraMetrica + gapMetrica);
+    const cor = corDesempenhoRelatorioMetas(metrica.percentual);
+
+    ctx.fillStyle = '#f9fbfc';
+    arredondarRetanguloCanvas(ctx, x, yMetricas, larguraMetrica, alturaCardMetrica, 14);
+    ctx.fill();
+
+    ctx.fillStyle = cor;
+    arredondarRetanguloCanvas(ctx, x, yMetricas, 6, alturaCardMetrica, 3);
+    ctx.fill();
+
+    desenharTextoAjustado({
+      texto: String(metrica.titulo).toUpperCase(),
+      x: x + 17,
+      y: yMetricas + 25,
+      larguraMaxima: larguraMetrica - 29,
+      tamanho: 12,
+      tamanhoMinimo: 9,
+      cor: '#718096',
+    });
+
+    desenharTextoAjustado({
+      texto: `META ${metrica.meta}`,
+      x: x + 17,
+      y: yMetricas + 51,
+      larguraMaxima: larguraMetrica - 29,
+      tamanho: 11,
+      tamanhoMinimo: 8,
+      peso: 800,
+      cor: '#7c1f31',
+    });
+
+    desenharTextoAjustado({
+      texto: metrica.realizado,
+      x: x + 17,
+      y: yMetricas + 83,
+      larguraMaxima: larguraMetrica - 29,
+      tamanho: metrica.moeda ? 20 : 23,
+      tamanhoMinimo: 12,
+      cor,
+    });
+
+    desenharBarra({
+      x: x + 17,
+      y: yMetricas + 100,
+      larguraBarra: larguraMetrica - 34,
+      percentual: metrica.percentual,
+      cor,
+    });
+
+    desenharTextoAjustado({
+      texto: `${formatarNumeroBR(metrica.percentual, 1)}% da meta`,
+      x: x + 17,
+      y: yMetricas + 124,
+      larguraMaxima: larguraMetrica - 29,
+      tamanho: 10,
+      tamanhoMinimo: 8,
+      peso: 800,
+      cor,
+    });
+  });
+
+  let yAtual = y + alturaFaixaEstrutura + alturaMetricas;
+
+  if (incluirConsultores) {
+    ctx.fillStyle = '#dff5f6';
+    ctx.fillRect(margem + 1, yAtual, larguraConteudo - 2, alturaTituloConsultores);
+
+    desenharTextoAjustado({
+      texto: 'RESULTADO DOS CONSULTORES',
+      x: margem + 24,
+      y: yAtual + 31,
+      larguraMaxima: 600,
+      tamanho: 16,
+      cor: '#048187',
+    });
+    desenharTextoAjustado({
+      texto: `${consultores.length} consultor(es)`,
+      x: largura - margem - 24,
+      y: yAtual + 31,
+      larguraMaxima: 250,
+      tamanho: 15,
+      cor: '#048187',
+      alinhamento: 'right',
+    });
+
+    yAtual += alturaTituloConsultores;
+
+    if (!consultores.length) {
+      desenharTextoAjustado({
+        texto: 'Nenhum consultor detalhado foi retornado para esta estrutura.',
+        x: margem + 34,
+        y: yAtual + 52,
+        larguraMaxima: larguraConteudo - 68,
+        tamanho: 18,
+        peso: 700,
+        cor: '#718096',
+      });
+    }
+
+    consultores.forEach((consultor, indice) => {
+      const metaConsultor = obterNumero(consultor.meta_individual);
+      const realizadoConsultor = obterNumero(consultor.realizado);
+      const percentualConsultor = obterNumero(
+        consultor.percentual,
+        consultor.percentual_realizado,
+        calcularPercentualRelatorioMetas(realizadoConsultor, metaConsultor)
+      );
+      const pesoConsultor = obterNumero(consultor.peso_meta, 100 / Math.max(consultores.length, 1));
+      const baseAtivaConsultor = obterNumero(
+        consultor.base_ativa_individual,
+        baseAtiva > 0 ? baseAtiva * (pesoConsultor / 100) : 0
+      );
+      const atividadeConsultor = obterNumero(
+        consultor.atividade_realizada,
+        consultor.atividade
+      );
+      const metaAtividadeConsultor = baseAtivaConsultor > 0 && metaAtividadePercentual > 0
+        ? Math.ceil((baseAtivaConsultor * metaAtividadePercentual) / 100)
+        : 0;
+      const pedidosConsultor = obterNumero(
+        consultor.quantidade_pedidos,
+        consultor.pedidos
+      );
+      const totalItensConsultor = obterNumero(consultor.total_itens);
+      const rpaConsultor = atividadeConsultor > 0
+        ? realizadoConsultor / atividadeConsultor
+        : 0;
+      const ticketConsultor = pedidosConsultor > 0
+        ? realizadoConsultor / pedidosConsultor
+        : 0;
+      const upaConsultor = atividadeConsultor > 0
+        ? totalItensConsultor / atividadeConsultor
+        : 0;
+      const percentualMakeConsultor = obterNumero(
+        consultor.percentual_make,
+        calcularPercentualRelatorioMetas(
+          obterNumero(consultor.make_realizado, consultor.make),
+          atividadeConsultor
+        )
+      );
+      const percentualCabeloConsultor = obterNumero(
+        consultor.percentual_cabelo,
+        calcularPercentualRelatorioMetas(
+          obterNumero(consultor.cabelo_realizado, consultor.cabelo),
+          atividadeConsultor
+        )
+      );
+      const nomeConsultor = String(
+        consultor.nome_exibicao
+        || consultor.nome_social
+        || consultor.nome
+        || `Consultor ${indice + 1}`
+      );
+      const corConsultor = corDesempenhoRelatorioMetas(percentualConsultor);
+
+      ctx.fillStyle = indice % 2 === 0 ? '#ffffff' : '#f6fafb';
+      ctx.fillRect(
+        margem + 1,
+        yAtual,
+        larguraConteudo - 2,
+        alturaLinhaConsultor
+      );
+
+      ctx.fillStyle = corConsultor;
+      ctx.fillRect(margem + 10, yAtual + 10, 6, alturaLinhaConsultor - 20);
+
+      const larguraIdentificacao = 350;
+      const xIdentificacao = margem + 28;
+
+      desenharTextoAjustado({
+        texto: `${indice + 1}º`,
+        x: xIdentificacao,
+        y: yAtual + 34,
+        larguraMaxima: 42,
+        tamanho: 15,
+        cor: '#048187',
+      });
+
+      ctx.font = '900 17px Arial';
+      ctx.fillStyle = '#2d3748';
+      desenharTextoCanvas(
+        ctx,
+        nomeConsultor,
+        xIdentificacao + 48,
+        yAtual + 32,
+        larguraIdentificacao - 65,
+        20,
+        2
+      );
+
+      desenharTextoAjustado({
+        texto: `Peso da meta: ${formatarNumeroBR(pesoConsultor, 2)}%`,
+        x: xIdentificacao + 48,
+        y: yAtual + 91,
+        larguraMaxima: larguraIdentificacao - 65,
+        tamanho: 10,
+        tamanhoMinimo: 9,
+        peso: 700,
+        cor: '#718096',
+      });
+
+      const metricasConsultor = [
+        {
+          titulo: 'Faturamento',
+          meta: formatarMoeda(metaConsultor),
+          realizado: formatarMoeda(realizadoConsultor),
+          percentual: percentualConsultor,
+          moeda: true,
+        },
+        {
+          titulo: 'Atividade',
+          meta: formatarNumeroBR(metaAtividadeConsultor, 0),
+          realizado: formatarNumeroBR(atividadeConsultor, 0),
+          percentual: calcularPercentualRelatorioMetas(
+            atividadeConsultor,
+            metaAtividadeConsultor
+          ),
+        },
+        {
+          titulo: 'RPA',
+          meta: formatarMoeda(rpaMeta),
+          realizado: formatarMoeda(rpaConsultor),
+          percentual: calcularPercentualRelatorioMetas(rpaConsultor, rpaMeta),
+          moeda: true,
+        },
+        {
+          titulo: 'Tkt Médio',
+          meta: formatarMoeda(ticketMeta),
+          realizado: formatarMoeda(ticketConsultor),
+          percentual: calcularPercentualRelatorioMetas(ticketConsultor, ticketMeta),
+          moeda: true,
+        },
+        {
+          titulo: 'UPA',
+          meta: formatarNumeroBR(upaMeta, 1),
+          realizado: formatarNumeroBR(upaConsultor, 1),
+          percentual: calcularPercentualRelatorioMetas(upaConsultor, upaMeta),
+        },
+        {
+          titulo: 'MAKE',
+          meta: `${formatarNumeroBR(metaMake, 1)}%`,
+          realizado: `${formatarNumeroBR(percentualMakeConsultor, 1)}%`,
+          percentual: calcularPercentualRelatorioMetas(
+            percentualMakeConsultor,
+            metaMake
+          ),
+        },
+        {
+          titulo: 'Cabelo',
+          meta: `${formatarNumeroBR(metaCabelo, 1)}%`,
+          realizado: `${formatarNumeroBR(percentualCabeloConsultor, 1)}%`,
+          percentual: calcularPercentualRelatorioMetas(
+            percentualCabeloConsultor,
+            metaCabelo
+          ),
+        },
+      ];
+
+      const xMetricasConsultor = margem + larguraIdentificacao + 28;
+      const larguraMetricasConsultor = largura - margem - 22 - xMetricasConsultor;
+      const gapConsultor = 8;
+      const larguraCardConsultor = (
+        larguraMetricasConsultor
+        - gapConsultor * (metricasConsultor.length - 1)
+      ) / metricasConsultor.length;
+
+      metricasConsultor.forEach((metrica, indiceMetrica) => {
+        const xCard = xMetricasConsultor
+          + indiceMetrica * (larguraCardConsultor + gapConsultor);
+        const cor = corDesempenhoRelatorioMetas(metrica.percentual);
+
+        ctx.fillStyle = '#f8fbfc';
+        arredondarRetanguloCanvas(
+          ctx,
+          xCard,
+          yAtual + 12,
+          larguraCardConsultor,
+          alturaLinhaConsultor - 24,
+          11
+        );
+        ctx.fill();
+
+        ctx.fillStyle = cor;
+        arredondarRetanguloCanvas(
+          ctx,
+          xCard,
+          yAtual + 12,
+          5,
+          alturaLinhaConsultor - 24,
+          3
+        );
+        ctx.fill();
+
+        desenharTextoAjustado({
+          texto: String(metrica.titulo).toUpperCase(),
+          x: xCard + 14,
+          y: yAtual + 33,
+          larguraMaxima: larguraCardConsultor - 24,
+          tamanho: 10,
+          tamanhoMinimo: 8,
+          cor: '#718096',
+        });
+        desenharTextoAjustado({
+          texto: `Meta: ${metrica.meta}`,
+          x: xCard + 14,
+          y: yAtual + 57,
+          larguraMaxima: larguraCardConsultor - 24,
+          tamanho: 10,
+          tamanhoMinimo: 7,
+          peso: 800,
+          cor: '#7c1f31',
+        });
+        desenharTextoAjustado({
+          texto: `Real.: ${metrica.realizado}`,
+          x: xCard + 14,
+          y: yAtual + 82,
+          larguraMaxima: larguraCardConsultor - 24,
+          tamanho: metrica.moeda ? 13 : 15,
+          tamanhoMinimo: 8,
+          cor,
+        });
+        desenharBarra({
+          x: xCard + 14,
+          y: yAtual + 95,
+          larguraBarra: larguraCardConsultor - 28,
+          percentual: metrica.percentual,
+          cor,
+        });
+      });
+
+      yAtual += alturaLinhaConsultor;
+    });
+  }
+
+  desenharTextoAjustado({
+    texto: 'Fonte: DASH COMERCIAL SB • Resultados sujeitos à atualização das bases comerciais.',
+    x: margem,
+    y: canvas.height - 22,
+    larguraMaxima: 1100,
+    tamanho: 11,
+    peso: 700,
+    cor: '#718096',
+  });
+  desenharTextoAjustado({
+    texto: incluirConsultores
+      ? `${consultores.length} consultor(es) • 1 estrutura por imagem`
+      : '1 estrutura por imagem',
+    x: largura - margem,
+    y: canvas.height - 22,
+    larguraMaxima: 500,
+    tamanho: 11,
+    peso: 700,
+    cor: '#718096',
+    alinhamento: 'right',
+  });
+
+  return canvasParaBlob(canvas);
+};
+
+
+const INDICADORES_RELATORIO_LOJA = [
+  {
+    id: 'faturamento',
+    label: 'Faturamento',
+    descricao: 'Meta, realizado, atingimento e déficit do ciclo.',
+  },
+  {
+    id: 'venda_diaria',
+    label: 'Venda diária',
+    descricao: 'Resultado do último dia importado e meta diária.',
+  },
+  {
+    id: 'tendencia',
+    label: 'Tendência',
+    descricao: 'Projeção de fechamento do ciclo.',
+  },
+  {
+    id: 'skin',
+    label: 'Skin',
+    descricao: 'Meta e realizado de Skin/Botik.',
+  },
+  {
+    id: 'boleto_medio',
+    label: 'Boleto médio',
+    descricao: 'Meta e valor médio por boleto.',
+  },
+  {
+    id: 'itens_boleto',
+    label: 'Itens por boleto',
+    descricao: 'Meta e quantidade média de itens.',
+  },
+  {
+    id: 'servicos',
+    label: 'Serviços',
+    descricao: 'Resultado mensal e meta mensal do PDV.',
+  },
+  {
+    id: 'pedidos',
+    label: 'Pedidos',
+    descricao: 'Quantidade de boletos/pedidos do ciclo.',
+  },
+];
+
+const CONFIG_RELATORIO_LOJA_PADRAO = {
+  modoPdvs: 'todos',
+  pdvs: [],
+  incluirConsultores: false,
+  indicadores: {
+    faturamento: true,
+    venda_diaria: true,
+    tendencia: true,
+    skin: true,
+    boleto_medio: true,
+    itens_boleto: true,
+    servicos: true,
+    pedidos: true,
+  },
+};
+
+const normalizarTextoRelatorioLoja = (valor) => String(valor || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const formatarCompetenciaRelatorioLoja = (valor) => {
+  const texto = String(valor || '').trim();
+  const partes = texto.split('-');
+
+  if (partes.length < 2) return texto || '-';
+
+  const ano = Number(partes[0]);
+  const mes = Number(partes[1]);
+
+  if (!ano || !mes) return texto || '-';
+
+  return new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
+const obterNumeroRelatorioLoja = (...valores) => {
+  const numeros = valores
+    .map((valor) => converterNumeroLoja(valor, Number.NaN))
+    .filter((valor) => Number.isFinite(valor));
+
+  const primeiroNaoZero = numeros.find(
+    (valor) => Math.abs(valor) > 0.000001
+  );
+
+  return primeiroNaoZero ?? numeros[0] ?? 0;
+};
+
+const obterServicosConsultorRelatorioLoja = (
+  consultor,
+  servicosConsultores = []
+) => {
+  const idConsultor = String(
+    consultor?.id_consultora
+    || consultor?.id_consultor
+    || ''
+  ).trim();
+
+  const nomeConsultor = normalizarTextoRelatorioLoja(
+    consultor?.nome_consultora
+    || consultor?.nome_consultor
+    || ''
+  );
+
+  const codigoPdv = String(
+    consultor?.codigo_pdv_oficial
+    || consultor?.codigo_pdv
+    || ''
+  ).trim();
+
+  const correspondencias = (servicosConsultores || []).filter((item) => {
+    const mesmoPdv = !codigoPdv
+      || String(item?.codigo_pdv || '').trim() === codigoPdv;
+
+    if (!mesmoPdv) return false;
+
+    const idItem = String(item?.id_consultor || '').trim();
+    const nomeItem = normalizarTextoRelatorioLoja(
+      item?.nome_consultor
+    );
+
+    return (
+      (idConsultor && idItem && idConsultor === idItem)
+      || (
+        nomeConsultor
+        && nomeItem
+        && nomeConsultor === nomeItem
+      )
+    );
+  });
+
+  return correspondencias.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.realizado_mes
+    ),
+    0
+  );
+};
+
+const calcularResumoSelecionadoRelatorioLoja = (
+  unidades = [],
+  resumoGeral = {}
+) => {
+  const lista = Array.isArray(unidades) ? unidades : [];
+
+  const faturamento = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(item?.realizado),
+    0
+  );
+  const metaFaturamento = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.meta_faturamento
+    ),
+    0
+  );
+  const vendaDiaria = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.realizado_diario
+    ),
+    0
+  );
+  const metaDiaria = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.meta_diaria
+    ),
+    0
+  );
+  const tendencia = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.tendencia
+    ),
+    0
+  );
+  const skinRealizado = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.realizado_skin
+    ),
+    0
+  );
+  const metaSkin = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.meta_skin
+    ),
+    0
+  );
+  const pedidos = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.qtd_boletos,
+      item?.pedidos
+    ),
+    0
+  );
+  const totalItensEstimados = lista.reduce(
+    (total, item) => {
+      const qtdPedidos = obterNumeroRelatorioLoja(
+        item?.qtd_boletos,
+        item?.pedidos
+      );
+      return total + (
+        qtdPedidos
+        * obterNumeroRelatorioLoja(item?.itens_por_boleto)
+      );
+    },
+    0
+  );
+  const boletoMedio = pedidos > 0
+    ? faturamento / pedidos
+    : 0;
+  const itensPorBoleto = pedidos > 0
+    ? totalItensEstimados / pedidos
+    : 0;
+
+  const metasBoleto = lista
+    .map((item) => obterNumeroRelatorioLoja(
+      item?.meta_boleto_medio,
+      META_BOLETO_MEDIO_PADRAO_LOJA
+    ))
+    .filter((valor) => valor > 0);
+  const metasItens = lista
+    .map((item) => obterNumeroRelatorioLoja(
+      item?.meta_itens_boleto,
+      4
+    ))
+    .filter((valor) => valor > 0);
+
+  const metaBoletoMedio = metasBoleto.length
+    ? metasBoleto.reduce((total, valor) => total + valor, 0)
+      / metasBoleto.length
+    : obterNumeroRelatorioLoja(
+        resumoGeral?.meta_boleto_medio,
+        META_BOLETO_MEDIO_PADRAO_LOJA
+      );
+
+  const metaItensBoleto = metasItens.length
+    ? metasItens.reduce((total, valor) => total + valor, 0)
+      / metasItens.length
+    : obterNumeroRelatorioLoja(
+        resumoGeral?.meta_itens_boleto,
+        4
+      );
+
+  const servicosRealizado = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.realizado_servicos_mes
+    ),
+    0
+  );
+  const metaServicos = lista.reduce(
+    (total, item) => total + obterNumeroRelatorioLoja(
+      item?.meta_servicos_mes
+    ),
+    0
+  );
+
+  return {
+    codigo_pdv: '',
+    cidade: 'Resultado consolidado',
+    nome_loja: `${lista.length} PDV(s) selecionado(s)`,
+    meta_faturamento: metaFaturamento,
+    realizado: faturamento,
+    deficit: Math.max(metaFaturamento - faturamento, 0),
+    percentual: calcularPercentualRelatorioMetas(
+      faturamento,
+      metaFaturamento
+    ),
+    realizado_diario: vendaDiaria,
+    meta_diaria: metaDiaria,
+    percentual_diario: calcularPercentualRelatorioMetas(
+      vendaDiaria,
+      metaDiaria
+    ),
+    tendencia,
+    gap_tendencia: tendencia - metaFaturamento,
+    percentual_tendencia: calcularPercentualRelatorioMetas(
+      tendencia,
+      metaFaturamento
+    ),
+    realizado_skin: skinRealizado,
+    meta_skin: metaSkin,
+    percentual_skin: calcularPercentualRelatorioMetas(
+      skinRealizado,
+      metaSkin
+    ),
+    boleto_medio: boletoMedio,
+    meta_boleto_medio: metaBoletoMedio,
+    percentual_boleto: calcularPercentualRelatorioMetas(
+      boletoMedio,
+      metaBoletoMedio
+    ),
+    itens_por_boleto: itensPorBoleto,
+    meta_itens_boleto: metaItensBoleto,
+    percentual_itens: calcularPercentualRelatorioMetas(
+      itensPorBoleto,
+      metaItensBoleto
+    ),
+    realizado_servicos_mes: servicosRealizado,
+    meta_servicos_mes: metaServicos,
+    percentual_servicos: calcularPercentualRelatorioMetas(
+      servicosRealizado,
+      metaServicos
+    ),
+    qtd_boletos: pedidos,
+    competencia_servicos: resumoGeral?.competencia_servicos || '',
+  };
+};
+
+const montarMetricasRelatorioLoja = (
+  item = {},
+  indicadoresSelecionados = []
+) => {
+  const indicadores = new Set(indicadoresSelecionados || []);
+
+  const metaFaturamento = obterNumeroRelatorioLoja(
+    item?.meta_faturamento
+  );
+  const realizado = obterNumeroRelatorioLoja(item?.realizado);
+  const vendaDiaria = obterNumeroRelatorioLoja(
+    item?.realizado_diario
+  );
+  const metaDiaria = obterNumeroRelatorioLoja(
+    item?.meta_diaria
+  );
+  const tendencia = obterNumeroRelatorioLoja(item?.tendencia);
+  const skin = obterNumeroRelatorioLoja(item?.realizado_skin);
+  const metaSkin = obterNumeroRelatorioLoja(item?.meta_skin);
+  const boleto = obterNumeroRelatorioLoja(item?.boleto_medio);
+  const metaBoleto = obterNumeroRelatorioLoja(
+    item?.meta_boleto_medio,
+    META_BOLETO_MEDIO_PADRAO_LOJA
+  );
+  const itens = obterNumeroRelatorioLoja(
+    item?.itens_por_boleto
+  );
+  const metaItens = obterNumeroRelatorioLoja(
+    item?.meta_itens_boleto,
+    4
+  );
+  const servicos = obterNumeroRelatorioLoja(
+    item?.realizado_servicos_mes
+  );
+  const metaServicos = obterNumeroRelatorioLoja(
+    item?.meta_servicos_mes
+  );
+  const pedidos = obterNumeroRelatorioLoja(
+    item?.qtd_boletos,
+    item?.pedidos
+  );
+
+  const metricas = [
+    {
+      id: 'faturamento',
+      titulo: 'Faturamento',
+      meta: formatarMoeda(metaFaturamento),
+      realizado: formatarMoeda(realizado),
+      percentual: calcularPercentualRelatorioMetas(
+        realizado,
+        metaFaturamento
+      ),
+      observacao: `Faltam ${formatarMoeda(
+        Math.max(metaFaturamento - realizado, 0)
+      )}`,
+      moeda: true,
+    },
+    {
+      id: 'venda_diaria',
+      titulo: 'Venda diária',
+      meta: formatarMoeda(metaDiaria),
+      realizado: formatarMoeda(vendaDiaria),
+      percentual: calcularPercentualRelatorioMetas(
+        vendaDiaria,
+        metaDiaria
+      ),
+      observacao: item?.data_referencia_diaria
+        ? `Referência ${new Date(
+            `${String(item.data_referencia_diaria).slice(0, 10)}T00:00:00`
+          ).toLocaleDateString('pt-BR')}`
+        : 'Última base diária',
+      moeda: true,
+    },
+    {
+      id: 'tendencia',
+      titulo: 'Tendência',
+      meta: formatarMoeda(metaFaturamento),
+      realizado: formatarMoeda(tendencia),
+      percentual: calcularPercentualRelatorioMetas(
+        tendencia,
+        metaFaturamento
+      ),
+      observacao: `${tendencia >= metaFaturamento ? 'Projeção positiva' : 'Risco de não bater'} • Gap ${formatarMoeda(
+        tendencia - metaFaturamento
+      )}`,
+      moeda: true,
+    },
+    {
+      id: 'skin',
+      titulo: 'Skin',
+      meta: formatarMoeda(metaSkin),
+      realizado: formatarMoeda(skin),
+      percentual: calcularPercentualRelatorioMetas(
+        skin,
+        metaSkin
+      ),
+      observacao: 'Resultado Skin/Botik',
+      moeda: true,
+    },
+    {
+      id: 'boleto_medio',
+      titulo: 'Boleto médio',
+      meta: formatarMoeda(metaBoleto),
+      realizado: formatarMoeda(boleto),
+      percentual: calcularPercentualRelatorioMetas(
+        boleto,
+        metaBoleto
+      ),
+      observacao: 'Valor médio por boleto',
+      moeda: true,
+    },
+    {
+      id: 'itens_boleto',
+      titulo: 'Itens por boleto',
+      meta: formatarNumeroBR(metaItens, 1),
+      realizado: formatarNumeroBR(itens, 2),
+      percentual: calcularPercentualRelatorioMetas(
+        itens,
+        metaItens
+      ),
+      observacao: 'Média de itens',
+    },
+    {
+      id: 'servicos',
+      titulo: 'Serviços',
+      meta: metaServicos > 0
+        ? formatarNumeroBR(metaServicos, 0)
+        : 'Sem meta',
+      realizado: formatarNumeroBR(servicos, 0),
+      percentual: metaServicos > 0
+        ? calcularPercentualRelatorioMetas(
+            servicos,
+            metaServicos
+          )
+        : null,
+      observacao: `Competência ${formatarCompetenciaRelatorioLoja(
+        item?.competencia_servicos
+      )}`,
+    },
+    {
+      id: 'pedidos',
+      titulo: 'Pedidos',
+      meta: 'Não definida',
+      realizado: formatarNumeroBR(pedidos, 0),
+      percentual: null,
+      observacao: 'Boletos do ciclo',
+    },
+  ];
+
+  return metricas.filter((metrica) => indicadores.has(metrica.id));
+};
+
+const desenharCabecalhoRelatorioLoja = async ({
+  ctx,
+  largura,
+  alturaCabecalho,
+  logoSrc,
+  ciclo,
+  tituloSecundario,
+  geradoPor,
+  competenciaServicos,
+}) => {
+  ctx.fillStyle = '#048187';
+  ctx.fillRect(0, 0, largura, alturaCabecalho - 18);
+  ctx.fillStyle = '#5bb2b4';
+  ctx.fillRect(0, alturaCabecalho - 18, largura, 18);
+
+  const logo = await carregarImagemCanvas(logoSrc);
+
+  if (logo) {
+    ctx.save();
+    arredondarRetanguloCanvas(ctx, 38, 30, 105, 105, 24);
+    ctx.clip();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(38, 30, 105, 105);
+    ctx.drawImage(logo, 46, 38, 89, 89);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#ffffff';
+    arredondarRetanguloCanvas(ctx, 38, 30, 105, 105, 24);
+    ctx.fill();
+    ctx.fillStyle = '#048187';
+    ctx.textAlign = 'center';
+    ctx.font = '900 42px Arial';
+    ctx.fillText('SB', 90, 98);
+    ctx.textAlign = 'left';
+  }
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 36px Arial';
+  ctx.fillText('RESULTADO COMERCIAL — LOJA', 170, 69);
+
+  ctx.fillStyle = '#dff8f8';
+  ctx.font = '800 21px Arial';
+  ctx.fillText(tituloSecundario, 170, 105);
+
+  ctx.fillStyle = '#ffffff';
+  arredondarRetanguloCanvas(ctx, 170, 119, 190, 34, 17);
+  ctx.fill();
+  ctx.fillStyle = '#048187';
+  ctx.textAlign = 'center';
+  ctx.font = '900 15px Arial';
+  ctx.fillText(`Ciclo ${ciclo || '-'}`, 265, 142);
+  ctx.textAlign = 'left';
+
+  ctx.fillStyle = '#dff8f8';
+  ctx.font = '800 14px Arial';
+  ctx.fillText(
+    `Serviços: ${formatarCompetenciaRelatorioLoja(
+      competenciaServicos
+    )}`,
+    385,
+    142
+  );
+
+  const geradoTexto = `Gerado por ${geradoPor || '-'} • ${new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date())}`;
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#dff8f8';
+  ctx.font = '700 14px Arial';
+  ctx.fillText(geradoTexto, largura - 38, 142);
+  ctx.textAlign = 'left';
+};
+
+const desenharCardMetricaRelatorioLoja = ({
+  ctx,
+  metrica,
+  x,
+  y,
+  largura,
+  altura,
+}) => {
+  const percentualValido = Number.isFinite(
+    Number(metrica?.percentual)
+  );
+  const percentual = percentualValido
+    ? Number(metrica.percentual)
+    : null;
+  const cor = percentualValido
+    ? corDesempenhoRelatorioMetas(percentual)
+    : '#048187';
+
+  ctx.fillStyle = '#ffffff';
+  arredondarRetanguloCanvas(ctx, x, y, largura, altura, 18);
+  ctx.fill();
+
+  ctx.fillStyle = cor;
+  arredondarRetanguloCanvas(ctx, x, y, 7, altura, 4);
+  ctx.fill();
+
+  ctx.fillStyle = '#718096';
+  ctx.font = '900 14px Arial';
+  ctx.fillText(
+    String(metrica?.titulo || '-').toUpperCase(),
+    x + 22,
+    y + 29
+  );
+
+  ctx.fillStyle = '#7c1f31';
+  ctx.font = '800 13px Arial';
+  ctx.fillText(
+    `META: ${metrica?.meta || '-'}`,
+    x + 22,
+    y + 59
+  );
+
+  ctx.fillStyle = cor;
+  ctx.font = `900 ${metrica?.moeda ? 24 : 28}px Arial`;
+  ctx.fillText(
+    String(metrica?.realizado || '-'),
+    x + 22,
+    y + 94
+  );
+
+  if (percentualValido) {
+    const percentualBarra = Math.max(
+      0,
+      Math.min(percentual, 100)
+    );
+
+    ctx.fillStyle = '#e8eff1';
+    arredondarRetanguloCanvas(
+      ctx,
+      x + 22,
+      y + 111,
+      largura - 44,
+      8,
+      4
+    );
+    ctx.fill();
+
+    if (percentualBarra > 0) {
+      ctx.fillStyle = cor;
+      arredondarRetanguloCanvas(
+        ctx,
+        x + 22,
+        y + 111,
+        Math.max(
+          6,
+          (largura - 44) * (percentualBarra / 100)
+        ),
+        8,
+        4
+      );
+      ctx.fill();
+    }
+
+    ctx.fillStyle = cor;
+    ctx.font = '900 12px Arial';
+    ctx.fillText(
+      `${formatarNumeroBR(percentual, 1)}% da meta`,
+      x + 22,
+      y + 139
+    );
+  } else {
+    ctx.fillStyle = '#718096';
+    ctx.font = '800 12px Arial';
+    ctx.fillText(
+      'Indicador sem meta definida',
+      x + 22,
+      y + 139
+    );
+  }
+
+  ctx.fillStyle = '#718096';
+  ctx.font = '700 11px Arial';
+  const observacao = String(metrica?.observacao || '');
+  let observacaoFinal = observacao;
+
+  while (
+    observacaoFinal.length > 1
+    && ctx.measureText(observacaoFinal).width > largura - 44
+  ) {
+    observacaoFinal = observacaoFinal.slice(0, -1);
+  }
+
+  if (observacaoFinal !== observacao) {
+    observacaoFinal = `${observacaoFinal.slice(0, -3)}...`;
+  }
+
+  ctx.fillText(
+    observacaoFinal,
+    x + 22,
+    y + altura - 17
+  );
+};
+
+const criarImagemRelatorioLojaPdv = async ({
+  unidade,
+  consultores,
+  servicosConsultores,
+  ciclo,
+  competenciaServicos,
+  indicadores,
+  incluirConsultores,
+  geradoPor,
+  logoSrc,
+}) => {
+  const largura = 1920;
+  const margem = 30;
+  const alturaCabecalho = 178;
+  const alturaFaixaPdv = 92;
+  const gap = 18;
+  const metricas = montarMetricasRelatorioLoja(
+    {
+      ...unidade,
+      competencia_servicos: (
+        unidade?.competencia_servicos
+        || competenciaServicos
+      ),
+    },
+    indicadores
+  );
+
+  const colunasMetricas = Math.min(
+    4,
+    Math.max(metricas.length, 1)
+  );
+  const linhasMetricas = Math.ceil(
+    metricas.length / colunasMetricas
+  );
+  const alturaCardMetrica = 175;
+  const alturaMetricas = linhasMetricas * alturaCardMetrica
+    + Math.max(linhasMetricas - 1, 0) * 14;
+
+  const consultoresOrdenados = incluirConsultores
+    ? [...(consultores || [])].sort(
+        (a, b) => obterNumeroRelatorioLoja(b?.realizado)
+          - obterNumeroRelatorioLoja(a?.realizado)
+      )
+    : [];
+
+  const alturaTituloConsultores = incluirConsultores ? 50 : 0;
+  const alturaLinhaConsultor = 136;
+  const alturaRodape = 58;
+
+  const altura = Math.max(
+    760,
+    alturaCabecalho
+      + gap
+      + alturaFaixaPdv
+      + 20
+      + alturaMetricas
+      + (
+        incluirConsultores
+          ? alturaTituloConsultores
+            + Math.max(consultoresOrdenados.length, 1)
+              * alturaLinhaConsultor
+          : 0
+      )
+      + gap
+      + alturaRodape
+  );
+
+  const canvas = document.createElement('canvas');
+  canvas.width = largura;
+  canvas.height = Math.ceil(altura);
+
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error(
+      'Seu navegador não permitiu criar a imagem da LOJA.'
+    );
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#f2f6f7';
+  ctx.fillRect(0, 0, largura, altura);
+
+  await desenharCabecalhoRelatorioLoja({
+    ctx,
+    largura,
+    alturaCabecalho,
+    logoSrc,
+    ciclo,
+    tituloSecundario: 'RESULTADO POR PDV',
+    geradoPor,
+    competenciaServicos,
+  });
+
+  let y = alturaCabecalho + gap;
+  const larguraConteudo = largura - (margem * 2);
+  const percentualFaturamento = calcularPercentualRelatorioMetas(
+    obterNumeroRelatorioLoja(unidade?.realizado),
+    obterNumeroRelatorioLoja(unidade?.meta_faturamento)
+  );
+  const corPdv = corDesempenhoRelatorioMetas(
+    percentualFaturamento
+  );
+
+  ctx.fillStyle = corPdv;
+  arredondarRetanguloCanvas(
+    ctx,
+    margem,
+    y,
+    larguraConteudo,
+    alturaFaixaPdv,
+    26
+  );
+  ctx.fill();
+
+  const codigoPdv = String(unidade?.codigo_pdv || '-');
+  const nomePdv = String(
+    unidade?.cidade
+    || unidade?.nome_loja
+    || `PDV ${codigoPdv}`
+  ).trim();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 30px Arial';
+  ctx.fillText(
+    `PDV ${codigoPdv} — ${nomePdv.toUpperCase()}`,
+    margem + 34,
+    y + 40
+  );
+
+  ctx.fillStyle = 'rgba(255,255,255,0.86)';
+  ctx.font = '700 14px Arial';
+  ctx.fillText(
+    unidade?.nome_loja || nomePdv,
+    margem + 34,
+    y + 69
+  );
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 35px Arial';
+  ctx.fillText(
+    `${formatarNumeroBR(percentualFaturamento, 1)}%`,
+    largura - margem - 34,
+    y + 41
+  );
+  ctx.font = '800 13px Arial';
+  ctx.fillText(
+    'ATINGIMENTO DA META',
+    largura - margem - 34,
+    y + 69
+  );
+  ctx.textAlign = 'left';
+
+  y += alturaFaixaPdv + 20;
+
+  const gapCard = 14;
+  const larguraCard = (
+    larguraConteudo
+    - gapCard * (colunasMetricas - 1)
+  ) / colunasMetricas;
+
+  metricas.forEach((metrica, indice) => {
+    const linha = Math.floor(indice / colunasMetricas);
+    const coluna = indice % colunasMetricas;
+
+    desenharCardMetricaRelatorioLoja({
+      ctx,
+      metrica,
+      x: margem + coluna * (larguraCard + gapCard),
+      y: y + linha * (alturaCardMetrica + gapCard),
+      largura: larguraCard,
+      altura: alturaCardMetrica,
+    });
+  });
+
+  y += alturaMetricas;
+
+  if (incluirConsultores) {
+    y += 18;
+    ctx.fillStyle = '#dff5f6';
+    ctx.fillRect(
+      margem,
+      y,
+      larguraConteudo,
+      alturaTituloConsultores
+    );
+
+    ctx.fillStyle = '#048187';
+    ctx.font = '900 17px Arial';
+    ctx.fillText(
+      'RESULTADO DOS CONSULTORES',
+      margem + 24,
+      y + 31
+    );
+
+    ctx.textAlign = 'right';
+    ctx.font = '900 15px Arial';
+    ctx.fillText(
+      `${consultoresOrdenados.length} consultor(es)`,
+      largura - margem - 24,
+      y + 31
+    );
+    ctx.textAlign = 'left';
+
+    y += alturaTituloConsultores;
+
+    if (!consultoresOrdenados.length) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(
+        margem,
+        y,
+        larguraConteudo,
+        alturaLinhaConsultor
+      );
+      ctx.fillStyle = '#718096';
+      ctx.font = '800 18px Arial';
+      ctx.fillText(
+        'Nenhum consultor vinculado a este PDV.',
+        margem + 34,
+        y + 66
+      );
+      y += alturaLinhaConsultor;
+    }
+
+    consultoresOrdenados.forEach((consultor, indice) => {
+      const metaConsultor = obterNumeroRelatorioLoja(
+        consultor?.meta_faturamento
+      );
+      const realizadoConsultor = obterNumeroRelatorioLoja(
+        consultor?.realizado
+      );
+      const pedidosConsultor = obterNumeroRelatorioLoja(
+        consultor?.qtd_boletos
+      );
+      const boletoConsultor = obterNumeroRelatorioLoja(
+        consultor?.boleto_medio
+      );
+      const metaBoletoConsultor = obterNumeroRelatorioLoja(
+        consultor?.meta_boleto_medio,
+        META_BOLETO_MEDIO_PADRAO_LOJA
+      );
+      const itensConsultor = obterNumeroRelatorioLoja(
+        consultor?.itens_por_boleto
+      );
+      const metaItensConsultor = obterNumeroRelatorioLoja(
+        consultor?.meta_itens_boleto,
+        4
+      );
+      const skinConsultor = obterNumeroRelatorioLoja(
+        consultor?.realizado_skin
+      );
+      const metaSkinConsultor = obterNumeroRelatorioLoja(
+        consultor?.meta_skin
+      );
+      const servicosConsultor = obterServicosConsultorRelatorioLoja(
+        consultor,
+        servicosConsultores
+      );
+
+      const metricasConsultor = [
+        {
+          titulo: 'Faturamento',
+          meta: formatarMoeda(metaConsultor),
+          realizado: formatarMoeda(realizadoConsultor),
+          percentual: calcularPercentualRelatorioMetas(
+            realizadoConsultor,
+            metaConsultor
+          ),
+          moeda: true,
+        },
+        {
+          titulo: 'Pedidos',
+          meta: 'Não definida',
+          realizado: formatarNumeroBR(pedidosConsultor, 0),
+          percentual: null,
+        },
+        {
+          titulo: 'Boleto médio',
+          meta: formatarMoeda(metaBoletoConsultor),
+          realizado: formatarMoeda(boletoConsultor),
+          percentual: calcularPercentualRelatorioMetas(
+            boletoConsultor,
+            metaBoletoConsultor
+          ),
+          moeda: true,
+        },
+        {
+          titulo: 'Itens/Boleto',
+          meta: formatarNumeroBR(metaItensConsultor, 1),
+          realizado: formatarNumeroBR(itensConsultor, 2),
+          percentual: calcularPercentualRelatorioMetas(
+            itensConsultor,
+            metaItensConsultor
+          ),
+        },
+        {
+          titulo: 'Skin',
+          meta: formatarMoeda(metaSkinConsultor),
+          realizado: formatarMoeda(skinConsultor),
+          percentual: calcularPercentualRelatorioMetas(
+            skinConsultor,
+            metaSkinConsultor
+          ),
+          moeda: true,
+        },
+        {
+          titulo: 'Serviços',
+          meta: 'Não definida',
+          realizado: formatarNumeroBR(servicosConsultor, 0),
+          percentual: null,
+        },
+      ];
+
+      ctx.fillStyle = indice % 2 === 0
+        ? '#ffffff'
+        : '#f7fafb';
+      ctx.fillRect(
+        margem,
+        y,
+        larguraConteudo,
+        alturaLinhaConsultor
+      );
+
+      const percentualConsultor = calcularPercentualRelatorioMetas(
+        realizadoConsultor,
+        metaConsultor
+      );
+      const corConsultor = corDesempenhoRelatorioMetas(
+        percentualConsultor
+      );
+
+      ctx.fillStyle = corConsultor;
+      ctx.fillRect(
+        margem + 10,
+        y + 10,
+        6,
+        alturaLinhaConsultor - 20
+      );
+
+      const larguraIdentificacao = 335;
+      const xNome = margem + 32;
+
+      ctx.fillStyle = '#048187';
+      ctx.font = '900 15px Arial';
+      ctx.fillText(
+        `${indice + 1}º`,
+        xNome,
+        y + 35
+      );
+
+      ctx.fillStyle = '#2d3748';
+      ctx.font = '900 17px Arial';
+      desenharTextoCanvas(
+        ctx,
+        consultor?.nome_consultora || '-',
+        xNome + 48,
+        y + 34,
+        larguraIdentificacao - 70,
+        20,
+        2
+      );
+
+      ctx.fillStyle = '#718096';
+      ctx.font = '700 10px Arial';
+      ctx.fillText(
+        `ID ${consultor?.id_consultora || '-'} • PDV oficial ${consultor?.codigo_pdv_oficial || '-'}`,
+        xNome + 48,
+        y + 91
+      );
+
+      const xMetricas = margem + larguraIdentificacao + 18;
+      const larguraMetricas = largura - margem - 20 - xMetricas;
+      const gapMetrica = 8;
+      const larguraMetrica = (
+        larguraMetricas
+        - gapMetrica * (metricasConsultor.length - 1)
+      ) / metricasConsultor.length;
+
+      metricasConsultor.forEach((metrica, indiceMetrica) => {
+        const xCard = xMetricas
+          + indiceMetrica * (larguraMetrica + gapMetrica);
+        const percentualValido = Number.isFinite(
+          Number(metrica?.percentual)
+        );
+        const percentual = percentualValido
+          ? Number(metrica.percentual)
+          : null;
+        const cor = percentualValido
+          ? corDesempenhoRelatorioMetas(percentual)
+          : '#048187';
+
+        ctx.fillStyle = '#f8fbfc';
+        arredondarRetanguloCanvas(
+          ctx,
+          xCard,
+          y + 12,
+          larguraMetrica,
+          alturaLinhaConsultor - 24,
+          11
+        );
+        ctx.fill();
+
+        ctx.fillStyle = cor;
+        arredondarRetanguloCanvas(
+          ctx,
+          xCard,
+          y + 12,
+          5,
+          alturaLinhaConsultor - 24,
+          3
+        );
+        ctx.fill();
+
+        ctx.fillStyle = '#718096';
+        ctx.font = '900 10px Arial';
+        ctx.fillText(
+          String(metrica.titulo).toUpperCase(),
+          xCard + 14,
+          y + 34
+        );
+
+        ctx.fillStyle = '#7c1f31';
+        ctx.font = '800 9px Arial';
+        ctx.fillText(
+          `META: ${metrica.meta}`,
+          xCard + 14,
+          y + 57
+        );
+
+        ctx.fillStyle = cor;
+        ctx.font = `900 ${metrica.moeda ? 14 : 17}px Arial`;
+        ctx.fillText(
+          String(metrica.realizado),
+          xCard + 14,
+          y + 84
+        );
+
+        if (percentualValido) {
+          ctx.fillStyle = '#e8eff1';
+          arredondarRetanguloCanvas(
+            ctx,
+            xCard + 14,
+            y + 98,
+            larguraMetrica - 28,
+            7,
+            4
+          );
+          ctx.fill();
+
+          const percentualBarra = Math.max(
+            0,
+            Math.min(percentual, 100)
+          );
+
+          if (percentualBarra > 0) {
+            ctx.fillStyle = cor;
+            arredondarRetanguloCanvas(
+              ctx,
+              xCard + 14,
+              y + 98,
+              Math.max(
+                5,
+                (larguraMetrica - 28)
+                  * (percentualBarra / 100)
+              ),
+              7,
+              4
+            );
+            ctx.fill();
+          }
+
+          ctx.fillStyle = cor;
+          ctx.font = '900 9px Arial';
+          ctx.fillText(
+            `${formatarNumeroBR(percentual, 1)}% da meta`,
+            xCard + 14,
+            y + 118
+          );
+        } else {
+          ctx.fillStyle = '#718096';
+          ctx.font = '800 9px Arial';
+          ctx.fillText(
+            'SEM META DEFINIDA',
+            xCard + 14,
+            y + 118
+          );
+        }
+      });
+
+      y += alturaLinhaConsultor;
+    });
+  }
+
+  ctx.fillStyle = '#718096';
+  ctx.font = '700 11px Arial';
+  ctx.fillText(
+    'Fonte: DASH COMERCIAL SB • Resultados sujeitos à atualização das bases comerciais.',
+    margem,
+    altura - 22
+  );
+
+  ctx.textAlign = 'right';
+  ctx.fillText(
+    incluirConsultores
+      ? `${consultoresOrdenados.length} consultor(es) • 1 PDV por imagem`
+      : '1 PDV por imagem',
+    largura - margem,
+    altura - 22
+  );
+  ctx.textAlign = 'left';
+
+  return canvasParaBlob(canvas);
+};
+
+const criarImagemRelatorioLojaConsolidado = async ({
+  unidades,
+  resumo,
+  ciclo,
+  competenciaServicos,
+  indicadores,
+  geradoPor,
+  logoSrc,
+}) => {
+  const largura = 1920;
+  const margem = 30;
+  const alturaCabecalho = 178;
+  const alturaFaixa = 92;
+  const gap = 18;
+  const resumoSelecionado = calcularResumoSelecionadoRelatorioLoja(
+    unidades,
+    resumo
+  );
+  const metricas = montarMetricasRelatorioLoja(
+    resumoSelecionado,
+    indicadores
+  );
+  const colunasMetricas = Math.min(
+    4,
+    Math.max(metricas.length, 1)
+  );
+  const linhasMetricas = Math.ceil(
+    metricas.length / colunasMetricas
+  );
+  const alturaCardMetrica = 175;
+  const alturaMetricas = linhasMetricas * alturaCardMetrica
+    + Math.max(linhasMetricas - 1, 0) * 14;
+  const alturaTituloRanking = 50;
+  const alturaLinhaRanking = 68;
+  const alturaRodape = 58;
+
+  const altura = Math.max(
+    820,
+    alturaCabecalho
+      + gap
+      + alturaFaixa
+      + 20
+      + alturaMetricas
+      + 20
+      + alturaTituloRanking
+      + Math.max(unidades.length, 1) * alturaLinhaRanking
+      + alturaRodape
+  );
+
+  const canvas = document.createElement('canvas');
+  canvas.width = largura;
+  canvas.height = Math.ceil(altura);
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error(
+      'Seu navegador não permitiu criar a imagem consolidada da LOJA.'
+    );
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#f2f6f7';
+  ctx.fillRect(0, 0, largura, altura);
+
+  await desenharCabecalhoRelatorioLoja({
+    ctx,
+    largura,
+    alturaCabecalho,
+    logoSrc,
+    ciclo,
+    tituloSecundario: 'RESULTADO CONSOLIDADO DOS PDVs',
+    geradoPor,
+    competenciaServicos,
+  });
+
+  let y = alturaCabecalho + gap;
+  const larguraConteudo = largura - margem * 2;
+  const percentual = calcularPercentualRelatorioMetas(
+    resumoSelecionado.realizado,
+    resumoSelecionado.meta_faturamento
+  );
+  const cor = corDesempenhoRelatorioMetas(percentual);
+
+  ctx.fillStyle = cor;
+  arredondarRetanguloCanvas(
+    ctx,
+    margem,
+    y,
+    larguraConteudo,
+    alturaFaixa,
+    26
+  );
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 30px Arial';
+  ctx.fillText(
+    'RESULTADO GERAL — LOJA',
+    margem + 34,
+    y + 41
+  );
+  ctx.fillStyle = 'rgba(255,255,255,0.86)';
+  ctx.font = '700 14px Arial';
+  ctx.fillText(
+    `${unidades.length} PDV(s) selecionado(s)`,
+    margem + 34,
+    y + 69
+  );
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 35px Arial';
+  ctx.fillText(
+    `${formatarNumeroBR(percentual, 1)}%`,
+    largura - margem - 34,
+    y + 41
+  );
+  ctx.font = '800 13px Arial';
+  ctx.fillText(
+    'ATINGIMENTO DA META',
+    largura - margem - 34,
+    y + 69
+  );
+  ctx.textAlign = 'left';
+
+  y += alturaFaixa + 20;
+
+  const gapCard = 14;
+  const larguraCard = (
+    larguraConteudo
+    - gapCard * (colunasMetricas - 1)
+  ) / colunasMetricas;
+
+  metricas.forEach((metrica, indice) => {
+    const linha = Math.floor(indice / colunasMetricas);
+    const coluna = indice % colunasMetricas;
+
+    desenharCardMetricaRelatorioLoja({
+      ctx,
+      metrica,
+      x: margem + coluna * (larguraCard + gapCard),
+      y: y + linha * (alturaCardMetrica + gapCard),
+      largura: larguraCard,
+      altura: alturaCardMetrica,
+    });
+  });
+
+  y += alturaMetricas + 20;
+
+  ctx.fillStyle = '#dff5f6';
+  ctx.fillRect(
+    margem,
+    y,
+    larguraConteudo,
+    alturaTituloRanking
+  );
+  ctx.fillStyle = '#048187';
+  ctx.font = '900 17px Arial';
+  ctx.fillText(
+    'RANKING DOS PDVs SELECIONADOS',
+    margem + 24,
+    y + 31
+  );
+  ctx.textAlign = 'right';
+  ctx.font = '900 15px Arial';
+  ctx.fillText(
+    `${unidades.length} PDV(s)`,
+    largura - margem - 24,
+    y + 31
+  );
+  ctx.textAlign = 'left';
+
+  y += alturaTituloRanking;
+
+  const unidadesOrdenadas = [...unidades].sort(
+    (a, b) => obterNumeroRelatorioLoja(b?.percentual)
+      - obterNumeroRelatorioLoja(a?.percentual)
+  );
+
+  unidadesOrdenadas.forEach((unidade, indice) => {
+    const meta = obterNumeroRelatorioLoja(
+      unidade?.meta_faturamento
+    );
+    const realizado = obterNumeroRelatorioLoja(
+      unidade?.realizado
+    );
+    const percentualPdv = calcularPercentualRelatorioMetas(
+      realizado,
+      meta
+    );
+    const corPdv = corDesempenhoRelatorioMetas(
+      percentualPdv
+    );
+
+    ctx.fillStyle = indice % 2 === 0
+      ? '#ffffff'
+      : '#f7fafb';
+    ctx.fillRect(
+      margem,
+      y,
+      larguraConteudo,
+      alturaLinhaRanking
+    );
+
+    ctx.fillStyle = corPdv;
+    ctx.fillRect(
+      margem + 10,
+      y + 9,
+      6,
+      alturaLinhaRanking - 18
+    );
+
+    ctx.fillStyle = '#048187';
+    ctx.font = '900 14px Arial';
+    ctx.fillText(
+      `${indice + 1}º`,
+      margem + 30,
+      y + 41
+    );
+
+    ctx.fillStyle = '#2d3748';
+    ctx.font = '900 16px Arial';
+    ctx.fillText(
+      `PDV ${unidade?.codigo_pdv || '-'} — ${
+        unidade?.cidade
+        || unidade?.nome_loja
+        || '-'
+      }`,
+      margem + 82,
+      y + 31
+    );
+    ctx.fillStyle = '#718096';
+    ctx.font = '700 10px Arial';
+    ctx.fillText(
+      unidade?.nome_loja || '',
+      margem + 82,
+      y + 50
+    );
+
+    const colunas = [
+      {
+        label: 'Meta',
+        valor: formatarMoeda(meta),
+      },
+      {
+        label: 'Realizado',
+        valor: formatarMoeda(realizado),
+      },
+      {
+        label: '% Meta',
+        valor: `${formatarNumeroBR(percentualPdv, 1)}%`,
+      },
+      {
+        label: 'Venda diária',
+        valor: formatarMoeda(
+          unidade?.realizado_diario || 0
+        ),
+      },
+      {
+        label: 'Serviços',
+        valor: `${formatarNumeroBR(
+          unidade?.realizado_servicos_mes || 0,
+          0
+        )} / ${formatarNumeroBR(
+          unidade?.meta_servicos_mes || 0,
+          0
+        )}`,
+      },
+    ];
+
+    const inicioColunas = 780;
+    const larguraColuna = (
+      largura - margem - 36 - inicioColunas
+    ) / colunas.length;
+
+    colunas.forEach((coluna, indiceColuna) => {
+      const x = inicioColunas
+        + indiceColuna * larguraColuna;
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '900 9px Arial';
+      ctx.fillText(
+        coluna.label.toUpperCase(),
+        x,
+        y + 25
+      );
+
+      ctx.fillStyle = indiceColuna === 2
+        ? corPdv
+        : '#2d3748';
+      ctx.font = '900 14px Arial';
+      ctx.fillText(
+        coluna.valor,
+        x,
+        y + 48
+      );
+    });
+
+    y += alturaLinhaRanking;
+  });
+
+  ctx.fillStyle = '#718096';
+  ctx.font = '700 11px Arial';
+  ctx.fillText(
+    'Fonte: DASH COMERCIAL SB • Consolidado dos PDVs selecionados.',
+    margem,
+    altura - 22
+  );
+  ctx.textAlign = 'right';
+  ctx.fillText(
+    'O consolidado é gerado junto com uma imagem individual por PDV.',
+    largura - margem,
+    altura - 22
+  );
+  ctx.textAlign = 'left';
+
+  return canvasParaBlob(canvas);
+};
+
+
+const formatarDataInputLocal = (data) => {
+  const valor = data instanceof Date ? data : new Date(data);
+  const ano = valor.getFullYear();
+  const mes = String(valor.getMonth() + 1).padStart(2, '0');
+  const dia = String(valor.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+};
+
+const SECOES_RELATORIO_AUDITORIA = [
+  { id: 'resumo_geral', label: 'Resumo geral e indicadores', descricao: 'Logins, usuários ativos, uploads, ações, erros e eventos.' },
+  { id: 'acessos_usuario', label: 'Acessos por usuário', descricao: 'Gráfico com o total de logins de sucesso por usuário.' },
+  { id: 'uploads_usuario', label: 'Uploads por usuário', descricao: 'Gráfico com a participação de cada usuário nos uploads.' },
+  { id: 'telas_mais_usadas', label: 'Telas mais utilizadas', descricao: 'Ranking das telas mais acessadas no período.' },
+  { id: 'usuarios_recentes', label: 'Usuários recentes', descricao: 'Tabela com perfil, eventos e último uso.' },
+  { id: 'detalhes_logins', label: 'Detalhamento de logins', descricao: 'Lista de logins de sucesso e tentativas com erro.' },
+  { id: 'detalhes_uploads', label: 'Detalhamento de uploads', descricao: 'Lista das bases atualizadas e seus responsáveis.' },
+  { id: 'detalhes_acoes', label: 'Detalhamento de ações', descricao: 'Cadastros, edições, exclusões e demais alterações.' },
+  { id: 'detalhes_erros', label: 'Detalhamento de erros', descricao: 'Lista dos erros registrados no período.' },
+];
+
+const criarConfigRelatorioAuditoria = (dias = 7) => {
+  const hoje = new Date();
+  const inicio = new Date();
+  inicio.setDate(hoje.getDate() - Math.max(0, Number(dias || 7) - 1));
+
+  return {
+    titulo: 'Relatório de Uso - Dash Comercial',
+    data_inicio: formatarDataInputLocal(inicio),
+    data_fim: formatarDataInputLocal(hoje),
+    orientacao: 'retrato',
+    usuarios: [],
+    perfis: [],
+    secoes: {
+      resumo_geral: true,
+      acessos_usuario: true,
+      uploads_usuario: true,
+      telas_mais_usadas: true,
+      usuarios_recentes: true,
+      detalhes_logins: false,
+      detalhes_uploads: false,
+      detalhes_acoes: false,
+      detalhes_erros: false,
+    },
+  };
+};
 const calcPerc = (r, m) => {
   const meta = Number(m || 0);
   if (!meta || meta <= 0) return 0;
@@ -422,6 +3216,86 @@ const CardVersus = ({ titulo, val1, val2, desc1, desc2, formataVal, isPerc }) =>
   );
 };
 
+const CardComparativoNucleos = ({ titulo, itens = [], formataVal, isPerc = false }) => {
+  const nucleos = itens.map((item) => ({
+    ...item,
+    valorNumero: Number(item?.valor || 0),
+  }));
+
+  const maiorValor = Math.max(
+    ...nucleos.map((item) => item.valorNumero),
+    0,
+  );
+
+  const formatarValor = (valor) => {
+    if (isPerc) return `${Number(valor || 0).toFixed(1)}%`;
+    return formataVal ? formataVal(Number(valor || 0)) : Number(valor || 0).toLocaleString('pt-BR');
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 min-h-[220px] min-w-0 transition-all hover:shadow-md">
+      <h3 className="text-center font-bold text-gray-500 uppercase text-[10px] sm:text-xs mb-4 truncate">
+        {titulo}
+      </h3>
+
+      <div className="space-y-3">
+        {nucleos.map((item) => {
+          const percentualBarra = maiorValor > 0
+            ? Math.min((item.valorNumero / maiorValor) * 100, 100)
+            : 0;
+          const vencedor = maiorValor > 0 && item.valorNumero === maiorValor;
+
+          return (
+            <div key={`${titulo}-${item.chave}`} className="min-w-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <span
+                  className="w-9 h-7 rounded-lg flex items-center justify-center text-[11px] font-black text-white shrink-0"
+                  style={{ backgroundColor: item.cor }}
+                >
+                  {item.rotulo}
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <p
+                      className="text-base sm:text-lg font-black truncate"
+                      style={{ color: item.cor }}
+                    >
+                      {formatarValor(item.valorNumero)}
+                    </p>
+                    {vencedor && (
+                      <Trophy
+                        size={14}
+                        className="shrink-0"
+                        style={{ color: item.cor }}
+                      />
+                    )}
+                  </div>
+                  {item.descricao && (
+                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 truncate">
+                      {item.descricao}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="ml-12 mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${percentualBarra}%`,
+                    backgroundColor: item.cor,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const CardTop5 = ({ titulo, dados, propValor, formatter, corValor, propSubValor, subFormatter, subLabel }) => {
   const [expandido, setExpandido] = useState(false);
   const ordenados = [...(dados || [])].sort((a, b) => Number(b[propValor] || 0) - Number(a[propValor] || 0));
@@ -455,6 +3329,14 @@ const CardTop5 = ({ titulo, dados, propValor, formatter, corValor, propSubValor,
             <div key={`${c.id_colaborador || c.nome || c.estrutura || titulo}-${i}`} className="flex justify-between items-center min-w-0 gap-3">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500 shrink-0">{posicaoReal}</span>
+                {c.tipo_colaborador && (
+                  <AvatarColaborador
+                    src={c.foto_data_url}
+                    nome={obterNomeExibicaoConsultor(c)}
+                    tamanho={34}
+                    borda={posicaoReal === 1 ? '#facc15' : posicaoReal === 2 ? '#cbd5e1' : posicaoReal === 3 ? '#fb923c' : '#d9eff0'}
+                  />
+                )}
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-bold text-gray-700 truncate" title={obterNomeExibicaoConsultor(c)}>{obterNomeExibicaoConsultor(c)}</span>
                   <span className="text-[9px] text-gray-400 truncate" title={subtitulo}>{subtitulo}</span>
@@ -479,14 +3361,14 @@ const CardTop5 = ({ titulo, dados, propValor, formatter, corValor, propSubValor,
   );
 };
 
-const CompUpload = ({ titulo, desc, arq, arqs, setArq, setArqs, onEnv, icone: Icone, mult, load, acaoExtraLabel, onAcaoExtra, acaoExtraLoad }) => (
+const CompUpload = ({ titulo, desc, arq, arqs, setArq, setArqs, onEnv, icone: Icone, mult, load, acaoExtraLabel, onAcaoExtra, acaoExtraLoad, disabled = false }) => (
   <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
     <div className="flex items-center gap-3 mb-4 min-w-0"><div className="w-11 h-11 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><Icone size={22} /></div><div className="min-w-0"><h3 className="font-bold text-gray-700 truncate">{titulo}</h3><p className="text-xs text-gray-400 truncate">{desc}</p></div></div>
-    <input type="file" accept=".xlsx,.xls,.csv" multiple={mult} onChange={(e) => { if (mult) setArqs(Array.from(e.target.files || [])); else setArq(e.target.files[0]); }} className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-600 mb-4" />
+    <input type="file" accept=".xlsx,.xls,.csv" multiple={mult} disabled={disabled} onChange={(e) => { if (mult) setArqs(Array.from(e.target.files || [])); else setArq(e.target.files[0]); }} className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-600 mb-4 disabled:bg-gray-50 disabled:cursor-not-allowed" />
     {!mult && arq && <p className="text-xs text-gray-500 mb-3 truncate">Arquivo: <strong>{arq.name}</strong></p>}{mult && arqs?.length > 0 && <p className="text-xs text-gray-500 mb-3 truncate"><strong>{arqs.length}</strong> arquivos selecionados</p>}
-    <button onClick={onEnv} disabled={load || acaoExtraLoad} className="w-full bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70] disabled:opacity-60 flex items-center justify-center gap-2"><Upload size={18} />{load ? 'Enviando...' : 'Enviar arquivo'}</button>
+    <button onClick={onEnv} disabled={disabled || load || acaoExtraLoad} className="w-full bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70] disabled:opacity-60 flex items-center justify-center gap-2"><Upload size={18} />{load ? 'Enviando...' : 'Enviar arquivo'}</button>
     {acaoExtraLabel && onAcaoExtra && (
-      <button type="button" onClick={onAcaoExtra} disabled={load || acaoExtraLoad} className="w-full mt-3 bg-[#e6f6f7] text-[#048187] font-bold py-3 rounded-lg hover:bg-[#d8f0f1] disabled:opacity-60 flex items-center justify-center gap-2">
+      <button type="button" onClick={onAcaoExtra} disabled={disabled || load || acaoExtraLoad} className="w-full mt-3 bg-[#e6f6f7] text-[#048187] font-bold py-3 rounded-lg hover:bg-[#d8f0f1] disabled:opacity-60 flex items-center justify-center gap-2">
         <RefreshCcw size={18} />{acaoExtraLoad ? 'Atualizando via SGI...' : acaoExtraLabel}
       </button>
     )}
@@ -562,6 +3444,8 @@ const metaRealVazia = {
   meta_atividade: '',
   meta_make: '',
   meta_cabelo: '',
+  meta_multimarcas: '78,0',
+  meta_eudora: '20,0',
   meta_rpa: '',
   meta_tkt_medio: '',
   meta_upa: '',
@@ -627,6 +3511,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const [mostrarFormularioMeta, setMostrarFormularioMeta] = useState(false);
   const [modoTabelaCiclo, setModoTabelaCiclo] = useState(false);
   const [linhasNovoCiclo, setLinhasNovoCiclo] = useState([]);
+  const [cicloNovoEmMassa, setCicloNovoEmMassa] = useState('');
   const [metaExpandidaId, setMetaExpandidaId] = useState(null);
   const [metaLinhaEditandoId, setMetaLinhaEditandoId] = useState(null);
   const [linhaEditandoMeta, setLinhaEditandoMeta] = useState(null);
@@ -782,6 +3667,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       meta_atividade: converterMetaRealParaNumero(form.meta_atividade),
       meta_make: converterMetaRealParaNumero(form.meta_make),
       meta_cabelo: converterMetaRealParaNumero(form.meta_cabelo),
+      meta_multimarcas: converterMetaRealParaNumero(form.meta_multimarcas) || 78,
+      meta_eudora: converterMetaRealParaNumero(form.meta_eudora) || 20,
       meta_rpa: converterMetaRealParaNumero(form.meta_rpa),
       meta_tkt_medio: converterMetaRealParaNumero(form.meta_tkt_medio),
       meta_upa: converterMetaRealParaNumero(form.meta_upa),
@@ -812,6 +3699,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       meta_atividade: formatarMetaIndicadorInput(meta.meta_atividade, 1),
       meta_make: formatarMetaIndicadorInput(meta.meta_make, 1),
       meta_cabelo: formatarMetaIndicadorInput(meta.meta_cabelo, 1),
+      meta_multimarcas: formatarMetaIndicadorInput(meta.meta_multimarcas || 78, 1),
+      meta_eudora: formatarMetaIndicadorInput(meta.meta_eudora || 20, 1),
       meta_rpa: formatarMetaIndicadorInput(meta.meta_rpa, 2),
       meta_tkt_medio: formatarMetaIndicadorInput(meta.meta_tkt_medio, 2),
       meta_upa: formatarMetaIndicadorInput(meta.meta_upa, 1),
@@ -882,6 +3771,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       meta_upa: formatarMetaIndicadorInput(meta.meta_upa, 1),
       meta_make: formatarMetaIndicadorInput(meta.meta_make, 1),
       meta_cabelo: formatarMetaIndicadorInput(meta.meta_cabelo, 1),
+      meta_multimarcas: formatarMetaIndicadorInput(meta.meta_multimarcas || 78, 1),
+      meta_eudora: formatarMetaIndicadorInput(meta.meta_eudora || 20, 1),
       tipo_meta: meta.tipo_meta || 'estrutura',
       status: meta.status || 'ativo',
       observacao: meta.observacao || ''
@@ -938,6 +3829,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       meta_atividade: converterMetaRealParaNumero(linhaEditandoMeta.meta_atividade),
       meta_make: converterMetaRealParaNumero(linhaEditandoMeta.meta_make),
       meta_cabelo: converterMetaRealParaNumero(linhaEditandoMeta.meta_cabelo),
+      meta_multimarcas: converterMetaRealParaNumero(linhaEditandoMeta.meta_multimarcas) || 78,
+      meta_eudora: converterMetaRealParaNumero(linhaEditandoMeta.meta_eudora) || 20,
       meta_rpa: converterMetaRealParaNumero(linhaEditandoMeta.meta_rpa),
       meta_tkt_medio: converterMetaRealParaNumero(linhaEditandoMeta.meta_tkt_medio),
       meta_upa: converterMetaRealParaNumero(linhaEditandoMeta.meta_upa),
@@ -1066,28 +3959,54 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       meta_upa: '12,0',
       meta_make: '40,0',
       meta_cabelo: '40,0',
+      meta_multimarcas: '78,0',
+      meta_eudora: '20,0',
       observacao: ''
     };
   };
 
-  const abrirTabelaNovoCiclo = async () => {
+  const abrirTabelaNovoCiclo = () => {
     setErro('');
     setMensagem('');
     setMostrarFormularioMeta(false);
     setEditandoId(null);
-    setModoTabelaCiclo(true);
 
-    const fonte = opcoesEstruturasCadastro.length ? opcoesEstruturasCadastro : estruturas;
+    const cicloInicial = '';
+    setCicloNovoEmMassa(cicloInicial);
+
+    const fonte = opcoesEstruturasCadastro.length
+      ? opcoesEstruturasCadastro
+      : estruturas;
+
     const linhas = fonte
-      .filter((item) => !['inativo', 'excluido', 'excluído'].includes(String(item.status || '').toLowerCase()))
-      .map((item, indice) => criarLinhaMeta(item, indice));
+      .filter((item) => !['inativo', 'excluido', 'excluído'].includes(
+        String(item.status || '').toLowerCase()
+      ))
+      .map((item, indice) => ({
+        ...criarLinhaMeta(item, indice),
+        ciclo: cicloInicial,
+      }));
 
-    setLinhasNovoCiclo(linhas.length ? linhas : [criarLinhaMeta({}, 0)]);
+    setLinhasNovoCiclo(
+      linhas.length
+        ? linhas
+        : [{ ...criarLinhaMeta({}, 0), ciclo: cicloInicial }]
+    );
+    setModoTabelaCiclo(true);
+  };
+
+  const atualizarCicloNovoEmMassa = (valor) => {
+    setCicloNovoEmMassa(valor);
+    setLinhasNovoCiclo((atuais) => atuais.map((linha) => ({
+      ...linha,
+      ciclo: valor,
+    })));
   };
 
   const fecharTabelaNovoCiclo = () => {
     setModoTabelaCiclo(false);
     setLinhasNovoCiclo([]);
+    setCicloNovoEmMassa('');
   };
 
   const atualizarLinhaNovoCiclo = (uid, campo, valor) => {
@@ -1190,7 +4109,20 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const salvarTabelaNovoCiclo = async () => {
     setErro('');
     setMensagem('');
-    const linhasComEstrutura = linhasNovoCiclo.filter((linha) => String(linha.estrutura || '').trim());
+
+    const cicloInformado = String(cicloNovoEmMassa || '').trim();
+    if (!/^\d{2}\/\d{4}$/.test(cicloInformado)) {
+      setErro('Informe o ciclo no formato 08/2026 antes de salvar.');
+      return;
+    }
+
+    setLinhasNovoCiclo((atuais) => atuais.map((linha) => ({
+      ...linha,
+      ciclo: cicloInformado,
+    })));
+    const linhasComEstrutura = linhasNovoCiclo
+      .map((linha) => ({ ...linha, ciclo: cicloInformado }))
+      .filter((linha) => String(linha.estrutura || '').trim());
     const gruposValidos = agruparLinhasValidasNovoCiclo(linhasComEstrutura)
       .filter((grupo) => grupo.linhas.some((linha) => converterMetaRealParaNumero(linha.meta_real) > 0));
 
@@ -1224,6 +4156,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
           meta_atividade: converterMetaRealParaNumero(primeira.meta_atividade),
           meta_make: converterMetaRealParaNumero(primeira.meta_make),
           meta_cabelo: converterMetaRealParaNumero(primeira.meta_cabelo),
+          meta_multimarcas: converterMetaRealParaNumero(primeira.meta_multimarcas) || 78,
+          meta_eudora: converterMetaRealParaNumero(primeira.meta_eudora) || 20,
           meta_rpa: converterMetaRealParaNumero(primeira.meta_rpa),
           meta_tkt_medio: converterMetaRealParaNumero(primeira.meta_tkt_medio),
           meta_upa: converterMetaRealParaNumero(primeira.meta_upa),
@@ -1449,15 +4383,27 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                   <h3 className="text-xl font-black text-gray-700">Novo ciclo em modo planilha</h3>
                   <p className="text-sm text-gray-400 font-semibold mt-1">Preencha somente as linhas que terão meta. Ao salvar, cada linha vira uma meta oficial daquele ciclo.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={adicionarLinhaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Plus size={15} /> Linha</button>
-                  <button type="button" onClick={fecharTabelaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 text-sm">{sgiLojaExecutando ? 'Continuar em segundo plano' : 'Cancelar'}</button>
-                  <button type="button" onClick={salvarTabelaNovoCiclo} disabled={salvandoTabela} className="bg-[#048187] text-white font-black px-5 py-2.5 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2 text-sm"><Save size={15} /> {salvandoTabela ? 'Salvando...' : 'Salvar ciclo'}</button>
+                <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                  <div className="min-w-[180px]">
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Ciclo das metas</label>
+                    <input
+                      value={cicloNovoEmMassa}
+                      onChange={(e) => atualizarCicloNovoEmMassa(e.target.value)}
+                      placeholder="08/2026"
+                      maxLength={7}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-black text-[#048187] outline-none focus:border-[#048187]"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={adicionarLinhaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Plus size={15} /> Linha</button>
+                    <button type="button" onClick={fecharTabelaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 text-sm">Cancelar</button>
+                    <button type="button" onClick={salvarTabelaNovoCiclo} disabled={salvandoTabela} className="bg-[#048187] text-white font-black px-5 py-2.5 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2 text-sm"><Save size={15} /> {salvandoTabela ? 'Salvando...' : 'Salvar ciclo'}</button>
+                  </div>
                 </div>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-[12px] min-w-[1320px]">
+                <table className="w-full text-[12px] min-w-[1450px]">
                   <thead className="bg-[#f2fafb] text-[10px] uppercase text-gray-500 font-black">
                     <tr>
                       <th className="px-3 py-3 text-left w-[190px]">Nome Estrutura</th>
@@ -1472,6 +4418,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                       <th className="px-3 py-3 text-right w-[100px]">UPA</th>
                       <th className="px-3 py-3 text-right w-[110px]">Pen. Make</th>
                       <th className="px-3 py-3 text-right w-[120px]">Pen. Cabelos</th>
+                      <th className="px-3 py-3 text-right w-[130px]">Pen. Multimarcas</th>
+                      <th className="px-3 py-3 text-right w-[120px]">Meta Eudora</th>
                       <th className="px-3 py-3 text-right w-[90px]">Ações</th>
                     </tr>
                   </thead>
@@ -1487,7 +4435,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                         </td>
                         <td className="px-3 py-2"><select value={linha.canal} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'canal', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]"><option value="VD">VD</option><option value="LOJA">LOJA</option><option value="ER">ER</option></select></td>
                         <td className="px-3 py-2"><select value={linha.nucleo} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'nucleo', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]"><option value="NUCLEO 1">N1</option><option value="NUCLEO 2">N2</option><option value="NUCLEO 3">N3</option></select></td>
-                        <td className="px-3 py-2"><input value={linha.ciclo} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'ciclo', e.target.value)} placeholder="09/2026" className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.ciclo} readOnly placeholder="08/2026" className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 font-bold text-gray-500 outline-none" /></td>
                         <td className="px-3 py-2"><input value={linha.meta_real} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_real', e.target.value)} onBlur={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_real', formatarMetaRealInput(e.target.value))} placeholder="R$ 0,00" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-black text-[#048187] outline-none focus:border-[#048187]" /></td>
                         <td className="px-3 py-2"><input value={linha.meta_atividade} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_atividade', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
                         <td className="px-3 py-2"><input value={linha.meta_rpa} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_rpa', e.target.value)} onBlur={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_rpa', formatarMetaIndicadorInput(e.target.value, 2))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
@@ -1495,6 +4443,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                         <td className="px-3 py-2"><input value={linha.meta_upa} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_upa', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
                         <td className="px-3 py-2"><input value={linha.meta_make} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_make', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
                         <td className="px-3 py-2"><input value={linha.meta_cabelo} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_cabelo', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.meta_multimarcas} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_multimarcas', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
+                        <td className="px-3 py-2"><input value={linha.meta_eudora} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_eudora', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
                         <td className="px-3 py-2 text-right"><button type="button" onClick={() => removerLinhaNovoCiclo(linha.uid)} className="text-red-500 hover:bg-red-50 rounded-lg p-2"><Trash2 size={16} /></button></td>
                       </tr>
                     ))}
@@ -1509,6 +4459,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                       <td className="px-3 py-3 text-right">{mediaTabela('meta_upa').toFixed(1)}</td>
                       <td className="px-3 py-3 text-right">{mediaTabela('meta_make').toFixed(1)}%</td>
                       <td className="px-3 py-3 text-right">{mediaTabela('meta_cabelo').toFixed(1)}%</td>
+                      <td className="px-3 py-3 text-right">{mediaTabela('meta_multimarcas').toFixed(1)}%</td>
+                      <td className="px-3 py-3 text-right">{mediaTabela('meta_eudora').toFixed(1)}%</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -1539,6 +4491,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                   <CampoMetaIndicador label="Meta Atividade (%)" value={form.meta_atividade} casas={1} placeholder="46,0" onChange={(valor) => setForm({ ...form, meta_atividade: valor })} />
                   <CampoMetaIndicador label="Meta MAKE (%)" value={form.meta_make} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_make: valor })} />
                   <CampoMetaIndicador label="Meta CABELO (%)" value={form.meta_cabelo} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_cabelo: valor })} />
+                  <CampoMetaIndicador label="Meta MULTIMARCAS (%)" value={form.meta_multimarcas} casas={1} placeholder="78,0" onChange={(valor) => setForm({ ...form, meta_multimarcas: valor })} />
+                  <CampoMetaIndicador label="Meta EUDORA (% do faturamento)" value={form.meta_eudora} casas={1} placeholder="20,0" onChange={(valor) => setForm({ ...form, meta_eudora: valor })} />
                   <CampoMetaIndicador label="Meta RPA (R$)" value={form.meta_rpa} casas={2} placeholder="1.500,00" onChange={(valor) => setForm({ ...form, meta_rpa: valor })} />
                   <CampoMetaIndicador label="Meta Tkt Médio (R$)" value={form.meta_tkt_medio} casas={2} placeholder="800,00" onChange={(valor) => setForm({ ...form, meta_tkt_medio: valor })} />
                   <CampoMetaIndicador label="Meta UPA" value={form.meta_upa} casas={1} placeholder="15,0" onChange={(valor) => setForm({ ...form, meta_upa: valor })} />
@@ -1613,6 +4567,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                       <th className="px-4 py-3 text-right">UPA</th>
                       <th className="px-4 py-3 text-right">Pen. Make</th>
                       <th className="px-4 py-3 text-right">Pen. Cabelos</th>
+                      <th className="px-4 py-3 text-right">Pen. Multimarcas</th>
+                      <th className="px-4 py-3 text-right">Meta Eudora</th>
                       <th className="px-4 py-3 text-right">Ações</th>
                     </tr>
                   </thead>
@@ -1708,6 +4664,12 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                               <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[120px]">
                                 {editandoLinha ? <input value={linhaEditavel.meta_cabelo} onChange={(e) => atualizarLinhaMetaEditando('meta_cabelo', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_cabelo', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_cabelo || 0).toFixed(1)}%`}
                               </td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[120px]">
+                                {editandoLinha ? <input value={linhaEditavel.meta_multimarcas} onChange={(e) => atualizarLinhaMetaEditando('meta_multimarcas', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_multimarcas', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_multimarcas || 78).toFixed(1)}%`}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[110px]">
+                                {editandoLinha ? <input value={linhaEditavel.meta_eudora} onChange={(e) => atualizarLinhaMetaEditando('meta_eudora', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_eudora', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_eudora || 20).toFixed(1)}%`}
+                              </td>
                               <td className="px-4 py-3 text-right whitespace-nowrap min-w-[170px]">
                                 {editandoLinha ? (
                                   <>
@@ -1733,7 +4695,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
                             {abertoLinha && (
                               <tr>
-                                <td colSpan={14} className="bg-[#fbfefe] px-6 py-5">
+                                <td colSpan={15} className="bg-[#fbfefe] px-6 py-5">
                                   <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white">
                                     <div className="px-5 py-4 border-b border-gray-100">
                                       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1792,7 +4754,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
                           </React.Fragment>
                         );
                       })}
-                    {!metasTabelaVisual.length && <tr><td colSpan={14} className="p-10 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</td></tr>}
+                    {!metasTabelaVisual.length && <tr><td colSpan={15} className="p-10 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</td></tr>}
                   </tbody>
                   <tfoot className="bg-yellow-100 text-gray-800 font-black">
                     <tr>
@@ -2282,6 +5244,10 @@ export default function App() {
     return ['estruturas', 'consultores'].includes(visaoSalva) ? visaoSalva : 'estruturas';
   });
   const [buscaEstruturaMeta, setBuscaEstruturaMeta] = useState(''); const [mostrarListaEstruturaMeta, setMostrarListaEstruturaMeta] = useState(false); 
+  const [modalRelatorioMetasAberto, setModalRelatorioMetasAberto] = useState(false);
+  const [configRelatorioMetas, setConfigRelatorioMetas] = useState(CONFIG_RELATORIO_METAS_PADRAO);
+  const [gerandoRelatorioMetas, setGerandoRelatorioMetas] = useState(false);
+  const [erroRelatorioMetas, setErroRelatorioMetas] = useState('');
   const [dadosComp, setDadosComp] = useState(null); const [loadComp, setLoadComp] = useState(false);
 
   const [permissoesAtivas, setPermissoesAtivas] = useState(permissoesPadrao);
@@ -2293,8 +5259,198 @@ export default function App() {
   const [cacheDashboard, setCacheDashboard] = useState({}); const [cacheDetalheMetas, setCacheDetalheMetas] = useState({}); const [cacheMetas, setCacheMetas] = useState(null); const [opcoesFiltrosCarregadas, setOpcoesFiltrosCarregadas] = useState(false);
   const [carregandoDashboard, setCarregandoDashboard] = useState(false); const [carregandoMetas, setCarregandoMetas] = useState(false); const [carregandoDetalheMeta, setCarregandoDetalheMeta] = useState(false); const [erroMetas, setErroMetas] = useState('');
   
-  const [modalDetalhes, setModalDetalhes] = useState(null); 
-  const [modalValorExpandido, setModalValorExpandido] = useState({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '' });
+  const [modalDetalhes, setModalDetalhes] = useState(null);
+  const [modalRealizadoDiarioVD, setModalRealizadoDiarioVD] = useState({
+    aberto: false,
+    carregando: false,
+    erro: '',
+    resumo: {
+      realizado_hoje: 0,
+      meta_diaria: 0,
+      percentual_atingimento: 0,
+      falta_meta_diaria: 0,
+      data_referencia: '',
+      ciclo: '',
+      filtros_aplicados: {},
+    },
+    meios_captacao: [],
+    estruturas: [],
+    consultores: [],
+    conferencia: {
+      total_meios: 0,
+      total_estruturas: 0,
+      total_consultores: 0,
+      meios_ok: false,
+      estruturas_ok: false,
+      consultores_ok: false,
+    },
+  });
+  const [modalValorExpandido, setModalValorExpandido] = useState({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null });
+  const [notificacoesSistema, setNotificacoesSistema] = useState([]);
+  const [notificacoesNaoLidas, setNotificacoesNaoLidas] = useState(0);
+  const [painelNotificacoesAberto, setPainelNotificacoesAberto] = useState(false);
+  const [carregandoNotificacoes, setCarregandoNotificacoes] = useState(false);
+  const [toastNotificacao, setToastNotificacao] = useState(null);
+  const idsNotificacoesConhecidasRef = useRef(new Set());
+  const notificacoesContainerRef = useRef(null);
+
+  const formatarDataHoraNotificacao = (valor) => {
+    if (!valor) return 'Data não informada';
+
+    const data = new Date(valor);
+
+    if (Number.isNaN(data.getTime())) {
+      return String(valor);
+    }
+
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+      .format(data)
+      .replace(',', ' às');
+  };
+
+  const podeReceberNotificacoes = [
+    'admin',
+    'gestor',
+    'visualizador',
+  ].includes(
+    String(usuarioLogado?.perfil || '').toLowerCase()
+  );
+
+  const carregarNotificacoesSistema = async (silencioso = false) => {
+    if (!usuarioLogado || !podeReceberNotificacoes) {
+      setNotificacoesSistema([]);
+      setNotificacoesNaoLidas(0);
+      return;
+    }
+
+    if (!silencioso) {
+      setCarregandoNotificacoes(true);
+    }
+
+    try {
+      const { data } = await axios.get(
+        `${API_URL}/notificacoes`,
+        {
+          params: {
+            limite: 50,
+          },
+        }
+      );
+
+      const lista = (
+        Array.isArray(data?.notificacoes)
+          ? [...data.notificacoes]
+          : []
+      ).sort((a, b) => {
+        const dataA = new Date(
+          a?.criado_em || 0
+        ).getTime();
+        const dataB = new Date(
+          b?.criado_em || 0
+        ).getTime();
+
+        if (
+          Number.isFinite(dataA)
+          && Number.isFinite(dataB)
+          && dataA !== dataB
+        ) {
+          return dataB - dataA;
+        }
+
+        return Number(b?.id || 0) - Number(a?.id || 0);
+      });
+
+      const idsAnteriores = idsNotificacoesConhecidasRef.current;
+      const novaNaoLida = lista.find((item) => (
+        !item?.lida
+        && !idsAnteriores.has(Number(item?.id))
+      ));
+
+      setNotificacoesSistema(lista);
+      setNotificacoesNaoLidas(
+        Number(data?.nao_lidas || 0)
+      );
+
+      idsNotificacoesConhecidasRef.current = new Set(
+        lista.map((item) => Number(item?.id))
+      );
+
+      if (
+        silencioso
+        && novaNaoLida
+        && idsAnteriores.size > 0
+      ) {
+        setToastNotificacao(novaNaoLida);
+      }
+    } catch (erro) {
+      if (!silencioso) {
+        console.error(
+          'Erro ao carregar notificações:',
+          erro
+        );
+      }
+    } finally {
+      if (!silencioso) {
+        setCarregandoNotificacoes(false);
+      }
+    }
+  };
+
+  const marcarNotificacaoComoLida = async (notificacaoId) => {
+    try {
+      await axios.post(
+        `${API_URL}/notificacoes/${notificacaoId}/marcar-lida`
+      );
+
+      setNotificacoesSistema((atual) => (
+        atual.map((item) => (
+          Number(item.id) === Number(notificacaoId)
+            ? {
+                ...item,
+                lida: true,
+              }
+            : item
+        ))
+      ));
+      setNotificacoesNaoLidas((atual) => (
+        Math.max(Number(atual || 0) - 1, 0)
+      ));
+    } catch (erro) {
+      console.error(
+        'Erro ao marcar notificação:',
+        erro
+      );
+    }
+  };
+
+  const marcarTodasNotificacoesComoLidas = async () => {
+    try {
+      await axios.post(
+        `${API_URL}/notificacoes/marcar-todas-lidas`
+      );
+
+      setNotificacoesSistema((atual) => (
+        atual.map((item) => ({
+          ...item,
+          lida: true,
+        }))
+      ));
+      setNotificacoesNaoLidas(0);
+    } catch (erro) {
+      console.error(
+        'Erro ao marcar todas as notificações:',
+        erro
+      );
+    }
+  };
 
   useEffect(() => {
     document.title = APP_NAME;
@@ -2316,6 +5472,82 @@ export default function App() {
     }
     appleIcon.href = logoEmpresa;
   }, []);
+
+  useEffect(() => {
+    if (!usuarioLogado || !podeReceberNotificacoes) {
+      setNotificacoesSistema([]);
+      setNotificacoesNaoLidas(0);
+      idsNotificacoesConhecidasRef.current = new Set();
+      return undefined;
+    }
+
+    carregarNotificacoesSistema(false);
+
+    const intervalo = window.setInterval(() => {
+      carregarNotificacoesSistema(true);
+    }, 120000);
+
+    return () => {
+      window.clearInterval(intervalo);
+    };
+  }, [
+    usuarioLogado?.id,
+    usuarioLogado?.perfil,
+    usuarioLogado?.area_gestao,
+  ]);
+
+  useEffect(() => {
+    if (!toastNotificacao) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setToastNotificacao(null);
+    }, 8000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [toastNotificacao]);
+
+  useEffect(() => {
+    if (!painelNotificacoesAberto) return undefined;
+
+    const fecharAoClicarFora = (evento) => {
+      const container = notificacoesContainerRef.current;
+
+      if (
+        container
+        && !container.contains(evento.target)
+      ) {
+        setPainelNotificacoesAberto(false);
+      }
+    };
+
+    const fecharComEscape = (evento) => {
+      if (evento.key === 'Escape') {
+        setPainelNotificacoesAberto(false);
+      }
+    };
+
+    document.addEventListener(
+      'pointerdown',
+      fecharAoClicarFora
+    );
+    document.addEventListener(
+      'keydown',
+      fecharComEscape
+    );
+
+    return () => {
+      document.removeEventListener(
+        'pointerdown',
+        fecharAoClicarFora
+      );
+      document.removeEventListener(
+        'keydown',
+        fecharComEscape
+      );
+    };
+  }, [painelNotificacoesAberto]);
 
   useEffect(() => {
     if (!usuarioLogado) return;
@@ -2342,6 +5574,11 @@ export default function App() {
 
   useEffect(() => {
     if (!usuarioLogado) return;
+    carregarIdentidadesColaboradores();
+  }, [usuarioLogado]);
+
+  useEffect(() => {
+    if (!usuarioLogado) return;
     localStorage.setItem(VISAO_METAS_STORAGE_KEY, visaoMetas);
   }, [usuarioLogado, visaoMetas]);
 
@@ -2355,14 +5592,70 @@ export default function App() {
   }, [usuarioLogado, estruturaSelecionada]);
 
 
-  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
+  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'AMBOS' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
   const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' }); const [auditoriaDetalhe, setAuditoriaDetalhe] = useState(null);
+  const [modalRelatorioAuditoriaAberto, setModalRelatorioAuditoriaAberto] = useState(false);
+  const [gerandoRelatorioAuditoria, setGerandoRelatorioAuditoria] = useState(false);
+  const [erroRelatorioAuditoria, setErroRelatorioAuditoria] = useState('');
+  const [configRelatorioAuditoria, setConfigRelatorioAuditoria] = useState(() => criarConfigRelatorioAuditoria(7));
 
-  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
+  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
+  const [cicloSelecionadoVD, setCicloSelecionadoVD] = useState(
+    () => localStorage.getItem(CICLO_VD_STORAGE_KEY) || ''
+  );
+  const [cicloSelecionadoLoja, setCicloSelecionadoLoja] = useState(
+    () => localStorage.getItem(CICLO_LOJA_STORAGE_KEY) || ''
+  );
+  const [cicloUploadVD, setCicloUploadVD] = useState(
+    () => localStorage.getItem(CICLO_UPLOAD_VD_STORAGE_KEY) || ''
+  );
+  const [cicloUploadLoja, setCicloUploadLoja] = useState(
+    () => localStorage.getItem(CICLO_UPLOAD_LOJA_STORAGE_KEY) || ''
+  );
+  const [alterandoStatusCiclo, setAlterandoStatusCiclo] = useState(false);
+  const cicloVisualizacaoVDRef = useRef(cicloSelecionadoVD);
+  const dashboardRequestSeqRef = useRef(0);
+  const metasRequestSeqRef = useRef(0);
+  const opcoesRequestSeqRef = useRef(0);
+  const [modalEudoraAberto, setModalEudoraAberto] = useState(false);
+  const [detalheEudora, setDetalheEudora] = useState(null);
+  const [carregandoDetalheEudora, setCarregandoDetalheEudora] = useState(false);
+  const [erroDetalheEudora, setErroDetalheEudora] = useState('');
 
   const [listaConsultores, setListaConsultores] = useState([]); const [carregandoListaConsultores, setCarregandoListaConsultores] = useState(false); const [buscaConsultor, setBuscaConsultor] = useState(''); const [novoConsultor, setNovoConsultor] = useState(consultorVazio); const [modalCriarConsultorAberto, setModalCriarConsultorAberto] = useState(false); const [consultorEditando, setConsultorEditando] = useState(null); const [modalEditarConsultorAberto, setModalEditarConsultorAberto] = useState(false); const [consultorParaExcluir, setConsultorParaExcluir] = useState(null); const [modalExcluirConsultorAberto, setModalExcluirConsultorAberto] = useState(false); const [mensagemConsultor, setMensagemConsultor] = useState(''); const [erroGestaoConsultor, setErroGestaoConsultor] = useState('');
+  const [identidadesColaboradores, setIdentidadesColaboradores] = useState({ VD: {}, LOJA: {}, PERFIL: {} });
+  const [modalIdentidadeColaborador, setModalIdentidadeColaborador] = useState({
+    aberto: false,
+    area: 'VD',
+    id_colaborador: '',
+    nome_oficial: '',
+    codigo_contexto: '',
+    foto_data_url: '',
+    aliases_texto: '',
+  });
+  const [salvandoIdentidadeColaborador, setSalvandoIdentidadeColaborador] = useState(false);
+  const [erroIdentidadeColaborador, setErroIdentidadeColaborador] = useState('');
+  const [editorFotoColaborador, setEditorFotoColaborador] = useState({
+    aberto: false,
+    arquivo: null,
+    imagemSrc: '',
+    larguraOriginal: 0,
+    alturaOriginal: 0,
+    zoom: 1,
+    deslocamentoX: 0,
+    deslocamentoY: 0,
+    arrastando: false,
+  });
+  const inputFotoColaboradorRef = useRef(null);
+  const arrasteFotoColaboradorRef = useRef({
+    ativo: false,
+    inicioX: 0,
+    inicioY: 0,
+    deslocamentoInicialX: 0,
+    deslocamentoInicialY: 0,
+  });
   const [listaEstruturasConfig, setListaEstruturasConfig] = useState([]); const [carregandoEstruturasConfig, setCarregandoEstruturasConfig] = useState(false); const [buscaEstruturaConfig, setBuscaEstruturaConfig] = useState(''); const [estruturaConfigForm, setEstruturaConfigForm] = useState(estruturaConfigVazia); const [estruturaConfigEditando, setEstruturaConfigEditando] = useState(null); const [mensagemEstruturaConfig, setMensagemEstruturaConfig] = useState(''); const [erroEstruturaConfig, setErroEstruturaConfig] = useState('');
 
   const [dadosRevendedores, setDadosRevendedores] = useState(null); const [carregandoRevendedores, setCarregandoRevendedores] = useState(false); const [erroRevendedores, setErroRevendedores] = useState(''); const [buscaRevendedores, setBuscaRevendedores] = useState('');
@@ -2378,7 +5671,7 @@ export default function App() {
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
   const [erroHistorico, setErroHistorico] = useState('');
   const [mensagemHistorico, setMensagemHistorico] = useState('');
-  const [visaoHistorico, setVisaoHistorico] = useState('estruturas');
+  const [visaoHistorico, setVisaoHistorico] = useState('resumo');
   const [fechamentoHistorico, setFechamentoHistorico] = useState({ ciclo: '', observacao: '' });
   const [lancamentoHistorico, setLancamentoHistorico] = useState({
     ciclo: '',
@@ -2414,10 +5707,49 @@ export default function App() {
   const [buscaEstruturaAcao, setBuscaEstruturaAcao] = useState('');
 
   const [dadosLoja, setDadosLoja] = useState(null);
+  const [modalRelatorioLojaAberto, setModalRelatorioLojaAberto] = useState(false);
+  const [modalVendaDiariaLoja, setModalVendaDiariaLoja] = useState({
+    aberto: false,
+    total: 0,
+    meta: 0,
+    dataReferencia: '',
+    pdvs: [],
+    consultores: [],
+    conferida: false,
+  });
+  const [configRelatorioLoja, setConfigRelatorioLoja] = useState(CONFIG_RELATORIO_LOJA_PADRAO);
+  const [gerandoRelatorioLoja, setGerandoRelatorioLoja] = useState(false);
+  const [erroRelatorioLoja, setErroRelatorioLoja] = useState('');
   const [carregandoLoja, setCarregandoLoja] = useState(false);
   const [erroLoja, setErroLoja] = useState('');
   const [mensagemLoja, setMensagemLoja] = useState('');
   const [cicloLoja, setCicloLoja] = useState('');
+
+  useEffect(() => {
+    cicloVisualizacaoVDRef.current = cicloSelecionadoVD || '';
+    const ciclo = cicloSelecionadoVD || '';
+    if (ciclo) {
+      axios.defaults.headers.common['X-Ciclo-VD'] = ciclo;
+      localStorage.setItem(CICLO_VD_STORAGE_KEY, ciclo);
+      setFiltrosAtivos((atual) => atual.ciclo === ciclo ? atual : ({ ...atual, ciclo }));
+    } else {
+      delete axios.defaults.headers.common['X-Ciclo-VD'];
+    }
+  }, [cicloSelecionadoVD]);
+
+  useEffect(() => {
+    const ciclo = cicloSelecionadoLoja || cicloLoja || '';
+    if (ciclo) {
+      axios.defaults.headers.common['X-Ciclo-LOJA'] = ciclo;
+      localStorage.setItem(CICLO_LOJA_STORAGE_KEY, ciclo);
+    } else {
+      delete axios.defaults.headers.common['X-Ciclo-LOJA'];
+    }
+  }, [cicloSelecionadoLoja, cicloLoja]);
+  const [competenciaServicosLoja, setCompetenciaServicosLoja] = useState(() => {
+    const hoje = new Date();
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [arquivoGerencialLoja, setArquivoGerencialLoja] = useState(null);
   const [arquivosLojaUpload, setArquivosLojaUpload] = useState({
     vendas: null,
@@ -2562,6 +5894,9 @@ export default function App() {
 
   const usuarioPodeAcessarLoja = () => usuarioPodeAcessar('Loja') || usuarioPodeAcessar('LojaVisaoGeral') || usuarioPodeAcessar('LojaCadastro') || usuarioPodeAcessar('LojaUnidades') || usuarioPodeAcessar('LojaConsultoras') || usuarioPodeAcessar('LojaRanking');
 
+  const podeGerarRelatorioMetas = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
+  const podeGerarRelatorioLoja = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
+
   const telaEhLoja = (tela) => ['Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking'].includes(tela);
 
   const obterPermissoesUsuarioLista = (usuario) => normalizarListaPermissoesUsuario(
@@ -2624,20 +5959,23 @@ export default function App() {
     }
   };
 
-  const gerarChaveFiltros = (filtros) => JSON.stringify({ nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
+  const gerarChaveFiltros = (filtros) => JSON.stringify({ ci: filtros?.ciclo || '', nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
 
   const limparCachesDados = () => { setCacheDashboard({}); setCacheMetas(null); setCacheDetalheMetas({}); setOpcoesFiltrosCarregadas(false); };
 
-  const carregarOpcoesFiltros = async (forcarAtualizacao = false) => {
+  const carregarOpcoesFiltros = async (forcarAtualizacao = false, cicloForcado = null) => {
     if (opcoesFiltrosCarregadas && !forcarAtualizacao) return;
 
-    const chave = 'opcoes_filtros';
+    const cicloContexto = String(cicloForcado || filtrosAtivos?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || '').trim();
+    const requestSeq = ++opcoesRequestSeqRef.current;
+    const chave = `opcoes_filtros_${cicloContexto || 'sem_ciclo'}`;
     if (!forcarAtualizacao && promessasEmAndamentoRef.current[chave]) {
       return promessasEmAndamentoRef.current[chave];
     }
 
-    const promessa = axios.get(`${API_URL}/dashboard/opcoes-filtros`)
+    const promessa = axios.get(`${API_URL}/dashboard/opcoes-filtros`, { headers: { 'X-Ciclo-VD': cicloContexto } })
       .then((resposta) => {
+        if (requestSeq !== opcoesRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || cicloContexto) !== cicloContexto) return;
         setOpcFiltros(prev => ({
           ...prev,
           nucleos: resposta.data.nucleos || prev.nucleos || ['NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'],
@@ -2732,15 +6070,20 @@ export default function App() {
       return promessasEmAndamentoRef.current[chavePromessa];
     }
 
+    const cicloSolicitado = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
+    const requestSeq = ++dashboardRequestSeqRef.current;
     setCarregandoDashboard(true);
     const promessa = (async () => {
       try {
-        await carregarOpcoesFiltros(false);
+        await carregarOpcoesFiltros(false, cicloSolicitado);
+        const configCiclo = { headers: { 'X-Ciclo-VD': cicloSolicitado } };
         const [resMetas, resDados] = await Promise.allSettled([
-          axios.post(`${API_URL}/metas/resumo`, filtros),
-          axios.post(`${API_URL}/dashboard/dados`, filtros)
+          axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, configCiclo),
+          axios.post(`${API_URL}/dashboard/dados`, { ...filtros, ciclo: cicloSolicitado }, configCiclo)
         ]);
 
+        if (requestSeq !== dashboardRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado) return null;
+        if (resDados.status === 'fulfilled' && resDados.value.data?.ciclo_retorno && String(resDados.value.data.ciclo_retorno) !== cicloSolicitado) return null;
         const resumoMetas = resMetas.status === 'fulfilled'
           ? { ...resMetas.value.data, estruturas: [...(resMetas.value.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0)) }
           : cacheMetas;
@@ -2758,8 +6101,12 @@ export default function App() {
         return resDados.value.data;
       } catch (erro) {
         console.error('Erro dashboard:', erro);
+        if (requestSeq === dashboardRequestSeqRef.current) {
+          setDados(null);
+          setMetaFaturamentoDashboard(0);
+        }
       } finally {
-        setCarregandoDashboard(false);
+        if (requestSeq === dashboardRequestSeqRef.current) setCarregandoDashboard(false);
         delete promessasEmAndamentoRef.current[chavePromessa];
       }
     })();
@@ -2787,10 +6134,13 @@ export default function App() {
       return promessasEmAndamentoRef.current[chavePromessa];
     }
 
+    const cicloSolicitado = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
+    const requestSeq = ++metasRequestSeqRef.current;
     setCarregandoMetas(true);
     const promessa = (async () => {
       try {
-        const resposta = await axios.post(`${API_URL}/metas/resumo`, filtros);
+        const resposta = await axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, { headers: { 'X-Ciclo-VD': cicloSolicitado } });
+        if (requestSeq !== metasRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado) return null;
         const estruturasOrdenadas = [...(resposta.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
         const dadosOrdenados = { ...resposta.data, estruturas: estruturasOrdenadas };
         setDadosMetas(dadosOrdenados);
@@ -2807,7 +6157,7 @@ export default function App() {
         console.error('Erro metas:', erro);
         setErroMetas('Erro ao carregar metas.');
       } finally {
-        setCarregandoMetas(false);
+        if (requestSeq === metasRequestSeqRef.current) setCarregandoMetas(false);
         delete promessasEmAndamentoRef.current[chavePromessa];
       }
     })();
@@ -2863,6 +6213,8 @@ export default function App() {
         } else {
           console.error('Erro metas:', resMetas.reason);
           setErroMetas('Erro ao carregar metas.');
+          setDadosMetas(null);
+          setDetalheMeta(null);
         }
 
         if (resDados.status === 'fulfilled') {
@@ -2872,6 +6224,8 @@ export default function App() {
           setCacheDashboard((prev) => ({ ...prev, [chaveDashboard]: { dados: resDados.value.data, metaFaturamentoDashboard: metaCalculada } }));
         } else {
           console.error('Erro dashboard:', resDados.reason);
+          setDados(null);
+          setMetaFaturamentoDashboard(0);
         }
 
         const estruturas = dadosMetasAtualizados?.estruturas || [];
@@ -2913,24 +6267,204 @@ export default function App() {
 
   const carregarComparativo = async (filtros) => {
     setLoadComp(true);
+
     try {
-      const f1 = { ...filtros, nucleos: ['NUCLEO 1'] }; const f2 = { ...filtros, nucleos: ['NUCLEO 2'] };
-      const [rm1, rd1, rm2, rd2] = await Promise.all([ axios.post(`${API_URL}/metas/resumo`, f1), axios.post(`${API_URL}/dashboard/dados`, f1), axios.post(`${API_URL}/metas/resumo`, f2), axios.post(`${API_URL}/dashboard/dados`, f2) ]);
-      setDadosComp({ n1: { metas: rm1.data, dash: rd1.data }, n2: { metas: rm2.data, dash: rd2.data } });
-    } catch (e) { console.error("Erro Comparativo:", e); } finally { setLoadComp(false); }
+      const criarFiltroNucleo = (nucleo) => ({
+        ...filtros,
+        nucleos: [nucleo],
+      });
+
+      const filtrosN1 = criarFiltroNucleo('NUCLEO 1');
+      const filtrosN2 = criarFiltroNucleo('NUCLEO 2');
+      const filtrosN3 = criarFiltroNucleo('NUCLEO 3');
+
+      const [
+        metasN1,
+        dashboardN1,
+        metasN2,
+        dashboardN2,
+        metasN3,
+        dashboardN3,
+      ] = await Promise.all([
+        axios.post(`${API_URL}/metas/resumo`, filtrosN1),
+        axios.post(`${API_URL}/dashboard/dados`, filtrosN1),
+        axios.post(`${API_URL}/metas/resumo`, filtrosN2),
+        axios.post(`${API_URL}/dashboard/dados`, filtrosN2),
+        axios.post(`${API_URL}/metas/resumo`, filtrosN3),
+        axios.post(`${API_URL}/dashboard/dados`, filtrosN3),
+      ]);
+
+      setDadosComp({
+        n1: {
+          metas: metasN1.data,
+          dash: dashboardN1.data,
+        },
+        n2: {
+          metas: metasN2.data,
+          dash: dashboardN2.data,
+        },
+        n3: {
+          metas: metasN3.data,
+          dash: dashboardN3.data,
+        },
+      });
+    } catch (erro) {
+      console.error('Erro Comparativo:', erro);
+    } finally {
+      setLoadComp(false);
+    }
   };
 
   const carregarAuditoria = async (dias = filtrosAuditoria.dias) => {
-    if (!usuarioLogado || usuarioLogado.perfil !== 'admin') return;
+    if (!usuarioLogado) return;
+
+    if (!usuarioPodeAcessar('ADM')) {
+      setDadosAuditoria(null);
+      setErroAuditoria(
+        'Seu usuário não possui permissão para visualizar o Painel ADM.'
+      );
+      return;
+    }
+
     setCarregandoAuditoria(true);
     setErroAuditoria('');
+
     try {
-      const { data } = await axios.get(`${API_URL}/auditoria/resumo`, { params: { dias, limite: 200 } });
+      const { data } = await axios.get(
+        `${API_URL}/auditoria/resumo`,
+        {
+          params: {
+            dias,
+            limite: 200,
+          },
+        }
+      );
+
       setDadosAuditoria(data);
     } catch (erro) {
-      setErroAuditoria(erro.response?.data?.detail || 'Erro ao carregar auditoria.');
+      setDadosAuditoria(null);
+      setErroAuditoria(
+        erro.response?.data?.detail
+        || 'Erro ao carregar auditoria.'
+      );
     } finally {
       setCarregandoAuditoria(false);
+    }
+  };
+
+  const abrirModalRelatorioAuditoria = () => {
+    setErroRelatorioAuditoria('');
+    setConfigRelatorioAuditoria(criarConfigRelatorioAuditoria(filtrosAuditoria.dias));
+    setModalRelatorioAuditoriaAberto(true);
+  };
+
+  const alternarSecaoRelatorioAuditoria = (secao) => {
+    setConfigRelatorioAuditoria((atual) => ({
+      ...atual,
+      secoes: {
+        ...atual.secoes,
+        [secao]: !atual.secoes?.[secao],
+      },
+    }));
+  };
+
+  const alternarPerfilRelatorioAuditoria = (perfil) => {
+    setConfigRelatorioAuditoria((atual) => {
+      const selecionados = Array.isArray(atual.perfis) ? atual.perfis : [];
+      return {
+        ...atual,
+        perfis: selecionados.includes(perfil)
+          ? selecionados.filter((item) => item !== perfil)
+          : [...selecionados, perfil],
+      };
+    });
+  };
+
+  const alternarUsuarioRelatorioAuditoria = (email) => {
+    setConfigRelatorioAuditoria((atual) => {
+      const selecionados = Array.isArray(atual.usuarios) ? atual.usuarios : [];
+      return {
+        ...atual,
+        usuarios: selecionados.includes(email)
+          ? selecionados.filter((item) => item !== email)
+          : [...selecionados, email],
+      };
+    });
+  };
+
+  const gerarRelatorioAuditoriaPDF = async () => {
+    const secoesSelecionadas = Object.entries(configRelatorioAuditoria.secoes || {})
+      .filter(([, selecionada]) => selecionada)
+      .map(([secao]) => secao);
+
+    if (!configRelatorioAuditoria.data_inicio || !configRelatorioAuditoria.data_fim) {
+      setErroRelatorioAuditoria('Informe a data inicial e a data final.');
+      return;
+    }
+
+    if (configRelatorioAuditoria.data_fim < configRelatorioAuditoria.data_inicio) {
+      setErroRelatorioAuditoria('A data final não pode ser anterior à data inicial.');
+      return;
+    }
+
+    if (!secoesSelecionadas.length) {
+      setErroRelatorioAuditoria('Selecione pelo menos uma informação para o relatório.');
+      return;
+    }
+
+    setGerandoRelatorioAuditoria(true);
+    setErroRelatorioAuditoria('');
+
+    try {
+      const resposta = await axios.post(
+        `${API_URL}/auditoria/relatorio-pdf`,
+        {
+          titulo: configRelatorioAuditoria.titulo || 'Relatório de Uso - Dash Comercial',
+          data_inicio: configRelatorioAuditoria.data_inicio,
+          data_fim: configRelatorioAuditoria.data_fim,
+          orientacao: configRelatorioAuditoria.orientacao,
+          usuarios: configRelatorioAuditoria.usuarios || [],
+          perfis: configRelatorioAuditoria.perfis || [],
+          secoes: secoesSelecionadas,
+        },
+        {
+          responseType: 'blob',
+        }
+      );
+
+      const contentDisposition = resposta.headers?.['content-disposition'] || '';
+      const nomeEncontrado = contentDisposition.match(/filename="?([^"]+)"?/i);
+      const nomeArquivo = nomeEncontrado?.[1]
+        || `Relatorio_Auditoria_Dash_${configRelatorioAuditoria.data_inicio}_a_${configRelatorioAuditoria.data_fim}.pdf`;
+
+      const url = window.URL.createObjectURL(new Blob([resposta.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nomeArquivo;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setModalRelatorioAuditoriaAberto(false);
+      carregarAuditoria();
+    } catch (erro) {
+      const blob = erro.response?.data;
+      let detalhe = 'Não foi possível gerar o relatório PDF.';
+
+      if (blob instanceof Blob) {
+        try {
+          const textoErro = await blob.text();
+          const jsonErro = JSON.parse(textoErro);
+          detalhe = jsonErro.detail || detalhe;
+        } catch (_) {}
+      } else {
+        detalhe = erro.response?.data?.detail || detalhe;
+      }
+
+      setErroRelatorioAuditoria(detalhe);
+    } finally {
+      setGerandoRelatorioAuditoria(false);
     }
   };
 
@@ -2945,6 +6479,810 @@ export default function App() {
     } catch (_) {}
   };
 
+
+  const obterNucleosDisponiveisRelatorioMetas = () => {
+    const nucleos = (dadosMetas?.estruturas || [])
+      .flatMap((item) => obterNucleosDoItemRelatorioMetas(item))
+      .filter((nucleo) => ['N1', 'N2', 'N3'].includes(nucleo))
+      .filter((nucleo) => usuarioPodeAcessar(nucleo));
+
+    return Array.from(new Set(nucleos)).sort();
+  };
+
+  const obterEstruturasDisponiveisRelatorioMetas = (nucleosSelecionados = configRelatorioMetas.nucleos) => {
+    const nucleosSet = new Set((nucleosSelecionados || []).map(normalizarNucleoRelatorioMetas));
+
+    return [...(dadosMetas?.estruturas || [])]
+      .filter((item) => {
+        const nucleosItem = obterNucleosDoItemRelatorioMetas(item);
+        return !nucleosSet.size || nucleosItem.some((nucleo) => nucleosSet.has(nucleo));
+      })
+      .sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
+  };
+
+  const abrirModalRelatorioMetas = () => {
+    if (!podeGerarRelatorioMetas) return;
+
+    const nucleosDisponiveis = obterNucleosDisponiveisRelatorioMetas();
+    const nucleosAtivos = (filtrosAtivos?.nucleos || [])
+      .map(normalizarNucleoRelatorioMetas)
+      .filter((nucleo) => nucleosDisponiveis.includes(nucleo));
+
+    setErroRelatorioMetas('');
+    setConfigRelatorioMetas({
+      ...CONFIG_RELATORIO_METAS_PADRAO,
+      nucleos: nucleosAtivos.length ? nucleosAtivos : nucleosDisponiveis,
+    });
+    setModalRelatorioMetasAberto(true);
+  };
+
+  const alternarNucleoRelatorioMetas = (nucleo) => {
+    const nucleoNormalizado = normalizarNucleoRelatorioMetas(nucleo);
+    setConfigRelatorioMetas((atual) => {
+      const selecionados = Array.isArray(atual.nucleos) ? atual.nucleos : [];
+      const novosNucleos = selecionados.includes(nucleoNormalizado)
+        ? selecionados.filter((item) => item !== nucleoNormalizado)
+        : [...selecionados, nucleoNormalizado];
+
+      const estruturasPermitidas = new Set(
+        obterEstruturasDisponiveisRelatorioMetas(novosNucleos)
+          .map((item) => item.estrutura)
+      );
+
+      return {
+        ...atual,
+        nucleos: novosNucleos,
+        estruturas: (atual.estruturas || []).filter((estrutura) => estruturasPermitidas.has(estrutura)),
+      };
+    });
+  };
+
+  const alternarEstruturaRelatorioMetas = (estrutura) => {
+    setConfigRelatorioMetas((atual) => {
+      const selecionadas = Array.isArray(atual.estruturas) ? atual.estruturas : [];
+      return {
+        ...atual,
+        estruturas: selecionadas.includes(estrutura)
+          ? selecionadas.filter((item) => item !== estrutura)
+          : [...selecionadas, estrutura],
+      };
+    });
+  };
+
+  const selecionarTodasEstruturasRelatorioMetas = () => {
+    const estruturas = obterEstruturasDisponiveisRelatorioMetas(configRelatorioMetas.nucleos)
+      .map((item) => item.estrutura);
+    setConfigRelatorioMetas((atual) => ({ ...atual, estruturas }));
+  };
+
+  const limparEstruturasRelatorioMetas = () => {
+    setConfigRelatorioMetas((atual) => ({ ...atual, estruturas: [] }));
+  };
+
+  const obterCicloRelatorioMetas = () => String(
+    dados?.ciclo_atual
+    || ciclos?.find((item) => String(item.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
+    || ciclos?.[0]?.ciclo
+    || ''
+  ).trim();
+
+  const gerarRelatorioMetasImagem = async () => {
+    if (!podeGerarRelatorioMetas) {
+      setErroRelatorioMetas('Somente usuários com perfil Gestor ou Admin podem gerar o relatório.');
+      return;
+    }
+
+    const nucleosSelecionados = (configRelatorioMetas.nucleos || [])
+      .map(normalizarNucleoRelatorioMetas)
+      .filter(Boolean);
+
+    if (!nucleosSelecionados.length) {
+      setErroRelatorioMetas('Selecione pelo menos um núcleo.');
+      return;
+    }
+
+    const estruturasDoNucleo = obterEstruturasDisponiveisRelatorioMetas(nucleosSelecionados);
+    const estruturasSelecionadas = configRelatorioMetas.modoEstruturas === 'todas'
+      ? estruturasDoNucleo
+      : estruturasDoNucleo.filter((item) => (
+          configRelatorioMetas.estruturas || []
+        ).includes(item.estrutura));
+
+    if (!estruturasSelecionadas.length) {
+      setErroRelatorioMetas('Selecione pelo menos uma estrutura para gerar a imagem.');
+      return;
+    }
+
+    setGerandoRelatorioMetas(true);
+    setErroRelatorioMetas('');
+
+    try {
+      const ciclo = obterCicloRelatorioMetas();
+
+      await axios.post(`${API_URL}/relatorios-metas/registrar`, {
+        ciclo,
+        nucleos: nucleosSelecionados,
+        estruturas: estruturasSelecionadas.map((item) => item.estrutura),
+        incluir_consultores: Boolean(configRelatorioMetas.incluirConsultores),
+        tipo_selecao: configRelatorioMetas.modoEstruturas,
+      });
+
+      // O detalhe é carregado sempre, mesmo no relatório somente geral.
+      // Assim, RPA, Ticket, UPA, Atividade, MAKE e CABELO usam a mesma
+      // fonte oficial da tela detalhada e não aparecem zerados por falta
+      // de campos no resumo da listagem.
+      const filtrosRelatorio = {
+        ...filtrosAtivos,
+        nucleos: nucleosSelecionados.map(
+          (nucleo) => `NUCLEO ${nucleo.replace('N', '')}`
+        ),
+        estruturas: [],
+        consultores: [],
+      };
+
+      const respostas = await Promise.allSettled(
+        estruturasSelecionadas.map((item) => axios.post(
+          `${API_URL}/metas/estrutura/${encodeURIComponent(item.estrutura)}`,
+          filtrosRelatorio
+        ))
+      );
+
+      const detalhesPorEstrutura = {};
+      const estruturasComErro = [];
+
+      respostas.forEach((resposta, indice) => {
+        const estrutura = estruturasSelecionadas[indice].estrutura;
+        if (
+          resposta.status === 'fulfilled'
+          && resposta.value?.data
+        ) {
+          detalhesPorEstrutura[estrutura] = resposta.value.data;
+        } else {
+          estruturasComErro.push(estrutura);
+        }
+      });
+
+      if (estruturasComErro.length) {
+        throw new Error(
+          `Não foi possível carregar os indicadores completos de: ${estruturasComErro.join(', ')}. Atualize a tela e tente novamente.`
+        );
+      }
+
+      const itens = estruturasSelecionadas.map((resumo) => ({
+        resumo,
+        detalhe: detalhesPorEstrutura[resumo.estrutura],
+      }));
+
+      const arquivosGerados = [];
+
+      for (const itemRelatorio of itens) {
+        const blob = await criarImagemRelatorioMetas({
+          itemRelatorio,
+          ciclo,
+          nucleos: nucleosSelecionados,
+          incluirConsultores: Boolean(configRelatorioMetas.incluirConsultores),
+          geradoPor: usuarioLogado?.nome || usuarioLogado?.email || 'Usuário',
+          logoSrc: logoEmpresa,
+        });
+
+        const nomeEstrutura = itemRelatorio?.resumo?.estrutura
+          || itemRelatorio?.detalhe?.estrutura
+          || 'estrutura';
+        const nomeArquivo = `resultado_metas_${slugArquivoRelatorioMetas(nomeEstrutura)}_ciclo_${slugArquivoRelatorioMetas(ciclo)}.png`;
+
+        arquivosGerados.push({ blob, nomeArquivo });
+      }
+
+      // Regra solicitada:
+      // - uma estrutura: uma única imagem;
+      // - mais de uma estrutura: um PNG separado para cada estrutura.
+      for (let indice = 0; indice < arquivosGerados.length; indice += 1) {
+        const arquivo = arquivosGerados[indice];
+        baixarBlobRelatorioMetas(arquivo.blob, arquivo.nomeArquivo);
+
+        if (indice < arquivosGerados.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 450));
+        }
+      }
+
+      setModalRelatorioMetasAberto(false);
+    } catch (erro) {
+      setErroRelatorioMetas(
+        erro.response?.data?.detail
+        || erro.message
+        || 'Erro ao gerar o relatório em imagem.'
+      );
+    } finally {
+      setGerandoRelatorioMetas(false);
+    }
+  };
+
+
+  const abrirModalRelatorioLoja = () => {
+    if (!podeGerarRelatorioLoja) return;
+
+    const pdvs = (dadosLoja?.unidades || [])
+      .map((item) => String(item?.codigo_pdv || '').trim())
+      .filter(Boolean);
+
+    setErroRelatorioLoja('');
+    setConfigRelatorioLoja({
+      ...CONFIG_RELATORIO_LOJA_PADRAO,
+      pdvs,
+      indicadores: {
+        ...CONFIG_RELATORIO_LOJA_PADRAO.indicadores,
+      },
+    });
+    setModalRelatorioLojaAberto(true);
+  };
+
+  const alternarPdvRelatorioLoja = (codigoPdv) => {
+    setConfigRelatorioLoja((atual) => {
+      const selecionados = Array.isArray(atual.pdvs)
+        ? atual.pdvs
+        : [];
+
+      return {
+        ...atual,
+        pdvs: selecionados.includes(codigoPdv)
+          ? selecionados.filter((item) => item !== codigoPdv)
+          : [...selecionados, codigoPdv],
+      };
+    });
+  };
+
+  const selecionarTodosPdvsRelatorioLoja = () => {
+    const pdvs = (dadosLoja?.unidades || [])
+      .map((item) => String(item?.codigo_pdv || '').trim())
+      .filter(Boolean);
+
+    setConfigRelatorioLoja((atual) => ({
+      ...atual,
+      pdvs,
+    }));
+  };
+
+  const limparPdvsRelatorioLoja = () => {
+    setConfigRelatorioLoja((atual) => ({
+      ...atual,
+      pdvs: [],
+    }));
+  };
+
+  const alternarIndicadorRelatorioLoja = (indicador) => {
+    setConfigRelatorioLoja((atual) => ({
+      ...atual,
+      indicadores: {
+        ...atual.indicadores,
+        [indicador]: !atual.indicadores?.[indicador],
+      },
+    }));
+  };
+
+  const gerarRelatorioLojaImagem = async () => {
+    if (!podeGerarRelatorioLoja) {
+      setErroRelatorioLoja(
+        'Somente usuários com perfil Gestor ou Admin podem gerar o relatório.'
+      );
+      return;
+    }
+
+    const unidadesDisponiveis = dadosLoja?.unidades || [];
+    const unidadesSelecionadas = (
+      configRelatorioLoja.modoPdvs === 'todos'
+        ? unidadesDisponiveis
+        : unidadesDisponiveis.filter((item) => (
+            configRelatorioLoja.pdvs || []
+          ).includes(String(item?.codigo_pdv || '')))
+    );
+
+    if (!unidadesSelecionadas.length) {
+      setErroRelatorioLoja(
+        'Selecione pelo menos um PDV para gerar o relatório.'
+      );
+      return;
+    }
+
+    const indicadoresSelecionados = Object.entries(
+      configRelatorioLoja.indicadores || {}
+    )
+      .filter(([, selecionado]) => Boolean(selecionado))
+      .map(([indicador]) => indicador);
+
+    if (!indicadoresSelecionados.length) {
+      setErroRelatorioLoja(
+        'Selecione pelo menos um indicador.'
+      );
+      return;
+    }
+
+    setGerandoRelatorioLoja(true);
+    setErroRelatorioLoja('');
+
+    try {
+      const ciclo = String(
+        cicloLoja
+        || dadosLoja?.resumo?.ciclo
+        || cicloLojaSelecionado()
+        || ''
+      ).trim();
+
+      const competenciaServicos = String(
+        dadosLoja?.resumo?.competencia_servicos
+        || competenciaServicosLoja
+        || ''
+      ).trim();
+
+      await axios.post(
+        `${API_URL}/relatorios-loja/registrar`,
+        {
+          ciclo,
+          pdvs: unidadesSelecionadas.map(
+            (item) => String(item?.codigo_pdv || '')
+          ),
+          incluir_consultores: Boolean(
+            configRelatorioLoja.incluirConsultores
+          ),
+          tipo_selecao: configRelatorioLoja.modoPdvs,
+          incluir_consolidado:
+            unidadesSelecionadas.length > 1,
+          indicadores: indicadoresSelecionados,
+          competencia_servicos: competenciaServicos,
+        }
+      );
+
+      const arquivosGerados = [];
+      const geradoPor = (
+        usuarioLogado?.nome
+        || usuarioLogado?.email
+        || 'Usuário'
+      );
+
+      if (unidadesSelecionadas.length > 1) {
+        const blobConsolidado = await criarImagemRelatorioLojaConsolidado({
+          unidades: unidadesSelecionadas,
+          resumo: dadosLoja?.resumo || {},
+          ciclo,
+          competenciaServicos,
+          indicadores: indicadoresSelecionados,
+          geradoPor,
+          logoSrc: logoEmpresa,
+        });
+
+        arquivosGerados.push({
+          blob: blobConsolidado,
+          nomeArquivo: `resultado_loja_consolidado_ciclo_${slugArquivoRelatorioMetas(
+            ciclo
+          )}.png`,
+        });
+      }
+
+      for (const unidade of unidadesSelecionadas) {
+        const codigoPdv = String(
+          unidade?.codigo_pdv || ''
+        ).trim();
+
+        const consultoresPdv = (dadosLoja?.consultoras || [])
+          .filter((consultor) => (
+            String(
+              consultor?.codigo_pdv_oficial || ''
+            ).trim() === codigoPdv
+          ));
+
+        const servicosConsultoresPdv = (
+          dadosLoja?.servicos_consultores || []
+        ).filter((item) => (
+          String(item?.codigo_pdv || '').trim() === codigoPdv
+        ));
+
+        const blob = await criarImagemRelatorioLojaPdv({
+          unidade: {
+            ...unidade,
+            data_referencia_diaria:
+              dadosLoja?.resumo?.data_referencia_diaria,
+          },
+          consultores: consultoresPdv,
+          servicosConsultores: servicosConsultoresPdv,
+          ciclo,
+          competenciaServicos,
+          indicadores: indicadoresSelecionados,
+          incluirConsultores: Boolean(
+            configRelatorioLoja.incluirConsultores
+          ),
+          geradoPor,
+          logoSrc: logoEmpresa,
+        });
+
+        arquivosGerados.push({
+          blob,
+          nomeArquivo: `resultado_loja_pdv_${slugArquivoRelatorioMetas(
+            codigoPdv
+          )}_${slugArquivoRelatorioMetas(
+            unidade?.cidade
+            || unidade?.nome_loja
+            || 'loja'
+          )}_ciclo_${slugArquivoRelatorioMetas(ciclo)}.png`,
+        });
+      }
+
+      for (
+        let indice = 0;
+        indice < arquivosGerados.length;
+        indice += 1
+      ) {
+        const arquivo = arquivosGerados[indice];
+
+        baixarBlobRelatorioMetas(
+          arquivo.blob,
+          arquivo.nomeArquivo
+        );
+
+        if (indice < arquivosGerados.length - 1) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 500);
+          });
+        }
+      }
+
+      setModalRelatorioLojaAberto(false);
+    } catch (erro) {
+      setErroRelatorioLoja(
+        erro.response?.data?.detail
+        || erro.message
+        || 'Erro ao gerar o relatório em imagem da LOJA.'
+      );
+    } finally {
+      setGerandoRelatorioLoja(false);
+    }
+  };
+
+
+  
+const mapearIdentidadesColaboradores = (lista = []) => {
+    const mapa = { VD: {}, LOJA: {}, PERFIL: {} };
+    (lista || []).forEach((item) => {
+      const area = String(item?.area || '').toUpperCase();
+      const id = String(item?.id_colaborador || '').trim();
+      if (!mapa[area] || !id) return;
+      mapa[area][id] = item;
+    });
+    return mapa;
+  };
+
+  const carregarIdentidadesColaboradores = async () => {
+    try {
+      const resposta = await axios.get(`${API_URL}/colaboradores/identidades`, {
+        params: { area: 'TODOS' },
+      });
+      setIdentidadesColaboradores(
+        mapearIdentidadesColaboradores(resposta.data?.identidades || [])
+      );
+    } catch (erro) {
+      console.warn('Não foi possível carregar fotos dos colaboradores.', erro);
+    }
+  };
+
+  const obterIdentidadeColaborador = (area, idColaborador) => (
+    identidadesColaboradores?.[String(area || '').toUpperCase()]?.[
+      String(idColaborador || '').trim()
+    ] || null
+  );
+
+  const obterFotoColaborador = (area, idColaborador, fotoFallback = '') => (
+    obterIdentidadeColaborador(area, idColaborador)?.foto_data_url
+    || fotoFallback
+    || ''
+  );
+
+  const podeGerenciarIdentidadeColaborador = (area) => {
+    const perfil = String(usuarioLogado?.perfil || '').toLowerCase();
+    if (perfil === 'admin') return true;
+    if (perfil !== 'gestor') return false;
+    const areaUsuario = normalizarAreaGestao(
+      usuarioLogado?.area_gestao,
+      usuarioLogado?.perfil
+    );
+    return areaUsuario === 'AMBOS' || areaUsuario === String(area || '').toUpperCase();
+  };
+
+  const abrirModalIdentidadeColaborador = ({
+    area,
+    id_colaborador,
+    nome_oficial,
+    codigo_contexto = '',
+    foto_data_url = '',
+    aliases = [],
+  }) => {
+    const identidade = obterIdentidadeColaborador(area, id_colaborador);
+    const aliasesFinais = identidade?.aliases?.length
+      ? identidade.aliases
+      : aliases;
+    setErroIdentidadeColaborador('');
+    setModalIdentidadeColaborador({
+      aberto: true,
+      area: String(area || '').toUpperCase(),
+      id_colaborador: String(id_colaborador || '').trim(),
+      nome_oficial: String(nome_oficial || '').trim(),
+      codigo_contexto: String(codigo_contexto || '').trim(),
+      foto_data_url: identidade?.foto_data_url || foto_data_url || '',
+      aliases_texto: (aliasesFinais || [])
+        .map((item) => typeof item === 'string' ? item : item?.nome_alias)
+        .filter(Boolean)
+        .join('\n'),
+    });
+  };
+
+  const selecionarFotoColaborador = () => {
+    inputFotoColaboradorRef.current?.click();
+  };
+
+  const abrirEditorFotoColaborador = async (evento) => {
+    const arquivo = evento.target.files?.[0];
+    evento.target.value = '';
+
+    if (!arquivo) return;
+
+    setErroIdentidadeColaborador('');
+
+    try {
+      const foto = await lerFotoParaEdicao(arquivo);
+
+      setEditorFotoColaborador({
+        aberto: true,
+        arquivo: foto.arquivo,
+        imagemSrc: foto.imagemSrc,
+        larguraOriginal: foto.larguraOriginal,
+        alturaOriginal: foto.alturaOriginal,
+        zoom: 1,
+        deslocamentoX: 0,
+        deslocamentoY: 0,
+        arrastando: false,
+      });
+    } catch (erro) {
+      setErroIdentidadeColaborador(
+        erro.message || 'Não foi possível preparar a foto.'
+      );
+    }
+  };
+
+  const atualizarZoomFotoColaborador = (novoZoom) => {
+    const zoom = Math.max(
+      1,
+      Math.min(Number(novoZoom || 1), 3)
+    );
+
+    setEditorFotoColaborador((atual) => {
+      const limitado = limitarDeslocamentoFoto({
+        ...atual,
+        zoom,
+      });
+
+      return {
+        ...atual,
+        zoom,
+        ...limitado,
+      };
+    });
+  };
+
+  const centralizarFotoColaborador = () => {
+    setEditorFotoColaborador((atual) => ({
+      ...atual,
+      zoom: 1,
+      deslocamentoX: 0,
+      deslocamentoY: 0,
+    }));
+  };
+
+  const iniciarArrasteFotoColaborador = (evento) => {
+    evento.currentTarget.setPointerCapture?.(
+      evento.pointerId
+    );
+
+    arrasteFotoColaboradorRef.current = {
+      ativo: true,
+      inicioX: evento.clientX,
+      inicioY: evento.clientY,
+      deslocamentoInicialX:
+        editorFotoColaborador.deslocamentoX,
+      deslocamentoInicialY:
+        editorFotoColaborador.deslocamentoY,
+    };
+
+    setEditorFotoColaborador((atual) => ({
+      ...atual,
+      arrastando: true,
+    }));
+  };
+
+  const moverFotoColaborador = (evento) => {
+    const arraste = arrasteFotoColaboradorRef.current;
+
+    if (!arraste.ativo) return;
+
+    const proximoX = (
+      arraste.deslocamentoInicialX
+      + evento.clientX
+      - arraste.inicioX
+    );
+    const proximoY = (
+      arraste.deslocamentoInicialY
+      + evento.clientY
+      - arraste.inicioY
+    );
+
+    setEditorFotoColaborador((atual) => {
+      const limitado = limitarDeslocamentoFoto({
+        ...atual,
+        deslocamentoX: proximoX,
+        deslocamentoY: proximoY,
+      });
+
+      return {
+        ...atual,
+        ...limitado,
+      };
+    });
+  };
+
+  const finalizarArrasteFotoColaborador = (evento) => {
+    try {
+      evento.currentTarget.releasePointerCapture?.(
+        evento.pointerId
+      );
+    } catch {
+      // O ponteiro pode já ter sido liberado pelo navegador.
+    }
+
+    arrasteFotoColaboradorRef.current.ativo = false;
+
+    setEditorFotoColaborador((atual) => ({
+      ...atual,
+      arrastando: false,
+    }));
+  };
+
+  const cancelarEditorFotoColaborador = () => {
+    arrasteFotoColaboradorRef.current.ativo = false;
+
+    setEditorFotoColaborador({
+      aberto: false,
+      arquivo: null,
+      imagemSrc: '',
+      larguraOriginal: 0,
+      alturaOriginal: 0,
+      zoom: 1,
+      deslocamentoX: 0,
+      deslocamentoY: 0,
+      arrastando: false,
+    });
+  };
+
+  const aplicarFotoEditadaColaborador = async () => {
+    if (!editorFotoColaborador.arquivo) {
+      setErroIdentidadeColaborador(
+        'Selecione uma foto antes de continuar.'
+      );
+      return;
+    }
+
+    setSalvandoIdentidadeColaborador(true);
+    setErroIdentidadeColaborador('');
+
+    try {
+      const compactada = await compactarFotoColaborador(
+        editorFotoColaborador.arquivo,
+        {
+          tamanhoPreview: 320,
+          zoom: editorFotoColaborador.zoom,
+          deslocamentoX:
+            editorFotoColaborador.deslocamentoX,
+          deslocamentoY:
+            editorFotoColaborador.deslocamentoY,
+        }
+      );
+
+      const resposta = await axios.post(
+        `${API_URL}/colaboradores/foto`,
+        {
+          area: modalIdentidadeColaborador.area,
+          id_colaborador:
+            modalIdentidadeColaborador.id_colaborador,
+          nome_colaborador:
+            modalIdentidadeColaborador.nome_oficial,
+          foto_base64: compactada.foto_base64,
+          foto_mime: compactada.foto_mime,
+        }
+      );
+
+      const fotoFinal = (
+        resposta.data?.foto_data_url
+        || compactada.foto_base64
+      );
+
+      setModalIdentidadeColaborador((atual) => ({
+        ...atual,
+        foto_data_url: fotoFinal,
+      }));
+
+      await carregarIdentidadesColaboradores();
+
+      if (
+        modalIdentidadeColaborador.area === 'VD'
+      ) {
+        await carregarListaConsultores();
+      }
+
+      if (
+        modalIdentidadeColaborador.area === 'LOJA'
+      ) {
+        await carregarDadosLoja(
+          cicloLojaSelecionado()
+        );
+      }
+
+      cancelarEditorFotoColaborador();
+    } catch (erro) {
+      setErroIdentidadeColaborador(
+        erro.response?.data?.detail
+        || erro.message
+        || 'Erro ao atualizar foto.'
+      );
+    } finally {
+      setSalvandoIdentidadeColaborador(false);
+    }
+  };
+
+  const removerFotoColaborador = async () => {
+    setSalvandoIdentidadeColaborador(true);
+    setErroIdentidadeColaborador('');
+    try {
+      await axios.delete(
+        `${API_URL}/colaboradores/foto/${encodeURIComponent(modalIdentidadeColaborador.area)}/${encodeURIComponent(modalIdentidadeColaborador.id_colaborador)}`
+      );
+      setModalIdentidadeColaborador((atual) => ({ ...atual, foto_data_url: '' }));
+      await carregarIdentidadesColaboradores();
+    } catch (erro) {
+      setErroIdentidadeColaborador(
+        erro.response?.data?.detail || 'Erro ao remover foto.'
+      );
+    } finally {
+      setSalvandoIdentidadeColaborador(false);
+    }
+  };
+
+  const salvarAliasesColaborador = async () => {
+    if (modalIdentidadeColaborador.area === 'PERFIL') {
+      setModalIdentidadeColaborador((atual) => ({ ...atual, aberto: false }));
+      return;
+    }
+    setSalvandoIdentidadeColaborador(true);
+    setErroIdentidadeColaborador('');
+    try {
+      const aliases = modalIdentidadeColaborador.aliases_texto
+        .split(/\r?\n|;/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+      await axios.post(`${API_URL}/consultores-aliases/lote`, {
+        area: modalIdentidadeColaborador.area,
+        id_colaborador: modalIdentidadeColaborador.id_colaborador,
+        nome_oficial: modalIdentidadeColaborador.nome_oficial,
+        codigo_contexto: modalIdentidadeColaborador.codigo_contexto,
+        aliases,
+      });
+      await carregarIdentidadesColaboradores();
+      if (modalIdentidadeColaborador.area === 'VD') await carregarListaConsultores();
+      if (modalIdentidadeColaborador.area === 'LOJA') await carregarDadosLoja(cicloLojaSelecionado());
+      setModalIdentidadeColaborador((atual) => ({ ...atual, aberto: false }));
+    } catch (erro) {
+      setErroIdentidadeColaborador(
+        erro.response?.data?.detail || 'Erro ao salvar os nomes alternativos.'
+      );
+    } finally {
+      setSalvandoIdentidadeColaborador(false);
+    }
+  };
+
   const carregarUsuarios = async () => {
     if (!usuarioPodeAcessar('Configurações')) return;
     setCarregandoUsuarios(true); setErroUsuarios('');
@@ -2952,9 +7290,120 @@ export default function App() {
   };
 
   const carregarCiclos = async () => {
-    setCarregandoCiclos(true); setErroCiclo('');
-    try { const resposta = await axios.get(`${API_URL}/ciclos`); setCiclos(resposta.data.ciclos || []); } catch (erro) { setErroCiclo('Erro ciclos.'); } finally { setCarregandoCiclos(false); }
+    setCarregandoCiclos(true);
+    setErroCiclo('');
+
+    try {
+      const resposta = await axios.get(`${API_URL}/ciclos`);
+      let lista = Array.isArray(resposta.data?.ciclos)
+        ? resposta.data.ciclos
+        : [];
+
+      // Contingência: o Histórico também devolve ciclos abertos e fechados.
+      if (!lista.length) {
+        const respostaHistorico = await axios.get(
+          `${API_URL}/historico/ciclos`
+        );
+        lista = Array.isArray(respostaHistorico.data?.ciclos)
+          ? respostaHistorico.data.ciclos
+          : [];
+      }
+
+      const cicloAtualApi = (
+        resposta.data?.ciclo_atual
+        || lista.find((item) => item.eh_atual)?.ciclo
+        || lista.find(
+          (item) => String(
+            item.status_ciclo || ''
+          ).toLowerCase() === 'ativo'
+        )?.ciclo
+        || lista[0]?.ciclo
+        || ''
+      );
+
+      const cicloAtualConhecido = localStorage.getItem(CICLO_ATUAL_CONHECIDO_STORAGE_KEY) || '';
+      const novoCicloDetectado = Boolean(cicloAtualApi && cicloAtualApi !== cicloAtualConhecido);
+      if (cicloAtualApi) {
+        localStorage.setItem(CICLO_ATUAL_CONHECIDO_STORAGE_KEY, cicloAtualApi);
+      }
+
+      setCiclos(lista);
+
+      const selecionarValorValido = (
+        valorAtual,
+        chaveStorage,
+        priorizarCicloAtual = false
+      ) => {
+        const salvo = localStorage.getItem(chaveStorage) || '';
+        const candidato = priorizarCicloAtual ? cicloAtualApi : (valorAtual || salvo);
+        const valor = lista.some(
+          (item) => String(item.ciclo) === String(candidato)
+        )
+          ? candidato
+          : cicloAtualApi;
+
+        if (valor) {
+          localStorage.setItem(chaveStorage, valor);
+        }
+        return valor;
+      };
+
+      setCicloSelecionadoVD((atual) => (
+        selecionarValorValido(
+          atual,
+          CICLO_VD_STORAGE_KEY,
+          novoCicloDetectado
+        )
+      ));
+      setCicloSelecionadoLoja((atual) => (
+        selecionarValorValido(
+          atual,
+          CICLO_LOJA_STORAGE_KEY,
+          novoCicloDetectado
+        )
+      ));
+      setCicloUploadVD((atual) => (
+        selecionarValorValido(
+          atual,
+          CICLO_UPLOAD_VD_STORAGE_KEY,
+          novoCicloDetectado
+        )
+      ));
+      setCicloUploadLoja((atual) => (
+        selecionarValorValido(
+          atual,
+          CICLO_UPLOAD_LOJA_STORAGE_KEY,
+          novoCicloDetectado
+        )
+      ));
+
+      if (!cicloLoja && cicloAtualApi) {
+        setCicloLoja(cicloAtualApi);
+      }
+
+      return {
+        lista,
+        cicloAtual: cicloAtualApi,
+      };
+    } catch (erro) {
+      setErroCiclo(
+        erro.response?.data?.detail
+        || 'Erro ao carregar ciclos.'
+      );
+      return {
+        lista: [],
+        cicloAtual: '',
+      };
+    } finally {
+      setCarregandoCiclos(false);
+    }
   };
+
+  useEffect(() => {
+    if (!usuarioLogado || !tokenAuth) return;
+    carregarCiclos();
+  }, [usuarioLogado, tokenAuth]);
+
 
   const carregarListaConsultores = async () => {
     setCarregandoListaConsultores(true); setErroGestaoConsultor('');
@@ -3041,7 +7490,7 @@ const carregarRevendedores = async () => {
   setCarregandoRevendedores(true);
   setErroRevendedores('');
   try {
-    const resposta = await axios.get(`${API_URL}/revendedores/resumo`);
+    const resposta = await axios.get(`${API_URL}/revendedores/resumo`, { params: { ciclo: cicloSelecionadoVD || obterCicloReferenciaAtual() } });
     setDadosRevendedores(resposta.data || null);
   } catch (erro) {
     console.error('Erro revendedores:', erro);
@@ -3142,6 +7591,32 @@ const carregarRevendedores = async () => {
         setMensagemUpload('');
         setErroUpload(data.mensagem || 'Falha na atualização automática de Vendas CABELO.');
       }
+
+      if (data.acao === 'AUTOMACAO_MULTIMARCAS_INICIADA') {
+        setCarregandoAutomacaoMultimarcas(true);
+        setErroUpload('');
+        setMensagemUpload(data.mensagem || 'Automação MULTIMARCAS iniciada.');
+      }
+
+      if (data.acao === 'PROGRESSO_MULTIMARCAS') {
+        setStatusMultimarcas(data.mensagem || 'Processando MULTIMARCAS...');
+      }
+
+      if (data.acao === 'UPLOAD_MULTIMARCAS_SUCESSO') {
+        setCarregandoAutomacaoMultimarcas(false);
+        setModalMultimarcasAberto(false);
+        setStatusMultimarcas('');
+        setErroUpload('');
+        setMensagemUpload(data.mensagem || 'Vendas MULTIMARCAS atualizadas automaticamente com sucesso.');
+        await atualizarTelasAposMudancaBanco();
+      }
+
+      if (data.acao === 'UPLOAD_MULTIMARCAS_ERRO') {
+        setCarregandoAutomacaoMultimarcas(false);
+        setStatusMultimarcas(data.mensagem || 'Falha na atualização automática de MULTIMARCAS.');
+        setMensagemUpload('');
+        setErroUpload(data.mensagem || 'Falha na atualização automática de MULTIMARCAS.');
+      }
     };
 
     window.addEventListener('message', receberMensagemAutomacao);
@@ -3149,10 +7624,120 @@ const carregarRevendedores = async () => {
   }, [filtrosAtivos, telaAtual]);
 
 
-  const obterCicloReferenciaAtual = () => (
-    dados?.ciclo_atual
-    || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
+  useEffect(() => {
+    const receberMultimarcas = (event) => {
+      if (event.source !== window) return;
+      const data = event.data || {};
+      if (data.origem !== 'dash-sb-extensao-multimarcas-v1') return;
+      if (data.progresso) {
+        setStatusMultimarcas(data.mensagem || 'Processando MULTIMARCAS...');
+        return;
+      }
+      if (data.ok) {
+        setCarregandoAutomacaoMultimarcas(false);
+        setModalMultimarcasAberto(false);
+        setStatusMultimarcas('');
+        setErroUpload('');
+        setMensagemUpload(data.mensagem || 'Vendas MULTIMARCAS atualizadas com sucesso.');
+        atualizarTelasAposMudancaBanco();
+      } else {
+        setCarregandoAutomacaoMultimarcas(false);
+        setStatusMultimarcas(data.erro || 'Falha na automação MULTIMARCAS.');
+        setErroUpload(data.erro || 'Falha na automação MULTIMARCAS.');
+      }
+    };
+    window.addEventListener('message', receberMultimarcas);
+    return () => window.removeEventListener('message', receberMultimarcas);
+  }, [filtrosAtivos, telaAtual]);
+
+  const cicloAtualPelaData = () => (
+    ciclos?.find((item) => item.eh_atual)?.ciclo
+    || ciclos?.find((item) => String(item.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
     || ciclos?.[0]?.ciclo
+    || ''
+  );
+
+  const obterInfoCiclo = (ciclo) => ciclos?.find((item) => String(item.ciclo || '') === String(ciclo || '')) || null;
+
+  const obterStatusCicloArea = (ciclo, area = 'VD') => {
+    const info = obterInfoCiclo(ciclo);
+    const campo = String(area).toUpperCase() === 'LOJA' ? 'status_loja' : 'status_vd';
+    return String(info?.[campo] || 'aberto').toLowerCase();
+  };
+
+  const cicloAbertoParaArea = (ciclo, area = 'VD') => obterStatusCicloArea(ciclo, area) !== 'fechado';
+
+  const perfilPodeFecharCiclo = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
+  const perfilPodeReabrirCiclo = String(usuarioLogado?.perfil || '').toLowerCase() === 'admin';
+
+  const selecionarCicloVisualizacao = async (ciclo, area = 'VD') => {
+    const valor = String(ciclo || '').trim();
+    if (!valor) return;
+    limparCachesDados();
+    ultimoCarregamentoTelaRef.current = '';
+    if (String(area).toUpperCase() === 'LOJA') {
+      setCicloSelecionadoLoja(valor);
+      setCicloLoja(valor);
+      localStorage.setItem(CICLO_LOJA_STORAGE_KEY, valor);
+      axios.defaults.headers.common['X-Ciclo-LOJA'] = valor;
+      await carregarDadosLoja(valor);
+    } else {
+      cicloVisualizacaoVDRef.current = valor;
+      dashboardRequestSeqRef.current += 1;
+      metasRequestSeqRef.current += 1;
+      opcoesRequestSeqRef.current += 1;
+      setCicloSelecionadoVD(valor);
+      localStorage.setItem(CICLO_VD_STORAGE_KEY, valor);
+      axios.defaults.headers.common['X-Ciclo-VD'] = valor;
+      setDados(null);
+      setDadosMetas(null);
+      setDetalheMeta(null);
+      setMetaFaturamentoDashboard(0);
+      setErroMetas('');
+      const novosFiltros = { ...filtrosAtivos, ciclo: valor, data_inicio: '', data_fim: '' };
+      setFiltrosAtivos(novosFiltros);
+      await carregarOpcoesFiltros(true, valor);
+      await carregarTelaAtual(novosFiltros, true);
+    }
+  };
+
+  const atualizarStatusOperacionalCiclo = async (area, acao, cicloAlvo = '') => {
+    const areaNorm = String(area || 'VD').toUpperCase();
+    const ciclo = String(cicloAlvo || (areaNorm === 'LOJA' ? cicloUploadLoja : cicloUploadVD) || '').trim();
+    if (!ciclo) return;
+    const reabrindo = acao === 'reabrir';
+    const texto = reabrindo
+      ? window.prompt(`Informe o motivo para reabrir o ciclo ${ciclo} em ${areaNorm}:`, '')
+      : window.prompt(`Observação do fechamento do ciclo ${ciclo} em ${areaNorm}:`, 'Fechamento oficial do ciclo');
+    if (texto === null) return;
+    if (reabrindo && !String(texto).trim()) {
+      const mensagem = 'Informe o motivo da reabertura.';
+      if (areaNorm === 'LOJA') setErroLoja(mensagem); else setErroUpload(mensagem);
+      return;
+    }
+    setAlterandoStatusCiclo(true);
+    try {
+      const { data } = await axios.post(`${API_URL}/ciclos/${encodeURIComponent(ciclo)}/${acao}`, {
+        area: areaNorm,
+        observacao: reabrindo ? '' : String(texto || '').trim(),
+        motivo: reabrindo ? String(texto || '').trim() : '',
+      });
+      if (areaNorm === 'LOJA') setMensagemLoja(data?.mensagem || 'Status do ciclo atualizado.');
+      else setMensagemUpload(data?.mensagem || 'Status do ciclo atualizado.');
+      await carregarCiclos();
+    } catch (erro) {
+      const mensagem = erro.response?.data?.detail || 'Erro ao atualizar o status do ciclo.';
+      if (areaNorm === 'LOJA') setErroLoja(mensagem); else setErroUpload(mensagem);
+    } finally {
+      setAlterandoStatusCiclo(false);
+    }
+  };
+
+  const obterCicloReferenciaAtual = () => (
+    cicloSelecionadoVD
+    || filtrosAtivos?.ciclo
+    || dados?.ciclo_atual
+    || cicloAtualPelaData()
     || ''
   );
 
@@ -3209,7 +7794,7 @@ const carregarRevendedores = async () => {
 
     try {
       await Promise.allSettled([carregarOpcoesFiltros(), carregarCiclos()]);
-      const ciclo = obterCicloReferenciaAtual();
+      const ciclo = cicloUploadVD || obterCicloReferenciaAtual();
       const params = ciclo ? { ciclo } : {};
       const { data } = await axios.get(`${API_URL}/acoes-ciclo`, { params });
       setAcoesCiclo(data?.acoes || []);
@@ -3373,24 +7958,56 @@ const carregarRevendedores = async () => {
   };
 
   const cicloLojaSelecionado = () => (
-    cicloLoja
+    cicloSelecionadoLoja
+    || cicloLoja
     || dadosLoja?.resumo?.ciclo
-    || dados?.ciclo_atual
-    || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
-    || ciclos?.[0]?.ciclo
+    || cicloAtualPelaData()
     || ''
   );
 
-  const carregarDadosLoja = async (cicloParam = '') => {
+  const carregarDadosLoja = async (
+    cicloParam = '',
+    competenciaServicosParam = ''
+  ) => {
     setCarregandoLoja(true);
     setErroLoja('');
+
     try {
       const cicloConsulta = cicloParam || cicloLojaSelecionado();
-      const { data } = await axios.get(`${API_URL}/loja/dashboard`, { params: cicloConsulta ? { ciclo: cicloConsulta } : {} });
-      setDadosLoja(normalizarDadosLojaMetaSkinPercentual(data || null));
-      if (data?.resumo?.ciclo && !cicloLoja) setCicloLoja(data.resumo.ciclo);
+      const competenciaConsulta = (
+        competenciaServicosParam
+        || competenciaServicosLoja
+      );
+
+      const params = {};
+      if (cicloConsulta) params.ciclo = cicloConsulta;
+      if (competenciaConsulta) {
+        params.competencia_servicos = competenciaConsulta;
+      }
+
+      const { data } = await axios.get(
+        `${API_URL}/loja/dashboard`,
+        { params }
+      );
+
+      setDadosLoja(
+        normalizarDadosLojaMetaSkinPercentual(data || null)
+      );
+
+      if (data?.resumo?.ciclo && !cicloLoja) {
+        setCicloLoja(data.resumo.ciclo);
+      }
+
+      if (data?.resumo?.competencia_servicos) {
+        setCompetenciaServicosLoja(
+          data.resumo.competencia_servicos
+        );
+      }
     } catch (erro) {
-      setErroLoja(erro.response?.data?.detail || 'Erro ao carregar dados da LOJA.');
+      setErroLoja(
+        erro.response?.data?.detail
+        || 'Erro ao carregar dados da LOJA.'
+      );
     } finally {
       setCarregandoLoja(false);
     }
@@ -3408,7 +8025,7 @@ const carregarRevendedores = async () => {
     try {
       const form = new FormData();
       form.append('file', arquivoGerencialLoja);
-      form.append('ciclo', cicloLojaSelecionado());
+      form.append('ciclo', cicloUploadLoja || cicloLojaSelecionado());
       form.append('substituir', 'true');
       const { data } = await axios.post(`${API_URL}/loja/upload-gerencial`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
       setMensagemLoja(data?.mensagem || 'Base de LOJA importada com sucesso.');
@@ -3450,7 +8067,7 @@ const carregarRevendedores = async () => {
       form.append('file', arquivo);
 
       if (opcoes.usaCiclo !== false) {
-        form.append('ciclo', cicloLojaSelecionado());
+        form.append('ciclo', cicloUploadLoja || cicloLojaSelecionado());
       }
 
       if (opcoes.substituir) {
@@ -3466,8 +8083,29 @@ const carregarRevendedores = async () => {
       });
 
       setMensagemLoja(data?.mensagem || `${titulo} importada.`);
-      setArquivosLojaUpload((atual) => ({ ...atual, [tipo]: null }));
-      await carregarDadosLoja(data?.ciclo || cicloLojaSelecionado());
+      setArquivosLojaUpload((atual) => ({
+        ...atual,
+        [tipo]: null
+      }));
+
+      const competenciaImportada = (
+        tipo === 'servicos'
+          ? (
+              data?.competencia_principal
+              || data?.competencias?.[data.competencias.length - 1]
+              || competenciaServicosLoja
+            )
+          : competenciaServicosLoja
+      );
+
+      if (tipo === 'servicos' && competenciaImportada) {
+        setCompetenciaServicosLoja(competenciaImportada);
+      }
+
+      await carregarDadosLoja(
+        data?.ciclo || cicloLojaSelecionado(),
+        competenciaImportada
+      );
     } catch (erro) {
       setErroLoja(erro.response?.data?.detail || `Erro ao importar ${titulo}.`);
     } finally {
@@ -3530,7 +8168,7 @@ const carregarRevendedores = async () => {
 
     const usuario = String(sgiLojaUsuarioRef.current?.value || '').trim();
     const senha = String(sgiLojaSenhaRef.current?.value || '').trim();
-    const ciclo = cicloLojaSelecionado();
+    const ciclo = cicloUploadLoja || cicloLojaSelecionado();
 
     if (sgiLojaTipo !== 'skin' && !usuario) {
       setStatusSgiLoja('Informe o usuário do SGI.');
@@ -3807,10 +8445,21 @@ const carregarRevendedores = async () => {
     if (telaAtual === 'Configurações') return carregarUsuarios();
   };
 
-  const carregarHistoricoCiclo = async (cicloParam = cicloHistoricoSelecionado) => {
-    const ciclo = String(cicloParam || '').trim();
+  const carregarHistoricoCiclo = async (
+    cicloParam = cicloHistoricoSelecionado
+  ) => {
+    const ciclo = String(
+      cicloParam || ''
+    ).trim();
+
     if (!ciclo) {
-      setDadosHistorico({ resumo: null, estruturas: [], consultores: [], consultoresAtivos: [], metas: [] });
+      setDadosHistorico({
+        resumo: null,
+        estruturas: [],
+        consultores: [],
+        consultoresAtivos: [],
+        metas: [],
+      });
       return;
     }
 
@@ -3819,53 +8468,89 @@ const carregarRevendedores = async () => {
     setMensagemHistorico('');
 
     try {
-      const [resumoResp, estruturasResp, consultoresResp, ativosResp, metasResp] = await Promise.allSettled([
-        axios.get(`${API_URL}/historico/resumo`, { params: { ciclo } }),
-        axios.get(`${API_URL}/historico/estruturas`, { params: { ciclo } }),
-        axios.get(`${API_URL}/historico/consultores`, { params: { ciclo } }),
-        axios.get(`${API_URL}/historico/consultores-ativos`, { params: { ciclo } }),
-        axios.get(`${API_URL}/historico/metas`, { params: { ciclo } })
-      ]);
-
-      const ler = (resp, campo, padrao) => resp.status === 'fulfilled' ? (resp.value?.data?.[campo] ?? padrao) : padrao;
+      const { data } = await axios.get(
+        `${API_URL}/historico/ciclo-completo`,
+        {
+          params: { ciclo },
+        }
+      );
 
       setDadosHistorico({
-        resumo: ler(resumoResp, 'resumo', null),
-        estruturas: ler(estruturasResp, 'estruturas', []),
-        consultores: ler(consultoresResp, 'consultores', []),
-        consultoresAtivos: ler(ativosResp, 'consultores', []),
-        metas: ler(metasResp, 'metas', [])
+        resumo: data?.resumo || null,
+        estruturas: data?.estruturas || [],
+        consultores: data?.consultores || [],
+        consultoresAtivos:
+          data?.consultores_ativos || [],
+        metas: data?.metas || [],
       });
     } catch (erro) {
-      setErroHistorico(erro.response?.data?.detail || 'Erro ao carregar histórico do ciclo.');
+      setErroHistorico(
+        erro.response?.data?.detail
+        || 'Erro ao carregar o ciclo.'
+      );
+      setDadosHistorico({
+        resumo: null,
+        estruturas: [],
+        consultores: [],
+        consultoresAtivos: [],
+        metas: [],
+      });
     } finally {
       setCarregandoHistorico(false);
     }
   };
 
+
   const carregarHistoricoCiclos = async () => {
     if (!usuarioLogado) return;
+
     setCarregandoHistorico(true);
     setErroHistorico('');
 
     try {
-      const { data } = await axios.get(`${API_URL}/historico/ciclos`);
-      const ciclosLista = data?.ciclos || [];
+      const { data } = await axios.get(
+        `${API_URL}/historico/ciclos`
+      );
+      const ciclosLista = Array.isArray(data?.ciclos)
+        ? data.ciclos
+        : [];
+
       setHistoricoCiclos(ciclosLista);
 
-      const cicloParaAbrir = cicloHistoricoSelecionado || ciclosLista?.[0]?.ciclo || '';
+      const selecionadoAindaExiste = ciclosLista.some(
+        (item) => String(item.ciclo) === String(
+          cicloHistoricoSelecionado
+        )
+      );
+
+      const cicloParaAbrir = (
+        selecionadoAindaExiste
+          ? cicloHistoricoSelecionado
+          : ciclosLista?.[0]?.ciclo
+      ) || '';
+
       if (cicloParaAbrir) {
         setCicloHistoricoSelecionado(cicloParaAbrir);
         await carregarHistoricoCiclo(cicloParaAbrir);
       } else {
-        setDadosHistorico({ resumo: null, estruturas: [], consultores: [], consultoresAtivos: [], metas: [] });
+        setDadosHistorico({
+          resumo: null,
+          estruturas: [],
+          consultores: [],
+          consultoresAtivos: [],
+          metas: [],
+        });
       }
     } catch (erro) {
-      setErroHistorico(erro.response?.data?.detail || 'Erro ao carregar lista de ciclos históricos.');
+      setErroHistorico(
+        erro.response?.data?.detail
+        || 'Erro ao carregar lista de ciclos.'
+      );
     } finally {
       setCarregandoHistorico(false);
     }
   };
+
 
   const fecharCicloHistorico = async () => {
     const ciclo = String(fechamentoHistorico.ciclo || '').trim();
@@ -3978,7 +8663,7 @@ const carregarRevendedores = async () => {
       });
       setMensagemHistorico(data?.mensagem || `Ciclo ${ciclo} lançado com sucesso.`);
       setCicloHistoricoSelecionado(ciclo);
-      setVisaoHistorico('estruturas');
+      setVisaoHistorico('resumo');
       setLancamentoHistorico({ ciclo: '', data_inicio: '', data_fim: '', observacao: '', pedidos: null, base_ativa: null, consultores: null, metas: null, make: [], cabelo: [] });
       await carregarHistoricoCiclos();
       await carregarHistoricoCiclo(ciclo);
@@ -4012,7 +8697,7 @@ const carregarRevendedores = async () => {
       });
       setMensagemHistorico(data?.mensagem || `Snapshot do ciclo ${ciclo} salvo.`);
       setCicloHistoricoSelecionado(ciclo);
-      setVisaoHistorico('estruturas');
+      setVisaoHistorico('resumo');
       await carregarHistoricoCiclos();
       await carregarHistoricoCiclo(ciclo);
     } catch (erro) {
@@ -4025,11 +8710,25 @@ const carregarRevendedores = async () => {
 
   useEffect(() => {
     if (!usuarioLogado) return;
-    const chave = `${telaAtual}_${gerarChaveFiltros(filtrosAtivos)}`;
+    const cicloTela = telaEhLoja(telaAtual)
+      ? (cicloSelecionadoLoja || cicloLoja || '')
+      : (cicloSelecionadoVD || filtrosAtivos?.ciclo || '');
+    const chave = `${telaAtual}_${cicloTela}_${gerarChaveFiltros(filtrosAtivos)}`;
     if (ultimoCarregamentoTelaRef.current === chave) return;
     ultimoCarregamentoTelaRef.current = chave;
-    carregarTelaAtual(filtrosAtivos, false);
-  }, [usuarioLogado, telaAtual]);
+    carregarTelaAtual(
+      telaEhLoja(telaAtual)
+        ? filtrosAtivos
+        : { ...filtrosAtivos, ciclo: cicloTela },
+      false
+    );
+  }, [
+    usuarioLogado,
+    telaAtual,
+    cicloSelecionadoVD,
+    cicloSelecionadoLoja,
+    cicloLoja,
+  ]);
 
   useEffect(() => {
     if (!usuarioLogado || telaAtual !== 'Metas' || visaoMetas !== 'consultores' || detalheMeta) return;
@@ -4223,7 +8922,7 @@ const carregarRevendedores = async () => {
   
   const handleRemoverFiltros = () => { 
     setPainelFiltrosAberto(false);
-    setFiltrosAtivos(filtroVazio);
+    setFiltrosAtivos({ ...filtroVazio, ciclo: cicloSelecionadoVD || obterCicloReferenciaAtual() });
     setBuscaFiltros(buscaFiltrosVazia); 
     ultimoCarregamentoTelaRef.current = '';
 
@@ -4313,7 +9012,8 @@ const carregarRevendedores = async () => {
     window.postMessage({
       source: 'DASH_SB',
       acao: 'INICIAR_EXTRACAO_PEDIDOS',
-      tokenAuth
+      tokenAuth,
+      ciclo: cicloUploadVD || obterCicloReferenciaAtual()
     }, '*');
 
     setTimeout(() => {
@@ -4329,12 +9029,13 @@ const carregarRevendedores = async () => {
 
   const iniciarAtualizacaoAutomaticaMake = () => {
     setErroUpload('');
-    setMensagemUpload('Solicitando atualização automática dos 3 relatórios de Vendas MAKE pela extensão...');
+    setMensagemUpload('Solicitando atualização automática dos 5 relatórios de Vendas MAKE pela extensão...');
     setCarregandoAutomacaoMake(true);
 
     window.postMessage({
       source: 'DASH_SB',
-      acao: 'INICIAR_EXTRACAO_MAKE'
+      acao: 'INICIAR_EXTRACAO_MAKE',
+      ciclo: cicloUploadVD || obterCicloReferenciaAtual()
     }, '*');
 
     setTimeout(() => {
@@ -4355,7 +9056,8 @@ const carregarRevendedores = async () => {
 
     window.postMessage({
       source: 'DASH_SB',
-      acao: 'INICIAR_EXTRACAO_CABELO'
+      acao: 'INICIAR_EXTRACAO_CABELO',
+      ciclo: cicloUploadVD || obterCicloReferenciaAtual()
     }, '*');
 
     setTimeout(() => {
@@ -4366,6 +9068,48 @@ const carregarRevendedores = async () => {
         return atual;
       });
     }, 12000);
+  };
+
+
+  const abrirModalAutomacaoMultimarcas = () => {
+    setErroUpload('');
+    setMensagemUpload('');
+    setStatusMultimarcas('');
+    setModalMultimarcasAberto(true);
+    window.setTimeout(() => multimarcasUsuarioRef.current?.focus?.(), 80);
+  };
+
+  const iniciarAtualizacaoAutomaticaMultimarcas = (event) => {
+    event?.preventDefault?.();
+    const usuario = String(multimarcasUsuarioRef.current?.value || '').trim();
+    const senha = String(multimarcasSenhaRef.current?.value || '').trim();
+    const ciclo = cicloUploadVD || obterCicloReferenciaAtual();
+
+    if (!usuario || !senha) {
+      setStatusMultimarcas('Informe usuário e senha do VDI.');
+      return;
+    }
+    if (!ciclo) {
+      setStatusMultimarcas('Não foi possível identificar o ciclo atual.');
+      return;
+    }
+
+    setCarregandoAutomacaoMultimarcas(true);
+    setStatusMultimarcas('Abrindo o VDI...');
+    setErroUpload('');
+
+    window.postMessage({
+      origem: 'dash-sb-painel-v23',
+      acao: 'ATUALIZAR_VD_MULTIMARCAS',
+      payload: {
+        usuario,
+        senha,
+        ciclo,
+        apiUrl: API_URL,
+        token: localStorage.getItem(TOKEN_STORAGE_KEY) || '',
+        importadoPor: usuarioLogado?.nome || usuarioLogado?.email || '',
+      }
+    }, window.location.origin);
   };
 
   const atualizarTelasAposMudancaBanco = async () => {
@@ -4391,19 +9135,37 @@ const carregarRevendedores = async () => {
   
 const enviarArquivo = async (tipo) => {
     let endpoint = ''; let arquivo = null; let arquivos = null;
-    if (tipo === 'pedidos') { endpoint = '/upload/pedidos'; arquivo = arquivoPedidos; } if (tipo === 'metas') { endpoint = '/upload/metas'; arquivo = arquivoMetas; } if (tipo === 'consultores') { endpoint = '/upload/consultores'; arquivo = arquivoConsultores; } if (tipo === 'baseAtiva') { endpoint = '/upload/base-ativa'; arquivo = arquivoBaseAtiva; } if (tipo === 'revendedores') { endpoint = '/upload/revendedores'; arquivo = arquivoRevendedores; } if (tipo === 'skusIaf') { endpoint = '/upload/skus-iaf'; arquivo = arquivoSkusIaf; } if (tipo === 'vendasMake') { endpoint = '/upload/vendas-make'; arquivos = arquivosVendasMake; } if (tipo === 'vendasCabelo') { endpoint = '/upload/vendas-cabelo'; arquivos = arquivosVendasCabelo; }
+    if (tipo === 'pedidos') { endpoint = '/upload/pedidos'; arquivo = arquivoPedidos; } if (tipo === 'metas') { endpoint = '/upload/metas'; arquivo = arquivoMetas; } if (tipo === 'consultores') { endpoint = '/upload/consultores'; arquivo = arquivoConsultores; } if (tipo === 'baseAtiva') { endpoint = '/upload/base-ativa'; arquivo = arquivoBaseAtiva; } if (tipo === 'revendedores') { endpoint = '/upload/revendedores'; arquivo = arquivoRevendedores; } if (tipo === 'skusIaf') { endpoint = '/upload/skus-iaf'; arquivo = arquivoSkusIaf; } if (tipo === 'vendasMake') { endpoint = '/upload/vendas-make'; arquivos = arquivosVendasMake; } if (tipo === 'vendasCabelo') { endpoint = '/upload/vendas-cabelo'; arquivos = arquivosVendasCabelo; } if (tipo === 'vendasMultimarcas') { endpoint = '/upload/vendas-multimarcas'; arquivo = arquivoVendasMultimarcas; } if (tipo === 'vendasEudora') { endpoint = '/upload/vendas-eudora'; arquivo = arquivoVendasEudora; }
     if (!arquivo && (!arquivos || arquivos.length === 0)) { setErroUpload('Selecione um arquivo antes de enviar.'); setMensagemUpload(''); return; }
     const formData = new FormData(); if (arquivos?.length > 0) arquivos.forEach((item) => formData.append('arquivos', item)); else formData.append('arquivo', arquivo);
+    const cicloDestinoUpload = cicloUploadVD || obterCicloReferenciaAtual();
+    if (tipo !== 'skusIaf' && tipo !== 'consultores') {
+      formData.append('ciclo', cicloDestinoUpload);
+    }
+    if (tipo === 'vendasMultimarcas' || tipo === 'vendasEudora') {
+      formData.append('importado_por', usuarioLogado?.nome || usuarioLogado?.email || '');
+    }
     setCarregandoUpload(true); setErroUpload(''); setMensagemUpload('');
     try { 
-      const resposta = await axios.post(`${API_URL}${endpoint}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }); 
-      setMensagemUpload(resposta.data.mensagem || 'Sucesso.'); await atualizarTelasAposMudancaBanco(); 
+      const resposta = await axios.post(`${API_URL}${endpoint}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (tipo === 'vendasEudora') {
+        const totalArquivo = Number(resposta.data?.valor_total_arquivo ?? resposta.data?.valor_total ?? 0);
+        const naoEncontrados = Number(resposta.data?.pedidos_nao_encontrados || 0);
+        const valorNaoEncontrado = Number(resposta.data?.valor_total_nao_encontrado || 0);
+        const complemento = naoEncontrados > 0
+          ? ` Atenção: ${naoEncontrados} pedido(s), somando ${formatarMoeda(valorNaoEncontrado)}, não foram localizados na Base de Pedidos e ficarão em A DEFINIR até a próxima atualização.`
+          : ' Todos os pedidos foram localizados na Base de Pedidos.';
+        setMensagemUpload(`${resposta.data.mensagem || 'Sucesso.'} Total importado: ${formatarMoeda(totalArquivo)}.${complemento}`);
+      } else {
+        setMensagemUpload(resposta.data.mensagem || 'Sucesso.');
+      }
+      await atualizarTelasAposMudancaBanco(); 
     } catch (erro) { setErroUpload(erro.response?.data?.detail || 'Erro.'); } finally { setCarregandoUpload(false); }
   };
 
-  const criarUsuario = async (e) => { e.preventDefault(); setMensagemUsuarios(''); setErroUsuarios(''); try { await axios.post(`${API_URL}/auth/criar-usuario`, novoUsuario); setMensagemUsuarios('Criado com sucesso.'); setNovoUsuario({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo' }); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
-  const abrirEditarUsuario = (usuario) => { setUsuarioEditando({ ...usuario }); setModalEditarUsuarioAberto(true); };
-  const salvarEdicaoUsuario = async (e) => { e.preventDefault(); try { await axios.put(`${API_URL}/auth/atualizar-usuario`, { id: usuarioEditando.id, nome: usuarioEditando.nome, perfil: usuarioEditando.perfil, status_usuario: usuarioEditando.status_usuario }); setModalEditarUsuarioAberto(false); setMensagemUsuarios('Atualizado com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
+  const criarUsuario = async (e) => { e.preventDefault(); setMensagemUsuarios(''); setErroUsuarios(''); try { await axios.post(`${API_URL}/auth/criar-usuario`, { ...novoUsuario, area_gestao: normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil) }); setMensagemUsuarios('Criado com sucesso.'); setNovoUsuario({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'AMBOS' }); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
+  const abrirEditarUsuario = (usuario) => { setUsuarioEditando({ ...usuario, area_gestao: normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil) }); setModalEditarUsuarioAberto(true); };
+  const salvarEdicaoUsuario = async (e) => { e.preventDefault(); try { await axios.put(`${API_URL}/auth/atualizar-usuario`, { id: usuarioEditando.id, nome: usuarioEditando.nome, perfil: usuarioEditando.perfil, status_usuario: usuarioEditando.status_usuario, area_gestao: normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil) }); setModalEditarUsuarioAberto(false); setMensagemUsuarios('Atualizado com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
   const abrirExcluirUsuario = (usuario) => { setUsuarioParaExcluir(usuario); setModalExcluirUsuarioAberto(true); };
   const confirmarExclusaoUsuario = async () => { if (!usuarioParaExcluir) return; try { await axios.delete(`${API_URL}/auth/deletar-usuario/${usuarioParaExcluir.id}`); setModalExcluirUsuarioAberto(false); setUsuarioParaExcluir(null); setMensagemUsuarios('Excluído com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
   const gerarSenhaTemporariaAdmin = () => {
@@ -4458,41 +9220,184 @@ const enviarArquivo = async (tipo) => {
   const confirmarExclusaoConsultor = async () => { if (!consultorParaExcluir) return; setErroGestaoConsultor(''); setMensagemConsultor(''); try { await axios.delete(`${API_URL}/consultores/${consultorParaExcluir.id}`); setModalExcluirConsultorAberto(false); setConsultorParaExcluir(null); setMensagemConsultor('Excluído.'); limparCachesDados(); await carregarListaConsultores(); } catch (erro) { setErroGestaoConsultor(erro.response?.data?.detail || 'Erro.'); } };
 
   const abrirModalValExp = (tit, valStr, desc, detalhes = [], formula = '') => setModalValorExpandido({ aberto: true, titulo: tit, valorTexto: valStr, descricao: desc, detalhes, formula });
-  const fecharModalValExp = () => setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '' });
+  const fecharModalValExp = () => setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null });
   
   const abrirDetRealizadoTotal = () => {
     const realizado = Number(dados?.valor_total || 0);
     const meta = Number(metaFaturamentoDashboard || 0);
     const percentual = calcPerc(realizado, meta);
     const falta = Math.max(meta - realizado, 0);
+
+    const estruturasAcumuladas = [
+      ...(dados?.realizado_por_estrutura || [])
+    ]
+      .sort((a, b) => Number(b?.ValorPraticado || 0) - Number(a?.ValorPraticado || 0))
+      .map((item, indice) => ({
+        posicao: indice + 1,
+        nome: item?.Estrutura || 'Não informada',
+        valor: Number(item?.ValorPraticado || 0),
+        percentual: realizado > 0 ? (Number(item?.ValorPraticado || 0) / realizado) * 100 : 0,
+      }));
+
+    const consultoresAcumulados = [
+      ...(dados?.realizado_por_consultor || [])
+    ]
+      .sort((a, b) => Number(b?.ValorPraticado || 0) - Number(a?.ValorPraticado || 0))
+      .map((item, indice) => ({
+        posicao: indice + 1,
+        nome: item?.Consultor || 'Não informado',
+        valor: Number(item?.ValorPraticado || 0),
+        percentual: realizado > 0 ? (Number(item?.ValorPraticado || 0) / realizado) * 100 : 0,
+      }));
+
     setModalDetalhes({
       titulo: 'Realizado Total',
-      subtitulo: 'Realizado vs Meta',
-      tipo: 'padrao',
+      subtitulo: '',
+      tipo: 'realizado_total_acumulado',
       itens: [
         { label: 'Realizado', valor: formatarMoeda(realizado) },
         { label: 'Meta faturamento', valor: formatarMoeda(meta) },
         { label: '% da meta', valor: `${formatarNumeroBR(percentual, 1)}%` },
         { label: 'Falta para a meta', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' }
+      ],
+      secoesTabelas: [
+        {
+          titulo: 'Acumulado por estrutura',
+          cor: '#048187',
+          totalRotulo: 'TOTAL DAS ESTRUTURAS',
+          linhas: estruturasAcumuladas,
+        },
+        {
+          titulo: 'Acumulado por consultor',
+          cor: '#5c4b8a',
+          totalRotulo: 'TOTAL DOS CONSULTORES',
+          linhas: consultoresAcumulados,
+        }
       ]
     });
   };
-  const abrirDetRealizadoDiario = () => {
-    const realizado = Number(dados?.realizado_diario || 0);
-    const meta = Number(dados?.meta_diaria || 0);
-    const percentual = calcPerc(realizado, meta);
-    const falta = Math.max(meta - realizado, 0);
-    setModalDetalhes({
-      titulo: 'Realizado Diário',
-      subtitulo: 'Realizado Hoje',
-      tipo: 'padrao',
-      itens: [
-        { label: 'Realizado hoje', valor: formatarMoeda(realizado) },
-        { label: 'Meta diária', valor: formatarMoeda(meta) },
-        { label: '% da meta diária', valor: `${formatarNumeroBR(percentual, 1)}%` },
-        { label: 'Falta para a meta diária', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' }
-      ]
+  const abrirDetRealizadoDiario = async () => {
+    const cicloDetalhe = String(
+      cicloSelecionadoVD
+      || cicloVisualizacaoVDRef.current
+      || filtrosAtivos?.ciclo
+      || dados?.ciclo_retorno
+      || dados?.ciclo_atual
+      || ''
+    ).trim();
+
+    const filtrosDetalhe = {
+      ...filtrosAtivos,
+      ciclo: cicloDetalhe,
+    };
+
+    const resumoInicial = {
+      realizado_hoje: Number(
+        dados?.realizado_diario || 0
+      ),
+      meta_diaria: Number(
+        dados?.meta_diaria || 0
+      ),
+      percentual_atingimento: calcPerc(
+        dados?.realizado_diario || 0,
+        dados?.meta_diaria || 0
+      ),
+      falta_meta_diaria: Math.max(
+        Number(dados?.meta_diaria || 0)
+        - Number(dados?.realizado_diario || 0),
+        0
+      ),
+      data_referencia: (
+        filtrosAtivos?.data_fim
+        || filtrosAtivos?.data_inicio
+        || new Date().toISOString().slice(0, 10)
+      ),
+      ciclo: cicloDetalhe,
+      filtros_aplicados: {},
+    };
+
+    setModalRealizadoDiarioVD({
+      aberto: true,
+      carregando: true,
+      erro: '',
+      resumo: resumoInicial,
+      meios_captacao: [],
+      estruturas: [],
+      consultores: [],
+      conferencia: {
+        total_meios: 0,
+        total_estruturas: 0,
+        total_consultores: 0,
+        meios_ok: false,
+        estruturas_ok: false,
+        consultores_ok: false,
+      },
     });
+
+    try {
+      const resposta = await axios.post(
+        `${API_URL}/dashboard/realizado-diario-detalhe`,
+        filtrosDetalhe,
+        {
+          headers: {
+            'X-Ciclo-VD': cicloDetalhe,
+          },
+        }
+      );
+
+      const resumoApi = resposta.data?.resumo || {};
+      const realizadoDetalhe = Number(
+        resumoApi.realizado_hoje ?? resumoInicial.realizado_hoje ?? 0
+      );
+      const metaDiariaDetalhe = Number(
+        resumoApi.meta_diaria || resumoInicial.meta_diaria || 0
+      );
+
+      setModalRealizadoDiarioVD({
+        aberto: true,
+        carregando: false,
+        erro: '',
+        resumo: {
+          ...resumoInicial,
+          ...resumoApi,
+          ciclo: resumoApi.ciclo || cicloDetalhe,
+          realizado_hoje: realizadoDetalhe,
+          meta_diaria: metaDiariaDetalhe,
+          percentual_atingimento: calcPerc(
+            realizadoDetalhe,
+            metaDiariaDetalhe
+          ),
+          falta_meta_diaria: Math.max(
+            metaDiariaDetalhe - realizadoDetalhe,
+            0
+          ),
+        },
+        meios_captacao:
+          resposta.data?.meios_captacao || [],
+        estruturas:
+          resposta.data?.estruturas || [],
+        consultores:
+          resposta.data?.consultores || [],
+        conferencia: {
+          total_meios: 0,
+          total_estruturas: 0,
+          total_consultores: 0,
+          meios_ok: false,
+          estruturas_ok: false,
+          consultores_ok: false,
+          ...(resposta.data?.conferencia || {}),
+        },
+      });
+    } catch (erro) {
+      setModalRealizadoDiarioVD((atual) => ({
+        ...atual,
+        carregando: false,
+        erro: (
+          erro.response?.data?.detail
+          || 'Não foi possível carregar o detalhamento do Realizado Diário.'
+        ),
+      }));
+    }
   };
   const calcularPlanoInteligenteTendencia = () => {
     const metaCiclo = Number(dados?.meta_ciclo || metaFaturamentoDashboard || 0);
@@ -4625,34 +9530,70 @@ const enviarArquivo = async (tipo) => {
     );
   };
 
-  const abrirDetIndicadorDashboard = (tipo) => {
-    const resumoMetas = obterResumoMetasAtual();
-    const tipoNormalizado = String(tipo || '').toUpperCase();
-    const ehMake = tipoNormalizado === 'MAKE';
-    const titulo = ehMake ? 'MAKE Geral' : 'CABELO Geral';
-    const realizados = Number((ehMake ? dados?.revendedores_make : dados?.revendedores_cabelo) || 0);
-    const percentualAtual = Number((ehMake ? dados?.percentual_make : dados?.percentual_cabelo) || 0);
-    const metaPercentual = Number((ehMake ? resumoMetas?.meta_make_geral : resumoMetas?.meta_cabelo_geral) || 0);
-    const ativados = Number(dados?.revendedores_ativados || resumoMetas?.atividade_total_geral || 0);
-    const metaEmRevendedores = calcularQtdMetaAtividade(ativados, metaPercentual);
-    const faltamIncluir = Math.max(metaEmRevendedores - realizados, 0);
-    const percentualDaMeta = calcPerc(percentualAtual, metaPercentual);
+  const abrirDetIndicadorDashboard = async (tipo) => {
+    const indicador = String(tipo || '').toUpperCase();
 
-    abrirModalValExp(
-      titulo,
-      `${formatarNumeroBR(percentualAtual, 1)}%`,
-      `${tipoNormalizado} = revendedores ativados que compraram/incluíram itens de ${tipoNormalizado} dividido pelo total de revendedores ativados.`,
-      [
-        { label: `Revendedores com ${tipoNormalizado}`, valor: formatarNumeroBR(realizados, 0) },
-        { label: `% ${tipoNormalizado} atual`, valor: `${formatarNumeroBR(percentualAtual, 1)}%` },
-        { label: '% da meta', valor: `${formatarNumeroBR(percentualDaMeta, 1)}%` },
-        { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
-        { label: `Meta ${tipoNormalizado}`, valor: `${formatarNumeroBR(metaPercentual, 1)}%` },
-        { label: 'Meta em revendedores', valor: formatarNumeroBR(metaEmRevendedores, 0) },
-        { label: `Falta para a meta ${tipoNormalizado}`, valor: formatarFaltamAtivar(faltamIncluir) }
-      ],
-      `${formatarNumeroBR(ativados, 0)} revendedores ativados × ${formatarNumeroBR(metaPercentual, 1)}% = ${formatarNumeroBR(metaEmRevendedores, 0)} revendedores necessários com ${tipoNormalizado}`
-    );
+    setModalValorExpandido({
+      aberto: true,
+      titulo: `${indicador} Geral`,
+      valorTexto: 'Carregando...',
+      descricao: '',
+      detalhes: [],
+      formula: '',
+      carregando: true,
+      erro: '',
+      indicadorIaf: null,
+    });
+
+    try {
+      const endpoint = indicador === 'MULTIMARCAS'
+        ? '/indicadores-iaf/multimarcas-detalhe'
+        : '/indicadores-iaf/detalhe';
+      const payload = indicador === 'MULTIMARCAS'
+        ? { filtros: filtrosAtivos }
+        : { indicador, filtros: filtrosAtivos };
+      const { data } = await axios.post(`${API_URL}${endpoint}`, payload);
+
+      const resumo = data?.resumo || {};
+      const saldo = Number(resumo?.saldo_meta || 0);
+      const saldoTexto = saldo < 0
+        ? `Faltam ${formatarNumeroBR(Math.abs(saldo), 0)}`
+        : saldo > 0
+          ? `${formatarNumeroBR(saldo, 0)} acima da meta`
+          : 'Meta exata';
+
+      setModalValorExpandido({
+        aberto: true,
+        titulo: `${indicador} Geral`,
+        valorTexto: `${formatarNumeroBR(resumo?.percentual_ativacao || 0, 1)}%`,
+        descricao: '',
+        detalhes: [
+          { label: `Revendedores com ${indicador}`, valor: formatarNumeroBR(resumo?.com_indicador || 0, 0) },
+          { label: 'Ativos no ciclo', valor: formatarNumeroBR(resumo?.ativos || 0, 0) },
+          { label: '% ativação', valor: `${formatarNumeroBR(resumo?.percentual_ativacao || 0, 1)}%` },
+          { label: 'Meta', valor: `${formatarNumeroBR(resumo?.meta_percentual || 0, 1)}%` },
+          { label: '% da meta', valor: `${formatarNumeroBR(resumo?.percentual_meta || 0, 1)}%` },
+          { label: 'Ativação ideal', valor: formatarNumeroBR(resumo?.ativacao_ideal || 0, 0) },
+          { label: 'Saldo', valor: saldoTexto },
+        ],
+        formula: '',
+        carregando: false,
+        erro: '',
+        indicadorIaf: data,
+      });
+    } catch (erro) {
+      setModalValorExpandido({
+        aberto: true,
+        titulo: `${indicador} Geral`,
+        valorTexto: 'Não foi possível carregar',
+        descricao: '',
+        detalhes: [],
+        formula: '',
+        carregando: false,
+        erro: erro.response?.data?.detail || 'Erro ao carregar o acompanhamento.',
+        indicadorIaf: null,
+      });
+    }
   };
 
   const abrirDetDesempenhoDashboard = (tipo) => {
@@ -4732,12 +9673,35 @@ const enviarArquivo = async (tipo) => {
 
   const abrirDetCancelados = () => setModalDetalhes({ titulo: 'Cancelados', subtitulo: 'Pedidos Cancelados', tipo: 'cancelados', itens: [{ label: 'Quantidade', valor: dados?.total_cancelados }], motivos_cancelamento: dados?.motivos_cancelamento });
 
+
+  const abrirDetalheEudora = async () => {
+    const ciclo = String(filtrosAtivos?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || '').trim();
+    setModalEudoraAberto(true);
+    setCarregandoDetalheEudora(true);
+    setErroDetalheEudora('');
+    setDetalheEudora(null);
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/eudora/detalhe`,
+        { ...filtrosAtivos, ciclo },
+        { headers: { 'X-Ciclo-VD': ciclo } }
+      );
+      if (String(cicloVisualizacaoVDRef.current || '') !== ciclo) return;
+      setDetalheEudora(data || null);
+    } catch (erro) {
+      setErroDetalheEudora(erro.response?.data?.detail || 'Erro ao carregar o resultado Eudora.');
+    } finally {
+      setCarregandoDetalheEudora(false);
+    }
+  };
+
   const renderTelaDashboard = () => {
     if (carregandoDashboard && !dados) return <DashboardSkeletons />;
     if (!dados) return (<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8"><p className="text-gray-400">Nenhum dado carregado.</p></div>);
-    const pTot = calcPerc(dados.valor_total, metaFaturamentoDashboard); const pDia = Number(dados.percentual_meta_diaria || 0); const pMk = Number(dados.percentual_make || 0); const pCb = Number(dados.percentual_cabelo || 0); const tPos = Number(dados.gap_tendencia || 0) >= 0;
+    const pTot = calcPerc(dados.valor_total, metaFaturamentoDashboard); const pDia = Number(dados.percentual_meta_diaria || 0); const pEudora = Number(dados.percentual_eudora || 0); const pMk = Number(dados.percentual_make || 0); const pCb = Number(dados.percentual_cabelo || 0); const pMulti = Number(dados.percentual_multimarcas || 0); const tPos = Number(dados.gap_tendencia || 0) >= 0;
     const corMakeDashboard = corPorFaixaMeta(pMk);
     const corCabeloDashboard = corPorFaixaMeta(pCb);
+    const corMultimarcasDashboard = corPorFaixaMeta(calcPerc(pMulti, Number(dados.meta_multimarcas || 76)));
     const corAtividadeDashboard = corPorFaixaMeta(Number(dados.percentual_atividade_geral || 0));
     const rpaDashboard = dados.revendedores_ativados > 0 ? dados.valor_total / dados.revendedores_ativados : 0;
     const tktDashboard = dados.total_pedidos > 0 ? dados.valor_total / dados.total_pedidos : 0;
@@ -4799,6 +9763,23 @@ const enviarArquivo = async (tipo) => {
         ? percentualCabeloApi
         : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
 
+      const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
+      const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
+      const multimarcasMetaQtd = metaMultimarcasPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMultimarcasPercentual) / 100) : 0;
+      const percentualMultimarcasApi = obterNumeroLinhaMeta(item?.percentual_multimarcas, 0);
+      const percentualMultimarcas = percentualMultimarcasApi > 0
+        ? percentualMultimarcasApi
+        : calcularPercentualSeguro(multimarcasRealizado, atividadeRealizada);
+
+      const metaEudoraPercentual = obterNumeroLinhaMeta(item?.meta_eudora, dadosMetas?.meta_eudora_geral || dados?.meta_eudora_percentual || 20);
+      const metaEudoraValor = obterNumeroLinhaMeta(item?.meta_eudora_valor, receitaMeta * metaEudoraPercentual / 100);
+      const eudoraRealizado = obterNumeroLinhaMeta(item?.eudora_realizado, 0);
+      const percentualEudoraApi = obterNumeroLinhaMeta(item?.percentual_eudora, 0);
+      const percentualEudora = percentualEudoraApi > 0
+        ? percentualEudoraApi
+        : calcularPercentualSeguro(eudoraRealizado, metaEudoraValor);
+      const pedidosEudora = obterNumeroLinhaMeta(item?.pedidos_eudora, 0);
+
       return {
         receitaMeta,
         receitaRealizada,
@@ -4821,7 +9802,16 @@ const enviarArquivo = async (tipo) => {
         metaCabeloPercentual,
         cabeloMetaQtd,
         cabeloRealizado,
-        percentualCabelo
+        percentualCabelo,
+        metaMultimarcasPercentual,
+        multimarcasMetaQtd,
+        multimarcasRealizado,
+        percentualMultimarcas,
+        metaEudoraPercentual,
+        metaEudoraValor,
+        eudoraRealizado,
+        percentualEudora,
+        pedidosEudora
       };
     };
 
@@ -4903,6 +9893,7 @@ const enviarArquivo = async (tipo) => {
     };
 
     return (
+      <>
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-2 min-w-0">
@@ -4919,9 +9910,10 @@ const enviarArquivo = async (tipo) => {
           </div>
           <p className="text-xs font-medium text-gray-400 text-left sm:text-right">{dados.ultima_atualizacao_pedidos ? `Última atualização (Base Pedidos): ${dados.ultima_atualizacao_pedidos}` : 'Nenhum upload de Pedidos'}</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 xl:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-3">
           <CardMini titulo="Realizado Total" valor={formatarAbrev(dados.valor_total)} percentual={pTot} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(metaFaturamentoDashboard)} onClickExpandir={abrirDetRealizadoTotal} />
           <CardMini titulo="Realizado Diário" valor={formatarAbrev(dados.realizado_diario || 0)} percentual={pDia} labelMeta="Meta Diária:" valorMeta={formatarAbrev(dados.meta_diaria || 0)} onClickExpandir={abrirDetRealizadoDiario} />
+          <CardMini titulo="Realizado Eudora" valor={formatarAbrev(dados.realizado_eudora || 0)} percentual={pEudora} labelMeta={`Meta Eudora (${Number(dados.meta_eudora_percentual || 20).toFixed(1)}%):`} valorMeta={formatarAbrev(dados.meta_eudora || 0)} onClickExpandir={abrirDetalheEudora} />
           <CardMini titulo="Tendência" valor={formatarAbrev(dados.tendencia_ciclo || 0)} percentual={calcPerc(dados.tendencia_ciclo, dados.meta_ciclo || metaFaturamentoDashboard)} labelMeta="Gap Tendência:" valorMeta={formatarAbrev(dados.gap_tendencia || 0)} onClickExpandir={abrirDetTendencia} isTendencia tendenciaIcon={tPos ? TrendingUp : TrendingDown} tendenciaStatus={dados.status_tendencia || 'Sem tendência'} />
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md">
             <div className="grid grid-cols-2 flex-1 min-w-0"><div className="p-3 sm:p-4 border-r border-gray-100 min-w-0 flex flex-col justify-center"><h3 className="text-[10px] font-bold uppercase text-gray-500 mb-1 truncate pr-1">Total pedidos</h3><p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-[#048187] tracking-tighter truncate">{Number(dados.total_pedidos || 0).toLocaleString('pt-BR')}</p></div><div className="p-3 sm:p-4 relative min-w-0 flex flex-col justify-center"><button onClick={abrirDetAtiv} className="absolute top-2 right-2 text-[#048187] hover:text-[#036b70] bg-[#e6f6f7] p-1.5 rounded-full z-10"><Eye size={12} /></button><h3 className="text-[10px] font-bold uppercase text-gray-500 mb-1 pr-4 truncate">Ativados</h3><p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-[#048187] tracking-tighter truncate">{Number(dados.revendedores_ativados || 0).toLocaleString('pt-BR')}</p></div></div>
@@ -4929,10 +9921,11 @@ const enviarArquivo = async (tipo) => {
           </div>
           <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-transform hover:shadow-md">
             <h3 className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Indicadores</h3>
-            <div className="space-y-1.5">
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('MAKE')} className="w-full text-white rounded px-2 py-1 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMakeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMk.toFixed(1)}%</span></button>
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('CABELO')} className="w-full text-white rounded px-2 py-1 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corCabeloDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pCb.toFixed(1)}%</span></button>
-              <button type="button" onClick={abrirDetAtiv} className="w-full text-white rounded px-2 py-1 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corAtividadeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></button>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('MAKE')} className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMakeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMk.toFixed(1)}%</span></button>
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('CABELO')} className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corCabeloDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pCb.toFixed(1)}%</span></button>
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('MULTIMARCAS')} className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMultimarcasDashboard }}><span className="text-[8px] sm:text-[9px] font-bold truncate">MULTI.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMulti.toFixed(1)}%</span></button>
+              <button type="button" onClick={abrirDetAtiv} className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corAtividadeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></button>
             </div>
           </div>
           <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-transform hover:shadow-md">
@@ -5042,28 +10035,73 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 mt-6">
-          <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-4 border-b border-gray-100 pb-2">Vendas por Consultor</h3>
-          <div className="space-y-3 overflow-y-auto max-h-[400px] pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-            {consDataDash.length > 0 ? consDataDash.map((c, idx) => {
-              const perc = dados.valor_total > 0 ? (Number(c.ValorPraticado || 0) / dados.valor_total) * 100 : 0;
-              return (
-                <div key={`${c.Consultor}-${idx}`} className="flex items-center gap-3 p-3 bg-[#fcfbf7] rounded-xl border border-gray-100 transition-all hover:bg-white min-w-0 cursor-pointer select-none" onClick={() => aplicarFiltroInterativo('consultores', c.Consultor)}>
-                  <span className="w-8 h-8 rounded-full bg-[#048187] text-white flex items-center justify-center font-black text-xs shrink-0">{idx + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-700 truncate text-xs sm:text-sm">{c.Consultor}</p>
-                    <div className="w-full bg-gray-200 h-1.5 rounded-full mt-1.5"><div className="bg-[#048187] h-1.5 rounded-full" style={{ width: `${Math.min(perc, 100)}%` }}></div></div>
+      </div>
+
+      {modalEudoraAberto && (
+        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalEudoraAberto(false); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col">
+            <div className="px-5 sm:px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">VD — EUDORA</p>
+                <h2 className="text-2xl font-black text-gray-700">Resultado Eudora</h2>
+                <p className="text-sm font-semibold text-gray-400">Ciclo {detalheEudora?.ciclo || filtrosAtivos?.ciclo || cicloSelecionadoVD || '-'}</p>
+              </div>
+              <button type="button" onClick={() => setModalEudoraAberto(false)} className="w-10 h-10 rounded-full bg-gray-50 text-gray-400 hover:text-gray-700 flex items-center justify-center"><X size={20} /></button>
+            </div>
+            <div className="overflow-y-auto p-5 sm:p-7 space-y-6">
+              {carregandoDetalheEudora ? (
+                <div className="py-16 flex items-center justify-center gap-3 text-[#048187] font-black"><Loader2 className="animate-spin" />Carregando resultado Eudora...</div>
+              ) : erroDetalheEudora ? (
+                <div className="rounded-xl bg-red-50 border border-red-100 p-4 text-red-600 font-bold">{erroDetalheEudora}</div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                    {[
+                      ['Realizado', formatarMoeda(detalheEudora?.resumo?.realizado || 0)],
+                      ['Meta Eudora', formatarMoeda(detalheEudora?.resumo?.meta || 0)],
+                      ['% atingido', `${Number(detalheEudora?.resumo?.percentual || 0).toFixed(1)}%`],
+                      ['Falta para a meta', formatarMoeda(detalheEudora?.resumo?.falta || 0)],
+                      ['Pedidos Eudora', Number(detalheEudora?.resumo?.pedidos || 0).toLocaleString('pt-BR')],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-xl border border-gray-100 bg-[#fbfefe] p-4">
+                        <p className="text-[10px] font-black uppercase text-gray-400">{label}</p>
+                        <p className="mt-2 text-xl font-black text-[#048187]">{value}</p>
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-black text-[#048187] text-sm sm:text-base">{formatarAbrev(c.ValorPraticado)}</p>
-                    <p className="text-[9px] font-bold text-gray-400 mt-0.5">{perc.toFixed(1)}% do total</p>
-                  </div>
-                </div>
-              );
-            }) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm py-10">Sem dados de consultores.</div>)}
+                  {(detalheEudora?.nucleos || []).map((bloco) => (
+                    <section key={bloco.nucleo} className="rounded-2xl border border-gray-100 overflow-hidden">
+                      <div className="bg-[#dff4f5] px-5 py-3 flex items-center justify-between gap-3">
+                        <h3 className="font-black text-[#048187]">{String(bloco.nucleo || '').replace('NUCLEO', 'NÚCLEO')}</h3>
+                        <span className="text-xs font-black text-[#048187]">{formatarMoeda(bloco.realizado || 0)}</span>
+                      </div>
+                      <div className="p-4 space-y-5">
+                        <div className="overflow-x-auto">
+                          <h4 className="font-black text-gray-700 mb-2">Resultado por estrutura</h4>
+                          <table className="w-full min-w-[760px] text-sm">
+                            <thead className="bg-gray-50 text-[10px] uppercase text-gray-400"><tr><th className="p-3 text-left">Estrutura</th><th className="p-3 text-right">Pedidos</th><th className="p-3 text-right">Realizado</th><th className="p-3 text-right">Meta</th><th className="p-3 text-right">% meta</th><th className="p-3 text-right">Falta</th></tr></thead>
+                            <tbody className="divide-y divide-gray-100">{(bloco.estruturas || []).map((item) => <tr key={item.estrutura}><td className="p-3 font-black text-gray-700">{item.estrutura}</td><td className="p-3 text-right font-bold">{item.pedidos}</td><td className="p-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td><td className="p-3 text-right font-bold text-[#7c1f31]">{formatarMoeda(item.meta)}</td><td className="p-3 text-right font-black">{Number(item.percentual || 0).toFixed(1)}%</td><td className="p-3 text-right font-bold text-[#7c1f31]">{formatarMoeda(item.falta)}</td></tr>)}</tbody>
+                          </table>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <h4 className="font-black text-gray-700 mb-2">Resultado por consultor</h4>
+                          <table className="w-full min-w-[620px] text-sm">
+                            <thead className="bg-gray-50 text-[10px] uppercase text-gray-400"><tr><th className="p-3 text-left">Consultor</th><th className="p-3 text-left">Estrutura</th><th className="p-3 text-right">Pedidos</th><th className="p-3 text-right">Realizado Eudora</th></tr></thead>
+                            <tbody className="divide-y divide-gray-100">{(bloco.consultores || []).map((item, indice) => <tr key={`${item.consultor}-${indice}`}><td className="p-3 font-black text-gray-700">{item.consultor}</td><td className="p-3 font-semibold text-gray-500">{item.estrutura}</td><td className="p-3 text-right font-bold">{item.pedidos}</td><td className="p-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td></tr>)}</tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </section>
+                  ))}
+                  {!detalheEudora?.nucleos?.length && <div className="py-12 text-center text-gray-400 font-bold">Nenhuma venda Eudora encontrada para os filtros selecionados.</div>}
+                </>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100"><button type="button" onClick={() => setModalEudoraAberto(false)} className="w-full bg-[#048187] text-white font-black py-3 rounded-xl">Fechar</button></div>
           </div>
         </div>
-      </div>
+      )}
+      </>
     );
   };
 
@@ -5113,6 +10151,21 @@ const enviarArquivo = async (tipo) => {
     const metaCabeloGeralPercentual = Number(dadosMetas?.meta_cabelo_geral || 0);
     const qtdMetaCabeloGeral = calcularQtdMetaAtividade(atividadeGeral, metaCabeloGeralPercentual);
     const faltamCabeloGeral = Math.max(qtdMetaCabeloGeral - cabeloGeral, 0);
+    const multimarcasGeral = Number(dadosMetas?.multimarcas_total_geral || 0);
+    const percentualMultimarcasGeralApi = Number(dadosMetas?.percentual_multimarcas_total_geral || 0);
+    const percentualMultimarcasGeral = percentualMultimarcasGeralApi > 0 ? percentualMultimarcasGeralApi : calcPerc(multimarcasGeral, atividadeGeral);
+    const metaMultimarcasGeralPercentual = Number(dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
+    const qtdMetaMultimarcasGeral = calcularQtdMetaAtividade(atividadeGeral, metaMultimarcasGeralPercentual);
+    const faltamMultimarcasGeral = Math.max(qtdMetaMultimarcasGeral - multimarcasGeral, 0);
+    const eudoraGeral = Number(dadosMetas?.eudora_total_geral ?? dados?.realizado_eudora ?? 0);
+    const metaEudoraGeralValor = Number(dadosMetas?.meta_eudora_valor_geral ?? dados?.meta_eudora ?? 0);
+    const metaEudoraGeralPercentual = Number(dadosMetas?.meta_eudora_geral ?? dados?.meta_eudora_percentual ?? 20);
+    const percentualEudoraGeralApi = Number(dadosMetas?.percentual_eudora_total_geral || 0);
+    const percentualEudoraGeral = percentualEudoraGeralApi > 0
+      ? percentualEudoraGeralApi
+      : calcPerc(eudoraGeral, metaEudoraGeralValor);
+    const pedidosEudoraGeral = Number(dadosMetas?.pedidos_eudora_total_geral || 0);
+    const faltamEudoraGeral = Math.max(metaEudoraGeralValor - eudoraGeral, 0);
     const makeDetalhe = Number(detalheMeta?.make_realizado || 0);
     const percentualMakeDetalheApi = Number(detalheMeta?.percentual_make || 0);
     const percentualMakeDetalhe = percentualMakeDetalheApi > 0 ? percentualMakeDetalheApi : calcPerc(makeDetalhe, atividadeDetalhe);
@@ -5125,6 +10178,21 @@ const enviarArquivo = async (tipo) => {
     const metaCabeloDetalhePercentual = Number(detalheMeta?.meta?.cabelo || 0);
     const qtdMetaCabeloDetalhe = calcularQtdMetaAtividade(atividadeDetalhe, metaCabeloDetalhePercentual);
     const faltamCabeloDetalhe = Math.max(qtdMetaCabeloDetalhe - cabeloDetalhe, 0);
+    const multimarcasDetalhe = Number(detalheMeta?.multimarcas_realizado || 0);
+    const percentualMultimarcasDetalheApi = Number(detalheMeta?.percentual_multimarcas || 0);
+    const percentualMultimarcasDetalhe = percentualMultimarcasDetalheApi > 0 ? percentualMultimarcasDetalheApi : calcPerc(multimarcasDetalhe, atividadeDetalhe);
+    const metaMultimarcasDetalhePercentual = Number(detalheMeta?.meta?.multimarcas || dados?.meta_multimarcas || 76);
+    const qtdMetaMultimarcasDetalhe = calcularQtdMetaAtividade(atividadeDetalhe, metaMultimarcasDetalhePercentual);
+    const faltamMultimarcasDetalhe = Math.max(qtdMetaMultimarcasDetalhe - multimarcasDetalhe, 0);
+    const eudoraDetalhe = Number(detalheMeta?.eudora_realizado || 0);
+    const metaEudoraDetalhePercentual = Number(detalheMeta?.meta?.eudora || 20);
+    const metaEudoraDetalheValor = Number(detalheMeta?.meta_eudora_valor || detalheMeta?.meta?.eudora_valor || (Number(detalheMeta?.meta?.receita || 0) * metaEudoraDetalhePercentual / 100));
+    const percentualEudoraDetalheApi = Number(detalheMeta?.percentual_eudora || 0);
+    const percentualEudoraDetalhe = percentualEudoraDetalheApi > 0
+      ? percentualEudoraDetalheApi
+      : calcPerc(eudoraDetalhe, metaEudoraDetalheValor);
+    const pedidosEudoraDetalhe = Number(detalheMeta?.pedidos_eudora || 0);
+    const faltamEudoraDetalhe = Math.max(metaEudoraDetalheValor - eudoraDetalhe, 0);
     const pedidosGeralMetas = dadosMetas?.estruturas ? dadosMetas.estruturas.reduce((a, e) => a + Number(e.quantidade_pedidos || 0), 0) : 0;
     const pedidosDetalheMetas = Number(detalheMeta?.quantidade_pedidos || 0);
 
@@ -5255,6 +10323,34 @@ const enviarArquivo = async (tipo) => {
         meta > 0 ? `${formatarMoeda(realizado)} ÷ ${formatarMoeda(meta)} = ${formatarNumeroBR(percentual, 1)}% da meta diária` : 'Meta diária não cadastrada.'
       );
     };
+
+    const abrirDetalheEudoraGeralMetas = () => abrirModalValExp(
+      'Eudora Geral',
+      formatarMoeda(eudoraGeral),
+      '',
+      [
+        { label: 'Realizado Eudora', valor: formatarMoeda(eudoraGeral) },
+        { label: 'Meta Eudora', valor: formatarMoeda(metaEudoraGeralValor) },
+        { label: 'Meta Eudora (% do faturamento)', valor: `${formatarNumeroBR(metaEudoraGeralPercentual, 1)}%` },
+        { label: '% da meta', valor: `${formatarNumeroBR(percentualEudoraGeral, 1)}%` },
+        { label: 'Pedidos Eudora', valor: formatarNumeroBR(pedidosEudoraGeral, 0) },
+        { label: 'Falta para a meta', valor: faltamEudoraGeral > 0 ? formatarMoeda(faltamEudoraGeral) : 'Meta batida' },
+      ]
+    );
+
+    const abrirDetalheEudoraEstruturaMetas = () => abrirModalValExp(
+      `Eudora ${detalheMeta?.estrutura || ''}`,
+      formatarMoeda(eudoraDetalhe),
+      '',
+      [
+        { label: 'Realizado Eudora', valor: formatarMoeda(eudoraDetalhe) },
+        { label: 'Meta Eudora', valor: formatarMoeda(metaEudoraDetalheValor) },
+        { label: 'Meta Eudora (% do faturamento)', valor: `${formatarNumeroBR(metaEudoraDetalhePercentual, 1)}%` },
+        { label: '% da meta', valor: `${formatarNumeroBR(percentualEudoraDetalhe, 1)}%` },
+        { label: 'Pedidos Eudora', valor: formatarNumeroBR(pedidosEudoraDetalhe, 0) },
+        { label: 'Falta para a meta', valor: faltamEudoraDetalhe > 0 ? formatarMoeda(faltamEudoraDetalhe) : 'Meta batida' },
+      ]
+    );
 
     const abrirDetalheRpaGeralMetas = () => {
       const realizado = Number(dadosMetas?.realizado_total_geral || 0);
@@ -5463,6 +10559,14 @@ const enviarArquivo = async (tipo) => {
         ? percentualCabeloApi
         : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
 
+      const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
+      const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
+      const multimarcasMetaQtd = metaMultimarcasPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMultimarcasPercentual) / 100) : 0;
+      const percentualMultimarcasApi = obterNumeroLinhaMeta(item?.percentual_multimarcas, 0);
+      const percentualMultimarcas = percentualMultimarcasApi > 0
+        ? percentualMultimarcasApi
+        : calcularPercentualSeguro(multimarcasRealizado, atividadeRealizada);
+
       return {
         receitaMeta,
         receitaRealizada,
@@ -5485,7 +10589,11 @@ const enviarArquivo = async (tipo) => {
         metaCabeloPercentual,
         cabeloMetaQtd,
         cabeloRealizado,
-        percentualCabelo
+        percentualCabelo,
+        metaMultimarcasPercentual,
+        multimarcasMetaQtd,
+        multimarcasRealizado,
+        percentualMultimarcas
       };
     };
 
@@ -5533,12 +10641,19 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
-    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
+    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false, onClickDetalhe = null }) => {
       const cor = corPorFaixaMeta(percentualAtingimento);
       return (
         <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
           <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
-          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
+          <div className="flex items-center justify-between gap-2 pl-2">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+            {onClickDetalhe && (
+              <button type="button" onClick={onClickDetalhe} className="text-[#048187] hover:text-[#036b70]" title={`Ver detalhes de ${titulo}`}>
+                <Eye size={14} />
+              </button>
+            )}
+          </div>
           <div className="mt-2 pl-2">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
@@ -5627,38 +10742,178 @@ const enviarArquivo = async (tipo) => {
                   <ChevronLeft size={18} /> Voltar
                 </button>
               )}
+              {visaoMetas === 'estruturas' && podeGerarRelatorioMetas && (
+                <button
+                  type="button"
+                  onClick={abrirModalRelatorioMetas}
+                  className="bg-[#048187] text-white hover:bg-[#036b70] px-4 py-2.5 rounded-xl font-black text-xs inline-flex items-center gap-2 transition-colors shadow-lg shadow-[#048187]/20"
+                  title="Gerar relatório dos resultados em imagem PNG"
+                >
+                  <FileSpreadsheet size={17} /> Gerar relatório em imagem
+                </button>
+              )}
               <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
             </div>
           </div>
         </div>
         {erroMetas && (<div className="rounded-xl p-4 font-bold text-sm bg-red-50 border border-red-100 text-red-600">{erroMetas}</div>)}
         {visaoMetas === 'estruturas' && (
-        <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-          <div className="grid grid-cols-8 gap-3 min-w-[1040px]">
-          <CardMini titulo="Faturamento Geral" valor={formatarAbrev(dadosMetas?.realizado_total_geral)} percentual={calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(dadosMetas?.meta_total_geral)} onClickExpandir={abrirDetalheFaturamentoGeralMetas} />
-          <CardMini titulo="Realizado Diário" valor={formatarAbrev(dados?.realizado_diario)} percentual={calcPerc(dados?.realizado_diario, dados?.meta_diaria)} labelMeta="Meta Diária:" valorMeta={formatarAbrev(dados?.meta_diaria)} onClickExpandir={abrirDetalheRealizadoDiarioMetas} />
-          <CardMini titulo="Atividade Geral" valor={`${percentualAtividadeGeral.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade Geral', `${formatarNumeroBR(percentualAtividadeGeral, 1)}%`, 'Atividade = revendedores ativados dividido pela base ativa.', [{ label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeGeral, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaGeral, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%` }, { label: 'Meta em revendedores', valor: formatarNumeroBR(qtdMetaAtividadeGeral, 0) }, { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarGeral) }], `${formatarNumeroBR(baseAtivaGeral, 0)} × ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeGeral, 0)} revendedores necessários`)} />
-          <CardMini titulo="MAKE Geral" valor={`${percentualMakeGeral.toFixed(1)}%`} percentual={calcPerc(percentualMakeGeral, metaMakeGeralPercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE Geral', `${formatarNumeroBR(percentualMakeGeral, 1)}%`, 'MAKE = revendedoras ativadas que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeGeral, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeGeral, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeGeral, metaMakeGeralPercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeGeral, 0) }, { label: 'Falta para a meta MAKE', valor: formatarFaltamAtivar(faltamMakeGeral) }], `${formatarNumeroBR(atividadeGeral, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeGeral, 0)} revendedoras necessárias com MAKE`)} />
-          <CardMini titulo="CABELO Geral" valor={`${percentualCabeloGeral.toFixed(1)}%`} percentual={calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloGeralPercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO Geral', `${formatarNumeroBR(percentualCabeloGeral, 1)}%`, 'CABELO = revendedoras ativadas que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloGeral, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloGeral, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeGeral, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloGeral, 0) }, { label: 'Falta para a meta CABELO', valor: formatarFaltamAtivar(faltamCabeloGeral) }], `${formatarNumeroBR(atividadeGeral, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloGeral, 0)} revendedoras necessárias com CABELO`)} />
-          <CardMini titulo="RPA Geral" valor={formatarMoeda(rpaGeral)} percentual={calcPerc(rpaGeral, dadosMetas?.meta_rpa_geral)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(dadosMetas?.meta_rpa_geral)} onClickExpandir={abrirDetalheRpaGeralMetas} />
-          <CardMini titulo="Ticket Médio" valor={formatarMoeda(tktGeral)} percentual={calcPerc(tktGeral, dadosMetas?.meta_tkt_medio_geral)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(dadosMetas?.meta_tkt_medio_geral)} onClickExpandir={abrirDetalheTicketGeralMetas} />
-          <CardMini titulo="UPA Geral" valor={upaGeral.toFixed(1)} percentual={calcPerc(upaGeral, dadosMetas?.meta_upa_geral)} labelMeta="Meta UPA:" valorMeta={Number(dadosMetas?.meta_upa_geral||0).toFixed(1)} onClickExpandir={abrirDetalheUpaGeralMetas} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            <CardMini
+              titulo="Faturamento Geral"
+              valor={formatarAbrev(dadosMetas?.realizado_total_geral)}
+              percentual={calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral)}
+              labelMeta="Meta Faturamento:"
+              valorMeta={formatarAbrev(dadosMetas?.meta_total_geral)}
+              onClickExpandir={abrirDetalheFaturamentoGeralMetas}
+            />
+
+            <CardMini
+              titulo="Realizado Diário"
+              valor={formatarAbrev(dados?.realizado_diario)}
+              percentual={calcPerc(dados?.realizado_diario, dados?.meta_diaria)}
+              labelMeta="Meta Diária:"
+              valorMeta={formatarAbrev(dados?.meta_diaria)}
+              onClickExpandir={abrirDetalheRealizadoDiarioMetas}
+            />
+
+            <CardMini
+              titulo="Eudora Geral"
+              valor={formatarAbrev(eudoraGeral)}
+              percentual={percentualEudoraGeral}
+              labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraGeralPercentual, 1)}%):`}
+              valorMeta={formatarAbrev(metaEudoraGeralValor)}
+              onClickExpandir={abrirDetalheEudoraGeralMetas}
+            />
+
+            <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-all hover:shadow-md">
+              <h3 className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Indicadores</h3>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => abrirDetIndicadorDashboard('MAKE')}
+                  className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
+                  style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualMakeGeral, metaMakeGeralPercentual)) }}
+                  title={`MAKE: ${formatarNumeroBR(percentualMakeGeral, 1)}% | Meta: ${formatarNumeroBR(metaMakeGeralPercentual, 1)}%`}
+                >
+                  <span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span>
+                  <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{percentualMakeGeral.toFixed(1)}%</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => abrirDetIndicadorDashboard('CABELO')}
+                  className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
+                  style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)) }}
+                  title={`CABELO: ${formatarNumeroBR(percentualCabeloGeral, 1)}% | Meta: ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%`}
+                >
+                  <span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span>
+                  <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{percentualCabeloGeral.toFixed(1)}%</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => abrirDetIndicadorDashboard('MULTIMARCAS')}
+                  className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
+                  style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualMultimarcasGeral, metaMultimarcasGeralPercentual)) }}
+                  title={`MULTIMARCAS: ${formatarNumeroBR(percentualMultimarcasGeral, 1)}% | Meta: ${formatarNumeroBR(metaMultimarcasGeralPercentual, 1)}%`}
+                >
+                  <span className="text-[8px] sm:text-[9px] font-bold truncate">MULTI.</span>
+                  <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{percentualMultimarcasGeral.toFixed(1)}%</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => abrirModalValExp(
+                    'Atividade Geral',
+                    `${formatarNumeroBR(percentualAtividadeGeral, 1)}%`,
+                    'Atividade = revendedores ativados dividido pela base ativa.',
+                    [
+                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeGeral, 0) },
+                      { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeGeral, 1)}%` },
+                      { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual), 1)}%` },
+                      { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaGeral, 0) },
+                      { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%` },
+                      { label: 'Meta em revendedores', valor: formatarNumeroBR(qtdMetaAtividadeGeral, 0) },
+                      { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarGeral) },
+                    ],
+                    `${formatarNumeroBR(baseAtivaGeral, 0)} × ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeGeral, 0)} revendedores necessários`
+                  )}
+                  className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
+                  style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)) }}
+                  title={`ATIVIDADE: ${formatarNumeroBR(percentualAtividadeGeral, 1)}% | Meta: ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%`}
+                >
+                  <span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span>
+                  <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{percentualAtividadeGeral.toFixed(1)}%</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-all hover:shadow-md">
+              <h3 className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Desempenho</h3>
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={abrirDetalheRpaGeralMetas}
+                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
+                  title={`RPA: ${formatarMoeda(rpaGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_rpa_geral)}`}
+                >
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">RPA</span>
+                  <span
+                    className="text-[9px] sm:text-[10px] font-bold shrink-0"
+                    style={{ color: corPorFaixaMeta(calcPerc(rpaGeral, dadosMetas?.meta_rpa_geral)) }}
+                  >
+                    {formatarMoeda(rpaGeral)}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={abrirDetalheTicketGeralMetas}
+                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
+                  title={`Ticket Médio: ${formatarMoeda(tktGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_tkt_medio_geral)}`}
+                >
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">TKT MÉD.</span>
+                  <span
+                    className="text-[9px] sm:text-[10px] font-bold shrink-0"
+                    style={{ color: corPorFaixaMeta(calcPerc(tktGeral, dadosMetas?.meta_tkt_medio_geral)) }}
+                  >
+                    {formatarMoeda(tktGeral)}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={abrirDetalheUpaGeralMetas}
+                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
+                  title={`UPA: ${formatarNumeroBR(upaGeral, 1)} | Meta: ${formatarNumeroBR(dadosMetas?.meta_upa_geral, 1)}`}
+                >
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">UPA</span>
+                  <span
+                    className="text-[9px] sm:text-[10px] font-bold shrink-0"
+                    style={{ color: corPorFaixaMeta(calcPerc(upaGeral, dadosMetas?.meta_upa_geral)) }}
+                  >
+                    {upaGeral.toFixed(1)}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
         )}
         
         {visaoMetas === 'estruturas' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
           <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-            <div className="min-w-[1470px] space-y-2">
+            <div className="min-w-[1780px] space-y-2">
               <div
                 className="grid gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400"
-                style={{ gridTemplateColumns: '280px 170px 105px 120px 105px 135px 135px 90px 120px 120px 90px' }}
+                style={{ gridTemplateColumns: '280px 170px 105px 155px 120px 105px 135px 135px 90px 120px 120px 120px 90px' }}
               >
                 <div className="px-2 py-2">Estrutura</div>
                 <div className="px-2 py-2">Faturamento</div>
                 <div className="px-2 py-2">% Rec.</div>
+                <div className="px-2 py-2">Eudora</div>
                 <div className="px-2 py-2">Ativ.</div>
                 <div className="px-2 py-2">% Ativ.</div>
                 <div className="px-2 py-2">RPA</div>
@@ -5666,6 +10921,7 @@ const enviarArquivo = async (tipo) => {
                 <div className="px-2 py-2">UPA</div>
                 <div className="px-2 py-2">% Make</div>
                 <div className="px-2 py-2">% Cab.</div>
+                <div className="px-2 py-2">% Multi.</div>
                 <div className="px-2 py-2 text-center">Ação</div>
               </div>
               <div className="max-h-[42rem] overflow-y-auto pr-1 space-y-2">
@@ -5673,11 +10929,13 @@ const enviarArquivo = async (tipo) => {
                   const ind = calcularIndicadoresLinhaEstrutura(i);
                   const faltamMakeLinha = Math.max(Number(ind.makeMetaQtd || 0) - Number(ind.makeRealizado || 0), 0);
                   const faltamCabeloLinha = Math.max(Number(ind.cabeloMetaQtd || 0) - Number(ind.cabeloRealizado || 0), 0);
+                  const faltamMultimarcasLinha = Math.max(Number(ind.multimarcasMetaQtd || 0) - Number(ind.multimarcasRealizado || 0), 0);
+                  const faltamEudoraLinha = Math.max(Number(ind.metaEudoraValor || 0) - Number(ind.eudoraRealizado || 0), 0);
                   return (
                     <div
                       key={i.estrutura}
                       className={`grid rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}
-                      style={{ gridTemplateColumns: '280px 170px 105px 120px 105px 135px 135px 90px 120px 120px 90px' }}
+                      style={{ gridTemplateColumns: '280px 170px 105px 155px 120px 105px 135px 135px 90px 120px 120px 120px 90px' }}
                     >
                       <ColunaEstruturaMetaRealizado item={i} />
                       <CelulaFaturamentoMetaRealizado
@@ -5686,6 +10944,28 @@ const enviarArquivo = async (tipo) => {
                         percentualReceita={ind.percentualReceita}
                       />
                       <CelulaIndicadorMetaRealizado titulo="% Receita" meta="100%" realizado={`${formatarNumeroBR(ind.percentualReceita, 2)}%`} percentualAtingimento={ind.percentualReceita} compacto />
+                      <CelulaIndicadorMetaRealizado
+                        titulo="Eudora"
+                        meta={formatarMoeda(ind.metaEudoraValor)}
+                        realizado={formatarMoeda(ind.eudoraRealizado)}
+                        percentualMeta={`${formatarNumeroBR(ind.metaEudoraPercentual, 1)}% fat.`}
+                        percentualRealizado={`${formatarNumeroBR(ind.percentualEudora, 1)}% meta`}
+                        percentualAtingimento={ind.percentualEudora}
+                        compacto
+                        onClickDetalhe={() => abrirModalValExp(
+                          `${i.estrutura} • EUDORA`,
+                          formatarMoeda(ind.eudoraRealizado),
+                          '',
+                          [
+                            { label: 'Meta Eudora (% do faturamento)', valor: `${formatarNumeroBR(ind.metaEudoraPercentual, 1)}%` },
+                            { label: 'Meta Eudora', valor: formatarMoeda(ind.metaEudoraValor) },
+                            { label: 'Realizado Eudora', valor: formatarMoeda(ind.eudoraRealizado) },
+                            { label: '% da meta', valor: `${formatarNumeroBR(ind.percentualEudora, 1)}%` },
+                            { label: 'Pedidos Eudora', valor: formatarNumeroBR(ind.pedidosEudora, 0) },
+                            { label: 'Falta para a meta', valor: faltamEudoraLinha > 0 ? formatarMoeda(faltamEudoraLinha) : 'Meta batida' },
+                          ]
+                        )}
+                      />
                       <CelulaIndicadorMetaRealizado titulo="Atividade" meta={formatarNumeroBR(ind.metaAtividadeQtd, 0)} realizado={formatarNumeroBR(ind.atividadeRealizada, 0)} percentualMeta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} percentualRealizado={`${formatarNumeroBR(calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd), 1)}%`} percentualAtingimento={calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd)} compacto />
                       <CelulaIndicadorMetaRealizado titulo="% Ativ." meta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} realizado={`${formatarNumeroBR(ind.percentualAtividade, 2)}%`} percentualAtingimento={calcPerc(ind.percentualAtividade, ind.metaAtividadePercentual)} compacto />
                       <CelulaIndicadorMetaRealizado titulo="RPA" meta={formatarMoeda(ind.rpaMeta)} realizado={formatarMoeda(ind.rpaRealizado)} percentualAtingimento={calcPerc(ind.rpaRealizado, ind.rpaMeta)} />
@@ -5731,6 +11011,26 @@ const enviarArquivo = async (tipo) => {
                             { label: 'Falta para a meta', valor: faltamCabeloLinha > 0 ? formatarNumeroBR(faltamCabeloLinha, 0) : 'Meta batida' }
                           ],
                           `${formatarNumeroBR(ind.atividadeRealizada, 0)} revendedoras ativadas × ${formatarNumeroBR(ind.metaCabeloPercentual, 1)}% = ${formatarNumeroBR(ind.cabeloMetaQtd, 0)} revendedoras necessárias com CABELO`
+                        )}
+                      />
+                      <CelulaIndicadorMetaRealizado
+                        titulo="% Multi."
+                        meta={`${formatarNumeroBR(ind.metaMultimarcasPercentual, 1)}%`}
+                        realizado={`${formatarNumeroBR(ind.percentualMultimarcas, 2)}%`}
+                        percentualAtingimento={calcPerc(ind.percentualMultimarcas, ind.metaMultimarcasPercentual)}
+                        compacto
+                        onClickDetalhe={() => abrirModalValExp(
+                          `${i.estrutura} • MULTIMARCAS`,
+                          `${formatarNumeroBR(ind.percentualMultimarcas, 2)}%`,
+                          '',
+                          [
+                            { label: 'Meta MULTIMARCAS', valor: `${formatarNumeroBR(ind.metaMultimarcasPercentual, 1)}%` },
+                            { label: 'Meta em revendedores', valor: formatarNumeroBR(ind.multimarcasMetaQtd, 0) },
+                            { label: 'Realizado MULTIMARCAS', valor: formatarNumeroBR(ind.multimarcasRealizado, 0) },
+                            { label: '% MULTIMARCAS atual', valor: `${formatarNumeroBR(ind.percentualMultimarcas, 2)}%` },
+                            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(ind.percentualMultimarcas, ind.metaMultimarcasPercentual), 1)}%` },
+                            { label: 'Falta para a meta', valor: faltamMultimarcasLinha > 0 ? formatarNumeroBR(faltamMultimarcasLinha, 0) : 'Meta batida' }
+                          ]
                         )}
                       />
                       <div className="h-full min-h-[84px] bg-white px-2 py-2 border-l border-gray-100 rounded-r-2xl flex items-center justify-center">
@@ -5805,11 +11105,13 @@ const enviarArquivo = async (tipo) => {
                 </div>
               </div>
               <div className="overflow-x-auto pb-2 mb-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-                <div className="grid grid-cols-7 gap-3 min-w-[1120px]">
+                <div className="grid grid-cols-9 gap-3 min-w-[1440px]">
                 <CardMetaNova titulo="Faturamento Estrutura" valor={formatarAbrev(detalheMeta.realizado)} percentual={calcPerc(detalheMeta.realizado, detalheMeta.meta?.receita)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(detalheMeta.meta?.receita)} onClickExpandir={abrirDetalheFaturamentoEstruturaMetas} />
+                <CardMetaNova titulo="EUDORA" valor={formatarAbrev(eudoraDetalhe)} percentual={percentualEudoraDetalhe} labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraDetalhePercentual, 1)}%):`} valorMeta={formatarAbrev(metaEudoraDetalheValor)} onClickExpandir={abrirDetalheEudoraEstruturaMetas} />
                 <CardMetaNova titulo="Atividade" valor={`${percentualAtividadeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade', `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%`, 'Atividade = revendedoras ativadas dividido pela base ativa da estrutura.', [{ label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) }, { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedoras necessárias`)} />
                 <CardMetaNova titulo="MAKE" valor={`${percentualMakeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE', `${formatarNumeroBR(percentualMakeDetalhe, 1)}%`, 'MAKE = revendedoras ativadas da estrutura que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeDetalhe, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) }, { label: 'Falta para a meta MAKE', valor: formatarFaltamAtivar(faltamMakeDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedoras necessárias com MAKE`)} />
                 <CardMetaNova titulo="CABELO" valor={`${percentualCabeloDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO', `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%`, 'CABELO = revendedoras ativadas da estrutura que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloDetalhe, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) }, { label: 'Falta para a meta CABELO', valor: formatarFaltamAtivar(faltamCabeloDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedoras necessárias com CABELO`)} />
+                <CardMetaNova titulo="MULTIMARCAS" valor={`${percentualMultimarcasDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMultimarcasDetalhe, metaMultimarcasDetalhePercentual)} labelMeta="Meta MULTI.:" valorMeta={`${metaMultimarcasDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirDetIndicadorDashboard('MULTIMARCAS')} />
                 <CardMetaNova titulo="RPA" valor={formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0)} percentual={calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.rpa)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(detalheMeta.meta?.rpa)} onClickExpandir={abrirDetalheRpaEstruturaMetas} />
                 <CardMetaNova titulo="Ticket Médio" valor={formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0)} percentual={calcPerc(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0, detalheMeta.meta?.tkt_medio)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(detalheMeta.meta?.tkt_medio)} onClickExpandir={abrirDetalheTicketEstruturaMetas} />
                 <CardMetaNova titulo="UPA" valor={upaDetalhe.toFixed(1)} percentual={calcPerc(upaDetalhe, detalheMeta.meta?.upa)} labelMeta="Meta UPA:" valorMeta={Number(detalheMeta.meta?.upa||0).toFixed(1)} onClickExpandir={abrirDetalheUpaEstruturaMetas} />
@@ -5848,6 +11150,12 @@ const enviarArquivo = async (tipo) => {
                   const faltamMakeItem = Math.max(metaMakeItem - makeRealizadoItem, 0);
                   const percentualMetaCabeloAtingido = calcPerc(cabeloRealizadoItem, metaCabeloItem);
                   const faltamCabeloItem = Math.max(metaCabeloItem - cabeloRealizadoItem, 0);
+                  const metaEudoraPercentualItem = Number(c.meta_eudora || metaEudoraDetalhePercentual || 20);
+                  const metaEudoraValorItem = Number(c.meta_eudora_valor || (faturamentoMeta * metaEudoraPercentualItem / 100));
+                  const eudoraRealizadoItem = Number(c.eudora_realizado || 0);
+                  const percentualMetaEudoraAtingido = Number(c.percentual_eudora || calcPerc(eudoraRealizadoItem, metaEudoraValorItem));
+                  const faltamEudoraItem = Math.max(metaEudoraValorItem - eudoraRealizadoItem, 0);
+                  const pedidosEudoraItem = Number(c.pedidos_eudora || 0);
                   const metaRpaItem = Number(detalheMeta?.meta?.rpa || 0);
                   const percentualMetaRpaAtingido = calcPerc(rpaRealizadoItem, metaRpaItem);
                   const faturamentoNecessarioRpaItem = metaRpaItem * atividadeRealizadaItem;
@@ -5924,6 +11232,20 @@ const enviarArquivo = async (tipo) => {
                       { label: 'Falta para a meta CABELO', valor: faltamCabeloItem > 0 ? `${formatarNumeroBR(faltamCabeloItem, 0)} revendedores` : 'Meta batida' },
                     ],
                     `${formatarNumeroBR(atividadeRealizadaItem, 0)} ativados × ${formatarNumeroBR(percentualMetaCabeloItem, 1)}% = ${formatarNumeroBR(metaCabeloItem, 0)} revendedores necessários com CABELO`
+                  );
+
+                  const abrirDetalheEudoraRanking = () => abrirModalValExp(
+                    `Eudora ${obterNomeExibicaoConsultor(c)}`,
+                    formatarMoeda(eudoraRealizadoItem),
+                    '',
+                    [
+                      { label: 'Meta Eudora (% do faturamento)', valor: `${formatarNumeroBR(metaEudoraPercentualItem, 1)}%` },
+                      { label: 'Meta Eudora', valor: formatarMoeda(metaEudoraValorItem) },
+                      { label: 'Realizado Eudora', valor: formatarMoeda(eudoraRealizadoItem) },
+                      { label: '% da meta', valor: `${formatarNumeroBR(percentualMetaEudoraAtingido, 1)}%` },
+                      { label: 'Pedidos Eudora', valor: formatarNumeroBR(pedidosEudoraItem, 0) },
+                      { label: 'Falta para a meta', valor: faltamEudoraItem > 0 ? formatarMoeda(faltamEudoraItem) : 'Meta batida' },
+                    ]
                   );
 
                   const abrirDetalheRpaRanking = () => abrirModalValExp(
@@ -6003,6 +11325,13 @@ const enviarArquivo = async (tipo) => {
                           corRealizado="text-[#048187]"
                           corBarra="#048187"
                           onClickExpandir={abrirDetalheFaturamentoRanking}
+                        />
+                        <CardIndicadorRanking
+                          titulo="Eudora"
+                          meta={formatarMoeda(metaEudoraValorItem)}
+                          realizado={formatarMoeda(eudoraRealizadoItem)}
+                          percentualMeta={percentualMetaEudoraAtingido}
+                          onClickExpandir={abrirDetalheEudoraRanking}
                         />
                         <CardIndicadorRanking
                           titulo="Atividade"
@@ -6106,7 +11435,13 @@ const enviarArquivo = async (tipo) => {
       };
     });
 
-    const cData = visaoRanking === 'consultores' ? dadosMetas.ranking_consultores : estData;
+    const cData = visaoRanking === 'consultores'
+      ? (dadosMetas.ranking_consultores || []).map((item) => ({
+          ...item,
+          foto_data_url: obterFotoColaborador('VD', item.id_colaborador, item.foto_data_url),
+          tipo_colaborador: true,
+        }))
+      : estData;
     const topPercentualFaturamento = [...cData].sort((a,b) => Number(b.percentual || 0) - Number(a.percentual || 0));
     const podio = [topPercentualFaturamento[1], topPercentualFaturamento[0], topPercentualFaturamento[2]];
     const formatarPercentualFaturamento = (item) => `${Number(item?.percentual || 0).toFixed(1)}%`;
@@ -6173,6 +11508,14 @@ const enviarArquivo = async (tipo) => {
         ? percentualCabeloApi
         : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
 
+      const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
+      const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
+      const multimarcasMetaQtd = metaMultimarcasPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMultimarcasPercentual) / 100) : 0;
+      const percentualMultimarcasApi = obterNumeroLinhaMeta(item?.percentual_multimarcas, 0);
+      const percentualMultimarcas = percentualMultimarcasApi > 0
+        ? percentualMultimarcasApi
+        : calcularPercentualSeguro(multimarcasRealizado, atividadeRealizada);
+
       return {
         receitaMeta,
         receitaRealizada,
@@ -6195,7 +11538,11 @@ const enviarArquivo = async (tipo) => {
         metaCabeloPercentual,
         cabeloMetaQtd,
         cabeloRealizado,
-        percentualCabelo
+        percentualCabelo,
+        metaMultimarcasPercentual,
+        multimarcasMetaQtd,
+        multimarcasRealizado,
+        percentualMultimarcas
       };
     };
 
@@ -6290,6 +11637,7 @@ const enviarArquivo = async (tipo) => {
               <div className="flex flex-col items-center justify-end min-w-0 hover:-translate-y-1 transition-transform cursor-default">
                 <div className="mb-3 w-full rounded-2xl bg-slate-50 border border-slate-100 px-3 py-3 text-center min-h-[104px] flex flex-col items-center justify-center">
                   <span className="text-[11px] font-black text-slate-500 uppercase tracking-wide">2º lugar</span>
+                  {visaoRanking === 'consultores' && <div className="mt-2"><AvatarColaborador src={podio[0].foto_data_url} nome={obterNomeExibicaoConsultor(podio[0])} tamanho={58} borda="#94a3b8" /></div>}
                   <p
                     className="mt-1 text-sm font-black text-gray-700 leading-tight w-full"
                     title={obterNomeExibicaoConsultor(podio[0])}
@@ -6313,6 +11661,7 @@ const enviarArquivo = async (tipo) => {
                     <Trophy size={18} />
                     <span className="text-[11px] font-black uppercase tracking-wide">1º lugar</span>
                   </div>
+                  {visaoRanking === 'consultores' && <div className="mt-2"><AvatarColaborador src={podio[1].foto_data_url} nome={obterNomeExibicaoConsultor(podio[1])} tamanho={70} borda="#facc15" /></div>}
                   <p
                     className="mt-2 text-base font-black text-[#048187] leading-tight w-full"
                     title={obterNomeExibicaoConsultor(podio[1])}
@@ -6333,6 +11682,7 @@ const enviarArquivo = async (tipo) => {
               <div className="flex flex-col items-center justify-end min-w-0 hover:-translate-y-1 transition-transform cursor-default">
                 <div className="mb-3 w-full rounded-2xl bg-orange-50 border border-orange-100 px-3 py-3 text-center min-h-[104px] flex flex-col items-center justify-center">
                   <span className="text-[11px] font-black text-orange-500 uppercase tracking-wide">3º lugar</span>
+                  {visaoRanking === 'consultores' && <div className="mt-2"><AvatarColaborador src={podio[2].foto_data_url} nome={obterNomeExibicaoConsultor(podio[2])} tamanho={58} borda="#fb923c" /></div>}
                   <p
                     className="mt-1 text-sm font-black text-gray-700 leading-tight w-full"
                     title={obterNomeExibicaoConsultor(podio[2])}
@@ -6366,189 +11716,341 @@ const enviarArquivo = async (tipo) => {
 
   const renderTelaComparativo = () => {
     if (loadComp && !dadosComp) return <DashboardSkeletons />;
-    if (!dadosComp) return (<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8"><p className="text-gray-400">Clique em "Atualizar" para comparar os núcleos.</p></div>);
 
-    const n1 = dadosComp.n1; const n2 = dadosComp.n2;
-
-    let chartData = [];
-    const v1 = n1.dash.vendas_por_dia || []; const v2 = n2.dash.vendas_por_dia || [];
-    const dates = Array.from(new Set([...v1.map(d=>d['Data Captação']), ...v2.map(d=>d['Data Captação'])]));
-    dates.sort((a,b) => { const [da,ma,ya] = a.split('/'); const [db,mb,yb] = b.split('/'); return new Date(ya,ma-1,da) - new Date(yb,mb-1,db); });
-    chartData = dates.map(d => ({ data: d, N1: v1.find(x=>x['Data Captação']===d)?.ValorPraticado || 0, N2: v2.find(x=>x['Data Captação']===d)?.ValorPraticado || 0 }));
-
-
-    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
-      const numero = Number(valor);
-      if (Number.isFinite(numero)) return numero;
-      const numeroFallback = Number(fallback);
-      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
-    };
-
-    const calcularIndicadoresLinhaEstrutura = (item) => {
-      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
-      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
-      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
-
-      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
-      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
-      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
-      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
-      const percentualAtividadeApi = obterNumeroLinhaMeta(item?.percentual_atividade, 0);
-      const percentualAtividade = percentualAtividadeApi > 0
-        ? percentualAtividadeApi
-        : calcularPercentualSeguro(atividadeRealizada, baseAtiva);
-
-      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
-      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
-
-      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
-      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
-      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
-
-      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
-      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
-      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
-
-      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
-      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
-      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
-      const percentualMakeApi = obterNumeroLinhaMeta(item?.percentual_make, 0);
-      const percentualMake = percentualMakeApi > 0
-        ? percentualMakeApi
-        : calcularPercentualSeguro(makeRealizado, atividadeRealizada);
-
-      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
-      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
-      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
-      const percentualCabeloApi = obterNumeroLinhaMeta(item?.percentual_cabelo, 0);
-      const percentualCabelo = percentualCabeloApi > 0
-        ? percentualCabeloApi
-        : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
-
-      return {
-        receitaMeta,
-        receitaRealizada,
-        percentualReceita,
-        atividadeRealizada,
-        baseAtiva,
-        metaAtividadePercentual,
-        metaAtividadeQtd,
-        percentualAtividade,
-        rpaMeta,
-        rpaRealizado,
-        ticketMeta,
-        ticketRealizado,
-        upaMeta,
-        upaRealizada,
-        metaMakePercentual,
-        makeMetaQtd,
-        makeRealizado,
-        percentualMake,
-        metaCabeloPercentual,
-        cabeloMetaQtd,
-        cabeloRealizado,
-        percentualCabelo
-      };
-    };
-
-    const calcularPercentualSeguro = (realizado, meta) => {
-      const m = Number(meta || 0);
-      if (!m || m <= 0) return 0;
-      return (Number(realizado || 0) / m) * 100;
-    };
-
-    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
-      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
+    if (!dadosComp) {
       return (
-        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
-          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
-          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
-          {percentual !== null && (
-            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
-              {percentual}
-            </span>
-          )}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
+          <p className="text-gray-400">Clique em Atualizar para comparar os núcleos.</p>
         </div>
       );
+    }
+
+    const n1 = dadosComp?.n1 || { metas: {}, dash: {} };
+    const n2 = dadosComp?.n2 || { metas: {}, dash: {} };
+    const n3 = dadosComp?.n3 || { metas: {}, dash: {} };
+
+    const CORES_NUCLEOS = {
+      N1: '#048187',
+      N2: '#F97316',
+      N3: '#56549E',
     };
 
-    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
-      const cor = corPorFaixaMeta(percentualAtingimento);
-      return (
-        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
-          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
-          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
-          <div className="mt-2 pl-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
-              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
-            </div>
-            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
-          </div>
-          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
-              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
-            </div>
-            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
-          </div>
-        </div>
-      );
+    const vendasN1 = n1?.dash?.vendas_por_dia || [];
+    const vendasN2 = n2?.dash?.vendas_por_dia || [];
+    const vendasN3 = n3?.dash?.vendas_por_dia || [];
+
+    const datasGrafico = Array.from(
+      new Set([
+        ...vendasN1.map((item) => item['Data Captação']),
+        ...vendasN2.map((item) => item['Data Captação']),
+        ...vendasN3.map((item) => item['Data Captação']),
+      ])
+    ).filter(Boolean);
+
+    datasGrafico.sort((dataA, dataB) => {
+      const [diaA, mesA, anoA] = String(dataA).split('/');
+      const [diaB, mesB, anoB] = String(dataB).split('/');
+
+      return new Date(anoA, mesA - 1, diaA) - new Date(anoB, mesB - 1, diaB);
+    });
+
+    const chartData = datasGrafico.map((data) => ({
+      data,
+      N1: Number(
+        vendasN1.find((item) => item['Data Captação'] === data)?.ValorPraticado
+        || 0
+      ),
+      N2: Number(
+        vendasN2.find((item) => item['Data Captação'] === data)?.ValorPraticado
+        || 0
+      ),
+      N3: Number(
+        vendasN3.find((item) => item['Data Captação'] === data)?.ValorPraticado
+        || 0
+      ),
+    }));
+
+    const numeroSeguro = (valor) => {
+      const numero = Number(valor || 0);
+      return Number.isFinite(numero) ? numero : 0;
     };
 
-    const ColunaEstruturaMetaRealizado = ({ item }) => {
-      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
-      return (
-        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
-          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
-            <Users size={20} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
-            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
-            {estruturasVinculadas.length > 1 && (
-              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
-                {estruturasVinculadas.length} estruturas vinculadas
-              </span>
-            )}
-          </div>
-        </div>
-      );
+    const dividirSeguro = (numerador, denominador) => {
+      const divisor = numeroSeguro(denominador);
+      return divisor > 0 ? numeroSeguro(numerador) / divisor : 0;
     };
+
+    const criarItensComparativo = (
+      valorN1,
+      descricaoN1,
+      valorN2,
+      descricaoN2,
+      valorN3,
+      descricaoN3,
+    ) => [
+      {
+        chave: 'N1',
+        rotulo: 'N1',
+        cor: CORES_NUCLEOS.N1,
+        valor: valorN1,
+        descricao: descricaoN1,
+      },
+      {
+        chave: 'N2',
+        rotulo: 'N2',
+        cor: CORES_NUCLEOS.N2,
+        valor: valorN2,
+        descricao: descricaoN2,
+      },
+      {
+        chave: 'N3',
+        rotulo: 'N3',
+        cor: CORES_NUCLEOS.N3,
+        valor: valorN3,
+        descricao: descricaoN3,
+      },
+    ];
+
+    const faturamentoN1 = numeroSeguro(n1?.metas?.realizado_total_geral);
+    const faturamentoN2 = numeroSeguro(n2?.metas?.realizado_total_geral);
+    const faturamentoN3 = numeroSeguro(n3?.metas?.realizado_total_geral);
+
+    const metaFaturamentoN1 = numeroSeguro(n1?.metas?.meta_total_geral);
+    const metaFaturamentoN2 = numeroSeguro(n2?.metas?.meta_total_geral);
+    const metaFaturamentoN3 = numeroSeguro(n3?.metas?.meta_total_geral);
+
+    const realizadoDiarioN1 = numeroSeguro(n1?.dash?.realizado_diario);
+    const realizadoDiarioN2 = numeroSeguro(n2?.dash?.realizado_diario);
+    const realizadoDiarioN3 = numeroSeguro(n3?.dash?.realizado_diario);
+
+    const metaDiariaN1 = numeroSeguro(n1?.dash?.meta_diaria);
+    const metaDiariaN2 = numeroSeguro(n2?.dash?.meta_diaria);
+    const metaDiariaN3 = numeroSeguro(n3?.dash?.meta_diaria);
+
+    const atividadeN1 = numeroSeguro(n1?.metas?.atividade_total_geral);
+    const atividadeN2 = numeroSeguro(n2?.metas?.atividade_total_geral);
+    const atividadeN3 = numeroSeguro(n3?.metas?.atividade_total_geral);
+
+    const rpaN1 = dividirSeguro(faturamentoN1, atividadeN1);
+    const rpaN2 = dividirSeguro(faturamentoN2, atividadeN2);
+    const rpaN3 = dividirSeguro(faturamentoN3, atividadeN3);
+
+    const ticketN1 = dividirSeguro(faturamentoN1, n1?.dash?.total_pedidos);
+    const ticketN2 = dividirSeguro(faturamentoN2, n2?.dash?.total_pedidos);
+    const ticketN3 = dividirSeguro(faturamentoN3, n3?.dash?.total_pedidos);
+
+    const upaN1 = dividirSeguro(n1?.dash?.total_itens, atividadeN1);
+    const upaN2 = dividirSeguro(n2?.dash?.total_itens, atividadeN2);
+    const upaN3 = dividirSeguro(n3?.dash?.total_itens, atividadeN3);
 
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 min-w-0">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-full bg-[#048187] text-white flex items-center justify-center shrink-0"><Scale size={25}/></div>
-            <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 truncate">Comparativo de Núcleos</h1><p className="text-sm text-gray-400 truncate">Análise de performance N1 vs N2</p></div>
+            <div className="w-12 h-12 rounded-full bg-[#048187] text-white flex items-center justify-center shrink-0">
+              <Scale size={25} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-700 truncate">
+                Comparativo de Núcleos
+              </h1>
+              <p className="text-sm text-gray-400 truncate">
+                Análise de performance N1, N2 e N3
+              </p>
+            </div>
           </div>
-          <button onClick={() => carregarComparativo(filtrosAtivos)} className="bg-[#048187] text-white font-bold px-4 py-3 rounded-lg flex items-center gap-2 shrink-0"><RefreshCcw size={16}/> Atualizar</button>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="hidden lg:flex items-center gap-3 rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+              {[
+                ['N1', CORES_NUCLEOS.N1],
+                ['N2', CORES_NUCLEOS.N2],
+                ['N3', CORES_NUCLEOS.N3],
+              ].map(([rotulo, cor]) => (
+                <span key={rotulo} className="inline-flex items-center gap-1.5 text-[11px] font-black text-gray-500">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cor }} />
+                  {rotulo}
+                </span>
+              ))}
+            </div>
+
+            <button
+              onClick={() => carregarComparativo(filtrosAtivos)}
+              className="bg-[#048187] text-white font-bold px-4 py-3 rounded-lg flex items-center gap-2"
+            >
+              <RefreshCcw size={16} />
+              Atualizar
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 xl:gap-6">
-          <CardVersus titulo="Faturamento Geral" formataVal={formatarAbrev} val1={n1.metas.realizado_total_geral} desc1={`${calcPerc(n1.metas.realizado_total_geral, n1.metas.meta_total_geral).toFixed(1)}% da meta`} val2={n2.metas.realizado_total_geral} desc2={`${calcPerc(n2.metas.realizado_total_geral, n2.metas.meta_total_geral).toFixed(1)}% da meta`} />
-          <CardVersus titulo="Realizado Diário" formataVal={formatarAbrev} val1={n1.dash.realizado_diario} desc1={`${calcPerc(n1.dash.realizado_diario, n1.dash.meta_diaria).toFixed(1)}% da meta`} val2={n2.dash.realizado_diario} desc2={`${calcPerc(n2.dash.realizado_diario, n2.dash.meta_diaria).toFixed(1)}% da meta`} />
-          <CardVersus titulo="Atividade" isPerc formataVal={(v)=>v} val1={n1.metas.percentual_atividade_total_geral} desc1={`${n1.metas.atividade_total_geral} ativados`} val2={n2.metas.percentual_atividade_total_geral} desc2={`${n2.metas.atividade_total_geral} ativados`} />
-          <CardVersus titulo="Penetração MAKE" isPerc formataVal={(v)=>v} val1={n1.metas.percentual_make_total_geral} desc1={`${n1.metas.make_total_geral} ativados`} val2={n2.metas.percentual_make_total_geral} desc2={`${n2.metas.make_total_geral} ativados`} />
-          <CardVersus titulo="Penetração CABELO" isPerc formataVal={(v)=>v} val1={n1.metas.percentual_cabelo_total_geral} desc1={`${n1.metas.cabelo_total_geral} ativados`} val2={n2.metas.percentual_cabelo_total_geral} desc2={`${n2.metas.cabelo_total_geral} ativados`} />
-          <CardVersus titulo="RPA" formataVal={formatarMoeda} val1={n1.metas.meta_rpa_geral ? (n1.metas.realizado_total_geral / n1.metas.atividade_total_geral) : 0} desc1={`Meta: ${formatarMoeda(n1.metas.meta_rpa_geral)}`} val2={n2.metas.meta_rpa_geral ? (n2.metas.realizado_total_geral / n2.metas.atividade_total_geral) : 0} desc2={`Meta: ${formatarMoeda(n2.metas.meta_rpa_geral)}`} />
-          <CardVersus titulo="Ticket Médio" formataVal={formatarMoeda} val1={n1.metas.meta_tkt_medio_geral ? (n1.metas.realizado_total_geral / n1.dash.total_pedidos) : 0} desc1={`Meta: ${formatarMoeda(n1.metas.meta_tkt_medio_geral)}`} val2={n2.metas.meta_tkt_medio_geral ? (n2.metas.realizado_total_geral / n2.dash.total_pedidos) : 0} desc2={`Meta: ${formatarMoeda(n2.metas.meta_tkt_medio_geral)}`} />
-          <CardVersus titulo="UPA" formataVal={(v)=>v.toFixed(1)} val1={n1.metas.meta_upa_geral ? (n1.dash.total_itens / n1.metas.atividade_total_geral) : 0} desc1={`Meta: ${Number(n1.metas.meta_upa_geral||0).toFixed(1)}`} val2={n2.metas.meta_upa_geral ? (n2.dash.total_itens / n2.metas.atividade_total_geral) : 0} desc2={`Meta: ${Number(n2.metas.meta_upa_geral||0).toFixed(1)}`} />
+          <CardComparativoNucleos
+            titulo="Faturamento Geral"
+            formataVal={formatarAbrev}
+            itens={criarItensComparativo(
+              faturamentoN1,
+              `${calcPerc(faturamentoN1, metaFaturamentoN1).toFixed(1)}% da meta`,
+              faturamentoN2,
+              `${calcPerc(faturamentoN2, metaFaturamentoN2).toFixed(1)}% da meta`,
+              faturamentoN3,
+              `${calcPerc(faturamentoN3, metaFaturamentoN3).toFixed(1)}% da meta`,
+            )}
+          />
+
+          <CardComparativoNucleos
+            titulo="Realizado Diário"
+            formataVal={formatarAbrev}
+            itens={criarItensComparativo(
+              realizadoDiarioN1,
+              `${calcPerc(realizadoDiarioN1, metaDiariaN1).toFixed(1)}% da meta`,
+              realizadoDiarioN2,
+              `${calcPerc(realizadoDiarioN2, metaDiariaN2).toFixed(1)}% da meta`,
+              realizadoDiarioN3,
+              `${calcPerc(realizadoDiarioN3, metaDiariaN3).toFixed(1)}% da meta`,
+            )}
+          />
+
+          <CardComparativoNucleos
+            titulo="Atividade"
+            isPerc
+            itens={criarItensComparativo(
+              n1?.metas?.percentual_atividade_total_geral,
+              `${atividadeN1.toLocaleString('pt-BR')} ativados`,
+              n2?.metas?.percentual_atividade_total_geral,
+              `${atividadeN2.toLocaleString('pt-BR')} ativados`,
+              n3?.metas?.percentual_atividade_total_geral,
+              `${atividadeN3.toLocaleString('pt-BR')} ativados`,
+            )}
+          />
+
+          <CardComparativoNucleos
+            titulo="Penetração MAKE"
+            isPerc
+            itens={criarItensComparativo(
+              n1?.metas?.percentual_make_total_geral,
+              `${numeroSeguro(n1?.metas?.make_total_geral).toLocaleString('pt-BR')} ativados`,
+              n2?.metas?.percentual_make_total_geral,
+              `${numeroSeguro(n2?.metas?.make_total_geral).toLocaleString('pt-BR')} ativados`,
+              n3?.metas?.percentual_make_total_geral,
+              `${numeroSeguro(n3?.metas?.make_total_geral).toLocaleString('pt-BR')} ativados`,
+            )}
+          />
+
+          <CardComparativoNucleos
+            titulo="Penetração CABELO"
+            isPerc
+            itens={criarItensComparativo(
+              n1?.metas?.percentual_cabelo_total_geral,
+              `${numeroSeguro(n1?.metas?.cabelo_total_geral).toLocaleString('pt-BR')} ativados`,
+              n2?.metas?.percentual_cabelo_total_geral,
+              `${numeroSeguro(n2?.metas?.cabelo_total_geral).toLocaleString('pt-BR')} ativados`,
+              n3?.metas?.percentual_cabelo_total_geral,
+              `${numeroSeguro(n3?.metas?.cabelo_total_geral).toLocaleString('pt-BR')} ativados`,
+            )}
+          />
+
+          <CardComparativoNucleos
+            titulo="RPA"
+            formataVal={formatarMoeda}
+            itens={criarItensComparativo(
+              rpaN1,
+              `Meta: ${formatarMoeda(n1?.metas?.meta_rpa_geral || 0)}`,
+              rpaN2,
+              `Meta: ${formatarMoeda(n2?.metas?.meta_rpa_geral || 0)}`,
+              rpaN3,
+              `Meta: ${formatarMoeda(n3?.metas?.meta_rpa_geral || 0)}`,
+            )}
+          />
+
+          <CardComparativoNucleos
+            titulo="Ticket Médio"
+            formataVal={formatarMoeda}
+            itens={criarItensComparativo(
+              ticketN1,
+              `Meta: ${formatarMoeda(n1?.metas?.meta_tkt_medio_geral || 0)}`,
+              ticketN2,
+              `Meta: ${formatarMoeda(n2?.metas?.meta_tkt_medio_geral || 0)}`,
+              ticketN3,
+              `Meta: ${formatarMoeda(n3?.metas?.meta_tkt_medio_geral || 0)}`,
+            )}
+          />
+
+          <CardComparativoNucleos
+            titulo="UPA"
+            formataVal={(valor) => Number(valor || 0).toFixed(1)}
+            itens={criarItensComparativo(
+              upaN1,
+              `Meta: ${numeroSeguro(n1?.metas?.meta_upa_geral).toFixed(1)}`,
+              upaN2,
+              `Meta: ${numeroSeguro(n2?.metas?.meta_upa_geral).toFixed(1)}`,
+              upaN3,
+              `Meta: ${numeroSeguro(n3?.metas?.meta_upa_geral).toFixed(1)}`,
+            )}
+          />
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
-          <h3 className="text-base font-bold text-gray-600 text-center mb-3 border-b border-gray-100 pb-2 truncate">Vendas Diárias (N1 vs N2)</h3>
+          <h3 className="text-base font-bold text-gray-600 text-center mb-3 border-b border-gray-100 pb-2 truncate">
+            Vendas Diárias por Núcleo
+          </h3>
+
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="data" tick={{ fontSize: 11, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatarTickMoeda} width={48} />
+              <AreaChart
+                data={chartData}
+                margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="#e5e7eb"
+                />
+                <XAxis
+                  dataKey="data"
+                  tick={{ fontSize: 11, fill: '#64748b' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tickFormatter={formatarTickMoeda}
+                  width={48}
+                />
                 <Tooltip formatter={(value) => formatarMoeda(value)} />
-                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                <Area type="monotone" name="NÚCLEO 1" dataKey="N1" stroke="#048187" fill="#048187" fillOpacity={0.1} strokeWidth={3} />
-                <Area type="monotone" name="NÚCLEO 2" dataKey="N2" stroke="#F97316" fill="#F97316" fillOpacity={0.1} strokeWidth={3} />
+                <Legend
+                  verticalAlign="bottom"
+                  height={36}
+                  wrapperStyle={{
+                    fontSize: '11px',
+                    paddingTop: '10px',
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  name="NÚCLEO 1"
+                  dataKey="N1"
+                  stroke={CORES_NUCLEOS.N1}
+                  fill={CORES_NUCLEOS.N1}
+                  fillOpacity={0.08}
+                  strokeWidth={3}
+                />
+                <Area
+                  type="monotone"
+                  name="NÚCLEO 2"
+                  dataKey="N2"
+                  stroke={CORES_NUCLEOS.N2}
+                  fill={CORES_NUCLEOS.N2}
+                  fillOpacity={0.08}
+                  strokeWidth={3}
+                />
+                <Area
+                  type="monotone"
+                  name="NÚCLEO 3"
+                  dataKey="N3"
+                  stroke={CORES_NUCLEOS.N3}
+                  fill={CORES_NUCLEOS.N3}
+                  fillOpacity={0.08}
+                  strokeWidth={3}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -6692,6 +12194,14 @@ const enviarArquivo = async (tipo) => {
         ? percentualCabeloApi
         : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
 
+      const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
+      const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
+      const multimarcasMetaQtd = metaMultimarcasPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMultimarcasPercentual) / 100) : 0;
+      const percentualMultimarcasApi = obterNumeroLinhaMeta(item?.percentual_multimarcas, 0);
+      const percentualMultimarcas = percentualMultimarcasApi > 0
+        ? percentualMultimarcasApi
+        : calcularPercentualSeguro(multimarcasRealizado, atividadeRealizada);
+
       return {
         receitaMeta,
         receitaRealizada,
@@ -6714,7 +12224,11 @@ const enviarArquivo = async (tipo) => {
         metaCabeloPercentual,
         cabeloMetaQtd,
         cabeloRealizado,
-        percentualCabelo
+        percentualCabelo,
+        metaMultimarcasPercentual,
+        multimarcasMetaQtd,
+        multimarcasRealizado,
+        percentualMultimarcas
       };
     };
 
@@ -6928,17 +12442,73 @@ const enviarArquivo = async (tipo) => {
   const renderTelaBase = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Base de dados</h1>
-        <p className="text-sm text-gray-400 font-semibold">Uploads de bases operacionais. Ciclos, metas, estruturas e consultores agora ficam concentrados na aba Cadastro.</p>
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Base de dados</h1>
+            <p className="text-sm text-gray-400 font-semibold">Selecione o ciclo de destino antes de enviar as bases de VD.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div>
+              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Ciclo de destino</label>
+              <select value={cicloUploadVD || obterCicloReferenciaAtual()} onChange={(e) => { setCicloUploadVD(e.target.value); localStorage.setItem(CICLO_UPLOAD_VD_STORAGE_KEY, e.target.value); }} className="border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187] min-w-[190px]">
+                {ciclos.map((item) => <option key={item.id || item.ciclo} value={item.ciclo}>{item.ciclo}{item.eh_atual ? ' • atual' : ''}{obterStatusCicloArea(item.ciclo, 'VD') === 'fechado' ? ' • fechado' : ' • aberto'}</option>)}
+              </select>
+            </div>
+            <div className="pt-0 sm:pt-5 flex gap-2">
+              {cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD') ? (
+                perfilPodeFecharCiclo && <button type="button" disabled={alterandoStatusCiclo} onClick={() => atualizarStatusOperacionalCiclo('VD', 'fechar')} className="bg-[#712231] text-white px-4 py-3 rounded-lg font-black disabled:opacity-50"><Save size={16} className="inline mr-2" />Fechar ciclo</button>
+              ) : (
+                perfilPodeReabrirCiclo && <button type="button" disabled={alterandoStatusCiclo} onClick={() => atualizarStatusOperacionalCiclo('VD', 'reabrir')} className="bg-[#048187] text-white px-4 py-3 rounded-lg font-black disabled:opacity-50"><RefreshCcw size={16} className="inline mr-2" />Reabrir</button>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className={`mt-4 rounded-xl px-4 py-3 text-sm font-bold ${cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD') ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+          {cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')
+            ? `O ciclo ${cicloUploadVD || obterCicloReferenciaAtual() || '-'} está aberto para uploads de VD.`
+            : `O ciclo ${cicloUploadVD || obterCicloReferenciaAtual() || '-'} está fechado. Novos uploads estão bloqueados.`}
+        </div>
       </div>
       {(mensagemUpload || erroUpload) && (<div className={`rounded-xl p-4 font-bold text-sm ${mensagemUpload ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemUpload || erroUpload}</div>)}
+      {modalMultimarcasAberto && (
+        <div className="fixed inset-0 z-[9999] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-lg overflow-hidden">
+            <div className="p-5 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wide text-[#048187] mb-1">Atualização automática</p>
+                <h2 className="text-xl font-black text-gray-700">Atualizar MULTIMARCAS via VDI</h2>
+                <p className="text-sm text-gray-400 font-semibold mt-1">As credenciais serão usadas somente nesta execução.</p>
+              </div>
+              <button type="button" disabled={carregandoAutomacaoMultimarcas} onClick={() => setModalMultimarcasAberto(false)} className="w-9 h-9 rounded-xl bg-gray-50 text-gray-400 hover:text-gray-600 flex items-center justify-center disabled:opacity-40"><X size={18} /></button>
+            </div>
+            <form onSubmit={iniciarAtualizacaoAutomaticaMultimarcas} className="p-5 sm:p-6 space-y-4">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Usuário VDI</label>
+                <input ref={multimarcasUsuarioRef} type="text" autoComplete="username" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] font-bold" placeholder="Digite seu usuário" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Senha VDI</label>
+                <input ref={multimarcasSenhaRef} type="password" autoComplete="current-password" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] font-bold" placeholder="Digite sua senha" />
+              </div>
+              <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs font-bold text-gray-500">Ciclo: {cicloUploadVD || obterCicloReferenciaAtual() || '-'}</div>
+              {statusMultimarcas && <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs font-bold text-blue-700">{statusMultimarcas}</div>}
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" disabled={carregandoAutomacaoMultimarcas} onClick={() => setModalMultimarcasAberto(false)} className="border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-lg hover:bg-gray-50 disabled:opacity-50">Cancelar</button>
+                <button type="submit" disabled={carregandoAutomacaoMultimarcas} className="bg-[#048187] text-white font-black px-5 py-3 rounded-lg hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center gap-2"><RefreshCcw size={17} className={carregandoAutomacaoMultimarcas ? 'animate-spin' : ''} />{carregandoAutomacaoMultimarcas ? 'Executando...' : 'Iniciar atualização'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 xl:gap-6">
-        <CompUpload titulo="Pedidos" desc="Base principal" arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaPedidos} acaoExtraLoad={carregandoAutomacaoPedidos} />
-        <CompUpload titulo="Base Ativa" desc="Base de revendedores." arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload} />
-        <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload} />
+        <CompUpload titulo="Pedidos" desc="Base principal" arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaPedidos} acaoExtraLoad={carregandoAutomacaoPedidos}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Base Ativa" desc="Base de revendedores." arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="SKUS IAF" desc="Abas MAKE e CABELO." arq={arquivoSkusIaf} setArq={setArquivoSkusIaf} onEnv={() => enviarArquivo('skusIaf')} icone={Sparkles} load={carregandoUpload} />
-        <CompUpload titulo="Vendas MAKE" desc="5 planilhas MAKE." arquivos={arquivosVendasMake} setArqs={setArquivosVendasMake} onEnv={() => enviarArquivo('vendasMake')} icone={Upload} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaMake} acaoExtraLoad={carregandoAutomacaoMake} />
-        <CompUpload titulo="Vendas CABELO" desc="Planilhas Cabelo." arquivos={arquivosVendasCabelo} setArqs={setArquivosVendasCabelo} onEnv={() => enviarArquivo('vendasCabelo')} icone={Scissors} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaCabelo} acaoExtraLoad={carregandoAutomacaoCabelo} />
+        <CompUpload titulo="Vendas MAKE" desc="5 planilhas MAKE." arquivos={arquivosVendasMake} setArqs={setArquivosVendasMake} onEnv={() => enviarArquivo('vendasMake')} icone={Upload} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaMake} acaoExtraLoad={carregandoAutomacaoMake}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Vendas CABELO" desc="Planilhas Cabelo." arquivos={arquivosVendasCabelo} setArqs={setArquivosVendasCabelo} onEnv={() => enviarArquivo('vendasCabelo')} icone={Scissors} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaCabelo} acaoExtraLoad={carregandoAutomacaoCabelo}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Vendas MULTIMARCAS" desc="Códigos de revendedores do VDI." arq={arquivoVendasMultimarcas} setArq={setArquivoVendasMultimarcas} onEnv={() => enviarArquivo('vendasMultimarcas')} icone={Sparkles} load={carregandoUpload} acaoExtraLabel="Atualizar via VDI" onAcaoExtra={abrirModalAutomacaoMultimarcas} acaoExtraLoad={carregandoAutomacaoMultimarcas}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Vendas EUDORA" desc="Total Praticado e Código Pedido." arq={arquivoVendasEudora} setArq={setArquivoVendasEudora} onEnv={() => enviarArquivo('vendasEudora')} icone={BadgeDollarSign} load={carregandoUpload} disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
       </div>
     </div>
   );
@@ -7070,7 +12640,7 @@ const enviarArquivo = async (tipo) => {
                     <td className="py-4 px-2 font-bold text-gray-700">{c.ciclo}</td>
                     <td className="py-4 px-2 text-gray-500">{formatarDataBR(c.data_inicio)}</td>
                     <td className="py-4 px-2 text-gray-500">{formatarDataBR(c.data_fim)}</td>
-                    <td className="py-4 px-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${c.status_ciclo === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_ciclo}</span></td>
+                    <td className="py-4 px-2 text-center"><div className="flex flex-wrap justify-center gap-1"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${c.eh_atual ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{c.eh_atual ? 'ATUAL' : c.status_ciclo}</span><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${obterStatusCicloArea(c.ciclo, 'VD') === 'fechado' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>VD {obterStatusCicloArea(c.ciclo, 'VD')}</span><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${obterStatusCicloArea(c.ciclo, 'LOJA') === 'fechado' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>LOJA {obterStatusCicloArea(c.ciclo, 'LOJA')}</span></div></td>
                     <td className="py-4 px-2 text-right">
                       <button onClick={() => abrirEditarCiclo(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button>
                       <button onClick={() => abrirExcluirCiclo(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button>
@@ -7211,6 +12781,14 @@ const enviarArquivo = async (tipo) => {
         ? percentualCabeloApi
         : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
 
+      const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
+      const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
+      const multimarcasMetaQtd = metaMultimarcasPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMultimarcasPercentual) / 100) : 0;
+      const percentualMultimarcasApi = obterNumeroLinhaMeta(item?.percentual_multimarcas, 0);
+      const percentualMultimarcas = percentualMultimarcasApi > 0
+        ? percentualMultimarcasApi
+        : calcularPercentualSeguro(multimarcasRealizado, atividadeRealizada);
+
       return {
         receitaMeta,
         receitaRealizada,
@@ -7233,7 +12811,11 @@ const enviarArquivo = async (tipo) => {
         metaCabeloPercentual,
         cabeloMetaQtd,
         cabeloRealizado,
-        percentualCabelo
+        percentualCabelo,
+        metaMultimarcasPercentual,
+        multimarcasMetaQtd,
+        multimarcasRealizado,
+        percentualMultimarcas
       };
     };
 
@@ -7401,6 +12983,14 @@ const enviarArquivo = async (tipo) => {
         ? percentualCabeloApi
         : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
 
+      const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
+      const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
+      const multimarcasMetaQtd = metaMultimarcasPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMultimarcasPercentual) / 100) : 0;
+      const percentualMultimarcasApi = obterNumeroLinhaMeta(item?.percentual_multimarcas, 0);
+      const percentualMultimarcas = percentualMultimarcasApi > 0
+        ? percentualMultimarcasApi
+        : calcularPercentualSeguro(multimarcasRealizado, atividadeRealizada);
+
       return {
         receitaMeta,
         receitaRealizada,
@@ -7423,7 +13013,11 @@ const enviarArquivo = async (tipo) => {
         metaCabeloPercentual,
         cabeloMetaQtd,
         cabeloRealizado,
-        percentualCabelo
+        percentualCabelo,
+        metaMultimarcasPercentual,
+        multimarcasMetaQtd,
+        multimarcasRealizado,
+        percentualMultimarcas
       };
     };
 
@@ -7499,8 +13093,8 @@ const enviarArquivo = async (tipo) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"><div className="relative w-full sm:w-96"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Buscar por nome ou ID..." value={buscaConsultor} onChange={(e) => setBuscaConsultor(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div><div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{cFilt.length} Registros</div></div>
           {carregandoListaConsultores ? (<div className="py-10 text-center text-[#048187] font-bold">Carregando...</div>) : (
-            <div className="overflow-x-auto"><div className="max-h-[600px] overflow-y-auto pr-2"><table className="w-full text-sm min-w-[900px]"><thead className="sticky top-0 bg-white z-10"><tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">ID</th><th className="py-3 px-2">Nome</th><th className="py-3 px-2">Nome Social</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Canal</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Peso Meta</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>
-              {cFilt.map((c) => (<tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50"><td className="py-3 px-2 font-medium text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2 font-bold text-gray-700">{c.nome}</td><td className="py-3 px-2 font-bold text-[#048187]">{c.nome_social || '-'}</td><td className="py-3 px-2 text-gray-600">{c.estrutura}</td><td className="py-3 px-2 text-gray-600">{c.canal}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${c.status_consultor === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="py-3 px-2 text-right whitespace-nowrap"><button onClick={() => abrirEditarConsultor(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirConsultor(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>))}
+            <div className="overflow-x-auto"><div className="max-h-[600px] overflow-y-auto pr-2"><table className="w-full text-sm min-w-[980px]"><thead className="sticky top-0 bg-white z-10"><tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">Foto</th><th className="py-3 px-2">ID</th><th className="py-3 px-2">Nome</th><th className="py-3 px-2">Nome Social</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Canal</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Peso Meta</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>
+              {cFilt.map((c) => (<tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50"><td className="py-3 px-2"><button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'VD', id_colaborador: c.id_colaborador, nome_oficial: c.nome_exibicao || c.nome, codigo_contexto: c.estrutura || '', foto_data_url: c.foto_data_url, aliases: c.aliases })} title="Foto e nomes alternativos"><AvatarColaborador src={obterFotoColaborador('VD', c.id_colaborador, c.foto_data_url)} nome={c.nome_exibicao || c.nome} tamanho={40} /></button></td><td className="py-3 px-2 font-medium text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2 font-bold text-gray-700">{c.nome}</td><td className="py-3 px-2 font-bold text-[#048187]">{c.nome_social || '-'}</td><td className="py-3 px-2 text-gray-600">{c.estrutura}</td><td className="py-3 px-2 text-gray-600">{c.canal}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${c.status_consultor === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="py-3 px-2 text-right whitespace-nowrap">{podeGerenciarIdentidadeColaborador('VD') && <button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'VD', id_colaborador: c.id_colaborador, nome_oficial: c.nome_exibicao || c.nome, codigo_contexto: c.estrutura || '', foto_data_url: c.foto_data_url, aliases: c.aliases })} className="text-[#257B9C] hover:text-[#1f6884] mr-3" title="Foto e nomes alternativos"><ImagePlus size={17} /></button>}<button onClick={() => abrirEditarConsultor(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirConsultor(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>))}
             </tbody></table></div></div>
           )}
         </div>
@@ -7510,7 +13104,7 @@ const enviarArquivo = async (tipo) => {
 
   const renderTelaPerfil = () => (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center gap-4 border-b border-gray-100 pb-6 mb-6"><div className="w-16 h-16 rounded-full bg-[#048187] text-white flex items-center justify-center shrink-0"><User size={34} /></div><div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.nome}</h1><p className="text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.email}</p></div></div><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Nome</p><p className="text-lg font-bold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.nome}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Perfil</p><p className="text-lg font-bold text-[#048187] uppercase whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.perfil}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Status</p><p className="text-lg font-bold text-green-600 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.status_usuario}</p></div></div></div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center gap-4 border-b border-gray-100 pb-6 mb-6"><button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'PERFIL', id_colaborador: String(usuarioLogado.id || ''), nome_oficial: usuarioLogado.nome, foto_data_url: obterFotoColaborador('PERFIL', String(usuarioLogado.id || '')) })} className="relative group shrink-0" title="Alterar foto do perfil"><AvatarColaborador src={obterFotoColaborador('PERFIL', String(usuarioLogado.id || ''))} nome={usuarioLogado.nome} tamanho={72} borda="#048187" /><span className="absolute -right-1 -bottom-1 w-7 h-7 rounded-full bg-[#048187] text-white flex items-center justify-center border-2 border-white"><Camera size={14} /></span></button><div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.nome}</h1><p className="text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.email}</p></div></div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Nome</p><p className="text-lg font-bold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.nome}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Perfil</p><p className="text-lg font-bold text-[#048187] uppercase whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.perfil}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Área</p><p className="text-lg font-bold text-[#712231] uppercase whitespace-nowrap overflow-hidden text-ellipsis">{normalizarAreaGestao(usuarioLogado.area_gestao, usuarioLogado.perfil) === 'AMBOS' ? 'VD + LOJA' : normalizarAreaGestao(usuarioLogado.area_gestao, usuarioLogado.perfil)}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Status</p><p className="text-lg font-bold text-green-600 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.status_usuario}</p></div></div></div>
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6"><div className="flex items-center gap-2"><KeyRound size={22} className="text-[#048187]" /><h2 className="text-xl font-bold text-gray-700">Trocar senha</h2></div><button type="button" onClick={() => setMostrarSenhasPerfil(!mostrarSenhasPerfil)} className="flex items-center gap-2 text-sm font-bold text-[#048187]">{mostrarSenhasPerfil ? <EyeOff size={18} /> : <Eye size={18} />}{mostrarSenhasPerfil ? 'Ocultar senhas' : 'Mostrar senhas'}</button></div>{(mensagemSenha || erroSenha) && (<div className={`rounded-xl p-4 font-bold text-sm mb-4 ${mensagemSenha ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemSenha || erroSenha}</div>)}<form onSubmit={alterarSenha} className="grid grid-cols-1 md:grid-cols-3 gap-4"><input type={mostrarSenhasPerfil ? 'text' : 'password'} placeholder="Senha atual" value={senhaPerfil.senha_atual} onChange={(e) => setSenhaPerfil({ ...senhaPerfil, senha_atual: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><input type={mostrarSenhasPerfil ? 'text' : 'password'} placeholder="Nova senha" value={senhaPerfil.nova_senha} onChange={(e) => setSenhaPerfil({ ...senhaPerfil, nova_senha: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><input type={mostrarSenhasPerfil ? 'text' : 'password'} placeholder="Confirmar nova senha" value={senhaPerfil.confirmar_senha} onChange={(e) => setSenhaPerfil({ ...senhaPerfil, confirmar_senha: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><button type="submit" className="md:col-span-3 bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><Save size={18} /> Alterar senha</button></form></div>
     </div>
   );
@@ -7641,6 +13235,279 @@ const enviarArquivo = async (tipo) => {
     </div>
   );
 
+  const ModalRelatorioAuditoria = () => {
+    if (!modalRelatorioAuditoriaAberto) return null;
+
+    const usuariosDisponiveis = Array.from(
+      new Map(
+        (dadosAuditoria?.usuarios_ativos || [])
+          .filter((item) => item?.usuario_email)
+          .map((item) => [
+            String(item.usuario_email).toLowerCase(),
+            {
+              nome: item.usuario_nome || item.usuario_email,
+              email: String(item.usuario_email).toLowerCase(),
+              perfil: item.perfil || '',
+            },
+          ])
+      ).values()
+    );
+
+    const totalSecoesSelecionadas = Object.values(
+      configRelatorioAuditoria.secoes || {}
+    ).filter(Boolean).length;
+
+    const marcarTodasSecoes = () => {
+      const todasMarcadas = totalSecoesSelecionadas === SECOES_RELATORIO_AUDITORIA.length;
+      setConfigRelatorioAuditoria((atual) => ({
+        ...atual,
+        secoes: SECOES_RELATORIO_AUDITORIA.reduce((acc, item) => {
+          acc[item.id] = !todasMarcadas;
+          return acc;
+        }, {}),
+      }));
+    };
+
+    return (
+      <div className="fixed inset-0 z-[9999] bg-black/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+        <div className="bg-white rounded-[26px] shadow-2xl w-full max-w-6xl max-h-[94vh] overflow-hidden flex flex-col">
+          <div className="bg-[#048187] text-white px-5 sm:px-7 py-5 flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+                <FileSpreadsheet size={23} />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black">Gerar relatório de uso</h2>
+                <p className="text-sm text-white/75 font-semibold mt-1">
+                  Escolha o período, os usuários e as informações que entrarão no PDF.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setModalRelatorioAuditoriaAberto(false)}
+              disabled={gerandoRelatorioAuditoria}
+              className="w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center disabled:opacity-60"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6 bg-[#f7fafb]">
+            {erroRelatorioAuditoria && (
+              <div className="bg-red-50 border border-red-100 text-red-600 rounded-xl px-4 py-3 font-bold text-sm">
+                {erroRelatorioAuditoria}
+              </div>
+            )}
+
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+              <h3 className="font-black text-gray-700 mb-4">Configurações gerais</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                <div className="lg:col-span-2">
+                  <label className="block text-[10px] uppercase font-black text-gray-400 mb-1.5">Título do relatório</label>
+                  <input
+                    type="text"
+                    value={configRelatorioAuditoria.titulo}
+                    onChange={(e) => setConfigRelatorioAuditoria((atual) => ({ ...atual, titulo: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 font-bold text-gray-700 outline-none focus:border-[#048187]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-black text-gray-400 mb-1.5">Data inicial</label>
+                  <input
+                    type="date"
+                    value={configRelatorioAuditoria.data_inicio}
+                    onChange={(e) => setConfigRelatorioAuditoria((atual) => ({ ...atual, data_inicio: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 font-bold text-gray-700 outline-none focus:border-[#048187]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-black text-gray-400 mb-1.5">Data final</label>
+                  <input
+                    type="date"
+                    value={configRelatorioAuditoria.data_fim}
+                    onChange={(e) => setConfigRelatorioAuditoria((atual) => ({ ...atual, data_fim: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 font-bold text-gray-700 outline-none focus:border-[#048187]"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 max-w-xs">
+                <label className="block text-[10px] uppercase font-black text-gray-400 mb-1.5">Orientação</label>
+                <select
+                  value={configRelatorioAuditoria.orientacao}
+                  onChange={(e) => setConfigRelatorioAuditoria((atual) => ({ ...atual, orientacao: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 font-bold text-gray-700 outline-none focus:border-[#048187]"
+                >
+                  <option value="retrato">A4 retrato</option>
+                  <option value="paisagem">A4 paisagem</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="font-black text-gray-700">Perfis</h3>
+                    <p className="text-xs text-gray-400 font-bold mt-1">Nenhum marcado significa todos os perfis.</p>
+                  </div>
+                  {!!configRelatorioAuditoria.perfis.length && (
+                    <button
+                      type="button"
+                      onClick={() => setConfigRelatorioAuditoria((atual) => ({ ...atual, perfis: [] }))}
+                      className="text-xs font-black text-[#048187] hover:underline"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: 'admin', label: 'Admin' },
+                    { id: 'gestor', label: 'Gestor' },
+                    { id: 'visualizador', label: 'Visualizador' },
+                  ].map((perfil) => {
+                    const marcado = configRelatorioAuditoria.perfis.includes(perfil.id);
+                    return (
+                      <button
+                        type="button"
+                        key={perfil.id}
+                        onClick={() => alternarPerfilRelatorioAuditoria(perfil.id)}
+                        className={`rounded-xl border px-4 py-3 text-left transition-all ${marcado ? 'border-[#048187] bg-[#e6f6f7] text-[#048187]' : 'border-gray-200 bg-white text-gray-600 hover:border-[#9dd3d5]'}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`w-5 h-5 rounded-md border flex items-center justify-center ${marcado ? 'bg-[#048187] border-[#048187] text-white' : 'border-gray-300'}`}>
+                            {marcado ? '✓' : ''}
+                          </span>
+                          <span className="font-black">{perfil.label}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="font-black text-gray-700">Usuários</h3>
+                    <p className="text-xs text-gray-400 font-bold mt-1">Nenhum marcado significa todos os usuários.</p>
+                  </div>
+                  {!!configRelatorioAuditoria.usuarios.length && (
+                    <button
+                      type="button"
+                      onClick={() => setConfigRelatorioAuditoria((atual) => ({ ...atual, usuarios: [] }))}
+                      className="text-xs font-black text-[#048187] hover:underline"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                  {usuariosDisponiveis.map((usuario) => {
+                    const marcado = configRelatorioAuditoria.usuarios.includes(usuario.email);
+                    return (
+                      <label
+                        key={usuario.email}
+                        className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 cursor-pointer ${marcado ? 'border-[#048187] bg-[#e6f6f7]' : 'border-gray-100 hover:bg-gray-50'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={() => alternarUsuarioRelatorioAuditoria(usuario.email)}
+                          className="accent-[#048187]"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-black text-gray-700 truncate">{usuario.nome}</p>
+                          <p className="text-[11px] text-gray-400 font-bold truncate">{usuario.email}</p>
+                        </div>
+                        <span className="text-[9px] uppercase font-black text-[#048187] bg-white px-2 py-1 rounded-full">
+                          {usuario.perfil || '-'}
+                        </span>
+                      </label>
+                    );
+                  })}
+                  {!usuariosDisponiveis.length && (
+                    <p className="text-sm text-gray-400 font-bold py-4 text-center">
+                      Atualize a auditoria para carregar a lista de usuários.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="font-black text-gray-700">Informações do relatório</h3>
+                  <p className="text-xs text-gray-400 font-bold mt-1">
+                    {totalSecoesSelecionadas} de {SECOES_RELATORIO_AUDITORIA.length} seções selecionadas.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={marcarTodasSecoes}
+                  className="rounded-xl bg-[#e6f6f7] text-[#048187] px-4 py-2.5 font-black text-sm hover:bg-[#d5f0f1]"
+                >
+                  {totalSecoesSelecionadas === SECOES_RELATORIO_AUDITORIA.length ? 'Desmarcar todas' : 'Marcar todas'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {SECOES_RELATORIO_AUDITORIA.map((secao) => {
+                  const marcada = !!configRelatorioAuditoria.secoes?.[secao.id];
+                  return (
+                    <button
+                      type="button"
+                      key={secao.id}
+                      onClick={() => alternarSecaoRelatorioAuditoria(secao.id)}
+                      className={`text-left border rounded-2xl p-4 transition-all ${marcada ? 'border-[#048187] bg-[#f1fbfb] shadow-sm' : 'border-gray-100 bg-white hover:border-[#9dd3d5]'}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className={`mt-0.5 w-6 h-6 rounded-lg border flex items-center justify-center shrink-0 ${marcada ? 'bg-[#048187] border-[#048187] text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
+                        <div>
+                          <p className={`font-black ${marcada ? 'text-[#048187]' : 'text-gray-700'}`}>{secao.label}</p>
+                          <p className="text-xs text-gray-400 font-semibold mt-1 leading-relaxed">{secao.descricao}</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 bg-white px-5 sm:px-7 py-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-xs text-gray-400 font-bold">
+              O PDF será gerado pelo backend e esta ação ficará registrada na auditoria.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => setModalRelatorioAuditoriaAberto(false)}
+                disabled={gerandoRelatorioAuditoria}
+                className="border border-gray-200 text-gray-600 px-5 py-3 rounded-xl font-black hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={gerarRelatorioAuditoriaPDF}
+                disabled={gerandoRelatorioAuditoria}
+                className="bg-[#048187] text-white px-6 py-3 rounded-xl font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2 shadow-lg shadow-[#048187]/20"
+              >
+                <FileSpreadsheet size={18} />
+                {gerandoRelatorioAuditoria ? 'Gerando PDF...' : 'Gerar e baixar PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderTelaADM = () => {
     const resumo = dadosAuditoria?.resumo || {};
     const aba = filtrosAuditoria.aba || 'acessos';
@@ -7656,7 +13523,11 @@ const enviarArquivo = async (tipo) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div><h1 className="text-2xl font-black text-gray-700">Painel ADM</h1><p className="text-gray-400 font-semibold mt-1">Acompanhe acessos, uploads, alterações, erros e uso das telas do Dash.</p></div>
-            <div className="flex flex-col sm:flex-row gap-2"><select value={filtrosAuditoria.dias} onChange={(e) => { const dias = Number(e.target.value); setFiltrosAuditoria((atual) => ({ ...atual, dias })); carregarAuditoria(dias); }} className="border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#048187]"><option value={1}>Últimas 24h</option><option value={7}>Últimos 7 dias</option><option value={15}>Últimos 15 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select><button onClick={() => carregarAuditoria()} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center justify-center gap-2"><RefreshCcw size={18} /> Atualizar</button></div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select value={filtrosAuditoria.dias} onChange={(e) => { const dias = Number(e.target.value); setFiltrosAuditoria((atual) => ({ ...atual, dias })); carregarAuditoria(dias); }} className="border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#048187]"><option value={1}>Últimas 24h</option><option value={7}>Últimos 7 dias</option><option value={15}>Últimos 15 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select>
+              <button onClick={abrirModalRelatorioAuditoria} className="border border-[#b9dfe1] bg-[#e6f6f7] text-[#048187] font-black px-5 py-3 rounded-xl hover:bg-[#d5f0f1] inline-flex items-center justify-center gap-2"><FileSpreadsheet size={18} /> Gerar relatório PDF</button>
+              <button onClick={() => carregarAuditoria()} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center justify-center gap-2"><RefreshCcw size={18} /> Atualizar</button>
+            </div>
           </div>
           {erroAuditoria && <div className="mt-4 bg-red-50 text-red-600 p-4 rounded-xl font-bold">{erroAuditoria}</div>}
           {carregandoAuditoria && <div className="mt-4 bg-[#e6f6f7] text-[#048187] p-4 rounded-xl font-bold">Carregando auditoria...</div>}
@@ -7666,6 +13537,7 @@ const enviarArquivo = async (tipo) => {
         <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm"><div className="flex flex-wrap gap-2">{abas.map((item) => (<button key={item.id} onClick={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: item.id }))} className={`px-4 py-2.5 rounded-xl font-black text-sm transition-colors ${aba === item.id ? 'bg-[#048187] text-white' : 'bg-[#f7fafb] text-gray-500 hover:bg-[#e6f6f7] hover:text-[#048187]'}`}>{item.label} <span className={aba === item.id ? 'text-white/80' : 'text-gray-400'}>({item.dados.length})</span></button>))}</div></div>
         <TabelaLogsAuditoria titulo={abaAtual.label} dados={abaAtual.dados} vazio={`Nenhum registro em ${abaAtual.label.toLowerCase()}.`} />
         <ModalDetalheAuditoria />
+        <ModalRelatorioAuditoria />
       </div>
     );
   };
@@ -7679,12 +13551,194 @@ const enviarArquivo = async (tipo) => {
       </div>
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
         <div className="flex items-center gap-2 mb-6"><Plus size={22} className="text-[#048187]" /><h2 className="text-xl font-bold text-gray-700">Criar usuário</h2></div>
-        <form onSubmit={criarUsuario} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"><input type="text" placeholder="Nome" value={novoUsuario.nome} onChange={(e) => setNovoUsuario({ ...novoUsuario, nome: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><input type="email" placeholder="E-mail" value={novoUsuario.email} onChange={(e) => setNovoUsuario({ ...novoUsuario, email: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><input type="password" placeholder="Senha" value={novoUsuario.senha} onChange={(e) => setNovoUsuario({ ...novoUsuario, senha: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><select value={novoUsuario.perfil} onChange={(e) => setNovoUsuario({ ...novoUsuario, perfil: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="admin">Admin</option><option value="gestor">Gestor</option><option value="visualizador">Visualizador</option></select><button type="submit" className="bg-[#048187] text-white font-bold rounded-lg py-3 hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><ShieldCheck size={18} /> Criar</button></form>
+        <form onSubmit={criarUsuario} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+          <input
+            type="text"
+            placeholder="Nome"
+            value={novoUsuario.nome}
+            onChange={(e) => setNovoUsuario({ ...novoUsuario, nome: e.target.value })}
+            className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"
+            required
+          />
+          <input
+            type="email"
+            placeholder="E-mail"
+            value={novoUsuario.email}
+            onChange={(e) => setNovoUsuario({ ...novoUsuario, email: e.target.value })}
+            className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Senha"
+            value={novoUsuario.senha}
+            onChange={(e) => setNovoUsuario({ ...novoUsuario, senha: e.target.value })}
+            className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"
+            required
+          />
+          <select
+            value={novoUsuario.perfil}
+            onChange={(e) => {
+              const perfil = e.target.value;
+              setNovoUsuario({
+                ...novoUsuario,
+                perfil,
+                area_gestao: perfil === 'admin'
+                  ? 'AMBOS'
+                  : novoUsuario.area_gestao,
+              });
+            }}
+            className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"
+          >
+            <option value="admin">Admin</option>
+            <option value="gestor">Gestor</option>
+            <option value="visualizador">Visualizador</option>
+          </select>
+          <select
+            value={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
+            onChange={(e) => setNovoUsuario({
+              ...novoUsuario,
+              area_gestao: e.target.value,
+            })}
+            disabled={novoUsuario.perfil === 'admin'}
+            className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
+            title="Define quais notificações de meta este usuário receberá."
+          >
+            {AREAS_GESTAO.map((area) => (
+              <option key={area.id} value={area.id}>
+                Área: {area.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="bg-[#048187] text-white font-bold rounded-lg py-3 hover:bg-[#036b70] inline-flex items-center justify-center gap-2"
+          >
+            <ShieldCheck size={18} />
+            Criar
+          </button>
+        </form>
       </div>
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6"><h2 className="text-xl font-bold text-gray-700">Usuários cadastrados</h2><button onClick={carregarUsuarios} className="text-[#048187] font-bold text-sm hover:underline">Atualizar</button></div>
         {carregandoUsuarios ? (<p className="text-[#048187] font-bold">Carregando usuários...</p>) : (
-          <div className="overflow-x-auto"><table className="w-full text-sm min-w-[980px]"><thead><tr className="text-left text-gray-500 border-b border-gray-100"><th className="py-3 px-2">Nome</th><th className="py-3 px-2">E-mail</th><th className="py-3 px-2">Perfil</th><th className="py-3 px-2">Permissões</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>{usuariosSistema.map((u) => { const abasPerfil = obterPermissoesUsuarioLista(u); const podeConfigurarPermissoes = usuarioLogado?.perfil === 'admin'; return (<tr key={u.id} className="border-b border-gray-50"><td className="py-4 px-2 font-bold text-gray-700">{u.nome}</td><td className="py-4 px-2 text-gray-500">{u.email}</td><td className="py-4 px-2 text-[#048187] font-bold uppercase">{u.perfil}</td><td className="py-4 px-2"><div className="flex flex-col gap-2 min-w-[220px]"><div className="flex flex-wrap gap-1.5">{abasPerfil.slice(0, 3).map((aba) => (<span key={aba} className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold">{obterNomeAba(aba)}</span>))}{abasPerfil.length > 3 && (<span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold">+{abasPerfil.length - 3}</span>)}</div>{podeConfigurarPermissoes ? (<button type="button" onClick={() => abrirModalPermissoes(u)} className="w-fit bg-[#048187] text-white font-bold px-3 py-1.5 rounded-lg hover:bg-[#036b70] transition-colors text-xs inline-flex items-center gap-1"><ShieldCheck size={13} /> Configurar abas</button>) : (<span className="text-xs text-gray-400 font-medium">Somente admin pode alterar</span>)}</div></td><td className="py-4 px-2"><span className={`px-3 py-1 rounded-full text-xs font-bold ${u.status_usuario === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status_usuario}</span></td><td className="py-4 px-2 text-right"><button onClick={() => abrirResetSenhaAdmin(u)} className="text-orange-500 hover:text-orange-600 mr-3" title="Resetar senha"><KeyRound size={17} /></button><button onClick={() => abrirEditarUsuario(u)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar usuário"><Pencil size={17} /></button><button onClick={() => abrirExcluirUsuario(u)} className="text-red-500 hover:text-red-600" title="Excluir usuário"><Trash2 size={17} /></button></td></tr>); })}</tbody></table></div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[1120px]">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="py-3 px-2">Nome</th>
+                  <th className="py-3 px-2">E-mail</th>
+                  <th className="py-3 px-2">Perfil</th>
+                  <th className="py-3 px-2">Área</th>
+                  <th className="py-3 px-2">Permissões</th>
+                  <th className="py-3 px-2">Status</th>
+                  <th className="py-3 px-2 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usuariosSistema.map((u) => {
+                  const abasPerfil = obterPermissoesUsuarioLista(u);
+                  const podeConfigurarPermissoes = usuarioLogado?.perfil === 'admin';
+                  const areaUsuario = normalizarAreaGestao(
+                    u.area_gestao,
+                    u.perfil
+                  );
+
+                  return (
+                    <tr key={u.id} className="border-b border-gray-50">
+                      <td className="py-4 px-2 font-bold text-gray-700">
+                        {u.nome}
+                      </td>
+                      <td className="py-4 px-2 text-gray-500">
+                        {u.email}
+                      </td>
+                      <td className="py-4 px-2 text-[#048187] font-bold uppercase">
+                        {u.perfil}
+                      </td>
+                      <td className="py-4 px-2">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black ${
+                          areaUsuario === 'VD'
+                            ? 'bg-[#e6f6f7] text-[#048187]'
+                            : areaUsuario === 'LOJA'
+                              ? 'bg-orange-50 text-orange-600'
+                              : 'bg-purple-50 text-purple-700'
+                        }`}>
+                          {areaUsuario === 'AMBOS'
+                            ? 'VD + LOJA'
+                            : areaUsuario}
+                        </span>
+                      </td>
+                      <td className="py-4 px-2">
+                        <div className="flex flex-col gap-2 min-w-[220px]">
+                          <div className="flex flex-wrap gap-1.5">
+                            {abasPerfil.slice(0, 3).map((aba) => (
+                              <span
+                                key={aba}
+                                className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold"
+                              >
+                                {obterNomeAba(aba)}
+                              </span>
+                            ))}
+                            {abasPerfil.length > 3 && (
+                              <span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold">
+                                +{abasPerfil.length - 3}
+                              </span>
+                            )}
+                          </div>
+                          {podeConfigurarPermissoes ? (
+                            <button
+                              type="button"
+                              onClick={() => abrirModalPermissoes(u)}
+                              className="w-fit bg-[#048187] text-white font-bold px-3 py-1.5 rounded-lg hover:bg-[#036b70] transition-colors text-xs inline-flex items-center gap-1"
+                            >
+                              <ShieldCheck size={13} />
+                              Configurar abas
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400 font-medium">
+                              Somente admin pode alterar
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-2">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          u.status_usuario === 'ativo'
+                            ? 'bg-green-50 text-green-700'
+                            : 'bg-red-50 text-red-600'
+                        }`}>
+                          {u.status_usuario}
+                        </span>
+                      </td>
+                      <td className="py-4 px-2 text-right">
+                        <button
+                          onClick={() => abrirResetSenhaAdmin(u)}
+                          className="text-orange-500 hover:text-orange-600 mr-3"
+                          title="Resetar senha"
+                        >
+                          <KeyRound size={17} />
+                        </button>
+                        <button
+                          onClick={() => abrirEditarUsuario(u)}
+                          className="text-[#048187] hover:text-[#036b70] mr-3"
+                          title="Editar usuário"
+                        >
+                          <Pencil size={17} />
+                        </button>
+                        <button
+                          onClick={() => abrirExcluirUsuario(u)}
+                          className="text-red-500 hover:text-red-600"
+                          title="Excluir usuário"
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -8118,6 +14172,14 @@ const enviarArquivo = async (tipo) => {
 
   const renderTelaHistorico = () => {
     const resumo = dadosHistorico?.resumo || null;
+    const historicoEhPrevia = Boolean(
+      resumo
+      && (
+        resumo?.modo_visualizacao === 'previa'
+        || resumo?.possui_snapshot === false
+        || String(resumo?.status || '').toLowerCase() === 'aberto'
+      )
+    );
     const estruturas = dadosHistorico?.estruturas || [];
     const consultores = dadosHistorico?.consultores || [];
     const consultoresAtivos = dadosHistorico?.consultoresAtivos || [];
@@ -8129,6 +14191,102 @@ const enviarArquivo = async (tipo) => {
       if (Number.isNaN(data.getTime())) return String(v);
       return data.toLocaleString('pt-BR');
     };
+
+    const lerJsonHistorico = (valor) => {
+      if (!valor) return {};
+      if (typeof valor === 'object') return valor;
+      try {
+        const convertido = JSON.parse(valor);
+        return convertido && typeof convertido === 'object'
+          ? convertido
+          : {};
+      } catch {
+        return {};
+      }
+    };
+
+    const dadosResumoHistorico = lerJsonHistorico(resumo?.dados_json);
+
+    const estruturasComDetalhes = estruturas.map((item) => {
+      const detalhes = lerJsonHistorico(item?.dados_json);
+      return {
+        ...item,
+        nucleo: String(detalhes?.nucleo || 'SEM NÚCLEO').toUpperCase(),
+        valor_liquido: Number(detalhes?.valor_liquido || 0),
+        base_ativa: Number(detalhes?.base_ativa || 0),
+        total_itens: Number(detalhes?.total_itens || 0),
+      };
+    });
+
+    const consolidarNucleoHistorico = (nucleo) => {
+      const lista = estruturasComDetalhes.filter(
+        (item) => item.nucleo === nucleo
+      );
+      const valorPraticado = lista.reduce(
+        (acc, item) => acc + Number(item.realizado || 0),
+        0
+      );
+      const valorLiquido = lista.reduce(
+        (acc, item) => acc + Number(item.valor_liquido || 0),
+        0
+      );
+      const meta = lista.reduce(
+        (acc, item) => acc + Number(item.meta_faturamento || 0),
+        0
+      );
+      const pedidos = lista.reduce(
+        (acc, item) => acc + Number(item.pedidos || 0),
+        0
+      );
+      const atividade = lista.reduce(
+        (acc, item) => acc + Number(item.atividade || 0),
+        0
+      );
+      const baseAtiva = lista.reduce(
+        (acc, item) => acc + Number(item.base_ativa || 0),
+        0
+      );
+      const totalItens = lista.reduce(
+        (acc, item) => acc + Number(item.total_itens || 0),
+        0
+      );
+
+      return {
+        nucleo,
+        estruturas: lista,
+        valorPraticado,
+        valorLiquido,
+        meta,
+        percentualMeta: calcPerc(valorPraticado, meta),
+        pedidos,
+        atividade,
+        baseAtiva,
+        percentualAtividade: calcPerc(atividade, baseAtiva),
+        rpa: atividade > 0 ? valorPraticado / atividade : 0,
+        ticketMedio: pedidos > 0 ? valorPraticado / pedidos : 0,
+        upa: atividade > 0 ? totalItens / atividade : 0,
+      };
+    };
+
+    const nucleosHistorico = ['N1', 'N2', 'N3']
+      .map(consolidarNucleoHistorico)
+      .filter((item) => item.estruturas.length > 0);
+
+    const valorLiquidoTotalHistorico = Number(
+      dadosResumoHistorico?.valor_liquido_total
+      || estruturasComDetalhes.reduce(
+        (acc, item) => acc + Number(item.valor_liquido || 0),
+        0
+      )
+    );
+
+    const baseAtivaTotalHistorico = Number(
+      dadosResumoHistorico?.base_ativa_total
+      || estruturasComDetalhes.reduce(
+        (acc, item) => acc + Number(item.base_ativa || 0),
+        0
+      )
+    );
     const qtdEstruturasMeta = (meta) => {
       const valor = meta?.estruturas_vinculadas;
       if (Array.isArray(valor)) return valor.length;
@@ -8139,6 +14297,7 @@ const enviarArquivo = async (tipo) => {
     };
 
     const abasHistorico = [
+      { id: 'resumo', label: 'Resumo', total: 0 },
       { id: 'estruturas', label: 'Estruturas', total: estruturas.length },
       { id: 'consultores', label: 'Consultores', total: consultores.length },
       { id: 'ativos', label: 'Consultores ativos', total: consultoresAtivos.length },
@@ -8195,6 +14354,14 @@ const enviarArquivo = async (tipo) => {
         ? percentualCabeloApi
         : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
 
+      const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
+      const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
+      const multimarcasMetaQtd = metaMultimarcasPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMultimarcasPercentual) / 100) : 0;
+      const percentualMultimarcasApi = obterNumeroLinhaMeta(item?.percentual_multimarcas, 0);
+      const percentualMultimarcas = percentualMultimarcasApi > 0
+        ? percentualMultimarcasApi
+        : calcularPercentualSeguro(multimarcasRealizado, atividadeRealizada);
+
       return {
         receitaMeta,
         receitaRealizada,
@@ -8217,7 +14384,11 @@ const enviarArquivo = async (tipo) => {
         metaCabeloPercentual,
         cabeloMetaQtd,
         cabeloRealizado,
-        percentualCabelo
+        percentualCabelo,
+        metaMultimarcasPercentual,
+        multimarcasMetaQtd,
+        multimarcasRealizado,
+        percentualMultimarcas
       };
     };
 
@@ -8292,7 +14463,7 @@ const enviarArquivo = async (tipo) => {
           <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Histórico de ciclos</h1>
-              <p className="text-sm text-gray-400 font-semibold max-w-3xl">Consulte a fotografia oficial de ciclos fechados: consultores ativos na época, metas cadastradas e performance congelada por estrutura e consultor.</p>
+              <p className="text-sm text-gray-400 font-semibold max-w-3xl">Consulte ciclos abertos em tempo real e ciclos fechados com resultado congelado.</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
               <select
@@ -8301,7 +14472,11 @@ const enviarArquivo = async (tipo) => {
                 className="border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 font-bold outline-none focus:border-[#048187] min-w-[180px]"
               >
                 <option value="">Selecione o ciclo</option>
-                {historicoCiclos.map((c) => <option key={c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}
+                {historicoCiclos.map((c) => (
+                  <option key={c.ciclo} value={c.ciclo}>
+                    {`${c.ciclo}${c.possui_snapshot ? ' • FECHADO' : ' • PRÉVIA'}`}
+                  </option>
+                ))}
               </select>
               <button onClick={() => setVisaoHistorico('lancar')} disabled={carregandoHistorico} className="bg-[#fff7ed] text-[#ff6f03] font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2 disabled:opacity-60"><Upload size={18} /> Lançar ciclo</button>
               <button onClick={() => carregarHistoricoCiclo()} disabled={!cicloHistoricoSelecionado || carregandoHistorico} className="bg-[#e6f6f7] text-[#048187] font-black rounded-lg px-4 py-3 inline-flex items-center justify-center gap-2 disabled:opacity-60"><RefreshCcw size={18} /> Atualizar</button>
@@ -8401,8 +14576,23 @@ const enviarArquivo = async (tipo) => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
                 <div>
-                  <h2 className="font-black text-gray-700 text-lg">Ciclo {resumo.ciclo}</h2>
-                  <p className="text-xs text-gray-400 font-bold">Fechado em {fmtDataHora(resumo.fechado_em)} por {resumo.fechado_por || '-'}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="font-black text-gray-700 text-lg">
+                      Ciclo {resumo.ciclo}
+                    </h2>
+                    <span className={`rounded-full px-3 py-1 text-[10px] font-black ${
+                      historicoEhPrevia
+                        ? 'bg-[#fff7ed] text-[#ff6f03]'
+                        : 'bg-[#e6f6f7] text-[#048187]'
+                    }`}>
+                      {historicoEhPrevia ? 'PRÉVIA ATUAL' : 'FECHADO'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 font-bold mt-1">
+                    {historicoEhPrevia
+                      ? `Atualizado em ${fmtDataHora(dadosResumoHistorico?.gerado_em)}`
+                      : `Fechado em ${fmtDataHora(resumo.fechado_em)} por ${resumo.fechado_por || '-'}`}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <span className="bg-[#e6f6f7] text-[#048187] rounded-full px-3 py-1 text-xs font-black">{resumo.qtd_estruturas || 0} estruturas</span>
@@ -8411,18 +14601,15 @@ const enviarArquivo = async (tipo) => {
                 </div>
               </div>
 
-              <div className="overflow-x-auto pb-2">
-                <div className="grid grid-cols-9 gap-3 min-w-[1350px]">
-                  <CardMini titulo="Faturamento" valor={formatarAbrev(resumo.faturamento_total)} percentual={resumo.percentual_faturamento} labelMeta="Meta" valorMeta={formatarMoeda(resumo.meta_faturamento_total)} />
-                  <CardMini titulo="Atividade" valor={Number(resumo.atividade_total || 0).toLocaleString('pt-BR')} percentual={resumo.percentual_atividade} labelMeta="Meta" valorMeta={Number(resumo.meta_atividade_total || 0).toLocaleString('pt-BR')} />
-                  <CardMini titulo="MAKE" valor={Number(resumo.make_total || 0).toLocaleString('pt-BR')} percentual={resumo.percentual_make} labelMeta="Meta" valorMeta={Number(resumo.meta_make_total || 0).toLocaleString('pt-BR')} />
-                  <CardMini titulo="CABELO" valor={Number(resumo.cabelo_total || 0).toLocaleString('pt-BR')} percentual={resumo.percentual_cabelo} labelMeta="Meta" valorMeta={Number(resumo.meta_cabelo_total || 0).toLocaleString('pt-BR')} />
-                  <CardMini titulo="RPA" valor={formatarAbrev(resumo.rpa_total)} labelMeta="Meta" valorMeta={formatarMoeda(resumo.meta_rpa_total)} />
-                  <CardMini titulo="Ticket médio" valor={formatarAbrev(resumo.ticket_medio_total)} labelMeta="Meta" valorMeta={formatarMoeda(resumo.meta_ticket_medio_total)} />
-                  <CardMini titulo="UPA" valor={Number(resumo.upa_total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} labelMeta="Meta" valorMeta={Number(resumo.meta_upa_total || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} />
-                  <CardMini titulo="Pedidos" valor={Number(resumo.qtd_pedidos || 0).toLocaleString('pt-BR')} labelMeta="Cancelados" valorMeta={Number(estruturas.reduce((acc, e) => acc + Number(e.cancelados || 0), 0)).toLocaleString('pt-BR')} />
-                  <CardMini titulo="Revendedores" valor={Number(resumo.qtd_revendedores_ativos || 0).toLocaleString('pt-BR')} labelMeta="Consultores" valorMeta={Number(resumo.qtd_consultores || 0).toLocaleString('pt-BR')} />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <CardMini titulo="Valor praticado" valor={formatarMoeda(resumo.faturamento_total)} percentual={resumo.percentual_faturamento} labelMeta="Meta" valorMeta={formatarMoeda(resumo.meta_faturamento_total)} />
+                <CardMini titulo="Valor líquido" valor={formatarMoeda(valorLiquidoTotalHistorico)} labelMeta="Pedidos" valorMeta={Number(resumo.qtd_pedidos || 0).toLocaleString('pt-BR')} />
+                <CardMini titulo="Atividade" valor={Number(resumo.atividade_total || 0).toLocaleString('pt-BR')} percentual={resumo.percentual_atividade} labelMeta="Base ativa" valorMeta={Number(baseAtivaTotalHistorico || 0).toLocaleString('pt-BR')} />
+                <CardMini titulo="RPA" valor={formatarMoeda(resumo.rpa_total)} labelMeta="Atividade" valorMeta={`${Number(resumo.percentual_atividade || 0).toFixed(1)}%`} />
+                <CardMini titulo="Ticket médio" valor={formatarMoeda(resumo.ticket_medio_total)} labelMeta="Pedidos" valorMeta={Number(resumo.qtd_pedidos || 0).toLocaleString('pt-BR')} />
+                <CardMini titulo="UPA" valor={Number(resumo.upa_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} labelMeta="Itens por ativo" valorMeta="Ciclo fechado" />
+                <CardMini titulo="Meta do ciclo" valor={formatarMoeda(resumo.meta_faturamento_total)} labelMeta="Atingimento" valorMeta={`${Number(resumo.percentual_faturamento || 0).toFixed(1)}%`} />
+                <CardMini titulo="Estruturas" valor={Number(resumo.qtd_estruturas || 0).toLocaleString('pt-BR')} labelMeta="Núcleos" valorMeta={nucleosHistorico.map((item) => item.nucleo).join(' · ')} />
               </div>
             </div>
 
@@ -8430,20 +14617,128 @@ const enviarArquivo = async (tipo) => {
               <div className="p-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                 <div>
                   <h3 className="font-black text-gray-700">Detalhamento do ciclo</h3>
-                  <p className="text-xs text-gray-400 font-bold">Dados salvos no fechamento do ciclo {resumo.ciclo}.</p>
+                  <p className="text-xs text-gray-400 font-bold">
+                    {historicoEhPrevia
+                      ? `Dados atuais do ciclo ${resumo.ciclo}.`
+                      : `Dados salvos no fechamento do ciclo ${resumo.ciclo}.`}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {abasHistorico.map((aba) => (
-                    <button key={aba.id} onClick={() => setVisaoHistorico(aba.id)} className={`px-3 py-2 rounded-lg text-xs font-black transition-colors ${visaoHistorico === aba.id ? 'bg-[#048187] text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>{aba.id === 'lancar' ? aba.label : `${aba.label} (${aba.total})`}</button>
+                    <button key={aba.id} onClick={() => setVisaoHistorico(aba.id)} className={`px-3 py-2 rounded-lg text-xs font-black transition-colors ${visaoHistorico === aba.id ? 'bg-[#048187] text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>{['lancar', 'resumo'].includes(aba.id) ? aba.label : `${aba.label} (${aba.total})`}</button>
                   ))}
                 </div>
               </div>
 
+              {visaoHistorico === 'resumo' && (
+                <div className="p-5 space-y-5 bg-[#f7fafb]">
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                    {nucleosHistorico.map((nucleo) => (
+                      <div key={nucleo.nucleo} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="bg-[#048187] px-5 py-4 text-white flex items-center justify-between">
+                          <h4 className="font-black text-lg">{nucleo.nucleo}</h4>
+                          <span className="text-xs font-black bg-white/15 rounded-full px-3 py-1">{nucleo.estruturas.length} estruturas</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-px bg-gray-100">
+                          <div className="bg-white p-4"><p className="text-[10px] font-black uppercase text-gray-400">Valor praticado</p><p className="mt-1 font-black text-[#048187]">{formatarMoeda(nucleo.valorPraticado)}</p></div>
+                          <div className="bg-white p-4"><p className="text-[10px] font-black uppercase text-gray-400">Valor líquido</p><p className="mt-1 font-black text-gray-700">{formatarMoeda(nucleo.valorLiquido)}</p></div>
+                          <div className="bg-white p-4"><p className="text-[10px] font-black uppercase text-gray-400">Meta</p><p className="mt-1 font-black text-[#7c1f31]">{formatarMoeda(nucleo.meta)}</p></div>
+                          <div className="bg-white p-4"><p className="text-[10px] font-black uppercase text-gray-400">Atingimento</p><p className="mt-1 font-black" style={{ color: corPorFaixaMeta(nucleo.percentualMeta) }}>{nucleo.percentualMeta.toFixed(1)}%</p></div>
+                          <div className="bg-white p-4"><p className="text-[10px] font-black uppercase text-gray-400">Atividade</p><p className="mt-1 font-black text-gray-700">{nucleo.atividade.toLocaleString('pt-BR')} / {nucleo.baseAtiva.toLocaleString('pt-BR')}</p><p className="text-[10px] font-black text-[#048187]">{nucleo.percentualAtividade.toFixed(1)}%</p></div>
+                          <div className="bg-white p-4"><p className="text-[10px] font-black uppercase text-gray-400">RPA</p><p className="mt-1 font-black text-gray-700">{formatarMoeda(nucleo.rpa)}</p></div>
+                          <div className="bg-white p-4"><p className="text-[10px] font-black uppercase text-gray-400">Ticket médio</p><p className="mt-1 font-black text-gray-700">{formatarMoeda(nucleo.ticketMedio)}</p></div>
+                          <div className="bg-white p-4"><p className="text-[10px] font-black uppercase text-gray-400">UPA</p><p className="mt-1 font-black text-gray-700">{nucleo.upa.toFixed(2)}</p></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {nucleosHistorico.map((nucleo) => (
+                    <div key={`tabela-${nucleo.nucleo}`} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h4 className="font-black text-gray-700">Estruturas do {nucleo.nucleo}</h4>
+                        <span className="text-xs font-black text-[#048187]">{nucleo.estruturas.length} estruturas</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[1450px] text-sm">
+                          <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                            <tr>
+                              <th className="px-5 py-3 text-left">Estrutura</th>
+                              <th className="px-5 py-3 text-right">Valor praticado</th>
+                              <th className="px-5 py-3 text-right">Valor líquido</th>
+                              <th className="px-5 py-3 text-right">Meta</th>
+                              <th className="px-5 py-3 text-right">% Meta</th>
+                              <th className="px-5 py-3 text-right">Ativados</th>
+                              <th className="px-5 py-3 text-right">Base ativa</th>
+                              <th className="px-5 py-3 text-right">% Atividade</th>
+                              <th className="px-5 py-3 text-right">RPA</th>
+                              <th className="px-5 py-3 text-right">Ticket médio</th>
+                              <th className="px-5 py-3 text-right">UPA</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {nucleo.estruturas.map((item) => (
+                              <tr key={`${nucleo.nucleo}-${item.estrutura}`} className="hover:bg-[#f8fcfc]">
+                                <td className="px-5 py-3 font-black text-gray-700">{item.estrutura}</td>
+                                <td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td>
+                                <td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.valor_liquido)}</td>
+                                <td className="px-5 py-3 text-right font-bold text-[#7c1f31]">{formatarMoeda(item.meta_faturamento)}</td>
+                                <td className="px-5 py-3 text-right font-black" style={{ color: corPorFaixaMeta(Number(item.percentual_realizado || 0)) }}>{Number(item.percentual_realizado || 0).toFixed(1)}%</td>
+                                <td className="px-5 py-3 text-right font-bold text-gray-600">{Number(item.atividade || 0).toLocaleString('pt-BR')}</td>
+                                <td className="px-5 py-3 text-right font-bold text-gray-600">{Number(item.base_ativa || 0).toLocaleString('pt-BR')}</td>
+                                <td className="px-5 py-3 text-right font-black text-[#048187]">{Number(item.percentual_atividade || 0).toFixed(1)}%</td>
+                                <td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.rpa)}</td>
+                                <td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.ticket_medio)}</td>
+                                <td className="px-5 py-3 text-right font-bold text-gray-600">{Number(item.upa || 0).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {visaoHistorico === 'estruturas' && (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left min-w-[1250px]"><thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3">Rank</th><th className="px-5 py-3">Estrutura</th><th className="px-5 py-3 text-right">Realizado</th><th className="px-5 py-3 text-right">Meta</th><th className="px-5 py-3 text-right">% Fat.</th><th className="px-5 py-3 text-right">Pedidos</th><th className="px-5 py-3 text-right">Ativ.</th><th className="px-5 py-3 text-right">MAKE</th><th className="px-5 py-3 text-right">CABELO</th><th className="px-5 py-3 text-right">RPA</th><th className="px-5 py-3 text-right">Tkt</th><th className="px-5 py-3 text-right">UPA</th></tr></thead>
-                    <tbody className="divide-y divide-gray-100 text-sm">{estruturas.map((e, i) => (<tr key={`${e.estrutura}-${i}`} className="hover:bg-[#f7fafb]"><td className="px-5 py-3 font-black text-[#048187]">#{e.ranking_faturamento || i + 1}</td><td className="px-5 py-3 font-black text-gray-700 max-w-[260px] truncate">{e.estrutura}</td><td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(e.realizado)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(e.meta_faturamento)}</td><td className="px-5 py-3 text-right font-black text-gray-700">{fmtPerc(e.percentual_realizado)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{e.pedidos || 0}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{e.atividade || 0}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{e.make || 0} <span className="text-gray-400">({fmtPerc(e.percentual_make)})</span></td><td className="px-5 py-3 text-right font-bold text-gray-600">{e.cabelo || 0} <span className="text-gray-400">({fmtPerc(e.percentual_cabelo)})</span></td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(e.rpa)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(e.ticket_medio)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(e.upa || 0).toFixed(2)}</td></tr>))}</tbody></table>
-                  {!estruturas.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma estrutura salva nesse ciclo.</div>}
+                  <table className="w-full text-left min-w-[1500px]">
+                    <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                      <tr>
+                        <th className="px-5 py-3">Núcleo</th>
+                        <th className="px-5 py-3">Estrutura</th>
+                        <th className="px-5 py-3 text-right">Valor praticado</th>
+                        <th className="px-5 py-3 text-right">Valor líquido</th>
+                        <th className="px-5 py-3 text-right">Meta</th>
+                        <th className="px-5 py-3 text-right">% Meta</th>
+                        <th className="px-5 py-3 text-right">Ativados</th>
+                        <th className="px-5 py-3 text-right">Base ativa</th>
+                        <th className="px-5 py-3 text-right">% Atividade</th>
+                        <th className="px-5 py-3 text-right">RPA</th>
+                        <th className="px-5 py-3 text-right">Ticket médio</th>
+                        <th className="px-5 py-3 text-right">UPA</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">
+                      {estruturasComDetalhes.map((item) => (
+                        <tr key={item.estrutura} className="hover:bg-[#f7fafb]">
+                          <td className="px-5 py-3"><span className="rounded-full bg-[#e6f6f7] text-[#048187] px-2.5 py-1 text-[10px] font-black">{item.nucleo}</span></td>
+                          <td className="px-5 py-3 font-black text-gray-700">{item.estrutura}</td>
+                          <td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td>
+                          <td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.valor_liquido)}</td>
+                          <td className="px-5 py-3 text-right font-bold text-[#7c1f31]">{formatarMoeda(item.meta_faturamento)}</td>
+                          <td className="px-5 py-3 text-right font-black" style={{ color: corPorFaixaMeta(Number(item.percentual_realizado || 0)) }}>{Number(item.percentual_realizado || 0).toFixed(1)}%</td>
+                          <td className="px-5 py-3 text-right font-bold text-gray-600">{Number(item.atividade || 0).toLocaleString('pt-BR')}</td>
+                          <td className="px-5 py-3 text-right font-bold text-gray-600">{Number(item.base_ativa || 0).toLocaleString('pt-BR')}</td>
+                          <td className="px-5 py-3 text-right font-black text-[#048187]">{Number(item.percentual_atividade || 0).toFixed(1)}%</td>
+                          <td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.rpa)}</td>
+                          <td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.ticket_medio)}</td>
+                          <td className="px-5 py-3 text-right font-bold text-gray-600">{Number(item.upa || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!estruturasComDetalhes.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma estrutura salva nesse ciclo.</div>}
                 </div>
               )}
 
@@ -8465,8 +14760,8 @@ const enviarArquivo = async (tipo) => {
 
               {visaoHistorico === 'metas' && (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left min-w-[1050px]"><thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3">Meta</th><th className="px-5 py-3">Tipo</th><th className="px-5 py-3 text-right">Faturamento</th><th className="px-5 py-3 text-right">Atividade</th><th className="px-5 py-3 text-right">MAKE</th><th className="px-5 py-3 text-right">CABELO</th><th className="px-5 py-3 text-right">RPA</th><th className="px-5 py-3 text-right">Tkt</th><th className="px-5 py-3 text-right">UPA</th><th className="px-5 py-3 text-right">Estruturas</th></tr></thead>
-                    <tbody className="divide-y divide-gray-100 text-sm">{metas.map((m, i) => (<tr key={`${m.nome_meta}-${i}`} className="hover:bg-[#f7fafb]"><td className="px-5 py-3 font-black text-gray-700 max-w-[260px] truncate">{m.nome_meta}</td><td className="px-5 py-3 font-bold text-gray-500">{m.tipo_meta}</td><td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(m.meta_faturamento)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_atividade || 0).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_make || 0).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_cabelo || 0).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_rpa)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_ticket_medio)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_upa || 0).toFixed(2)}</td><td className="px-5 py-3 text-right font-black text-gray-700">{qtdEstruturasMeta(m)}</td></tr>))}</tbody></table>
+                  <table className="w-full text-left min-w-[1050px]"><thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3">Meta</th><th className="px-5 py-3">Tipo</th><th className="px-5 py-3 text-right">Faturamento</th><th className="px-5 py-3 text-right">Atividade</th><th className="px-5 py-3 text-right">MAKE</th><th className="px-5 py-3 text-right">CABELO</th><th className="px-5 py-3 text-right">MULTIMARCAS</th><th className="px-5 py-3 text-right">RPA</th><th className="px-5 py-3 text-right">Tkt</th><th className="px-5 py-3 text-right">UPA</th><th className="px-5 py-3 text-right">Estruturas</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">{metas.map((m, i) => (<tr key={`${m.nome_meta}-${i}`} className="hover:bg-[#f7fafb]"><td className="px-5 py-3 font-black text-gray-700 max-w-[260px] truncate">{m.nome_meta}</td><td className="px-5 py-3 font-bold text-gray-500">{m.tipo_meta}</td><td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(m.meta_faturamento)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_atividade || 0).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_make || 0).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_cabelo || 0).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_multimarcas || 76).toFixed(1)}%</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_rpa)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(m.meta_ticket_medio)}</td><td className="px-5 py-3 text-right font-bold text-gray-600">{Number(m.meta_upa || 0).toFixed(2)}</td><td className="px-5 py-3 text-right font-black text-gray-700">{qtdEstruturasMeta(m)}</td></tr>))}</tbody></table>
                   {!metas.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma meta real salva nesse ciclo.</div>}
                 </div>
               )}
@@ -8487,6 +14782,8 @@ const enviarArquivo = async (tipo) => {
     const resumo = dadosLoja?.resumo || {};
     const unidades = dadosLoja?.unidades || [];
     const consultoras = dadosLoja?.consultoras || [];
+    const servicosPdv = dadosLoja?.servicos_pdv || [];
+    const servicosConsultores = dadosLoja?.servicos_consultores || [];
     const cicloAtualLoja = cicloLojaSelecionado();
     const abaLoja = telaAtual === 'LojaCadastro' ? 'cadastro' : telaAtual === 'LojaRanking' ? 'ranking' : 'geral';
     const busca = String(buscaLoja || '').toLowerCase();
@@ -8504,6 +14801,43 @@ const enviarArquivo = async (tipo) => {
       const okUnidade = !filtroUnidadeLoja || String(c.codigo_pdv_oficial) === filtroUnidadeLoja;
       const okConsultora = !filtroConsultoraLoja || String(c.id_consultora) === filtroConsultoraLoja;
       return okBusca && okUnidade && okConsultora;
+    });
+
+    const normalizarNomeLojaFront = (valor) => String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
+    const consultorSelecionadoLoja = consultoras.find(
+      (item) => String(item.id_consultora) === filtroConsultoraLoja
+    );
+    const nomeConsultorSelecionadoLoja = normalizarNomeLojaFront(
+      consultorSelecionadoLoja?.nome_consultora
+    );
+
+    const servicosPdvFiltrados = servicosPdv.filter((item) => {
+      const texto = `${item.codigo_pdv} ${item.cidade} ${item.nome_loja}`.toLowerCase();
+      return (
+        (!busca || texto.includes(busca)) &&
+        (!filtroUnidadeLoja || String(item.codigo_pdv) === filtroUnidadeLoja)
+      );
+    });
+
+    const servicosConsultoresFiltrados = servicosConsultores.filter((item) => {
+      const texto = `${item.nome_consultor} ${item.codigo_pdv}`.toLowerCase();
+      const okConsultor = !filtroConsultoraLoja
+        || String(item.id_consultor || '') === filtroConsultoraLoja
+        || (
+          nomeConsultorSelecionadoLoja
+          && normalizarNomeLojaFront(item.nome_consultor) === nomeConsultorSelecionadoLoja
+        );
+
+      return (
+        (!busca || texto.includes(busca)) &&
+        (!filtroUnidadeLoja || String(item.codigo_pdv) === filtroUnidadeLoja) &&
+        okConsultor
+      );
     });
 
     const opcoesUnidadesLoja = unidades
@@ -8581,6 +14915,17 @@ const enviarArquivo = async (tipo) => {
       try { return new Date(valor).toLocaleString('pt-BR'); } catch (_) { return valor; }
     };
 
+    const formatarCompetenciaServicosLoja = (valor) => {
+      const texto = String(valor || '');
+      const partes = texto.split('-');
+      if (partes.length < 2) return texto || '-';
+      const data = new Date(Number(partes[0]), Number(partes[1]) - 1, 1);
+      return data.toLocaleDateString('pt-BR', {
+        month: 'long',
+        year: 'numeric'
+      });
+    };
+
     const abrirDetalheCardLoja = (titulo, linhas = [], formula = '') => {
       abrirModalValExp(
         titulo,
@@ -8589,6 +14934,38 @@ const enviarArquivo = async (tipo) => {
         linhas,
         formula
       );
+    };
+
+    const abrirDetalheVendaDiariaLoja = () => {
+      const pdvs = Array.isArray(
+        dadosLoja?.venda_diaria_pdvs
+      )
+        ? dadosLoja.venda_diaria_pdvs
+        : [];
+
+      const consultores = Array.isArray(
+        dadosLoja?.venda_diaria_consultores
+      )
+        ? dadosLoja.venda_diaria_consultores
+        : [];
+
+      setModalVendaDiariaLoja({
+        aberto: true,
+        total: Number(
+          resumoCardsLoja?.realizado_diario || 0
+        ),
+        meta: Number(
+          resumoCardsLoja?.meta_diaria || 0
+        ),
+        dataReferencia:
+          resumoCardsLoja?.data_referencia_diaria
+          || '',
+        pdvs,
+        consultores,
+        conferida: Boolean(
+          dadosLoja?.resumo?.venda_diaria_conferida
+        ),
+      });
     };
 
     const obterCampanhasCalendarioLoja = (dataBase) => {
@@ -8788,7 +15165,7 @@ const enviarArquivo = async (tipo) => {
           <thead>
             <tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black">
               <th className="py-3 px-3">ID</th>
-              <th className="py-3 px-3">Consultora</th>
+              <th className="py-3 px-3">Consultor</th>
               <th className="py-3 px-3">PDV oficial</th>
               <th className="py-3 px-3 text-right">Meta</th>
               <th className="py-3 px-3 text-right">Realizado consultora</th>
@@ -8826,7 +15203,83 @@ const enviarArquivo = async (tipo) => {
             ))}
           </tbody>
         </table>
-        {!lista.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma consultora encontrada.</div>}
+        {!lista.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhum consultor encontrado.</div>}
+      </div>
+    );
+
+    const TabelaServicosPdv = ({ lista = servicosPdvFiltrados }) => (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[860px] text-sm">
+          <thead>
+            <tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black">
+              <th className="py-3 px-3">PDV</th>
+              <th className="py-3 px-3">Loja</th>
+              <th className="py-3 px-3">Competência</th>
+              <th className="py-3 px-3 text-right">Meta mensal</th>
+              <th className="py-3 px-3 text-right">Realizado</th>
+              <th className="py-3 px-3 text-right">Faltam</th>
+              <th className="py-3 px-3 text-right">%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((item) => (
+              <tr key={`${item.competencia}-${item.codigo_pdv}`} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]">
+                <td className="py-3 px-3 font-black text-[#048187]">{item.codigo_pdv}</td>
+                <td className="py-3 px-3">
+                  <p className="font-black text-gray-700">{item.cidade || item.nome_loja || '-'}</p>
+                  <p className="text-[10px] text-gray-400 font-bold truncate max-w-[280px]">{item.nome_loja || '-'}</p>
+                </td>
+                <td className="py-3 px-3 font-bold text-gray-500 capitalize">{formatarCompetenciaServicosLoja(item.competencia)}</td>
+                <td className="py-3 px-3 text-right font-bold text-gray-600">{formatarNumeroBR(item.meta_mensal || 0, 0)}</td>
+                <td className="py-3 px-3 text-right font-black text-[#048187]">{formatarNumeroBR(item.realizado_mes || 0, 0)}</td>
+                <td className="py-3 px-3 text-right font-black text-[#7c1f31]">{Number(item.faltam || 0) > 0 ? formatarNumeroBR(item.faltam, 0) : 'Meta batida'}</td>
+                <td className="py-3 px-3 text-right font-black" style={{ color: corPorFaixaMeta(item.percentual || 0) }}>{formatarNumeroBR(item.percentual || 0, 1)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!lista.length && (
+          <div className="p-8 text-center text-gray-400 font-bold">
+            Nenhum serviço encontrado para os PDVs da meta neste mês.
+          </div>
+        )}
+      </div>
+    );
+
+    const TabelaServicosConsultores = ({ lista = servicosConsultoresFiltrados }) => (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[820px] text-sm">
+          <thead>
+            <tr className="text-left text-[10px] uppercase text-gray-400 border-b border-gray-100 font-black">
+              <th className="py-3 px-3">Posição</th>
+              <th className="py-3 px-3">Consultor</th>
+              <th className="py-3 px-3">PDV</th>
+              <th className="py-3 px-3">Competência</th>
+              <th className="py-3 px-3 text-right">Serviços realizados</th>
+              <th className="py-3 px-3 text-right">Participação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((item, indice) => (
+              <tr key={`${item.competencia}-${item.codigo_pdv}-${item.nome_consultor}`} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]">
+                <td className="py-3 px-3 font-black text-gray-500">{indice + 1}º</td>
+                <td className="py-3 px-3">
+                  <p className="font-black text-gray-700">{item.nome_consultor}</p>
+                  {item.id_consultor && <p className="text-[10px] text-gray-400 font-bold">ID {item.id_consultor}</p>}
+                </td>
+                <td className="py-3 px-3 font-black text-[#048187]">{item.codigo_pdv}</td>
+                <td className="py-3 px-3 font-bold text-gray-500 capitalize">{formatarCompetenciaServicosLoja(item.competencia)}</td>
+                <td className="py-3 px-3 text-right font-black text-[#048187]">{formatarNumeroBR(item.realizado_mes || 0, 0)}</td>
+                <td className="py-3 px-3 text-right font-black text-gray-600">{formatarNumeroBR(item.participacao || 0, 1)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!lista.length && (
+          <div className="p-8 text-center text-gray-400 font-bold">
+            Nenhum serviço por consultor encontrado neste mês.
+          </div>
+        )}
       </div>
     );
 
@@ -8857,13 +15310,25 @@ const enviarArquivo = async (tipo) => {
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-gray-700">Visão Geral LOJA</h1>
-            <p className="text-sm text-gray-400 font-bold mt-1">Acompanhamento por PDV e consultora.</p>
+            <p className="text-sm text-gray-400 font-bold mt-1">Acompanhamento por PDV e consultor.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {podeGerarRelatorioLoja && (
+              <button
+                type="button"
+                onClick={abrirModalRelatorioLoja}
+                disabled={carregandoLoja || !(dadosLoja?.unidades || []).length}
+                className="bg-[#712231] text-white px-4 py-2 rounded-lg font-black hover:bg-[#5d1c29] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                <FileSpreadsheet size={16} />
+                Gerar relatório em imagem
+              </button>
+            )}
+
             <select
-              value={cicloLoja || resumo.ciclo || ''}
-              onChange={(e) => { setCicloLoja(e.target.value); carregarDadosLoja(e.target.value); }}
+              value={cicloSelecionadoLoja || cicloLoja || resumo.ciclo || ''}
+              onChange={(e) => selecionarCicloVisualizacao(e.target.value, 'LOJA')}
               className="border border-gray-200 rounded-lg px-4 py-2 font-black text-gray-700 outline-none focus:border-[#048187] bg-white"
             >
               <option value="">Ciclo ativo</option>
@@ -8906,7 +15371,7 @@ const enviarArquivo = async (tipo) => {
 
             <button
               type="button"
-              disabled={carregandoLoja || !arquivosLojaUpload?.[tipo]}
+              disabled={carregandoLoja || !arquivosLojaUpload?.[tipo] || (usaCiclo && !cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA'))}
               onClick={() => importarBaseLojaUpload(tipo, endpoint, titulo, { usaCiclo, substituir, dataReferenciaHoje })}
               className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -8917,7 +15382,7 @@ const enviarArquivo = async (tipo) => {
           {permiteSgi && (
             <button
               type="button"
-              disabled={carregandoLoja || sgiLojaExecutando}
+              disabled={carregandoLoja || sgiLojaExecutando || (usaCiclo && !cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA'))}
               onClick={() => abrirModalAtualizacaoLojaSgi(tipoSgi)}
               className="mt-3 w-full bg-[#e6f6f7] text-[#048187] px-5 py-3 rounded-lg font-black hover:bg-[#d0f0f1] disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
             >
@@ -8926,7 +15391,7 @@ const enviarArquivo = async (tipo) => {
             </button>
           )}
 
-          {usaCiclo && <p className="text-xs text-gray-400 font-bold mt-3">Ciclo usado no upload: {cicloAtualLoja || '-'}</p>}
+          {usaCiclo && <p className="text-xs text-gray-400 font-bold mt-3">Ciclo usado no upload: {cicloUploadLoja || cicloAtualLoja || '-'}</p>}
           {dataReferenciaHoje && <p className="text-xs text-gray-400 font-bold mt-2">Data de referência: {new Date().toLocaleDateString('pt-BR')}</p>}
           {permiteSgi && <p className="text-[11px] text-gray-400 font-bold mt-2">{tipoSgi === 'skin' ? 'Baixa a base Skin/Botik na Extranet GI, envia ao banco, apaga o arquivo e fecha a aba.' : 'Baixa o acumulado do ciclo e a venda diária, envia ao banco, apaga os CSVs e fecha a aba do SGI.'}</p>}
         </div>
@@ -9017,7 +15482,7 @@ const enviarArquivo = async (tipo) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-bold text-gray-500">
                 <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
                   <span className="block text-gray-400 uppercase text-[9px] mb-1">Ciclo</span>
-                  {cicloAtualLoja || '-'}
+                  {cicloUploadLoja || cicloAtualLoja || '-'}
                 </div>
                 <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
                   <span className="block text-gray-400 uppercase text-[9px] mb-1">Destino</span>
@@ -9064,8 +15529,8 @@ const enviarArquivo = async (tipo) => {
       const modulosCadastroLoja = [
         {
           chave: 'consultoras',
-          titulo: 'Consultoras',
-          descricao: 'Cadastre, edite e apague consultoras com ID e PDV oficial.',
+          titulo: 'Consultores',
+          descricao: 'Cadastre, edite e apague consultores com ID e PDV oficial.',
           icone: Users,
           destaque: true
         },
@@ -9142,7 +15607,29 @@ const enviarArquivo = async (tipo) => {
       if (visaoCadastroLoja === 'bases') {
         return (
           <div className="space-y-6 animate-fade-in">
-            <CabecalhoSubCadastroLoja titulo="Bases de vendas e Skin" descricao="Use apenas para atualizar o realizado da LOJA. Cadastros e metas são lançados nas telas próprias." />
+            <CabecalhoSubCadastroLoja titulo="Bases de vendas e Skin" descricao="Selecione o ciclo de destino. Ciclos fechados ficam disponíveis apenas para consulta." />
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
+              <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
+                <div className="w-full xl:max-w-sm">
+                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Ciclo de destino da LOJA</label>
+                  <select value={cicloUploadLoja || cicloAtualLoja} onChange={(e) => { setCicloUploadLoja(e.target.value); localStorage.setItem(CICLO_UPLOAD_LOJA_STORAGE_KEY, e.target.value); }} className="w-full border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187]">
+                    {ciclos.map((item) => <option key={item.id || item.ciclo} value={item.ciclo}>{item.ciclo}{item.eh_atual ? ' • atual' : ''}{obterStatusCicloArea(item.ciclo, 'LOJA') === 'fechado' ? ' • fechado' : ' • aberto'}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  {cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA') ? (
+                    perfilPodeFecharCiclo && <button type="button" disabled={alterandoStatusCiclo} onClick={() => atualizarStatusOperacionalCiclo('LOJA', 'fechar')} className="bg-[#712231] text-white px-4 py-3 rounded-lg font-black disabled:opacity-50"><Save size={16} className="inline mr-2" />Fechar ciclo</button>
+                  ) : (
+                    perfilPodeReabrirCiclo && <button type="button" disabled={alterandoStatusCiclo} onClick={() => atualizarStatusOperacionalCiclo('LOJA', 'reabrir')} className="bg-[#048187] text-white px-4 py-3 rounded-lg font-black disabled:opacity-50"><RefreshCcw size={16} className="inline mr-2" />Reabrir</button>
+                  )}
+                </div>
+              </div>
+              <div className={`mt-4 rounded-xl px-4 py-3 text-sm font-bold ${cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA') ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                {cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA')
+                  ? `O ciclo ${cicloUploadLoja || cicloAtualLoja || '-'} está aberto para uploads da LOJA.`
+                  : `O ciclo ${cicloUploadLoja || cicloAtualLoja || '-'} está fechado. Novos uploads da LOJA estão bloqueados.`}
+              </div>
+            </div>
             <ModalAtualizacaoSgiLoja />
             {sgiLojaExecutando && !modalSgiLojaAberto && (
               <div className="rounded-2xl border border-[#bde7ea] bg-[#f2fbfc] px-5 py-4 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -9197,6 +15684,15 @@ const enviarArquivo = async (tipo) => {
                 substituir
                 permiteSgi
                 tipoSgi="skin"
+              />
+
+              <ModuloUploadLoja
+                titulo="Base mensal de Serviços"
+                descricao="Importe o Excel com as abas PDV e CONSULTOR. A DATA REALIZACAO deve estar em AAAA-MM-DD, como 2026-07-11. O arquivo deve conter somente um mês."
+                tipo="servicos"
+                endpoint="/loja/upload-servicos"
+                substituir
+                aceitar=".xlsx,.xls"
               />
             </div>
           </div>
@@ -9268,7 +15764,7 @@ const enviarArquivo = async (tipo) => {
       if (visaoCadastroLoja === 'consultoras') {
         return (
           <div className="space-y-6 animate-fade-in">
-            <CabecalhoSubCadastroLoja titulo="Cadastro de consultoras" descricao="Cadastre, edite ou apague consultoras. O ID é o número antes do nome na base de vendas." />
+            <CabecalhoSubCadastroLoja titulo="Cadastro de consultores" descricao="Cadastre, edite ou apague consultores. O ID é o número antes do nome na base de vendas." />
 
             <form onSubmit={salvarConsultoraLoja} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
               <h2 className="text-lg font-black text-gray-700 mb-4">Dados da consultora</h2>
@@ -9293,16 +15789,17 @@ const enviarArquivo = async (tipo) => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="p-5 border-b border-gray-100 flex justify-between items-center">
                 <div>
-                  <h2 className="text-lg font-black text-gray-700">Consultoras cadastradas</h2>
-                  <p className="text-xs font-bold text-gray-400 mt-1">{consultoras.length} consultoras</p>
+                  <h2 className="text-lg font-black text-gray-700">Consultores cadastrados</h2>
+                  <p className="text-xs font-bold text-gray-400 mt-1">{consultoras.length} consultores</p>
                 </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[950px] text-sm">
                   <thead className="bg-[#f3fbfb] text-[10px] uppercase text-gray-400 font-black">
                     <tr>
+                      <th className="py-3 px-4 text-left">Foto</th>
                       <th className="py-3 px-4 text-left">ID</th>
-                      <th className="py-3 px-4 text-left">Consultora</th>
+                      <th className="py-3 px-4 text-left">Consultor</th>
                       <th className="py-3 px-4 text-left">PDV oficial</th>
                       <th className="py-3 px-4 text-right">Realizado</th>
                       <th className="py-3 px-4 text-center">Status</th>
@@ -9312,12 +15809,14 @@ const enviarArquivo = async (tipo) => {
                   <tbody>
                     {consultoras.map((c) => (
                       <tr key={c.id_consultora} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-4 px-4"><button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'LOJA', id_colaborador: c.id_consultora, nome_oficial: c.nome_consultora, codigo_contexto: c.codigo_pdv_oficial || '', foto_data_url: c.foto_data_url, aliases: c.aliases })} title="Foto e nomes alternativos"><AvatarColaborador src={obterFotoColaborador('LOJA', c.id_consultora, c.foto_data_url)} nome={c.nome_consultora} tamanho={42} /></button></td>
                         <td className="py-4 px-4 font-black text-[#048187]">{c.id_consultora}</td>
                         <td className="py-4 px-4 font-black text-gray-700">{c.nome_consultora}</td>
                         <td className="py-4 px-4 font-bold text-gray-500">{c.codigo_pdv_oficial}</td>
                         <td className="py-4 px-4 text-right font-black text-[#048187]">{formatarMoeda(c.realizado || 0)}</td>
                         <td className="py-4 px-4 text-center"><span className="rounded-full bg-[#e6f6f7] px-3 py-1 text-[10px] font-black text-[#048187]">{c.status_consultora || 'ativo'}</span></td>
                         <td className="py-4 px-4 text-right">
+                          {podeGerenciarIdentidadeColaborador('LOJA') && <button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'LOJA', id_colaborador: c.id_consultora, nome_oficial: c.nome_consultora, codigo_contexto: c.codigo_pdv_oficial || '', foto_data_url: c.foto_data_url, aliases: c.aliases })} className="text-[#257B9C] hover:text-[#1f6884] mr-3" title="Foto e nomes alternativos"><ImagePlus size={17} /></button>}
                           <button type="button" onClick={() => editarConsultoraLoja(c)} className="text-[#048187] hover:text-[#036b70] mr-3" title="Editar"><Pencil size={17} /></button>
                           <button type="button" onClick={() => excluirConsultoraLoja(c.id_consultora)} className="text-red-500 hover:text-red-600" title="Apagar"><Trash2 size={17} /></button>
                         </td>
@@ -9325,7 +15824,7 @@ const enviarArquivo = async (tipo) => {
                     ))}
                   </tbody>
                 </table>
-                {!consultoras.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhuma consultora cadastrada.</div>}
+                {!consultoras.length && <div className="p-8 text-center text-gray-400 font-bold">Nenhum consultor cadastrado.</div>}
               </div>
             </div>
           </div>
@@ -9480,8 +15979,8 @@ const enviarArquivo = async (tipo) => {
             <div className={`${tabelaCadastroLojaExpandida === 'metas_consultora' ? 'fixed inset-3 md:inset-5 z-[99999] bg-white rounded-xl shadow-2xl border border-[#d9eff0] overflow-auto' : 'bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden'}`}>
               <div className="p-5 border-b border-gray-100 flex items-center justify-between gap-3 bg-white sticky top-0 z-10">
                 <div>
-                  <h2 className="text-lg font-black text-gray-700">Metas das consultoras</h2>
-                  <p className="text-xs font-bold text-gray-400 mt-1">{consultoras.length} consultoras cadastradas</p>
+                  <h2 className="text-lg font-black text-gray-700">Metas dos consultores</h2>
+                  <p className="text-xs font-bold text-gray-400 mt-1">{consultoras.length} consultores cadastrados</p>
                 </div>
                 <button
                   type="button"
@@ -9498,7 +15997,7 @@ const enviarArquivo = async (tipo) => {
                   <thead className="bg-[#f3fbfb] text-[10px] uppercase text-gray-400 font-black">
                     <tr>
                       <th className="py-3 px-4 text-left">ID</th>
-                      <th className="py-3 px-4 text-left">Consultora</th>
+                      <th className="py-3 px-4 text-left">Consultor</th>
                       <th className="py-3 px-4 text-left">PDV</th>
                       <th className="py-3 px-4 text-right">Meta fat.</th>
                       <th className="py-3 px-4 text-right">Realizado</th>
@@ -9571,8 +16070,8 @@ const enviarArquivo = async (tipo) => {
       if (visaoCadastroLoja === 'servicos') {
         return (
           <div className="space-y-6 animate-fade-in">
-            <CabecalhoSubCadastroLoja titulo="Serviços da LOJA" descricao="Por enquanto, serviços pode ser atualizado por upload até criarmos o lançamento manual detalhado." />
-            <ModuloUploadLoja titulo="Upload de serviços" descricao="Meta e realizado de serviços por unidade." tipo="servicos" endpoint="/loja/upload-servicos" usaCiclo />
+            <CabecalhoSubCadastroLoja titulo="Serviços mensais da LOJA" descricao="Importe a planilha com as abas PDV e CONSULTOR. A competência vem da DATA REALIZACAO e não depende do ciclo." />
+            <ModuloUploadLoja titulo="Base mensal de Serviços" descricao="Colunas esperadas na aba PDV: PDV, UN, NOME DO SERVICO, DATA REALIZACAO e QUANTIDADE DE SERVICOS COMPLETOS. A aba CONSULTOR também deve conter CONSULTOR." tipo="servicos" endpoint="/loja/upload-servicos" substituir aceitar=".xlsx,.xls" />
           </div>
         );
       }
@@ -9583,7 +16082,7 @@ const enviarArquivo = async (tipo) => {
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Cadastro LOJA</h1>
-                <p className="text-sm text-gray-400 font-semibold">Cadastre consultoras, unidades e metas manualmente, no mesmo padrão de trabalho da aba Cadastro do VD.</p>
+                <p className="text-sm text-gray-400 font-semibold">Cadastre consultores, unidades e metas manualmente, no mesmo padrão de trabalho da aba Cadastro do VD.</p>
               </div>
               <button type="button" onClick={fecharCicloHistoricoLoja} className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] inline-flex items-center justify-center gap-2">
                 <Save size={17} /> Salvar ciclo no histórico
@@ -9624,6 +16123,10 @@ const enviarArquivo = async (tipo) => {
       <div className="space-y-6 animate-fade-in">
         <AvisosLoja />
 
+        {!carregandoLoja && abaLoja === 'geral' && (
+          <LojaHeader />
+        )}
+
         {carregandoLoja && <DashboardSkeletons />}
 
         {!carregandoLoja && abaLoja === 'cadastro' && CadastroLoja()}
@@ -9635,7 +16138,7 @@ const enviarArquivo = async (tipo) => {
         )}
 
         {!carregandoLoja && abaLoja === 'consultoras' && (
-          <BlocoTabelaLoja titulo="Resultado por consultora" subtitulo="Todas as vendas da consultora entram para a meta dela, mesmo em outro PDV." tipo="consultoras">
+          <BlocoTabelaLoja titulo="Resultado por consultor" subtitulo="Todas as vendas do consultor entram para a meta dele, mesmo em outro PDV." tipo="consultoras">
             <TabelaConsultoras />
           </BlocoTabelaLoja>
         )}
@@ -9645,6 +16148,8 @@ const enviarArquivo = async (tipo) => {
             ? consultorasFiltradas.map((c) => ({
                 id_colaborador: c.id_consultora,
                 nome: c.nome_consultora,
+                foto_data_url: obterFotoColaborador('LOJA', c.id_consultora, c.foto_data_url),
+                tipo_colaborador: true,
                 estrutura: `${c.codigo_pdv_oficial || '-'} • ${formatarNumeroBR(c.qtd_boletos || 0, 0)} boletos`,
                 realizado: Number(c.realizado || 0),
                 meta_faturamento: Number(c.meta_faturamento || 0),
@@ -9680,15 +16185,34 @@ const enviarArquivo = async (tipo) => {
                 percentual_servicos: calcPerc(u.realizado_servicos_mes || 0, u.meta_servicos_mes || 0)
               }));
 
+          const rankingServicosPdv = servicosPdvFiltrados.map((item) => ({
+            id_colaborador: item.codigo_pdv,
+            nome: `${item.codigo_pdv} - ${item.cidade || item.nome_loja || 'PDV'}`,
+            estrutura: `Meta mensal ${formatarNumeroBR(item.meta_mensal || 25, 0)}`,
+            realizado_servicos_mes: Number(item.realizado_mes || 0),
+            percentual_servicos: Number(item.percentual || 0)
+          }));
+
+          const rankingServicosConsultores = servicosConsultoresFiltrados.map((item) => ({
+            id_colaborador: item.id_consultor || `${item.codigo_pdv}-${item.nome_consultor}`,
+            nome: item.nome_consultor,
+            foto_data_url: obterFotoColaborador('LOJA', item.id_consultor),
+            tipo_colaborador: true,
+            estrutura: `PDV ${item.codigo_pdv}`,
+            realizado_servicos_mes: Number(item.realizado_mes || 0),
+            participacao_servicos: Number(item.participacao || 0)
+          }));
+
           const topFatLoja = [...rankingBaseLoja].sort((a, b) => Number(b.percentual_faturamento || 0) - Number(a.percentual_faturamento || 0));
           const podioLoja = [topFatLoja[1], topFatLoja[0], topFatLoja[2]];
-          const tituloVisaoLoja = visaoRanking === 'consultores' ? 'Consultoras' : 'Unidades';
+          const tituloVisaoLoja = visaoRanking === 'consultores' ? 'Consultores' : 'Unidades';
 
           const blocoPodioLoja = (item, posicao, classeAltura, classeBox) => (
             <div className="flex flex-col items-center justify-end min-w-0">
               {item && (
                 <div className="mb-3 w-full rounded-2xl bg-white border border-gray-100 px-3 py-3 text-center min-h-[96px] flex flex-col items-center justify-center">
                   <span className="text-[10px] font-black uppercase tracking-wide" style={{ color: posicao === 1 ? '#f0b400' : posicao === 2 ? '#6b7280' : '#ff6f03' }}>{posicao}º lugar</span>
+                  {visaoRanking === 'consultores' && <div className="mt-2"><AvatarColaborador src={item.foto_data_url} nome={item.nome} tamanho={posicao === 1 ? 68 : 56} borda={posicao === 1 ? '#facc15' : posicao === 2 ? '#94a3b8' : '#fb923c'} /></div>}
                   <p className="mt-1 text-sm font-black text-gray-700 leading-tight line-clamp-2" title={item.nome}>{item.nome}</p>
                   <p className="mt-1 text-lg font-black" style={{ color: corPorFaixaMeta(item.percentual_faturamento || 0) }}>{formatarNumeroBR(item.percentual_faturamento || 0, 1)}%</p>
                   <p className="text-[10px] font-bold text-gray-400">{formatarMoeda(item.realizado || 0)}</p>
@@ -9712,7 +16236,7 @@ const enviarArquivo = async (tipo) => {
                 </div>
 
                 <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
-                  <button onClick={() => setVisaoRanking('consultores')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'consultores' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Consultoras"><User size={18} /></button>
+                  <button onClick={() => setVisaoRanking('consultores')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'consultores' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Consultores"><User size={18} /></button>
                   <button onClick={() => setVisaoRanking('estruturas')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'estruturas' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Unidades"><IconeCanalLoja size={18} /></button>
                 </div>
               </div>
@@ -9738,6 +16262,26 @@ const enviarArquivo = async (tipo) => {
                 {visaoRanking !== 'consultores' && (
                   <CardTop5 titulo="Melhor % Serviços" dados={rankingBaseLoja} propValor="percentual_servicos" formatter={(v) => `${formatarNumeroBR(v || 0, 1)}%`} corValor="#048187" propSubValor="realizado_servicos_mes" subFormatter={(v) => formatarNumeroBR(v || 0, 0)} subLabel="" />
                 )}
+                <CardTop5
+                  titulo="Ranking mensal de Serviços por PDV"
+                  dados={rankingServicosPdv}
+                  propValor="realizado_servicos_mes"
+                  formatter={(v) => formatarNumeroBR(v || 0, 0)}
+                  corValor="#048187"
+                  propSubValor="percentual_servicos"
+                  subFormatter={(v) => `${formatarNumeroBR(v || 0, 1)}% da meta`}
+                  subLabel=""
+                />
+                <CardTop5
+                  titulo="Ranking mensal de Serviços por Consultor"
+                  dados={rankingServicosConsultores}
+                  propValor="realizado_servicos_mes"
+                  formatter={(v) => formatarNumeroBR(v || 0, 0)}
+                  corValor="#257B9C"
+                  propSubValor="participacao_servicos"
+                  subFormatter={(v) => `${formatarNumeroBR(v || 0, 1)}% do total`}
+                  subLabel=""
+                />
               </div>
             </div>
           );
@@ -9745,7 +16289,7 @@ const enviarArquivo = async (tipo) => {
 
         {!carregandoLoja && abaLoja === 'geral' && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7 gap-4">
               <CardLoja
                 titulo="Faturamento realizado"
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.faturamento_realizado)}
@@ -9767,12 +16311,7 @@ const enviarArquivo = async (tipo) => {
                 percentual={calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0)}
                 labelMeta="Meta diária:"
                 valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_diaria || 0)}
-                onDetalhes={() => abrirDetalheCardLoja('Venda diária LOJA', [
-                  { label: 'Venda diária realizada', valor: formatarMoeda(resumoCardsLoja.realizado_diario || 0) },
-                  { label: 'Meta diária', valor: formatarMoeda(resumoCardsLoja.meta_diaria || 0) },
-                  { label: '% da meta diária', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0), 1)}%` },
-                  { label: 'Data de referência', valor: formatarDataBR(resumoCardsLoja.data_referencia_diaria || new Date().toISOString().slice(0, 10)) }
-                ], 'Venda diária = base diária baixada no SGI com período de hoje até hoje. Meta diária = valor calculado para o dia dentro do ciclo.')}
+                onDetalhes={abrirDetalheVendaDiariaLoja}
               />
               <CardLoja
                 titulo="Tendência"
@@ -9827,6 +16366,25 @@ const enviarArquivo = async (tipo) => {
                   { label: 'Regra', valor: 'Coluna GMV-Itens por boleto' }
                 ], 'Itens/Boleto usa a coluna GMV-Itens por boleto da base de vendas.')}
               />
+              <CardLoja
+                titulo="Serviços"
+                valor={formatarNumeroBR(resumoCardsLoja.servicos_realizado_mes || 0, 0)}
+                meta={formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)}
+                percentual={resumoCardsLoja.percentual_servicos || 0}
+                labelMeta="Meta mensal:"
+                valorMeta={formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)}
+                onDetalhes={() => abrirDetalheCardLoja('Serviços mensais LOJA', [
+                  { label: 'Competência', valor: formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos) },
+                  { label: 'Realizado no mês', valor: formatarNumeroBR(resumoCardsLoja.servicos_realizado_mes || 0, 0) },
+                  { label: 'Meta mensal geral', valor: formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0) },
+                  { label: '% da meta mensal', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_servicos || 0, 1)}%` },
+                  { label: 'Faltam no mês', valor: Number(resumoCardsLoja.faltam_servicos_mes || 0) > 0 ? formatarNumeroBR(resumoCardsLoja.faltam_servicos_mes, 0) : 'Meta batida' },
+                  { label: 'Meta anual de referência', valor: formatarNumeroBR(resumoCardsLoja.meta_servicos_anual_referencia || 1200, 0) },
+                  { label: 'Cálculo da meta mensal', valor: `${formatarNumeroBR(resumoCardsLoja.meta_servicos_anual_referencia || 1200, 0)} ÷ 12 = ${formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)}` },
+                  { label: 'PDVs participantes', valor: (resumoCardsLoja.pdvs_meta_servicos || ['9071', '9151', '17322', '17324']).join(', ') },
+                  { label: 'Meta mensal por PDV', valor: formatarNumeroBR(resumoCardsLoja.meta_servicos_por_pdv || 25, 0) }
+                ], 'Serviços é um indicador mensal, sem vínculo com o ciclo. Meta mensal = 1.200 ÷ 12 = 100. Meta por PDV = 100 ÷ 4 = 25.')}
+              />
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 -mt-1">
@@ -9840,8 +16398,26 @@ const enviarArquivo = async (tipo) => {
               <BlocoTabelaLoja titulo="Unidades" subtitulo="Resultado pelo PDV onde a venda aconteceu." tipo="unidades">
                 <TabelaUnidades lista={unidadesFiltradas.slice(0, 8)} />
               </BlocoTabelaLoja>
-              <BlocoTabelaLoja titulo="Consultoras" subtitulo="Resultado por ID da consultora, independente do PDV." tipo="consultoras">
+              <BlocoTabelaLoja titulo="Consultores" subtitulo="Resultado por ID do consultor, independente do PDV." tipo="consultores">
                 <TabelaConsultoras lista={consultorasFiltradas.slice(0, 8)} />
+              </BlocoTabelaLoja>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <BlocoTabelaLoja
+                titulo="Meta Mês x Serviço por PDV"
+                subtitulo={`Competência ${formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)} • Meta de 25 serviços para cada PDV participante.`}
+                tipo="servicos_pdv"
+              >
+                <TabelaServicosPdv lista={servicosPdvFiltrados.slice(0, 8)} />
+              </BlocoTabelaLoja>
+
+              <BlocoTabelaLoja
+                titulo="Quantidade de serviços realizados por Consultor"
+                subtitulo={`Ranking mensal por consultor • Competência ${formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)}.`}
+                tipo="servicos_consultores"
+              >
+                <TabelaServicosConsultores lista={servicosConsultoresFiltrados.slice(0, 10)} />
               </BlocoTabelaLoja>
             </div>
           </>
@@ -9851,8 +16427,28 @@ const enviarArquivo = async (tipo) => {
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[96vw] h-[88vh] overflow-hidden flex flex-col">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-black text-gray-700">{tabelaLojaExpandida === 'unidades' ? 'Unidades - lista completa' : 'Consultoras - lista completa'}</h2>
-                  <p className="text-xs text-gray-400 font-bold mt-1">Ciclo {cicloAtualLoja || '-'} • {tabelaLojaExpandida === 'unidades' ? unidadesFiltradas.length : consultorasFiltradas.length} registros</p>
+                  <h2 className="text-xl font-black text-gray-700">{
+                    tabelaLojaExpandida === 'unidades'
+                      ? 'Unidades - lista completa'
+                      : tabelaLojaExpandida === 'consultores' || tabelaLojaExpandida === 'consultoras'
+                        ? 'Consultores - lista completa'
+                        : tabelaLojaExpandida === 'servicos_pdv'
+                          ? 'Meta Mês x Serviço por PDV'
+                          : 'Serviços realizados por Consultor'
+                  }</h2>
+                  <p className="text-xs text-gray-400 font-bold mt-1">{
+                    tabelaLojaExpandida === 'servicos_pdv' || tabelaLojaExpandida === 'servicos_consultores'
+                      ? `Competência ${formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)}`
+                      : `Ciclo ${cicloAtualLoja || '-'}`
+                  } • {
+                    tabelaLojaExpandida === 'unidades'
+                      ? unidadesFiltradas.length
+                      : tabelaLojaExpandida === 'consultores' || tabelaLojaExpandida === 'consultoras'
+                        ? consultorasFiltradas.length
+                        : tabelaLojaExpandida === 'servicos_pdv'
+                          ? servicosPdvFiltrados.length
+                          : servicosConsultoresFiltrados.length
+                  } registros</p>
                 </div>
                 <button
                   type="button"
@@ -9865,7 +16461,11 @@ const enviarArquivo = async (tipo) => {
               <div className="p-5 overflow-auto">
                 {tabelaLojaExpandida === 'unidades'
                   ? <TabelaUnidades lista={unidadesFiltradas} />
-                  : <TabelaConsultoras lista={consultorasFiltradas} />}
+                  : tabelaLojaExpandida === 'consultores' || tabelaLojaExpandida === 'consultoras'
+                    ? <TabelaConsultoras lista={consultorasFiltradas} />
+                    : tabelaLojaExpandida === 'servicos_pdv'
+                      ? <TabelaServicosPdv lista={servicosPdvFiltrados} />
+                      : <TabelaServicosConsultores lista={servicosConsultoresFiltrados} />}
               </div>
             </div>
           </div>
@@ -9896,11 +16496,25 @@ const enviarArquivo = async (tipo) => {
   };
 
   const cicloTopoAtual = telaEhLoja(telaAtual)
-    ? (cicloLoja || dadosLoja?.resumo?.ciclo || dados?.ciclo_atual || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo || ciclos?.[0]?.ciclo || '')
-    : (dados?.ciclo_atual
-      || ciclos?.find((c) => String(c.status_ciclo || '').toLowerCase() === 'ativo')?.ciclo
-      || ciclos?.[0]?.ciclo
-      || '');
+    ? (cicloSelecionadoLoja || cicloLoja || dadosLoja?.resumo?.ciclo || cicloAtualPelaData() || '')
+    : (cicloSelecionadoVD || filtrosAtivos?.ciclo || dados?.ciclo_atual || cicloAtualPelaData() || '');
+
+  const nucleosDisponiveisRelatorioMetas = usuarioLogado
+    ? obterNucleosDisponiveisRelatorioMetas()
+    : [];
+  const estruturasDisponiveisRelatorioMetas = usuarioLogado
+    ? obterEstruturasDisponiveisRelatorioMetas(configRelatorioMetas.nucleos)
+    : [];
+
+  const pdvsDisponiveisRelatorioLoja = usuarioLogado
+    ? [...(dadosLoja?.unidades || [])].sort((a, b) => (
+        String(a?.codigo_pdv || '').localeCompare(
+          String(b?.codigo_pdv || ''),
+          'pt-BR',
+          { numeric: true }
+        )
+      ))
+    : [];
 
   if (!usuarioLogado) {
     return (
@@ -10328,7 +16942,7 @@ const enviarArquivo = async (tipo) => {
                     onChange={(e) => setFiltrosLoja((atual) => ({ ...atual, consultora: e.target.value }))}
                     className="w-full text-sm p-3 border border-gray-200 rounded-lg outline-none focus:border-[#048187] font-bold"
                   >
-                    <option value="">Todas as consultoras</option>
+                    <option value="">Todos os consultores</option>
                     {(dadosLoja?.consultoras || []).map((c) => (
                       <option key={c.id_consultora} value={c.id_consultora}>{c.id_consultora} - {c.nome_consultora}</option>
                     ))}
@@ -10396,19 +17010,220 @@ const enviarArquivo = async (tipo) => {
         <main className={`flex-1 overflow-y-auto relative transition-all duration-300 z-0 ${painelFiltrosAberto ? 'opacity-50' : 'opacity-100'}`}>
           <div className="p-4 sm:p-6 xl:p-8 pb-24 md:pb-8">
             <header className="mb-6 xl:mb-8 w-full bg-[#5bb2b4] min-h-12 rounded-full flex justify-between items-center px-4 sm:px-6 text-white shadow-sm gap-4">
-              <span className="bg-white text-[#048187] font-extrabold text-xs sm:text-sm px-4 py-1 rounded-full uppercase tracking-wide whitespace-nowrap">
-                {cicloTopoAtual ? `CICLO ${cicloTopoAtual}` : 'SEM CICLO'}
-              </span>
+              <div className="relative shrink-0">
+                <select
+                  value={cicloTopoAtual || ''}
+                  onChange={(e) => selecionarCicloVisualizacao(e.target.value, telaEhLoja(telaAtual) ? 'LOJA' : 'VD')}
+                  className="appearance-none bg-white text-[#048187] font-extrabold text-xs sm:text-sm pl-4 pr-9 py-1.5 rounded-full uppercase tracking-wide whitespace-nowrap outline-none cursor-pointer"
+                  title="Selecionar ciclo para consulta"
+                >
+                  {!ciclos.length && <option value="">SEM CICLO</option>}
+                  {ciclos.map((item) => (
+                    <option key={item.id || item.ciclo} value={item.ciclo}>
+                      {`CICLO ${item.ciclo}${item.eh_atual ? ' • ATUAL' : ''}${obterStatusCicloArea(item.ciclo, telaEhLoja(telaAtual) ? 'LOJA' : 'VD') === 'fechado' ? ' • FECHADO' : ''}`}
+                    </option>
+                  ))}
+                </select>
+                <ChevronRight size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-[#048187]" />
+              </div>
               <div className="flex items-center gap-3 sm:gap-5 min-w-0">
                 {(telaAtual === 'Dashboard' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
                   <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#4a9394] px-3 py-1.5 rounded-full font-medium">
                     <SlidersHorizontal size={18} /><span className="hidden sm:inline">Filtros</span>
                   </button>
                 )}
+
+                {podeReceberNotificacoes && (
+                  <div
+                    ref={notificacoesContainerRef}
+                    className="relative"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPainelNotificacoesAberto((atual) => !atual);
+                        if (!painelNotificacoesAberto) {
+                          carregarNotificacoesSistema(false);
+                        }
+                      }}
+                      className="relative flex items-center justify-center w-10 h-10 hover:bg-[#4a9394] rounded-full"
+                      title="Notificações de metas"
+                    >
+                      <Bell size={20} />
+                      {notificacoesNaoLidas > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-[#7c1f31] text-white text-[10px] font-black flex items-center justify-center border-2 border-[#5bb2b4]">
+                          {notificacoesNaoLidas > 99
+                            ? '99+'
+                            : notificacoesNaoLidas}
+                        </span>
+                      )}
+                    </button>
+
+                    {painelNotificacoesAberto && (
+                      <div className="absolute right-0 top-12 w-[min(92vw,420px)] bg-white text-gray-700 rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-[10030]">
+                        <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-black text-gray-700">
+                              Notificações
+                            </p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">
+                              Área: {
+                                normalizarAreaGestao(
+                                  usuarioLogado?.area_gestao,
+                                  usuarioLogado?.perfil
+                                ) === 'AMBOS'
+                                  ? 'VD + LOJA'
+                                  : normalizarAreaGestao(
+                                      usuarioLogado?.area_gestao,
+                                      usuarioLogado?.perfil
+                                    )
+                              }
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {notificacoesNaoLidas > 0 && (
+                              <button
+                                type="button"
+                                onClick={marcarTodasNotificacoesComoLidas}
+                                className="inline-flex items-center gap-1.5 text-xs font-black text-[#048187] hover:bg-[#e6f6f7] px-3 py-2 rounded-lg"
+                              >
+                                <CheckCheck size={15} />
+                                Marcar todas
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPainelNotificacoesAberto(false);
+                              }}
+                              className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                              title="Fechar notificações"
+                              aria-label="Fechar notificações"
+                            >
+                              <X size={18} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="max-h-[480px] overflow-y-auto">
+                          {carregandoNotificacoes && (
+                            <div className="p-8 flex items-center justify-center gap-3 text-gray-400 font-bold text-sm">
+                              <RefreshCcw size={18} className="animate-spin" />
+                              Atualizando...
+                            </div>
+                          )}
+
+                          {!carregandoNotificacoes && notificacoesSistema.map((item) => (
+                            <button
+                              type="button"
+                              key={item.id}
+                              onClick={() => {
+                                if (!item.lida) {
+                                  marcarNotificacaoComoLida(item.id);
+                                }
+                              }}
+                              className={`w-full text-left px-4 py-4 border-b border-gray-50 hover:bg-[#f8fcfc] transition-colors ${
+                                item.lida
+                                  ? 'bg-white'
+                                  : 'bg-[#f0fbfb]'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                  item.area === 'VD'
+                                    ? 'bg-[#e6f6f7] text-[#048187]'
+                                    : 'bg-orange-50 text-orange-600'
+                                }`}>
+                                  <Target size={18} />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-full ${
+                                      item.area === 'VD'
+                                        ? 'bg-[#e6f6f7] text-[#048187]'
+                                        : 'bg-orange-50 text-orange-600'
+                                    }`}>
+                                      {item.area}
+                                    </span>
+                                    {!item.lida && (
+                                      <span className="w-2 h-2 rounded-full bg-[#7c1f31]" />
+                                    )}
+                                  </div>
+
+                                  <p className="font-black text-sm text-gray-700 mt-2">
+                                    {item.titulo}
+                                  </p>
+                                  <p className="text-xs text-gray-500 font-semibold mt-1 leading-relaxed">
+                                    {item.mensagem}
+                                  </p>
+
+                                  <div className="flex items-center gap-1.5 mt-2 text-[10px] font-black text-gray-400">
+                                    <CalendarDays size={12} />
+                                    <span>
+                                      {formatarDataHoraNotificacao(
+                                        item.criado_em
+                                      )}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] font-bold text-gray-400">
+                                    <span>
+                                      {formatarNumeroBR(item.percentual || 0, 1)}%
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                      {formatarMoeda(item.realizado || 0)}
+                                    </span>
+                                    {item.ciclo && (
+                                      <>
+                                        <span>•</span>
+                                        <span>Ciclo {item.ciclo}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+
+                          {!carregandoNotificacoes && !notificacoesSistema.length && (
+                            <div className="p-10 text-center">
+                              <Bell size={30} className="mx-auto text-gray-300" />
+                              <p className="font-black text-gray-500 mt-3">
+                                Nenhuma notificação
+                              </p>
+                              <p className="text-xs text-gray-400 font-semibold mt-1">
+                                Os alertas aparecerão quando uma meta for atingida.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="hidden sm:block w-px h-6 bg-[#4a9394]" />
-                <button onClick={() => setTelaAtual('Perfil')} className="flex items-center gap-2 hover:bg-[#4a9394] px-3 py-1.5 rounded-full min-w-0">
-                  <UserCircle size={24} strokeWidth={1.5} className="shrink-0" />
-                  <span className="text-sm font-medium truncate max-w-[110px] sm:max-w-[220px]">{usuarioLogado.nome}</span>
+                <button
+                  onClick={() => setTelaAtual('Perfil')}
+                  className="flex items-center gap-2.5 hover:bg-[#4a9394] px-2.5 py-1 rounded-full min-w-0 transition-colors"
+                  title="Abrir meu perfil"
+                >
+                  <AvatarColaborador
+                    src={obterFotoColaborador(
+                      'PERFIL',
+                      String(usuarioLogado.id || '')
+                    )}
+                    nome={usuarioLogado.nome}
+                    tamanho={32}
+                    borda="rgba(255,255,255,0.92)"
+                  />
+                  <span className="text-sm font-medium truncate max-w-[110px] sm:max-w-[220px]">
+                    {usuarioLogado.nome}
+                  </span>
                 </button>
               </div>
             </header>
@@ -10417,45 +17232,1336 @@ const enviarArquivo = async (tipo) => {
         </main>
       </div>
 
+      {toastNotificacao && (
+        <div className="fixed top-5 right-5 z-[10060] w-[min(92vw,390px)] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-fade-in">
+          <div className={`h-1.5 ${
+            toastNotificacao.area === 'VD'
+              ? 'bg-[#048187]'
+              : 'bg-orange-500'
+          }`} />
+          <div className="p-4 flex items-start gap-3">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+              toastNotificacao.area === 'VD'
+                ? 'bg-[#e6f6f7] text-[#048187]'
+                : 'bg-orange-50 text-orange-600'
+            }`}>
+              <Trophy size={21} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[9px] font-black uppercase text-gray-400">
+                Nova meta atingida — {toastNotificacao.area}
+              </p>
+              <p className="font-black text-gray-700 mt-1">
+                {toastNotificacao.titulo}
+              </p>
+              <p className="text-xs text-gray-500 font-semibold mt-1 leading-relaxed">
+                {toastNotificacao.mensagem}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastNotificacao(null)}
+              className="text-gray-300 hover:text-gray-500"
+            >
+              <X size={17} />
+            </button>
+          </div>
+        </div>
+      )}
+
+
+
+      {editorFotoColaborador.aberto && (
+        <div className="fixed inset-0 z-[10080] bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="p-5 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">
+                  Editor de foto
+                </p>
+                <h2 className="text-xl font-black text-gray-700 mt-1">
+                  Ajustar enquadramento
+                </h2>
+                <p className="text-sm text-gray-400 font-semibold mt-1">
+                  Arraste a imagem para posicionar o rosto e use o controle para ampliar.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={cancelarEditorFotoColaborador}
+                disabled={salvandoIdentidadeColaborador}
+                className="w-10 h-10 rounded-full bg-gray-50 text-gray-400 hover:text-red-500 flex items-center justify-center disabled:opacity-50"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-5">
+              <div className="flex justify-center">
+                <div
+                  className={`relative w-[320px] h-[320px] max-w-full aspect-square overflow-hidden rounded-2xl bg-[#111827] select-none touch-none ${
+                    editorFotoColaborador.arrastando
+                      ? 'cursor-grabbing'
+                      : 'cursor-grab'
+                  }`}
+                  onPointerDown={iniciarArrasteFotoColaborador}
+                  onPointerMove={moverFotoColaborador}
+                  onPointerUp={finalizarArrasteFotoColaborador}
+                  onPointerCancel={finalizarArrasteFotoColaborador}
+                >
+                  {editorFotoColaborador.imagemSrc && (() => {
+                    const tamanhoPreview = 320;
+                    const escalaBase = Math.max(
+                      tamanhoPreview
+                        / editorFotoColaborador.larguraOriginal,
+                      tamanhoPreview
+                        / editorFotoColaborador.alturaOriginal
+                    );
+                    const larguraBase = (
+                      editorFotoColaborador.larguraOriginal
+                      * escalaBase
+                    );
+                    const alturaBase = (
+                      editorFotoColaborador.alturaOriginal
+                      * escalaBase
+                    );
+
+                    return (
+                      <img
+                        src={editorFotoColaborador.imagemSrc}
+                        alt="Prévia do enquadramento"
+                        draggable="false"
+                        className="absolute left-1/2 top-1/2 max-w-none pointer-events-none"
+                        style={{
+                          width: larguraBase,
+                          height: alturaBase,
+                          transform: `translate(-50%, -50%) translate(${editorFotoColaborador.deslocamentoX}px, ${editorFotoColaborador.deslocamentoY}px) scale(${editorFotoColaborador.zoom})`,
+                          transformOrigin: 'center center',
+                        }}
+                      />
+                    );
+                  })()}
+
+                  <div className="absolute inset-0 pointer-events-none ring-[999px] ring-black/45 rounded-full m-[18px]" />
+                  <div className="absolute inset-[18px] rounded-full border-2 border-white/90 pointer-events-none shadow-[0_0_0_1px_rgba(0,0,0,0.25)]" />
+                  <div className="absolute inset-0 pointer-events-none">
+                    <div className="absolute left-1/2 top-[18px] bottom-[18px] w-px bg-white/25" />
+                    <div className="absolute top-1/2 left-[18px] right-[18px] h-px bg-white/25" />
+                  </div>
+
+                  <div className="absolute left-1/2 bottom-5 -translate-x-1/2 pointer-events-none inline-flex items-center gap-2 rounded-full bg-black/55 text-white px-3 py-1.5 text-xs font-black">
+                    <Move size={14} />
+                    Arraste para posicionar
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#f7fafb] border border-gray-100 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <ZoomOut size={20} className="text-gray-400 shrink-0" />
+
+                  <input
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="0.01"
+                    value={editorFotoColaborador.zoom}
+                    onChange={(evento) => atualizarZoomFotoColaborador(
+                      evento.target.value
+                    )}
+                    className="w-full accent-[#048187]"
+                  />
+
+                  <ZoomIn size={20} className="text-[#048187] shrink-0" />
+                </div>
+
+                <div className="flex items-center justify-between mt-3">
+                  <p className="text-xs font-bold text-gray-400">
+                    Zoom: {Math.round(
+                      editorFotoColaborador.zoom * 100
+                    )}%
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={centralizarFotoColaborador}
+                    className="text-xs font-black text-[#048187] hover:text-[#036b70]"
+                  >
+                    Centralizar e redefinir
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-700">
+                A área dentro do círculo representa como a foto aparecerá no topo, no perfil e nos rankings.
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button
+                type="button"
+                onClick={cancelarEditorFotoColaborador}
+                disabled={salvandoIdentidadeColaborador}
+                className="rounded-xl border border-gray-200 px-5 py-3 font-black text-gray-500 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={aplicarFotoEditadaColaborador}
+                disabled={salvandoIdentidadeColaborador}
+                className="rounded-xl bg-[#048187] text-white px-6 py-3 font-black inline-flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {salvandoIdentidadeColaborador
+                  ? <RefreshCcw size={18} className="animate-spin" />
+                  : <Camera size={18} />}
+                {salvandoIdentidadeColaborador
+                  ? 'Salvando foto...'
+                  : 'Usar este enquadramento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalIdentidadeColaborador.aberto && (
+        <div className="fixed inset-0 z-[10050] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl max-h-[92vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-5 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">
+                  {modalIdentidadeColaborador.area === 'PERFIL' ? 'Minha foto' : `${modalIdentidadeColaborador.area} — Identidade do colaborador`}
+                </p>
+                <h2 className="text-xl font-black text-gray-700 mt-1">
+                  Foto e nomes reconhecidos
+                </h2>
+                <p className="text-sm text-gray-400 font-semibold mt-1">
+                  Depois de selecionar, você poderá ampliar e posicionar a foto. O sistema salva somente a miniatura WebP 256×256.
+                </p>
+              </div>
+              <button type="button" onClick={() => setModalIdentidadeColaborador((atual) => ({ ...atual, aberto: false }))} className="w-10 h-10 rounded-full bg-gray-50 text-gray-400 hover:text-red-500 flex items-center justify-center">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
+              {erroIdentidadeColaborador && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  {erroIdentidadeColaborador}
+                </div>
+              )}
+
+              <div className="rounded-2xl bg-[#f7fafb] border border-gray-100 p-5 flex flex-col sm:flex-row items-center gap-5">
+                <AvatarColaborador
+                  src={modalIdentidadeColaborador.foto_data_url}
+                  nome={modalIdentidadeColaborador.nome_oficial}
+                  tamanho={116}
+                  borda="#048187"
+                />
+                <div className="flex-1 min-w-0 text-center sm:text-left">
+                  <p className="text-lg font-black text-gray-700">
+                    {modalIdentidadeColaborador.nome_oficial || '-'}
+                  </p>
+                  <p className="text-xs font-bold text-gray-400 mt-1">
+                    ID oficial: {modalIdentidadeColaborador.id_colaborador || '-'}
+                    {modalIdentidadeColaborador.codigo_contexto ? ` • Contexto: ${modalIdentidadeColaborador.codigo_contexto}` : ''}
+                  </p>
+                  <div className="mt-4 flex flex-wrap justify-center sm:justify-start gap-2">
+                    <button type="button" onClick={selecionarFotoColaborador} disabled={salvandoIdentidadeColaborador} className="inline-flex items-center gap-2 rounded-xl bg-[#048187] text-white px-4 py-2.5 text-sm font-black disabled:opacity-50">
+                      <ImagePlus size={17} />
+                      {modalIdentidadeColaborador.foto_data_url ? 'Trocar foto' : 'Adicionar foto'}
+                    </button>
+                    {modalIdentidadeColaborador.foto_data_url && (
+                      <button type="button" onClick={removerFotoColaborador} disabled={salvandoIdentidadeColaborador} className="inline-flex items-center gap-2 rounded-xl bg-red-50 text-red-600 px-4 py-2.5 text-sm font-black disabled:opacity-50">
+                        <Trash2 size={17} /> Remover foto
+                      </button>
+                    )}
+                  </div>
+                  <input ref={inputFotoColaboradorRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={abrirEditorFotoColaborador} className="hidden" />
+                </div>
+              </div>
+
+              {modalIdentidadeColaborador.area !== 'PERFIL' && (
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wide text-gray-500 mb-2">
+                    Nomes alternativos encontrados nas bases
+                  </label>
+                  <textarea
+                    value={modalIdentidadeColaborador.aliases_texto}
+                    onChange={(e) => setModalIdentidadeColaborador((atual) => ({ ...atual, aliases_texto: e.target.value }))}
+                    rows={7}
+                    placeholder={'Um nome por linha. Exemplo:\nMAYZA\nMAYZA CRISTINA SILVA CORRÊA'}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 outline-none focus:border-[#048187]"
+                  />
+                  <p className="text-xs text-gray-400 font-semibold mt-2">
+                    O cruzamento usa o ID oficial. Cadastre aqui abreviações, nomes completos, nomes sociais ou variações vindas das bases Skin, Serviços e Vendas.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-gray-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button type="button" onClick={() => setModalIdentidadeColaborador((atual) => ({ ...atual, aberto: false }))} disabled={salvandoIdentidadeColaborador} className="rounded-xl border border-gray-200 px-5 py-3 font-black text-gray-500 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button type="button" onClick={salvarAliasesColaborador} disabled={salvandoIdentidadeColaborador} className="rounded-xl bg-[#048187] text-white px-6 py-3 font-black inline-flex items-center justify-center gap-2 disabled:opacity-50">
+                {salvandoIdentidadeColaborador ? <RefreshCcw size={18} className="animate-spin" /> : <Save size={18} />}
+                {modalIdentidadeColaborador.area === 'PERFIL' ? 'Concluir' : 'Salvar identidade'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalRealizadoDiarioVD.aberto && (
+        <div className="fixed inset-0 z-[10020] bg-black/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white w-full max-w-7xl max-h-[95vh] rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+            <div className="px-5 sm:px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">
+                  VD — Realizado Diário
+                </p>
+                <h2 className="text-xl sm:text-2xl font-black text-gray-700 mt-1">
+                  Detalhamento das vendas do dia
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setModalRealizadoDiarioVD((atual) => ({
+                  ...atual,
+                  aberto: false,
+                }))}
+                className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-red-500 flex items-center justify-center shrink-0"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-7 overflow-y-auto space-y-6 bg-[#f7fafb]">
+              {modalRealizadoDiarioVD.erro && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  {modalRealizadoDiarioVD.erro}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Realizado hoje
+                  </p>
+                  <p className="text-2xl font-black text-[#048187] mt-2">
+                    {formatarMoeda(
+                      modalRealizadoDiarioVD.resumo?.realizado_hoje || 0
+                    )}
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Meta diária
+                  </p>
+                  <p className="text-2xl font-black text-gray-700 mt-2">
+                    {formatarMoeda(
+                      modalRealizadoDiarioVD.resumo?.meta_diaria || 0
+                    )}
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Atingimento
+                  </p>
+                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
+                    {formatarNumeroBR(
+                      modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
+                      1
+                    )}%
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Falta para a meta diária
+                  </p>
+                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
+                    {
+                      Number(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) <= 0
+                        ? 'Sem meta cadastrada'
+                        : Number(
+                            modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0
+                          ) > 0
+                          ? formatarMoeda(
+                              modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0
+                            )
+                          : 'Meta batida'
+                    }
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-500">
+                <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                  Data: {
+                    formatarDataBR(
+                      modalRealizadoDiarioVD.resumo?.data_referencia
+                      || new Date().toISOString().slice(0, 10)
+                    )
+                  }
+                </span>
+                <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                  Ciclo: {
+                    modalRealizadoDiarioVD.resumo?.ciclo || '-'
+                  }
+                </span>
+                <span className={`rounded-full border px-3 py-2 ${
+                  modalRealizadoDiarioVD.conferencia?.meios_ok
+                  && modalRealizadoDiarioVD.conferencia?.estruturas_ok
+                  && modalRealizadoDiarioVD.conferencia?.consultores_ok
+                    ? 'bg-green-50 border-green-100 text-green-700'
+                    : 'bg-orange-50 border-orange-100 text-orange-700'
+                }`}>
+                  {
+                    modalRealizadoDiarioVD.conferencia?.meios_ok
+                    && modalRealizadoDiarioVD.conferencia?.estruturas_ok
+                    && modalRealizadoDiarioVD.conferencia?.consultores_ok
+                      ? '✓ Todos os detalhamentos fecham com o total'
+                      : 'Conferindo composição do resultado'
+                  }
+                </span>
+              </div>
+
+              {modalRealizadoDiarioVD.carregando ? (
+                <div className="bg-white rounded-2xl border border-gray-100 min-h-[300px] flex flex-col items-center justify-center gap-3">
+                  <RefreshCcw
+                    size={28}
+                    className="animate-spin text-[#048187]"
+                  />
+                  <p className="font-black text-gray-500">
+                    Carregando o detalhamento do dia...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="px-5 py-4 bg-[#dff5f6] flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-black text-[#048187]">
+                          Vendas por meio de captação
+                        </h3>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">
+                          Valor monetário vendido hoje em cada origem de pedido.
+                        </p>
+                      </div>
+                      <span className="text-xs font-black text-[#048187]">
+                        {modalRealizadoDiarioVD.meios_captacao.length} meio(s)
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-sm">
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                          <tr>
+                            <th className="px-5 py-3 text-left">Posição</th>
+                            <th className="px-5 py-3 text-left">Meio de captação</th>
+                            <th className="px-5 py-3 text-right">Pedidos</th>
+                            <th className="px-5 py-3 text-right">Vendido hoje</th>
+                            <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {modalRealizadoDiarioVD.meios_captacao.map((item, indice) => (
+                            <tr
+                              key={`meio-dia-${item.meio_captacao}-${indice}`}
+                              className="hover:bg-[#f8fcfc]"
+                            >
+                              <td className="px-5 py-3 font-black text-[#048187]">
+                                {item.posicao || indice + 1}º
+                              </td>
+                              <td className="px-5 py-3 font-black text-gray-700">
+                                {item.meio_captacao || 'Não informado'}
+                              </td>
+                              <td className="px-5 py-3 text-right font-bold text-gray-600">
+                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#048187]">
+                                {formatarMoeda(item.realizado || 0)}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-gray-600">
+                                {formatarNumeroBR(item.participacao || 0, 1)}%
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
+                                {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
+                              </td>
+                            </tr>
+                          ))}
+
+                          {!modalRealizadoDiarioVD.meios_captacao.length && (
+                            <tr>
+                              <td colSpan="6" className="px-5 py-10 text-center text-gray-400 font-semibold">
+                                Nenhuma venda encontrada por meio de captação.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-[#f2fbfb]">
+                          <tr>
+                            <td colSpan="3" className="px-5 py-4 font-black text-gray-600">
+                              TOTAL DOS MEIOS
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#048187]">
+                              {formatarMoeda(
+                                modalRealizadoDiarioVD.conferencia?.total_meios || 0
+                              )}
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#048187]">
+                              100,0%
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
+                              {formatarNumeroBR(
+                                modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
+                                1
+                              )}%
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="px-5 py-4 bg-[#e9f4f8] flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-black text-[#257B9C]">
+                          Vendas por estrutura
+                        </h3>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">
+                          Quanto cada estrutura vendeu na data de referência.
+                        </p>
+                      </div>
+                      <span className="text-xs font-black text-[#257B9C]">
+                        {modalRealizadoDiarioVD.estruturas.length} estrutura(s)
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-sm">
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                          <tr>
+                            <th className="px-5 py-3 text-left">Posição</th>
+                            <th className="px-5 py-3 text-left">Estrutura</th>
+                            <th className="px-5 py-3 text-right">Pedidos</th>
+                            <th className="px-5 py-3 text-right">Vendido hoje</th>
+                            <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {modalRealizadoDiarioVD.estruturas.map((item, indice) => (
+                            <tr
+                              key={`estrutura-dia-${item.estrutura}-${indice}`}
+                              className="hover:bg-[#f8fcfc]"
+                            >
+                              <td className="px-5 py-3 font-black text-[#257B9C]">
+                                {item.posicao || indice + 1}º
+                              </td>
+                              <td className="px-5 py-3 font-black text-gray-700">
+                                {item.estrutura || 'Não informada'}
+                              </td>
+                              <td className="px-5 py-3 text-right font-bold text-gray-600">
+                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#257B9C]">
+                                {formatarMoeda(item.realizado || 0)}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-gray-600">
+                                {formatarNumeroBR(item.participacao || 0, 1)}%
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
+                                {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
+                              </td>
+                            </tr>
+                          ))}
+
+                          {!modalRealizadoDiarioVD.estruturas.length && (
+                            <tr>
+                              <td colSpan="6" className="px-5 py-10 text-center text-gray-400 font-semibold">
+                                Nenhuma venda encontrada por estrutura.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-[#f5fafd]">
+                          <tr>
+                            <td colSpan="3" className="px-5 py-4 font-black text-gray-600">
+                              TOTAL DAS ESTRUTURAS
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#257B9C]">
+                              {formatarMoeda(
+                                modalRealizadoDiarioVD.conferencia?.total_estruturas || 0
+                              )}
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#257B9C]">
+                              100,0%
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
+                              {formatarNumeroBR(
+                                modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
+                                1
+                              )}%
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="px-5 py-4 bg-[#f1eef8] flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-black text-[#5c4b8a]">
+                          Vendas por consultor
+                        </h3>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">
+                          Resultado individual e estrutura onde o pedido foi finalizado.
+                        </p>
+                      </div>
+                      <span className="text-xs font-black text-[#5c4b8a]">
+                        {modalRealizadoDiarioVD.consultores.length} consultor(es)
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[980px] text-sm">
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                          <tr>
+                            <th className="px-5 py-3 text-left">Posição</th>
+                            <th className="px-5 py-3 text-left">ID</th>
+                            <th className="px-5 py-3 text-left">Consultor</th>
+                            <th className="px-5 py-3 text-left">Estrutura</th>
+                            <th className="px-5 py-3 text-right">Pedidos</th>
+                            <th className="px-5 py-3 text-right">Vendido hoje</th>
+                            <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {modalRealizadoDiarioVD.consultores.map((item, indice) => (
+                            <tr
+                              key={`consultor-vd-dia-${item.id_consultor}-${item.estrutura}-${indice}`}
+                              className="hover:bg-[#fbfaff]"
+                            >
+                              <td className="px-5 py-3 font-black text-[#5c4b8a]">
+                                {item.posicao || indice + 1}º
+                              </td>
+                              <td className="px-5 py-3 font-black text-[#048187]">
+                                {item.id_consultor || '-'}
+                              </td>
+                              <td className="px-5 py-3 font-black text-gray-700">
+                                {item.consultor || 'Não identificado'}
+                              </td>
+                              <td className="px-5 py-3 font-bold text-gray-500">
+                                {item.estrutura || 'Não informada'}
+                              </td>
+                              <td className="px-5 py-3 text-right font-bold text-gray-600">
+                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#5c4b8a]">
+                                {formatarMoeda(item.realizado || 0)}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-gray-600">
+                                {formatarNumeroBR(item.participacao || 0, 1)}%
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
+                                {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
+                              </td>
+                            </tr>
+                          ))}
+
+                          {!modalRealizadoDiarioVD.consultores.length && (
+                            <tr>
+                              <td colSpan="8" className="px-5 py-10 text-center text-gray-400 font-semibold">
+                                Nenhuma venda encontrada por consultor.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-[#faf8fd]">
+                          <tr>
+                            <td colSpan="5" className="px-5 py-4 font-black text-gray-600">
+                              TOTAL DOS CONSULTORES
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#5c4b8a]">
+                              {formatarMoeda(
+                                modalRealizadoDiarioVD.conferencia?.total_consultores || 0
+                              )}
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#5c4b8a]">
+                              100,0%
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
+                              {formatarNumeroBR(
+                                modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
+                                1
+                              )}%
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </section>
+                </>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-gray-100 bg-white shrink-0">
+              <button
+                type="button"
+                onClick={() => setModalRealizadoDiarioVD((atual) => ({
+                  ...atual,
+                  aberto: false,
+                }))}
+                className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-black py-3"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalVendaDiariaLoja.aberto && (
+        <div className="fixed inset-0 z-[10000] bg-black/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white w-full max-w-6xl max-h-[94vh] rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+            <div className="px-5 sm:px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">
+                  LOJA — Venda diária
+                </p>
+                <h2 className="text-xl sm:text-2xl font-black text-gray-700 mt-1">
+                  Detalhamento das vendas do dia
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setModalVendaDiariaLoja((atual) => ({
+                  ...atual,
+                  aberto: false,
+                }))}
+                className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center shrink-0"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-7 overflow-y-auto space-y-6 bg-[#f7fafb]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-white rounded-xl border border-gray-100 p-4">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Venda total do dia
+                  </p>
+                  <p className="text-2xl font-black text-[#048187] mt-2">
+                    {formatarMoeda(modalVendaDiariaLoja.total || 0)}
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-100 p-4">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Meta diária
+                  </p>
+                  <p className="text-2xl font-black text-gray-700 mt-2">
+                    {formatarMoeda(modalVendaDiariaLoja.meta || 0)}
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-100 p-4">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Atingimento
+                  </p>
+                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
+                    {formatarNumeroBR(
+                      calcPerc(
+                        modalVendaDiariaLoja.total || 0,
+                        modalVendaDiariaLoja.meta || 0
+                      ),
+                      1
+                    )}%
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-100 p-4">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Data de referência
+                  </p>
+                  <p className="text-xl font-black text-gray-700 mt-2">
+                    {formatarDataBR(
+                      modalVendaDiariaLoja.dataReferencia
+                      || new Date().toISOString().slice(0, 10)
+                    )}
+                  </p>
+                  <p className={`text-[10px] font-black mt-2 ${
+                    modalVendaDiariaLoja.conferida
+                      ? 'text-[#048187]'
+                      : 'text-orange-600'
+                  }`}>
+                    {modalVendaDiariaLoja.conferida
+                      ? '✓ Total conferido com PDVs e consultores'
+                      : 'Conferência da composição indisponível'}
+                  </p>
+                </div>
+              </div>
+
+              <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-5 py-4 bg-[#dff5f6] flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-[#048187]">
+                      Venda diária por PDV
+                    </h3>
+                    <p className="text-xs text-gray-500 font-semibold mt-1">
+                      A soma desta tabela corresponde ao valor total do card.
+                    </p>
+                  </div>
+                  <span className="text-xs font-black text-[#048187]">
+                    {modalVendaDiariaLoja.pdvs.length} PDV(s)
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                      <tr>
+                        <th className="px-5 py-3 text-left">Posição</th>
+                        <th className="px-5 py-3 text-left">PDV</th>
+                        <th className="px-5 py-3 text-left">Loja</th>
+                        <th className="px-5 py-3 text-right">Venda do dia</th>
+                        <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {modalVendaDiariaLoja.pdvs.map((item, indice) => (
+                        <tr key={`pdv-dia-${item.codigo_pdv || indice}`} className="hover:bg-[#f8fcfc]">
+                          <td className="px-5 py-3 font-black text-[#048187]">
+                            {item.posicao || indice + 1}º
+                          </td>
+                          <td className="px-5 py-3 font-black text-gray-700">
+                            {item.codigo_pdv || '-'}
+                          </td>
+                          <td className="px-5 py-3">
+                            <p className="font-black text-gray-700">
+                              {item.cidade || item.nome_loja || '-'}
+                            </p>
+                            <p className="text-[10px] text-gray-400 font-bold mt-0.5">
+                              {item.nome_loja || '-'}
+                            </p>
+                          </td>
+                          <td className="px-5 py-3 text-right font-black text-[#048187]">
+                            {formatarMoeda(item.realizado_diario || 0)}
+                          </td>
+                          <td className="px-5 py-3 text-right font-black text-gray-600">
+                            {formatarNumeroBR(item.participacao || 0, 1)}%
+                          </td>
+                          <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
+                            {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
+                          </td>
+                        </tr>
+                      ))}
+
+                      {!modalVendaDiariaLoja.pdvs.length && (
+                        <tr>
+                          <td colSpan="6" className="px-5 py-10 text-center text-gray-400 font-semibold">
+                            Nenhuma venda diária encontrada por PDV.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot className="bg-[#f2fbfb]">
+                      <tr>
+                        <td colSpan="3" className="px-5 py-4 font-black text-gray-600">
+                          TOTAL DOS PDVs
+                        </td>
+                        <td className="px-5 py-4 text-right font-black text-[#048187]">
+                          {formatarMoeda(
+                            modalVendaDiariaLoja.pdvs.reduce(
+                              (total, item) => total + Number(item.realizado_diario || 0),
+                              0
+                            )
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-right font-black text-[#048187]">
+                          100,0%
+                        </td>
+                        <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
+                          {formatarNumeroBR(
+                            calcPerc(
+                              modalVendaDiariaLoja.total || 0,
+                              modalVendaDiariaLoja.meta || 0
+                            ),
+                            1
+                          )}%
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </section>
+
+              <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-5 py-4 bg-[#e9f4f8] flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-[#257B9C]">
+                      Venda diária por consultor
+                    </h3>
+                    <p className="text-xs text-gray-500 font-semibold mt-1">
+                      Resultado individual, com o PDV onde a venda aconteceu.
+                    </p>
+                  </div>
+                  <span className="text-xs font-black text-[#257B9C]">
+                    {modalVendaDiariaLoja.consultores.length} consultor(es)
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[900px] text-sm">
+                    <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                      <tr>
+                        <th className="px-5 py-3 text-left">Posição</th>
+                        <th className="px-5 py-3 text-left">ID</th>
+                        <th className="px-5 py-3 text-left">Consultor</th>
+                        <th className="px-5 py-3 text-left">PDV da venda</th>
+                        <th className="px-5 py-3 text-right">Venda do dia</th>
+                        <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {modalVendaDiariaLoja.consultores.map((item, indice) => (
+                        <tr
+                          key={`consultor-dia-${item.codigo_pdv || ''}-${item.id_consultora || indice}`}
+                          className="hover:bg-[#f8fcfc]"
+                        >
+                          <td className="px-5 py-3 font-black text-[#257B9C]">
+                            {item.posicao || indice + 1}º
+                          </td>
+                          <td className="px-5 py-3 font-black text-[#048187]">
+                            {item.id_consultora || '-'}
+                          </td>
+                          <td className="px-5 py-3 font-black text-gray-700">
+                            {item.nome_consultora || '-'}
+                          </td>
+                          <td className="px-5 py-3">
+                            <p className="font-black text-gray-700">
+                              {item.codigo_pdv || '-'}
+                            </p>
+                            <p className="text-[10px] text-gray-400 font-bold mt-0.5">
+                              {item.nome_pdv || '-'}
+                            </p>
+                          </td>
+                          <td className="px-5 py-3 text-right font-black text-[#257B9C]">
+                            {formatarMoeda(item.realizado_diario || 0)}
+                          </td>
+                          <td className="px-5 py-3 text-right font-black text-gray-600">
+                            {formatarNumeroBR(item.participacao || 0, 1)}%
+                          </td>
+                          <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
+                            {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
+                          </td>
+                        </tr>
+                      ))}
+
+                      {!modalVendaDiariaLoja.consultores.length && (
+                        <tr>
+                          <td colSpan="7" className="px-5 py-10 text-center text-gray-400 font-semibold">
+                            Nenhuma venda diária encontrada por consultor.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot className="bg-[#f5fafd]">
+                      <tr>
+                        <td colSpan="4" className="px-5 py-4 font-black text-gray-600">
+                          TOTAL DOS CONSULTORES
+                        </td>
+                        <td className="px-5 py-4 text-right font-black text-[#257B9C]">
+                          {formatarMoeda(
+                            modalVendaDiariaLoja.consultores.reduce(
+                              (total, item) => total + Number(item.realizado_diario || 0),
+                              0
+                            )
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-right font-black text-[#257B9C]">
+                          100,0%
+                        </td>
+                        <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
+                          {formatarNumeroBR(
+                            calcPerc(
+                              modalVendaDiariaLoja.total || 0,
+                              modalVendaDiariaLoja.meta || 0
+                            ),
+                            1
+                          )}%
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            <div className="p-5 border-t border-gray-100 bg-white">
+              <button
+                type="button"
+                onClick={() => setModalVendaDiariaLoja((atual) => ({
+                  ...atual,
+                  aberto: false,
+                }))}
+                className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-black py-3"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalValorExpandido.aberto && (
         <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+          <div className={`w-full ${modalValorExpandido.indicadorIaf ? 'max-w-7xl' : 'max-w-xl'} max-h-[92dvh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col`}>
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
               <div>
                 <h3 className="text-2xl font-bold text-gray-700">{modalValorExpandido.titulo}</h3>
+                {modalValorExpandido.indicadorIaf && (
+                  <p className="mt-1 text-xs font-bold text-gray-400">
+                    Ciclo {modalValorExpandido.indicadorIaf.ciclo || '-'}
+                    {modalValorExpandido.indicadorIaf.data_inicio && modalValorExpandido.indicadorIaf.data_fim
+                      ? ` • ${formatarDataBR(modalValorExpandido.indicadorIaf.data_inicio)} a ${formatarDataBR(modalValorExpandido.indicadorIaf.data_fim)}`
+                      : ''}
+                  </p>
+                )}
                 {modalValorExpandido.descricao && (<p className="mt-1 text-sm text-gray-400">{modalValorExpandido.descricao}</p>)}
               </div>
               <button type="button" onClick={fecharModalValExp} className="w-10 h-10 rounded-full hover:bg-gray-50 text-gray-400 flex items-center justify-center"><X size={20} /></button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-6">
-                <p className="text-sm font-bold uppercase tracking-wide text-gray-400">Valor completo</p>
-                <h4 className="mt-3 text-4xl font-extrabold text-[#048187] break-words">{modalValorExpandido.valorTexto}</h4>
-              </div>
-              {Array.isArray(modalValorExpandido.detalhes) && modalValorExpandido.detalhes.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {modalValorExpandido.detalhes.map((item) => (
-                    <div key={item.label} className="rounded-xl bg-gray-50 border border-gray-100 p-4">
-                      <p className="text-[10px] font-black uppercase text-gray-400 tracking-wide">{item.label}</p>
-                      <p className="mt-1 text-lg font-black text-gray-700">{item.valor}</p>
+
+            <div className="p-6 space-y-5 overflow-y-auto">
+              {modalValorExpandido.carregando ? (
+                <div className="min-h-[260px] flex flex-col items-center justify-center text-gray-400">
+                  <Loader2 size={34} className="animate-spin text-[#048187] mb-3" />
+                  <p className="font-bold">Carregando acompanhamento...</p>
+                </div>
+              ) : modalValorExpandido.erro ? (
+                <div className="rounded-xl bg-red-50 border border-red-100 p-5 text-red-700 font-bold">
+                  {modalValorExpandido.erro}
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-6">
+                    <p className="text-sm font-bold uppercase tracking-wide text-gray-400">
+                      {modalValorExpandido.indicadorIaf ? '% ativação' : 'Valor completo'}
+                    </p>
+                    <h4 className="mt-3 text-4xl font-extrabold text-[#048187] break-words">{modalValorExpandido.valorTexto}</h4>
+                  </div>
+
+                  {Array.isArray(modalValorExpandido.detalhes) && modalValorExpandido.detalhes.length > 0 && (
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${modalValorExpandido.indicadorIaf ? 'lg:grid-cols-7' : 'lg:grid-cols-3'} gap-3`}>
+                      {modalValorExpandido.detalhes.map((item) => (
+                        <div key={item.label} className="rounded-xl bg-gray-50 border border-gray-100 p-4 min-w-0">
+                          <p className="text-[10px] font-black uppercase text-gray-400 tracking-wide">{item.label}</p>
+                          <p className="mt-1 text-lg font-black text-gray-700 break-words">{item.valor}</p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-              {modalValorExpandido.formula && (
-                <div className="rounded-xl bg-[#e6f6f7] border border-[#ccecee] p-4">
-                  <p className="text-[10px] font-black uppercase text-[#048187] tracking-wide">Cálculo</p>
-                  <p className="mt-1 text-lg font-black text-[#048187] break-words">{modalValorExpandido.formula}</p>
-                </div>
+                  )}
+
+                  {modalValorExpandido.formula && (
+                    <div className="rounded-xl bg-[#e6f6f7] border border-[#ccecee] p-4">
+                      <p className="text-[10px] font-black uppercase text-[#048187] tracking-wide">Cálculo</p>
+                      <p className="mt-1 text-lg font-black text-[#048187] break-words">{modalValorExpandido.formula}</p>
+                    </div>
+                  )}
+
+                  {modalValorExpandido.indicadorIaf && (
+                    <div className="space-y-7">
+                      <section className="space-y-4">
+                        <h4 className="text-lg font-black text-gray-700">Acompanhamento por estrutura</h4>
+                        {(modalValorExpandido.indicadorIaf.por_estrutura || []).map((grupo) => (
+                          <div key={`estrutura-${grupo.nucleo}`} className="rounded-2xl border border-gray-100 overflow-hidden">
+                            <div className="bg-[#dff4f5] px-5 py-3 flex items-center justify-between">
+                              <span className="font-black text-[#048187]">{grupo.nucleo}</span>
+                              <span className="text-xs font-black text-[#048187]">
+                                {formatarNumeroBR(grupo.resumo?.com_indicador || 0, 0)} / {formatarNumeroBR(grupo.resumo?.ativos || 0, 0)}
+                              </span>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[1050px] text-sm">
+                                <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left">Estrutura</th>
+                                    <th className="px-4 py-3 text-right">Ativos com {modalValorExpandido.indicadorIaf.indicador}</th>
+                                    <th className="px-4 py-3 text-right">Ativos no ciclo</th>
+                                    <th className="px-4 py-3 text-right">% ativação</th>
+                                    <th className="px-4 py-3 text-right">Meta</th>
+                                    <th className="px-4 py-3 text-right">% da meta</th>
+                                    <th className="px-4 py-3 text-right">Ativação ideal</th>
+                                    <th className="px-4 py-3 text-right">Saldo</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {(grupo.estruturas || []).map((item) => (
+                                    <tr key={`${grupo.nucleo}-${item.estrutura}`} className="hover:bg-[#fbfefe]">
+                                      <td className="px-4 py-3 font-black text-gray-700">{item.estrutura}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarNumeroBR(item.com_indicador || 0, 0)}</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarNumeroBR(item.ativos || 0, 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-gray-700">{formatarNumeroBR(item.percentual_ativacao || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarNumeroBR(item.meta_percentual || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-black text-gray-700">{formatarNumeroBR(item.percentual_meta || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarNumeroBR(item.ativacao_ideal || 0, 0)}</td>
+                                      <td className={`px-4 py-3 text-right font-black ${Number(item.saldo_meta || 0) >= 0 ? 'text-[#048187]' : 'text-[#7c1f31]'}`}>
+                                        {Number(item.saldo_meta || 0) > 0 ? '+' : ''}{formatarNumeroBR(item.saldo_meta || 0, 0)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot className="bg-[#f7fafb] font-black">
+                                  <tr>
+                                    <td className="px-4 py-3">TOTAL {grupo.nucleo}</td>
+                                    <td className="px-4 py-3 text-right text-[#048187]">{formatarNumeroBR(grupo.resumo?.com_indicador || 0, 0)}</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.ativos || 0, 0)}</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.percentual_ativacao || 0, 1)}%</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.meta_percentual || 0, 1)}%</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.percentual_meta || 0, 1)}%</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.ativacao_ideal || 0, 0)}</td>
+                                    <td className={`px-4 py-3 text-right ${Number(grupo.resumo?.saldo_meta || 0) >= 0 ? 'text-[#048187]' : 'text-[#7c1f31]'}`}>
+                                      {Number(grupo.resumo?.saldo_meta || 0) > 0 ? '+' : ''}{formatarNumeroBR(grupo.resumo?.saldo_meta || 0, 0)}
+                                    </td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          </div>
+                        ))}
+                      </section>
+
+                      {modalValorExpandido.indicadorIaf.permite_consultor !== false && (
+                      <section className="space-y-4">
+                        <h4 className="text-lg font-black text-gray-700">Acompanhamento por consultor</h4>
+                        {(modalValorExpandido.indicadorIaf.por_consultor || []).map((grupo) => (
+                          <div key={`consultor-${grupo.nucleo}`} className="rounded-2xl border border-gray-100 overflow-hidden">
+                            <div className="bg-[#eeeafa] px-5 py-3 flex items-center justify-between">
+                              <span className="font-black text-[#5c4b8a]">{grupo.nucleo}</span>
+                              <span className="text-xs font-black text-[#5c4b8a]">
+                                {formatarNumeroBR(grupo.resumo?.com_indicador || 0, 0)} / {formatarNumeroBR(grupo.resumo?.ativos || 0, 0)}
+                              </span>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[1180px] text-sm">
+                                <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left">Consultor</th>
+                                    <th className="px-4 py-3 text-left">Estrutura</th>
+                                    <th className="px-4 py-3 text-right">Ativos com {modalValorExpandido.indicadorIaf.indicador}</th>
+                                    <th className="px-4 py-3 text-right">Ativos no ciclo</th>
+                                    <th className="px-4 py-3 text-right">% ativação</th>
+                                    <th className="px-4 py-3 text-right">Meta</th>
+                                    <th className="px-4 py-3 text-right">% da meta</th>
+                                    <th className="px-4 py-3 text-right">Ativação ideal</th>
+                                    <th className="px-4 py-3 text-right">Saldo</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {(grupo.consultores || []).map((item) => (
+                                    <tr key={`${grupo.nucleo}-${item.id_colaborador || item.nome}`} className="hover:bg-[#fcfbff]">
+                                      <td className="px-4 py-3 font-black text-gray-700">
+                                        {item.nome}
+                                        {item.id_colaborador ? <span className="block text-[10px] text-gray-400 mt-0.5">ID {item.id_colaborador}</span> : null}
+                                      </td>
+                                      <td className="px-4 py-3 font-semibold text-gray-500">{item.estrutura || '-'}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#5c4b8a]">{formatarNumeroBR(item.com_indicador || 0, 0)}</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarNumeroBR(item.ativos || 0, 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-gray-700">{formatarNumeroBR(item.percentual_ativacao || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarNumeroBR(item.meta_percentual || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-black text-gray-700">{formatarNumeroBR(item.percentual_meta || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarNumeroBR(item.ativacao_ideal || 0, 0)}</td>
+                                      <td className={`px-4 py-3 text-right font-black ${Number(item.saldo_meta || 0) >= 0 ? 'text-[#048187]' : 'text-[#7c1f31]'}`}>
+                                        {Number(item.saldo_meta || 0) > 0 ? '+' : ''}{formatarNumeroBR(item.saldo_meta || 0, 0)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot className="bg-[#f7f5fc] font-black">
+                                  <tr>
+                                    <td colSpan="2" className="px-4 py-3">TOTAL {grupo.nucleo}</td>
+                                    <td className="px-4 py-3 text-right text-[#5c4b8a]">{formatarNumeroBR(grupo.resumo?.com_indicador || 0, 0)}</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.ativos || 0, 0)}</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.percentual_ativacao || 0, 1)}%</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.meta_percentual || 0, 1)}%</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.percentual_meta || 0, 1)}%</td>
+                                    <td className="px-4 py-3 text-right">{formatarNumeroBR(grupo.resumo?.ativacao_ideal || 0, 0)}</td>
+                                    <td className={`px-4 py-3 text-right ${Number(grupo.resumo?.saldo_meta || 0) >= 0 ? 'text-[#048187]' : 'text-[#7c1f31]'}`}>
+                                      {Number(grupo.resumo?.saldo_meta || 0) > 0 ? '+' : ''}{formatarNumeroBR(grupo.resumo?.saldo_meta || 0, 0)}
+                                    </td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          </div>
+                        ))}
+                      </section>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
-            <div className="px-6 pb-6"><button type="button" onClick={fecharModalValExp} className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-bold py-3 transition">Fechar</button></div>
+
+            <div className="px-6 pb-6 pt-3 border-t border-gray-100 shrink-0">
+              <button type="button" onClick={fecharModalValExp} className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-bold py-3 transition">Fechar</button>
+            </div>
           </div>
         </div>
       )}
 
       {modalDetalhes && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col"><div className="flex items-start justify-between p-5 sm:p-6 border-b border-gray-100 shrink-0"><div><h2 className="text-lg sm:text-xl font-bold text-gray-700">{modalDetalhes.titulo}</h2><p className="text-sm text-gray-400 mt-1 leading-relaxed">{modalDetalhes.subtitulo}</p></div><button onClick={() => setModalDetalhes(null)} className="text-gray-400 hover:text-red-500 bg-gray-50 rounded-full p-2 shrink-0"><X size={20} /></button></div><div className="p-5 sm:p-6 space-y-5 overflow-y-auto"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{modalDetalhes.itens.map((item) => (<div key={item.label} className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4 min-w-0"><p className="text-xs font-bold uppercase text-gray-400 mb-1">{item.label}</p><p className="text-xl sm:text-2xl font-bold text-[#048187] whitespace-nowrap overflow-hidden text-ellipsis">{item.valor}</p></div>))}</div>{modalDetalhes.tipo === 'tendencia' && modalDetalhes.plano && (<div className={`rounded-2xl border p-5 ${modalDetalhes.plano.status === 'risco' ? 'bg-red-50/70 border-red-100' : 'bg-green-50/70 border-green-100'}`}><div className="flex items-start gap-3 mb-4"><div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${modalDetalhes.plano.status === 'risco' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{modalDetalhes.plano.status === 'risco' ? <AlertCircle size={20} /> : <CheckCircle size={20} />}</div><div><h3 className="text-base sm:text-lg font-black text-gray-700">{modalDetalhes.plano.titulo}</h3><p className="text-sm text-gray-600 mt-1 leading-relaxed">{modalDetalhes.plano.resumo}</p></div></div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">{modalDetalhes.plano.cards.map((card) => (<div key={card.label} className="bg-white/80 rounded-xl border border-white p-3 shadow-sm"><p className="text-[10px] font-black uppercase text-gray-400 mb-1">{card.label}</p><p className="text-base font-black text-[#048187]">{card.valor}</p></div>))}</div><div className="bg-white/80 rounded-xl border border-white p-4"><h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><Sparkles size={15} className="text-[#048187]" /> Sugestão inteligente</h4><ul className="space-y-2">{modalDetalhes.plano.sugestoes.map((sugestao, idx) => (<li key={idx} className="flex items-start gap-2 text-sm text-gray-600 leading-relaxed"><span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#048187] shrink-0" /> <span>{sugestao}</span></li>))}</ul></div></div>)}{modalDetalhes.tipo === 'cancelados' && (<div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-5"><h3 className="text-lg font-bold text-gray-700 mb-4">Motivos dos Cancelamentos</h3>{modalDetalhes.motivos_cancelamento?.length > 0 ? (<div className="overflow-x-auto"><table className="w-full text-sm min-w-[680px]"><thead><tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3">Motivo</th><th className="py-3 text-right">Pedidos</th><th className="py-3 text-right">%</th><th className="py-3 text-right">Valor líquido</th></tr></thead><tbody>{modalDetalhes.motivos_cancelamento.map((item) => (<tr key={item.motivo} className="border-b border-gray-100"><td className="py-3 font-medium text-gray-700">{item.motivo}</td><td className="py-3 text-right text-gray-600">{item.quantidade}</td><td className="py-3 text-right text-gray-600">{Number(item.percentual || 0).toFixed(2)}%</td><td className="py-3 text-right font-bold text-[#048187]">{formatarMoeda(item.valor_liquido || 0)}</td></tr>))}</tbody></table></div>) : (<div className="h-40 flex items-center justify-center text-gray-400 text-sm">Nenhum motivo de cancelamento.</div>)}</div>)}</div><div className="p-5 sm:p-6 border-t border-gray-100 shrink-0"><button onClick={() => setModalDetalhes(null)} className="w-full bg-[#048187] text-white font-bold py-3 rounded-xl hover:bg-[#036b70]">Fechar</button></div></div></div>
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4">
+          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col">
+            <div className="flex items-start justify-between p-5 sm:p-6 border-b border-gray-100 shrink-0">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-700">{modalDetalhes.titulo}</h2>
+                {modalDetalhes.subtitulo ? (
+                  <p className="text-sm text-gray-400 mt-1 leading-relaxed">{modalDetalhes.subtitulo}</p>
+                ) : null}
+              </div>
+              <button onClick={() => setModalDetalhes(null)} className="text-gray-400 hover:text-red-500 bg-gray-50 rounded-full p-2 shrink-0">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-5 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {modalDetalhes.itens.map((item) => (
+                  <div key={item.label} className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4 min-w-0">
+                    <p className="text-xs font-bold uppercase text-gray-400 mb-1">{item.label}</p>
+                    <p className="text-xl sm:text-2xl font-bold text-[#048187] whitespace-nowrap overflow-hidden text-ellipsis">{item.valor}</p>
+                  </div>
+                ))}
+              </div>
+
+              {modalDetalhes.tipo === 'tendencia' && modalDetalhes.plano && (
+                <div className={`rounded-2xl border p-5 ${modalDetalhes.plano.status === 'risco' ? 'bg-red-50/70 border-red-100' : 'bg-green-50/70 border-green-100'}`}>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${modalDetalhes.plano.status === 'risco' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
+                      {modalDetalhes.plano.status === 'risco' ? <AlertCircle size={20} /> : <CheckCircle size={20} />}
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-gray-700">{modalDetalhes.plano.titulo}</h3>
+                      <p className="text-sm text-gray-600 mt-1 leading-relaxed">{modalDetalhes.plano.resumo}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                    {modalDetalhes.plano.cards.map((card) => (
+                      <div key={card.label} className="bg-white/80 rounded-xl border border-white p-3 shadow-sm">
+                        <p className="text-[10px] font-black uppercase text-gray-400 mb-1">{card.label}</p>
+                        <p className="text-base font-black text-[#048187]">{card.valor}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-white/80 rounded-xl border border-white p-4">
+                    <h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><Sparkles size={15} className="text-[#048187]" /> Sugestão inteligente</h4>
+                    <ul className="space-y-2">
+                      {modalDetalhes.plano.sugestoes.map((sugestao, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-gray-600 leading-relaxed">
+                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#048187] shrink-0" />
+                          <span>{sugestao}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {modalDetalhes.tipo === 'cancelados' && (
+                <div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-5">
+                  <h3 className="text-lg font-bold text-gray-700 mb-4">Motivos dos Cancelamentos</h3>
+                  {modalDetalhes.motivos_cancelamento?.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm min-w-[680px]">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-200">
+                            <th className="py-3">Motivo</th>
+                            <th className="py-3 text-right">Pedidos</th>
+                            <th className="py-3 text-right">%</th>
+                            <th className="py-3 text-right">Valor líquido</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {modalDetalhes.motivos_cancelamento.map((item) => (
+                            <tr key={item.motivo} className="border-b border-gray-100">
+                              <td className="py-3 font-medium text-gray-700">{item.motivo}</td>
+                              <td className="py-3 text-right text-gray-600">{item.quantidade}</td>
+                              <td className="py-3 text-right text-gray-600">{Number(item.percentual || 0).toFixed(2)}%</td>
+                              <td className="py-3 text-right font-bold text-[#048187]">{formatarMoeda(item.valor_liquido || 0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="h-40 flex items-center justify-center text-gray-400 text-sm">Nenhum motivo de cancelamento.</div>
+                  )}
+                </div>
+              )}
+
+              {modalDetalhes.secoesTabelas?.map((secao) => {
+                const totalSecao = (secao.linhas || []).reduce((acc, item) => acc + Number(item.valor || 0), 0);
+                return (
+                  <section key={secao.titulo} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="px-5 py-4 border-b border-gray-100">
+                      <h3 className="font-black text-gray-700">{secao.titulo}</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-sm">
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                          <tr>
+                            <th className="px-5 py-3 text-left">Posição</th>
+                            <th className="px-5 py-3 text-left">Nome</th>
+                            <th className="px-5 py-3 text-right">Valor acumulado</th>
+                            <th className="px-5 py-3 text-right">% do realizado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {(secao.linhas || []).map((item) => (
+                            <tr key={`${secao.titulo}-${item.posicao}-${item.nome}`} className="hover:bg-[#f8fcfc]">
+                              <td className="px-5 py-3 font-black" style={{ color: secao.cor }}>{item.posicao}º</td>
+                              <td className="px-5 py-3 font-black text-gray-700">{item.nome}</td>
+                              <td className="px-5 py-3 text-right font-black" style={{ color: secao.cor }}>{formatarMoeda(item.valor || 0)}</td>
+                              <td className="px-5 py-3 text-right font-black text-gray-600">{formatarNumeroBR(item.percentual || 0, 1)}%</td>
+                            </tr>
+                          ))}
+                          {!(secao.linhas || []).length && (
+                            <tr>
+                              <td colSpan="4" className="px-5 py-10 text-center text-gray-400 font-semibold">Nenhum dado disponível.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-[#f7fafb]">
+                          <tr>
+                            <td colSpan="2" className="px-5 py-4 font-black text-gray-600">{secao.totalRotulo}</td>
+                            <td className="px-5 py-4 text-right font-black" style={{ color: secao.cor }}>{formatarMoeda(totalSecao)}</td>
+                            <td className="px-5 py-4 text-right font-black text-gray-600">100,0%</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+
+            <div className="p-5 sm:p-6 border-t border-gray-100 shrink-0">
+              <button onClick={() => setModalDetalhes(null)} className="w-full bg-[#048187] text-white font-bold py-3 rounded-xl hover:bg-[#036b70]">Fechar</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {modalMetasReaisAberto && (
@@ -10486,6 +18592,550 @@ const enviarArquivo = async (tipo) => {
 
       {modalExcluirCicloAberto && cicloParaExcluir && (
         <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6"><h2 className="text-xl font-bold text-gray-700 mb-4">Excluir ciclo?</h2><p className="text-gray-600 mb-6">{cicloParaExcluir.ciclo}</p><div className="flex justify-end gap-3"><button onClick={() => setModalExcluirCicloAberto(false)} className="px-5 py-2 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button><button onClick={confirmarExclusaoCiclo} className="bg-red-500 text-white px-5 py-2 rounded-lg font-bold hover:bg-red-600">Excluir</button></div></div></div>
+      )}
+
+
+
+      {modalRelatorioLojaAberto && podeGerarRelatorioLoja && (
+        <div className="fixed inset-0 z-[9999] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col">
+            <div className="p-5 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wide text-[#048187] mb-1">
+                  LOJA — Visão Geral
+                </p>
+                <h2 className="text-xl sm:text-2xl font-black text-gray-700">
+                  Gerar relatório em imagem
+                </h2>
+                <p className="text-sm text-gray-400 font-semibold mt-1">
+                  Selecione os PDVs, o conteúdo e os indicadores. Cada PDV será gerado em uma imagem paisagem.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setModalRelatorioLojaAberto(false)}
+                disabled={gerandoRelatorioLoja}
+                className="w-10 h-10 rounded-xl bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 flex items-center justify-center disabled:opacity-50"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
+              {erroRelatorioLoja && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  {erroRelatorioLoja}
+                </div>
+              )}
+
+              <section>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <p className="text-xs font-black uppercase text-gray-500">
+                      1. Seleção dos PDVs
+                    </p>
+                    <p className="text-xs text-gray-400 font-semibold mt-1">
+                      Ao selecionar mais de um PDV, também será gerada uma imagem consolidada.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[#e6f6f7] text-[#048187] px-3 py-1 text-xs font-black">
+                    {configRelatorioLoja.modoPdvs === 'todos'
+                      ? pdvsDisponiveisRelatorioLoja.length
+                      : configRelatorioLoja.pdvs.length} PDV(s)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfigRelatorioLoja((atual) => ({
+                      ...atual,
+                      modoPdvs: 'todos',
+                    }))}
+                    className={`rounded-xl border p-4 text-left ${
+                      configRelatorioLoja.modoPdvs === 'todos'
+                        ? 'border-[#048187] bg-[#e6f6f7]'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    <p className="font-black text-gray-700">
+                      Todas as lojas
+                    </p>
+                    <p className="text-xs text-gray-400 font-semibold mt-1">
+                      Gera o consolidado e uma imagem individual para cada PDV.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setConfigRelatorioLoja((atual) => ({
+                      ...atual,
+                      modoPdvs: 'especificos',
+                    }))}
+                    className={`rounded-xl border p-4 text-left ${
+                      configRelatorioLoja.modoPdvs === 'especificos'
+                        ? 'border-[#048187] bg-[#e6f6f7]'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    <p className="font-black text-gray-700">
+                      Selecionar lojas específicas
+                    </p>
+                    <p className="text-xs text-gray-400 font-semibold mt-1">
+                      Escolha um ou mais PDVs cadastrados.
+                    </p>
+                  </button>
+                </div>
+
+                {configRelatorioLoja.modoPdvs === 'especificos' && (
+                  <div className="mt-4 rounded-2xl border border-gray-200 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                      <p className="text-xs font-black text-gray-500 uppercase">
+                        {configRelatorioLoja.pdvs.length} selecionado(s)
+                      </p>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={selecionarTodosPdvsRelatorioLoja}
+                          className="px-3 py-2 rounded-lg bg-[#e6f6f7] text-[#048187] text-xs font-black"
+                        >
+                          Selecionar todos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={limparPdvsRelatorioLoja}
+                          className="px-3 py-2 rounded-lg bg-gray-100 text-gray-500 text-xs font-black"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+                      {pdvsDisponiveisRelatorioLoja.map((item) => {
+                        const codigo = String(item?.codigo_pdv || '');
+                        const marcado = configRelatorioLoja.pdvs.includes(codigo);
+
+                        return (
+                          <label
+                            key={codigo}
+                            className={`rounded-xl border p-3 flex items-start gap-3 cursor-pointer ${
+                              marcado
+                                ? 'border-[#048187] bg-[#f2fbfb]'
+                                : 'border-gray-200 bg-white'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              onChange={() => alternarPdvRelatorioLoja(codigo)}
+                              className="mt-1 w-4 h-4 accent-[#048187]"
+                            />
+                            <span className="min-w-0">
+                              <span className="block font-black text-sm text-gray-700">
+                                {codigo} — {item?.cidade || item?.nome_loja || 'Loja'}
+                              </span>
+                              <span className="block text-[10px] font-bold text-gray-400 truncate">
+                                {item?.nome_loja || '-'}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <p className="text-xs font-black uppercase text-gray-500 mb-3">
+                  2. Nível de detalhamento
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfigRelatorioLoja((atual) => ({
+                      ...atual,
+                      incluirConsultores: false,
+                    }))}
+                    className={`rounded-xl border p-4 text-left ${
+                      !configRelatorioLoja.incluirConsultores
+                        ? 'border-[#048187] bg-[#e6f6f7]'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    <p className="font-black text-gray-700">
+                      Somente resultado do PDV
+                    </p>
+                    <p className="text-xs text-gray-400 font-semibold mt-1">
+                      Mostra os indicadores gerais da loja.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setConfigRelatorioLoja((atual) => ({
+                      ...atual,
+                      incluirConsultores: true,
+                    }))}
+                    className={`rounded-xl border p-4 text-left ${
+                      configRelatorioLoja.incluirConsultores
+                        ? 'border-[#048187] bg-[#e6f6f7]'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    <p className="font-black text-gray-700">
+                      PDV + consultores
+                    </p>
+                    <p className="text-xs text-gray-400 font-semibold mt-1">
+                      Inclui meta e realizado de cada consultor na mesma imagem do PDV.
+                    </p>
+                  </button>
+                </div>
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <p className="text-xs font-black uppercase text-gray-500">
+                    3. Indicadores
+                  </p>
+                  <p className="text-xs text-gray-400 font-bold">
+                    {
+                      Object.values(
+                        configRelatorioLoja.indicadores || {}
+                      ).filter(Boolean).length
+                    } selecionado(s)
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {INDICADORES_RELATORIO_LOJA.map((indicador) => {
+                    const marcado = Boolean(
+                      configRelatorioLoja.indicadores?.[indicador.id]
+                    );
+
+                    return (
+                      <label
+                        key={indicador.id}
+                        className={`rounded-xl border p-3 flex items-start gap-3 cursor-pointer ${
+                          marcado
+                            ? 'border-[#048187] bg-[#f2fbfb]'
+                            : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={() => alternarIndicadorRelatorioLoja(indicador.id)}
+                          className="mt-1 w-4 h-4 accent-[#048187]"
+                        />
+                        <span>
+                          <span className="block text-sm font-black text-gray-700">
+                            {indicador.label}
+                          </span>
+                          <span className="block text-[10px] text-gray-400 font-semibold mt-1">
+                            {indicador.descricao}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <div className="rounded-2xl bg-[#111827] text-white p-5">
+                <p className="text-[10px] uppercase tracking-wider text-[#5bb2b4] font-black">
+                  Resumo da geração
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-3">
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold">
+                      Ciclo
+                    </p>
+                    <p className="font-black mt-1">
+                      {cicloLoja || dadosLoja?.resumo?.ciclo || '-'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold">
+                      PDVs
+                    </p>
+                    <p className="font-black mt-1">
+                      {configRelatorioLoja.modoPdvs === 'todos'
+                        ? `${pdvsDisponiveisRelatorioLoja.length} PDV(s)`
+                        : `${configRelatorioLoja.pdvs.length} selecionado(s)`}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold">
+                      Conteúdo
+                    </p>
+                    <p className="font-black mt-1">
+                      {configRelatorioLoja.incluirConsultores
+                        ? 'PDV + consultores'
+                        : 'Somente PDV'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold">
+                      Arquivos
+                    </p>
+                    <p className="font-black mt-1">
+                      {(
+                        configRelatorioLoja.modoPdvs === 'todos'
+                          ? pdvsDisponiveisRelatorioLoja.length
+                          : configRelatorioLoja.pdvs.length
+                      ) > 1
+                        ? 'Consolidado + 1 PNG por PDV'
+                        : '1 PNG do PDV'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-100 bg-white flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setModalRelatorioLojaAberto(false)}
+                disabled={gerandoRelatorioLoja}
+                className="px-5 py-3 rounded-xl border border-gray-200 text-gray-500 font-black hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={gerarRelatorioLojaImagem}
+                disabled={gerandoRelatorioLoja}
+                className="px-6 py-3 rounded-xl bg-[#048187] text-white font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2 shadow-lg shadow-[#048187]/20"
+              >
+                {gerandoRelatorioLoja
+                  ? <RefreshCcw size={18} className="animate-spin" />
+                  : <FileSpreadsheet size={18} />}
+                {gerandoRelatorioLoja
+                  ? 'Gerando imagem(ns)...'
+                  : 'Gerar e baixar PNG'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalRelatorioMetasAberto && podeGerarRelatorioMetas && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-sm z-[9999] flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-start justify-between gap-4 p-6 border-b border-gray-100 bg-gradient-to-r from-[#048187] to-[#5bb2b4] text-white">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+                  <FileSpreadsheet size={25} />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black">Gerar relatório em imagem</h2>
+                  <p className="text-sm text-white/80 font-semibold mt-1">
+                    Configure o conteúdo e baixe uma imagem PNG pronta para compartilhar.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !gerandoRelatorioMetas && setModalRelatorioMetasAberto(false)}
+                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center shrink-0"
+                disabled={gerandoRelatorioMetas}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6 bg-[#fbfefe]">
+              {erroRelatorioMetas && (
+                <div className="rounded-xl p-4 bg-red-50 border border-red-100 text-red-600 font-bold text-sm">
+                  {erroRelatorioMetas}
+                </div>
+              )}
+
+              <section className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-8 h-8 rounded-full bg-[#048187] text-white font-black flex items-center justify-center">1</span>
+                  <div>
+                    <h3 className="font-black text-gray-700">Selecione o núcleo</h3>
+                    <p className="text-xs text-gray-400 font-semibold">É possível selecionar um ou mais núcleos.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {nucleosDisponiveisRelatorioMetas.map((nucleo) => {
+                    const marcado = configRelatorioMetas.nucleos.includes(nucleo);
+                    return (
+                      <button
+                        key={nucleo}
+                        type="button"
+                        onClick={() => alternarNucleoRelatorioMetas(nucleo)}
+                        className={`rounded-xl border px-4 py-4 text-left transition-all ${marcado ? 'border-[#048187] bg-[#e6f6f7] text-[#048187] shadow-sm' : 'border-gray-200 bg-white text-gray-600 hover:border-[#5bb2b4]'}`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-black text-lg">{nucleo}</span>
+                          <span className={`w-6 h-6 rounded-full border flex items-center justify-center ${marcado ? 'bg-[#048187] border-[#048187] text-white' : 'border-gray-300'}`}>
+                            {marcado && <CheckCircle size={16} />}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {!nucleosDisponiveisRelatorioMetas.length && (
+                    <p className="text-sm text-gray-400 font-bold sm:col-span-3">Nenhum núcleo disponível para o seu usuário.</p>
+                  )}
+                </div>
+              </section>
+
+              <section className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-8 h-8 rounded-full bg-[#048187] text-white font-black flex items-center justify-center">2</span>
+                  <div>
+                    <h3 className="font-black text-gray-700">Escolha as estruturas</h3>
+                    <p className="text-xs text-gray-400 font-semibold">Gere o resultado de todas ou selecione estruturas específicas.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setConfigRelatorioMetas((atual) => ({ ...atual, modoEstruturas: 'todas', estruturas: [] }))}
+                    className={`rounded-xl border p-4 text-left ${configRelatorioMetas.modoEstruturas === 'todas' ? 'border-[#048187] bg-[#e6f6f7]' : 'border-gray-200'}`}
+                  >
+                    <p className="font-black text-gray-700">Todas as estruturas</p>
+                    <p className="text-xs text-gray-400 font-semibold mt-1">Inclui todas as estruturas dos núcleos escolhidos.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfigRelatorioMetas((atual) => ({ ...atual, modoEstruturas: 'especificas' }))}
+                    className={`rounded-xl border p-4 text-left ${configRelatorioMetas.modoEstruturas === 'especificas' ? 'border-[#048187] bg-[#e6f6f7]' : 'border-gray-200'}`}
+                  >
+                    <p className="font-black text-gray-700">Selecionar estruturas</p>
+                    <p className="text-xs text-gray-400 font-semibold mt-1">Escolha as estruturas. Cada estrutura será gerada em um PNG separado.</p>
+                  </button>
+                </div>
+
+                {configRelatorioMetas.modoEstruturas === 'especificas' && (
+                  <div className="border border-gray-100 rounded-xl overflow-hidden">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100">
+                      <p className="text-xs font-black text-gray-500 uppercase">
+                        {configRelatorioMetas.estruturas.length} selecionada(s)
+                      </p>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={selecionarTodasEstruturasRelatorioMetas} className="text-xs font-black text-[#048187]">Selecionar todas</button>
+                        <button type="button" onClick={limparEstruturasRelatorioMetas} className="text-xs font-black text-red-500">Limpar</button>
+                      </div>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
+                      {estruturasDisponiveisRelatorioMetas.map((item) => {
+                        const marcado = configRelatorioMetas.estruturas.includes(item.estrutura);
+                        return (
+                          <label key={item.estrutura} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[#f4fbfb]">
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              onChange={() => alternarEstruturaRelatorioMetas(item.estrutura)}
+                              className="w-4 h-4 accent-[#048187]"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-black text-gray-700 truncate">{item.estrutura}</p>
+                              <p className="text-[11px] text-gray-400 font-bold">
+                                {obterNucleosDoItemRelatorioMetas(item).join(', ') || '-'} • {formatarNumeroBR(item.percentual, 1)}% da meta
+                              </p>
+                            </div>
+                          </label>
+                        );
+                      })}
+                      {!estruturasDisponiveisRelatorioMetas.length && (
+                        <p className="px-4 py-6 text-sm text-gray-400 font-bold text-center">Selecione um núcleo para listar as estruturas.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-8 h-8 rounded-full bg-[#048187] text-white font-black flex items-center justify-center">3</span>
+                  <div>
+                    <h3 className="font-black text-gray-700">Nível de detalhamento</h3>
+                    <p className="text-xs text-gray-400 font-semibold">Escolha se a imagem mostrará somente o geral ou também os consultores.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfigRelatorioMetas((atual) => ({ ...atual, incluirConsultores: false }))}
+                    className={`rounded-xl border p-4 text-left ${!configRelatorioMetas.incluirConsultores ? 'border-[#048187] bg-[#e6f6f7]' : 'border-gray-200'}`}
+                  >
+                    <p className="font-black text-gray-700">Somente resultado geral</p>
+                    <p className="text-xs text-gray-400 font-semibold mt-1">Meta e realizado dos indicadores por estrutura.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfigRelatorioMetas((atual) => ({ ...atual, incluirConsultores: true }))}
+                    className={`rounded-xl border p-4 text-left ${configRelatorioMetas.incluirConsultores ? 'border-[#048187] bg-[#e6f6f7]' : 'border-gray-200'}`}
+                  >
+                    <p className="font-black text-gray-700">Geral + consultores</p>
+                    <p className="text-xs text-gray-400 font-semibold mt-1">Inclui meta e realizado de cada indicador dos consultores na mesma imagem da estrutura.</p>
+                  </button>
+                </div>
+              </section>
+
+              <div className="rounded-2xl bg-[#111827] text-white p-5">
+                <p className="text-[10px] uppercase tracking-wider text-[#5bb2b4] font-black">Resumo da geração</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3">
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold">Núcleos</p>
+                    <p className="font-black mt-1">{configRelatorioMetas.nucleos.join(', ') || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold">Estruturas</p>
+                    <p className="font-black mt-1">
+                      {configRelatorioMetas.modoEstruturas === 'todas'
+                        ? `${estruturasDisponiveisRelatorioMetas.length} estrutura(s)`
+                        : `${configRelatorioMetas.estruturas.length} selecionada(s)`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold">Conteúdo</p>
+                    <p className="font-black mt-1">{configRelatorioMetas.incluirConsultores ? 'Geral + consultores' : 'Somente geral'}</p>
+                    <p className="text-[10px] text-gray-400 font-bold mt-1">1 PNG por estrutura</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-100 bg-white flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setModalRelatorioMetasAberto(false)}
+                disabled={gerandoRelatorioMetas}
+                className="px-5 py-3 rounded-xl border border-gray-200 text-gray-500 font-black hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={gerarRelatorioMetasImagem}
+                disabled={gerandoRelatorioMetas}
+                className="px-6 py-3 rounded-xl bg-[#048187] text-white font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center justify-center gap-2 shadow-lg shadow-[#048187]/20"
+              >
+                {gerandoRelatorioMetas ? <RefreshCcw size={18} className="animate-spin" /> : <FileSpreadsheet size={18} />}
+                {gerandoRelatorioMetas ? 'Gerando imagem(ns)...' : 'Gerar e baixar PNG'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {modalPermissoesAberto && usuarioPermissoesEditando && (
@@ -10543,7 +19193,124 @@ const enviarArquivo = async (tipo) => {
       )}
 
       {modalEditarUsuarioAberto && usuarioEditando && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4"><div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"><div className="flex items-start justify-between p-6 border-b border-gray-100"><div><h2 className="text-xl font-bold text-gray-700">Editar usuário</h2></div><button onClick={() => setModalEditarUsuarioAberto(false)} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={20} /></button></div><form onSubmit={salvarEdicaoUsuario} className="p-6 space-y-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome</label><input type="text" value={usuarioEditando.nome} onChange={(e) => setUsuarioEditando({...usuarioEditando, nome: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]" required /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Perfil</label><select value={usuarioEditando.perfil} onChange={(e) => setUsuarioEditando({...usuarioEditando, perfil: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"><option value="admin">Admin</option><option value="gestor">Gestor</option><option value="visualizador">Visualizador</option></select></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Status</label><select value={usuarioEditando.status_usuario} onChange={(e) => setUsuarioEditando({...usuarioEditando, status_usuario: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div></div><div className="flex justify-end gap-3 pt-4"><button type="submit" className="bg-[#048187] text-white px-5 py-2 rounded-lg font-bold">Salvar alterações</button></div></form></div></div>
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-start justify-between p-6 border-b border-gray-100">
+              <div>
+                <h2 className="text-xl font-bold text-gray-700">
+                  Editar usuário
+                </h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  Defina também a área das notificações de meta.
+                </p>
+              </div>
+              <button
+                onClick={() => setModalEditarUsuarioAberto(false)}
+                className="text-gray-400 hover:bg-gray-50 rounded-full p-2"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={salvarEdicaoUsuario} className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                  Nome
+                </label>
+                <input
+                  type="text"
+                  value={usuarioEditando.nome}
+                  onChange={(e) => setUsuarioEditando({
+                    ...usuarioEditando,
+                    nome: e.target.value,
+                  })}
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                    Perfil
+                  </label>
+                  <select
+                    value={usuarioEditando.perfil}
+                    onChange={(e) => {
+                      const perfil = e.target.value;
+                      setUsuarioEditando({
+                        ...usuarioEditando,
+                        perfil,
+                        area_gestao: perfil === 'admin'
+                          ? 'AMBOS'
+                          : usuarioEditando.area_gestao,
+                      });
+                    }}
+                    className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="gestor">Gestor</option>
+                    <option value="visualizador">Visualizador</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                    Área
+                  </label>
+                  <select
+                    value={normalizarAreaGestao(
+                      usuarioEditando.area_gestao,
+                      usuarioEditando.perfil
+                    )}
+                    onChange={(e) => setUsuarioEditando({
+                      ...usuarioEditando,
+                      area_gestao: e.target.value,
+                    })}
+                    disabled={usuarioEditando.perfil === 'admin'}
+                    className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    {AREAS_GESTAO.map((area) => (
+                      <option key={area.id} value={area.id}>
+                        {area.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={usuarioEditando.status_usuario}
+                    onChange={(e) => setUsuarioEditando({
+                      ...usuarioEditando,
+                      status_usuario: e.target.value,
+                    })}
+                    className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                  >
+                    <option value="ativo">Ativo</option>
+                    <option value="inativo">Inativo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-[#f7fafb] border border-gray-100 px-4 py-3 text-xs text-gray-500 font-semibold">
+                Gestor VD recebe alertas somente de VD. Gestor LOJA recebe alertas somente de LOJA. Admin recebe os dois.
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="bg-[#048187] text-white px-5 py-2 rounded-lg font-bold"
+                >
+                  Salvar alterações
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {modalExcluirUsuarioAberto && usuarioParaExcluir && (
