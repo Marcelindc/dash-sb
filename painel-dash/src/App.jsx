@@ -6189,6 +6189,127 @@ export default function App() {
     .filter(Boolean)
     .join(' • ');
 
+  // Segurança adicional do Acompanhamento VD no frontend.
+  // O backend continua sendo a fonte oficial da autorização, mas todo clique
+  // em cards/olhinhos também envia explicitamente apenas as estruturas do perfil.
+  const escoposVdUsuarioLogado = estruturasPermitidasUsuarioLogado
+    .filter((item) => String(item?.area || '').toUpperCase() === 'VD');
+
+  const normalizarEstruturaEscopoVD = (valor) => String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  const removerCodigoEstruturaEscopoVD = (valor) => {
+    const texto = String(valor || '').replace(/\s+/g, ' ').trim();
+    if (!texto) return '';
+    const partes = texto.split('-');
+    if (partes.length <= 1) return texto;
+    const primeiraParte = partes[0].trim();
+    return /^\d+$/.test(primeiraParte)
+      ? partes.slice(1).join('-').trim()
+      : texto;
+  };
+
+  const valoresEstruturasPermitidasVD = Array.from(new Set(
+    escoposVdUsuarioLogado.flatMap((item) => {
+      const vinculadas = Array.isArray(item?.vinculadas) ? item.vinculadas : [];
+      return [item?.estrutura, ...vinculadas]
+        .map((valor) => String(valor || '').trim())
+        .filter(Boolean);
+    })
+  ));
+
+  const chavesEstruturasPermitidasVD = new Set(
+    valoresEstruturasPermitidasVD.flatMap((valor) => [
+      normalizarEstruturaEscopoVD(valor),
+      normalizarEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
+    ]).filter(Boolean)
+  );
+
+  const deveRestringirDetalhesVD = modoGerenteEstrutura
+    && areaGerenteEstrutura === 'VD'
+    && chavesEstruturasPermitidasVD.size > 0;
+
+  const estruturaPermitidaNoDetalheVD = (valor) => {
+    if (!deveRestringirDetalhesVD) return true;
+    const chaveCompleta = normalizarEstruturaEscopoVD(valor);
+    const chaveSemCodigo = normalizarEstruturaEscopoVD(
+      removerCodigoEstruturaEscopoVD(valor)
+    );
+    return chavesEstruturasPermitidasVD.has(chaveCompleta)
+      || chavesEstruturasPermitidasVD.has(chaveSemCodigo);
+  };
+
+  const aplicarEscopoGerenteVdNosFiltros = (filtrosBase = {}) => {
+    const copia = {
+      ...(filtrosBase || {}),
+      nucleos: [...(filtrosBase?.nucleos || [])],
+      unidades: [...(filtrosBase?.unidades || [])],
+      estruturas: [...(filtrosBase?.estruturas || [])],
+      consultores: [...(filtrosBase?.consultores || [])],
+      situacoes: [...(filtrosBase?.situacoes || [])],
+      meios_captacao: [...(filtrosBase?.meios_captacao || [])],
+      modelos_comerciais: [...(filtrosBase?.modelos_comerciais || [])],
+      canais_venda: [...(filtrosBase?.canais_venda || [])],
+    };
+
+    if (!deveRestringirDetalhesVD) return copia;
+
+    const solicitadasPermitidas = (copia.estruturas || [])
+      .filter((estrutura) => estruturaPermitidaNoDetalheVD(estrutura));
+
+    copia.estruturas = solicitadasPermitidas.length
+      ? solicitadasPermitidas
+      : valoresEstruturasPermitidasVD;
+    return copia;
+  };
+
+  const filtrarListaDetalhePorEstruturaVD = (lista = []) => {
+    if (!Array.isArray(lista) || !deveRestringirDetalhesVD) return Array.isArray(lista) ? lista : [];
+    return lista.filter((item) => estruturaPermitidaNoDetalheVD(
+      item?.estrutura
+      || item?.Estrutura
+      || item?.nome_estrutura
+      || item?.estrutura_nome
+      || ''
+    ));
+  };
+
+  const filtrarPayloadDetalheVD = (payload) => {
+    if (!payload || typeof payload !== 'object' || !deveRestringirDetalhesVD) return payload;
+    const resultado = { ...payload };
+
+    ['estruturas', 'consultores', 'por_consultor'].forEach((chave) => {
+      if (Array.isArray(resultado[chave])) {
+        resultado[chave] = filtrarListaDetalhePorEstruturaVD(resultado[chave]);
+      }
+    });
+
+    if (Array.isArray(resultado.por_estrutura)) {
+      resultado.por_estrutura = resultado.por_estrutura
+        .map((grupo) => ({
+          ...grupo,
+          estruturas: filtrarListaDetalhePorEstruturaVD(grupo?.estruturas || []),
+        }))
+        .filter((grupo) => (grupo.estruturas || []).length > 0);
+    }
+
+    if (Array.isArray(resultado.nucleos)) {
+      resultado.nucleos = resultado.nucleos
+        .map((grupo) => ({
+          ...grupo,
+          estruturas: filtrarListaDetalhePorEstruturaVD(grupo?.estruturas || []),
+          consultores: filtrarListaDetalhePorEstruturaVD(grupo?.consultores || []),
+        }))
+        .filter((grupo) => (grupo.estruturas || []).length > 0 || (grupo.consultores || []).length > 0);
+    }
+
+    return resultado;
+  };
+
   useEffect(() => {
     if (!modoGerenteEstrutura || !usuarioLogado) return;
     if (abasVisiveisGerenteEstrutura.includes(telaAtual)) return;
@@ -9689,9 +9810,9 @@ const enviarArquivo = async (tipo) => {
     const percentual = calcPerc(realizado, meta);
     const falta = Math.max(meta - realizado, 0);
 
-    const estruturasAcumuladas = [
+    const estruturasAcumuladas = filtrarListaDetalhePorEstruturaVD([
       ...(dados?.realizado_por_estrutura || [])
-    ]
+    ])
       .sort((a, b) => Number(b?.ValorPraticado || 0) - Number(a?.ValorPraticado || 0))
       .map((item, indice) => ({
         posicao: indice + 1,
@@ -9700,9 +9821,9 @@ const enviarArquivo = async (tipo) => {
         percentual: realizado > 0 ? (Number(item?.ValorPraticado || 0) / realizado) * 100 : 0,
       }));
 
-    const consultoresAcumulados = [
+    const consultoresAcumulados = filtrarListaDetalhePorEstruturaVD([
       ...(dados?.realizado_por_consultor || [])
-    ]
+    ])
       .sort((a, b) => Number(b?.ValorPraticado || 0) - Number(a?.ValorPraticado || 0))
       .map((item, indice) => ({
         posicao: indice + 1,
@@ -9747,10 +9868,10 @@ const enviarArquivo = async (tipo) => {
       || ''
     ).trim();
 
-    const filtrosDetalhe = {
+    const filtrosDetalhe = aplicarEscopoGerenteVdNosFiltros({
       ...filtrosAtivos,
       ciclo: cicloDetalhe,
-    };
+    });
 
     const resumoInicial = {
       realizado_hoje: Number(
@@ -9806,7 +9927,8 @@ const enviarArquivo = async (tipo) => {
         }
       );
 
-      const resumoApi = resposta.data?.resumo || {};
+      const respostaSegura = filtrarPayloadDetalheVD(resposta.data || {});
+      const resumoApi = respostaSegura?.resumo || {};
       const realizadoDetalhe = Number(
         resumoApi.realizado_hoje ?? resumoInicial.realizado_hoje ?? 0
       );
@@ -9834,11 +9956,11 @@ const enviarArquivo = async (tipo) => {
           ),
         },
         meios_captacao:
-          resposta.data?.meios_captacao || [],
+          respostaSegura?.meios_captacao || [],
         estruturas:
-          resposta.data?.estruturas || [],
+          respostaSegura?.estruturas || [],
         consultores:
-          resposta.data?.consultores || [],
+          respostaSegura?.consultores || [],
         conferencia: {
           total_meios: 0,
           total_estruturas: 0,
@@ -9846,7 +9968,7 @@ const enviarArquivo = async (tipo) => {
           meios_ok: false,
           estruturas_ok: false,
           consultores_ok: false,
-          ...(resposta.data?.conferencia || {}),
+          ...(respostaSegura?.conferencia || {}),
         },
       });
     } catch (erro) {
@@ -10010,12 +10132,14 @@ const enviarArquivo = async (tipo) => {
       const endpoint = indicador === 'MULTIMARCAS'
         ? '/indicadores-iaf/multimarcas-detalhe'
         : '/indicadores-iaf/detalhe';
+      const filtrosDetalheSeguros = aplicarEscopoGerenteVdNosFiltros(filtrosAtivos);
       const payload = indicador === 'MULTIMARCAS'
-        ? { filtros: filtrosAtivos }
-        : { indicador, filtros: filtrosAtivos };
+        ? { filtros: filtrosDetalheSeguros }
+        : { indicador, filtros: filtrosDetalheSeguros };
       const { data } = await axios.post(`${API_URL}${endpoint}`, payload);
+      const dataSegura = filtrarPayloadDetalheVD(data || {});
 
-      const resumo = data?.resumo || {};
+      const resumo = dataSegura?.resumo || {};
       const saldo = Number(resumo?.saldo_meta || 0);
       const saldoTexto = saldo < 0
         ? `Faltam ${formatarNumeroBR(Math.abs(saldo), 0)}`
@@ -10040,7 +10164,7 @@ const enviarArquivo = async (tipo) => {
         formula: '',
         carregando: false,
         erro: '',
-        indicadorIaf: data,
+        indicadorIaf: dataSegura,
       });
     } catch (erro) {
       setModalValorExpandido({
@@ -10074,13 +10198,17 @@ const enviarArquivo = async (tipo) => {
     setErroDetalheEudora('');
     setDetalheEudora(null);
     try {
+      const filtrosEudoraSeguros = aplicarEscopoGerenteVdNosFiltros({
+        ...filtrosAtivos,
+        ciclo,
+      });
       const { data } = await axios.post(
         `${API_URL}/eudora/detalhe`,
-        { ...filtrosAtivos, ciclo },
+        filtrosEudoraSeguros,
         { headers: { 'X-Ciclo-VD': ciclo } }
       );
       if (String(cicloVisualizacaoVDRef.current || '') !== ciclo) return;
-      setDetalheEudora(data || null);
+      setDetalheEudora(filtrarPayloadDetalheVD(data || null));
     } catch (erro) {
       setErroDetalheEudora(erro.response?.data?.detail || 'Erro ao carregar o resultado Eudora.');
     } finally {
@@ -10289,8 +10417,9 @@ const enviarArquivo = async (tipo) => {
       && modoGerenteEstrutura
       && areaGerenteEstrutura === 'VD';
 
-    const consultoresAcompanhamentoVD = [...(dadosMetas?.ranking_consultores || [])]
-      .sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
+    const consultoresAcompanhamentoVD = filtrarListaDetalhePorEstruturaVD([
+      ...(dadosMetas?.ranking_consultores || [])
+    ]).sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
 
     const normalizarEstruturaAcompanhamento = (valor) => String(valor || '')
       .normalize('NFD')
@@ -10979,8 +11108,12 @@ const enviarArquivo = async (tipo) => {
 
   const montarDesempenhoDetalhado = (indicadorSelecionado) => {
     const indicador = String(indicadorSelecionado || 'RPA').toUpperCase();
-    const estruturas = Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : [];
-    const consultores = Array.isArray(dadosMetas?.ranking_consultores) ? dadosMetas.ranking_consultores : [];
+    const estruturas = filtrarListaDetalhePorEstruturaVD(
+      Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : []
+    );
+    const consultores = filtrarListaDetalhePorEstruturaVD(
+      Array.isArray(dadosMetas?.ranking_consultores) ? dadosMetas.ranking_consultores : []
+    );
 
     const normalizar = (valor) => String(valor || '')
       .normalize('NFD')
