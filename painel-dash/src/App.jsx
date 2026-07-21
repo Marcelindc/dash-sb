@@ -18,6 +18,35 @@ const CICLO_UPLOAD_VD_STORAGE_KEY = 'dashSbCicloUploadVD';
 const CICLO_UPLOAD_LOJA_STORAGE_KEY = 'dashSbCicloUploadLoja';
 const CICLO_ATUAL_CONHECIDO_STORAGE_KEY = 'dashSbCicloAtualConhecido';
 const APP_NAME = 'DASH COMERCIAL SB';
+const CACHE_SESSAO_DASH_KEY = 'dashSbCacheInteracoesV2';
+const CACHE_SESSAO_TTL_MS = 15 * 60 * 1000;
+
+const carregarCacheSessaoDash = () => {
+  try {
+    const bruto = sessionStorage.getItem(CACHE_SESSAO_DASH_KEY);
+    if (!bruto) return {};
+    const payload = JSON.parse(bruto);
+    if (!payload?.salvoEm || Date.now() - Number(payload.salvoEm) > CACHE_SESSAO_TTL_MS) {
+      sessionStorage.removeItem(CACHE_SESSAO_DASH_KEY);
+      return {};
+    }
+    return payload?.dados && typeof payload.dados === 'object' ? payload.dados : {};
+  } catch {
+    return {};
+  }
+};
+
+const salvarCacheSessaoDash = (cache) => {
+  try {
+    const entradas = Object.entries(cache || {}).slice(-16);
+    sessionStorage.setItem(CACHE_SESSAO_DASH_KEY, JSON.stringify({
+      salvoEm: Date.now(),
+      dados: Object.fromEntries(entradas),
+    }));
+  } catch {
+    // O dashboard continua funcionando mesmo se o navegador limitar o storage.
+  }
+};
 
 const AREAS_GESTAO = [
   { id: 'VD', label: 'VD' },
@@ -5256,7 +5285,7 @@ export default function App() {
   const [usuarioPermissoesEditando, setUsuarioPermissoesEditando] = useState(null);
   const [permissoesTemporarias, setPermissoesTemporarias] = useState([]);
 
-  const [cacheDashboard, setCacheDashboard] = useState({}); const [cacheDetalheMetas, setCacheDetalheMetas] = useState({}); const [cacheMetas, setCacheMetas] = useState(null); const [opcoesFiltrosCarregadas, setOpcoesFiltrosCarregadas] = useState(false);
+  const [cacheDashboard, setCacheDashboard] = useState(() => carregarCacheSessaoDash()); const [cacheDetalheMetas, setCacheDetalheMetas] = useState({}); const [cacheMetas, setCacheMetas] = useState(null); const [opcoesFiltrosCarregadas, setOpcoesFiltrosCarregadas] = useState(false);
   const [carregandoDashboard, setCarregandoDashboard] = useState(false); const [carregandoMetas, setCarregandoMetas] = useState(false); const [carregandoDetalheMeta, setCarregandoDetalheMeta] = useState(false); const [erroMetas, setErroMetas] = useState('');
   
   const [modalDetalhes, setModalDetalhes] = useState(null);
@@ -5286,6 +5315,11 @@ export default function App() {
     },
   });
   const [modalValorExpandido, setModalValorExpandido] = useState({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null });
+  const [modalDesempenhoDetalhado, setModalDesempenhoDetalhado] = useState({ aberto: false, indicador: 'RPA', visao: 'estruturas' });
+  useEffect(() => {
+    salvarCacheSessaoDash(cacheDashboard);
+  }, [cacheDashboard]);
+
   const [notificacoesSistema, setNotificacoesSistema] = useState([]);
   const [notificacoesNaoLidas, setNotificacoesNaoLidas] = useState(0);
   const [painelNotificacoesAberto, setPainelNotificacoesAberto] = useState(false);
@@ -5961,7 +5995,13 @@ export default function App() {
 
   const gerarChaveFiltros = (filtros) => JSON.stringify({ ci: filtros?.ciclo || '', nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
 
-  const limparCachesDados = () => { setCacheDashboard({}); setCacheMetas(null); setCacheDetalheMetas({}); setOpcoesFiltrosCarregadas(false); };
+  const limparCachesDados = () => {
+    setCacheDashboard({});
+    setCacheMetas(null);
+    setCacheDetalheMetas({});
+    setOpcoesFiltrosCarregadas(false);
+    try { sessionStorage.removeItem(CACHE_SESSAO_DASH_KEY); } catch { /* sem ação */ }
+  };
 
   const carregarOpcoesFiltros = async (forcarAtualizacao = false, cicloForcado = null) => {
     if (opcoesFiltrosCarregadas && !forcarAtualizacao) return;
@@ -6062,7 +6102,8 @@ export default function App() {
         setCacheMetas(c.dadosMetas);
       }
       setMetaFaturamentoDashboard(c.metaFaturamentoDashboard || 0);
-      await carregarOpcoesFiltros(false);
+      void carregarOpcoesFiltros(false);
+      setTimeout(() => carregarDashboard(filtros, true), 80);
       return c.dados;
     }
 
@@ -6075,7 +6116,7 @@ export default function App() {
     setCarregandoDashboard(true);
     const promessa = (async () => {
       try {
-        await carregarOpcoesFiltros(false, cicloSolicitado);
+        void carregarOpcoesFiltros(false, cicloSolicitado);
         const configCiclo = { headers: { 'X-Ciclo-VD': cicloSolicitado } };
         const [resMetas, resDados] = await Promise.allSettled([
           axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, configCiclo),
@@ -6123,10 +6164,10 @@ export default function App() {
     if (!forcarAtualizacao && cacheDashboard[chaveCache]) {
       const c = cacheDashboard[chaveCache];
       setDadosMetas(c.dados);
-      const estruturas = c.dados.estruturas || [];
-      const existeSelecionada = estruturas.some((item) => item.estrutura === estruturaSelecionada);
-      const estruturaDetalhe = existeSelecionada ? estruturaSelecionada : estruturas[0]?.estrutura;
-      if (estruturaDetalhe) await carregarDetalheMeta(estruturaDetalhe, filtros, false);
+      if (visaoMetas === 'consultores' && estruturaSelecionada) {
+        await carregarDetalheMeta(estruturaSelecionada, filtros, false);
+      }
+      setTimeout(() => carregarMetas(filtros, true), 80);
       return c.dados;
     }
 
@@ -6147,10 +6188,9 @@ export default function App() {
         setCacheMetas(dadosOrdenados);
         setCacheDashboard((prev) => ({ ...prev, [chaveCache]: { dados: dadosOrdenados } }));
 
-        const existeSelecionada = estruturasOrdenadas.some((item) => item.estrutura === estruturaSelecionada);
-        const estruturaDetalhe = existeSelecionada ? estruturaSelecionada : estruturasOrdenadas[0]?.estrutura;
-        if (estruturaDetalhe) await carregarDetalheMeta(estruturaDetalhe, filtros, forcarAtualizacao);
-        else setDetalheMeta(null);
+        if (visaoMetas === 'consultores' && estruturaSelecionada) {
+          await carregarDetalheMeta(estruturaSelecionada, filtros, forcarAtualizacao);
+        }
 
         return dadosOrdenados;
       } catch (erro) {
@@ -6181,10 +6221,10 @@ export default function App() {
       setDados(cacheDash.dados);
       setMetaFaturamentoDashboard(cacheDash.metaFaturamentoDashboard || 0);
       setDadosMetas(cacheMeta.dados);
-      const estruturas = cacheMeta.dados.estruturas || [];
-      const existeSelecionada = estruturas.some((item) => item.estrutura === estruturaSelecionada);
-      const estruturaDetalhe = existeSelecionada ? estruturaSelecionada : estruturas[0]?.estrutura;
-      if (estruturaDetalhe) await carregarDetalheMeta(estruturaDetalhe, filtros, false);
+      if (visaoMetas === 'consultores' && estruturaSelecionada) {
+        await carregarDetalheMeta(estruturaSelecionada, filtros, false);
+      }
+      setTimeout(() => carregarDashboardEMetas(filtros, true), 80);
       return;
     }
 
@@ -6197,7 +6237,7 @@ export default function App() {
 
     const promessa = (async () => {
       try {
-        await carregarOpcoesFiltros(false);
+        void carregarOpcoesFiltros(false);
         const [resMetas, resDados] = await Promise.allSettled([
           axios.post(`${API_URL}/metas/resumo`, filtros),
           axios.post(`${API_URL}/dashboard/dados`, filtros)
@@ -6228,11 +6268,9 @@ export default function App() {
           setMetaFaturamentoDashboard(0);
         }
 
-        const estruturas = dadosMetasAtualizados?.estruturas || [];
-        const existeSelecionada = estruturas.some((item) => item.estrutura === estruturaSelecionada);
-        const estruturaDetalhe = existeSelecionada ? estruturaSelecionada : estruturas[0]?.estrutura;
-        if (estruturaDetalhe) await carregarDetalheMeta(estruturaDetalhe, filtros, forcarAtualizacao);
-        else setDetalheMeta(null);
+        if (visaoMetas === 'consultores' && estruturaSelecionada) {
+          await carregarDetalheMeta(estruturaSelecionada, filtros, forcarAtualizacao);
+        }
       } finally {
         setCarregandoDashboard(false);
         setCarregandoMetas(false);
@@ -6247,12 +6285,36 @@ export default function App() {
   const carregarDetalheMeta = async (estrutura, filtros, forcarAtualizacao = false) => {
     if (!estrutura) return;
     const chaveCache = String(estrutura) + '_' + gerarChaveFiltros(filtros);
-    if (!forcarAtualizacao && cacheDetalheMetas[chaveCache]) { setDetalheMeta(cacheDetalheMetas[chaveCache]); setEstruturaSelecionada(estrutura); return; }
-    setCarregandoDetalheMeta(true); setErroMetas('');
-    try {
-      const resposta = await axios.post(`${API_URL}/metas/estrutura/${encodeURIComponent(estrutura)}`, filtros);
-      setDetalheMeta(resposta.data); setEstruturaSelecionada(estrutura); setCacheDetalheMetas((prev) => ({ ...prev, [chaveCache]: resposta.data }));
-    } catch (erro) { console.error('Erro detalhe estrutura:', erro); setErroMetas('Erro detalhe estrutura.'); } finally { setCarregandoDetalheMeta(false); }
+    const chavePromessa = `detalhe_meta_${chaveCache}_${forcarAtualizacao ? 'force' : 'cache'}`;
+    if (!forcarAtualizacao && cacheDetalheMetas[chaveCache]) {
+      setDetalheMeta(cacheDetalheMetas[chaveCache]);
+      setEstruturaSelecionada(estrutura);
+      return cacheDetalheMetas[chaveCache];
+    }
+    if (promessasEmAndamentoRef.current[chavePromessa]) return promessasEmAndamentoRef.current[chavePromessa];
+
+    const cicloSolicitado = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
+    setCarregandoDetalheMeta(true);
+    setErroMetas('');
+    const promessa = axios.post(
+      `${API_URL}/metas/estrutura/${encodeURIComponent(estrutura)}`,
+      { ...filtros, ciclo: cicloSolicitado },
+      { headers: { 'X-Ciclo-VD': cicloSolicitado } }
+    ).then((resposta) => {
+      setDetalheMeta(resposta.data);
+      setEstruturaSelecionada(estrutura);
+      setCacheDetalheMetas((prev) => ({ ...prev, [chaveCache]: resposta.data }));
+      return resposta.data;
+    }).catch((erro) => {
+      console.error('Erro detalhe estrutura:', erro);
+      setErroMetas('Erro detalhe estrutura.');
+      return null;
+    }).finally(() => {
+      setCarregandoDetalheMeta(false);
+      delete promessasEmAndamentoRef.current[chavePromessa];
+    });
+    promessasEmAndamentoRef.current[chavePromessa] = promessa;
+    return promessa;
   };
 
   const voltarParaListaMetas = () => {
@@ -9596,83 +9658,7 @@ const enviarArquivo = async (tipo) => {
     }
   };
 
-  const abrirDetDesempenhoDashboard = (tipo) => {
-    const resumoMetas = obterResumoMetasAtual();
-    const tipoNormalizado = String(tipo || '').toUpperCase();
-    const valorTotal = Number(dados?.valor_total || 0);
-    const pedidos = Number(dados?.total_pedidos || 0);
-    const ativados = Number(dados?.revendedores_ativados || 0);
-    const totalItens = Number(dados?.total_itens || 0);
-
-    if (tipoNormalizado === 'RPA') {
-      const rpa = ativados > 0 ? valorTotal / ativados : 0;
-      const meta = Number(resumoMetas?.meta_rpa_geral || 0);
-      const faturamentoNecessario = ativados * meta;
-      const faltaFaturamento = Math.max(faturamentoNecessario - valorTotal, 0);
-      abrirModalValExp(
-        'RPA Geral',
-        formatarMoeda(rpa),
-        'RPA = faturamento realizado dividido por revendedores ativados.',
-        [
-          { label: 'RPA atual', valor: formatarMoeda(rpa) },
-          { label: 'Meta RPA', valor: formatarMoeda(meta) },
-          { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(rpa, meta), 1)}%` },
-          { label: 'Faturamento realizado', valor: formatarMoeda(valorTotal) },
-          { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
-          { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessario) },
-          { label: 'Falta para a meta', valor: faltaFaturamento > 0 ? formatarMoeda(faltaFaturamento) : 'Meta batida' }
-        ],
-        `${formatarMoeda(valorTotal)} ÷ ${formatarNumeroBR(ativados, 0)} = ${formatarMoeda(rpa)} | Meta: ${formatarNumeroBR(ativados, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
-      );
-      return;
-    }
-
-    if (tipoNormalizado === 'TKT') {
-      const tkt = pedidos > 0 ? valorTotal / pedidos : 0;
-      const meta = Number(resumoMetas?.meta_tkt_medio_geral || 0);
-      const faturamentoNecessario = pedidos * meta;
-      const faltaFaturamento = Math.max(faturamentoNecessario - valorTotal, 0);
-      abrirModalValExp(
-        'Ticket Médio Geral',
-        formatarMoeda(tkt),
-        'Ticket médio = faturamento realizado dividido pelo total de pedidos.',
-        [
-          { label: 'Ticket médio atual', valor: formatarMoeda(tkt) },
-          { label: 'Meta ticket médio', valor: formatarMoeda(meta) },
-          { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(tkt, meta), 1)}%` },
-          { label: 'Faturamento realizado', valor: formatarMoeda(valorTotal) },
-          { label: 'Total de pedidos', valor: formatarNumeroBR(pedidos, 0) },
-          { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessario) },
-          { label: 'Falta para a meta', valor: faltaFaturamento > 0 ? formatarMoeda(faltaFaturamento) : 'Meta batida' }
-        ],
-        `${formatarMoeda(valorTotal)} ÷ ${formatarNumeroBR(pedidos, 0)} = ${formatarMoeda(tkt)} | Meta: ${formatarNumeroBR(pedidos, 0)} × ${formatarMoeda(meta)} = ${formatarMoeda(faturamentoNecessario)}`
-      );
-      return;
-    }
-
-    const upa = calcularUpa(totalItens, ativados);
-    const meta = Number(resumoMetas?.meta_upa_geral || 0);
-    const itensNecessarios = Math.ceil(ativados * meta);
-    const faltamItens = Math.max(itensNecessarios - totalItens, 0);
-    abrirModalValExp(
-      'UPA Geral',
-      formatarNumeroBR(upa, 2),
-      'UPA = total de itens vendidos dividido por revendedores ativados.',
-      [
-        { label: 'UPA atual', valor: formatarNumeroBR(upa, 2) },
-        { label: 'Meta UPA', valor: formatarNumeroBR(meta, 1) },
-        { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(upa, meta), 1)}%` },
-        { label: 'Itens vendidos', valor: formatarNumeroBR(totalItens, 0) },
-        { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
-        { label: 'Itens necessários', valor: formatarNumeroBR(itensNecessarios, 0) },
-        { label: 'Falta para a meta', valor: faltamItens > 0 ? formatarNumeroBR(faltamItens, 0) : 'Meta batida' }
-      ],
-      `${formatarNumeroBR(totalItens, 0)} ÷ ${formatarNumeroBR(ativados, 0)} = ${formatarNumeroBR(upa, 2)} | Meta: ${formatarNumeroBR(ativados, 0)} × ${formatarNumeroBR(meta, 1)} = ${formatarNumeroBR(itensNecessarios, 0)} itens`
-    );
-  };
-
-  const abrirDetCancelados = () => setModalDetalhes({ titulo: 'Cancelados', subtitulo: 'Pedidos Cancelados', tipo: 'cancelados', itens: [{ label: 'Quantidade', valor: dados?.total_cancelados }], motivos_cancelamento: dados?.motivos_cancelamento });
-
+  const abrirDetDesempenhoDashboard = (tipo) => abrirDesempenhoDetalhado(tipo);
 
   const abrirDetalheEudora = async () => {
     const ciclo = String(filtrosAtivos?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || '').trim();
@@ -10103,6 +10089,131 @@ const enviarArquivo = async (tipo) => {
       )}
       </>
     );
+  };
+
+  const abrirDesempenhoDetalhado = (indicador) => {
+    setModalDesempenhoDetalhado({
+      aberto: true,
+      indicador: String(indicador || 'RPA').toUpperCase(),
+      visao: 'estruturas',
+    });
+  };
+
+  const montarDesempenhoDetalhado = (indicadorSelecionado) => {
+    const indicador = String(indicadorSelecionado || 'RPA').toUpperCase();
+    const estruturas = Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : [];
+    const consultores = Array.isArray(dadosMetas?.ranking_consultores) ? dadosMetas.ranking_consultores : [];
+
+    const normalizar = (valor) => String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+    const semCodigo = (valor) => {
+      const texto = String(valor || '').trim();
+      return texto.includes('-') ? texto.split('-', 2)[1].trim() : texto;
+    };
+    const nucleoCurto = (valor) => {
+      const texto = normalizar(valor);
+      if (texto.includes('3')) return 'N3';
+      if (texto.includes('2')) return 'N2';
+      if (texto.includes('1')) return 'N1';
+      return 'A DEFINIR';
+    };
+
+    const mapaEstruturas = {};
+    estruturas.forEach((item) => {
+      const aliases = [item?.estrutura, ...(Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [])];
+      aliases.forEach((alias) => {
+        [normalizar(alias), normalizar(semCodigo(alias))].filter(Boolean).forEach((chave) => {
+          mapaEstruturas[chave] = item;
+        });
+      });
+    });
+
+    const criarLinha = (item, tipo) => {
+      const estruturaReferencia = tipo === 'consultores'
+        ? (mapaEstruturas[normalizar(item?.estrutura)] || mapaEstruturas[normalizar(semCodigo(item?.estrutura))] || {})
+        : item;
+      const realizadoReceita = Number(item?.realizado || 0);
+      const ativados = Number(item?.atividade_realizada || 0);
+      const pedidos = Number(item?.quantidade_pedidos || 0);
+      const itens = Number(item?.total_itens || 0);
+
+      let valor = 0;
+      let meta = 0;
+      let baseCalculo = '';
+      if (indicador === 'RPA') {
+        valor = Number(item?.rpa || (ativados > 0 ? realizadoReceita / ativados : 0));
+        meta = Number(item?.meta_rpa || estruturaReferencia?.meta_rpa || dadosMetas?.meta_rpa_geral || 0);
+        baseCalculo = `${formatarMoeda(realizadoReceita)} ÷ ${formatarNumeroBR(ativados, 0)} ativados`;
+      } else if (indicador === 'TKT') {
+        valor = Number(item?.tkt_medio || item?.ticket_medio || (pedidos > 0 ? realizadoReceita / pedidos : 0));
+        meta = Number(item?.meta_tkt_medio || estruturaReferencia?.meta_tkt_medio || dadosMetas?.meta_tkt_medio_geral || 0);
+        baseCalculo = `${formatarMoeda(realizadoReceita)} ÷ ${formatarNumeroBR(pedidos, 0)} pedidos`;
+      } else {
+        valor = Number(item?.upa || (ativados > 0 ? itens / ativados : 0));
+        meta = Number(item?.meta_upa || estruturaReferencia?.meta_upa || dadosMetas?.meta_upa_geral || 0);
+        baseCalculo = `${formatarNumeroBR(itens, 0)} itens ÷ ${formatarNumeroBR(ativados, 0)} ativados`;
+      }
+
+      const nucleo = nucleoCurto(item?.nucleo || estruturaReferencia?.nucleo || '');
+      return {
+        nome: tipo === 'consultores'
+          ? (item?.nome_exibicao || item?.nome_social || item?.nome || item?.id_colaborador || 'Consultor')
+          : (item?.estrutura || 'Estrutura'),
+        estrutura: tipo === 'consultores' ? String(item?.estrutura || '') : '',
+        nucleo,
+        valor,
+        meta,
+        percentual: calcPerc(valor, meta),
+        realizadoReceita,
+        ativados,
+        pedidos,
+        itens,
+        baseCalculo,
+      };
+    };
+
+    const agrupar = (lista, tipo) => {
+      const linhas = lista.map((item) => criarLinha(item, tipo));
+      return ['N1', 'N2', 'N3', 'A DEFINIR'].map((nucleo) => {
+        const itensNucleo = linhas
+          .filter((linha) => linha.nucleo === nucleo)
+          .sort((a, b) => b.valor - a.valor);
+        const receita = itensNucleo.reduce((acc, linha) => acc + linha.realizadoReceita, 0);
+        const ativados = itensNucleo.reduce((acc, linha) => acc + linha.ativados, 0);
+        const pedidos = itensNucleo.reduce((acc, linha) => acc + linha.pedidos, 0);
+        const itensVendidos = itensNucleo.reduce((acc, linha) => acc + linha.itens, 0);
+        const metasValidas = itensNucleo.map((linha) => linha.meta).filter((valor) => valor > 0);
+        const metaMedia = metasValidas.length
+          ? metasValidas.reduce((acc, valor) => acc + valor, 0) / metasValidas.length
+          : 0;
+        const valorNucleo = indicador === 'RPA'
+          ? (ativados > 0 ? receita / ativados : 0)
+          : indicador === 'TKT'
+            ? (pedidos > 0 ? receita / pedidos : 0)
+            : (ativados > 0 ? itensVendidos / ativados : 0);
+        return {
+          nucleo,
+          itens: itensNucleo,
+          valor: valorNucleo,
+          meta: metaMedia,
+          percentual: calcPerc(valorNucleo, metaMedia),
+          receita,
+          ativados,
+          pedidos,
+          itensVendidos,
+        };
+      }).filter((grupo) => grupo.itens.length > 0);
+    };
+
+    return {
+      indicador,
+      titulo: indicador === 'RPA' ? 'RPA' : indicador === 'TKT' ? 'Ticket Médio' : 'UPA',
+      gruposEstruturas: agrupar(estruturas, 'estruturas'),
+      gruposConsultores: agrupar(consultores, 'consultores'),
+    };
   };
 
   const renderTelaMetas = () => {
@@ -10567,6 +10678,50 @@ const enviarArquivo = async (tipo) => {
         ? percentualMultimarcasApi
         : calcularPercentualSeguro(multimarcasRealizado, atividadeRealizada);
 
+      const metaEudoraPercentual = obterNumeroLinhaMeta(item?.meta_eudora, dadosMetas?.meta_eudora_geral || dados?.meta_eudora_percentual || 20);
+      const metaEudoraValor = obterNumeroLinhaMeta(item?.meta_eudora_valor, receitaMeta * metaEudoraPercentual / 100);
+      const eudoraRealizadoApi = obterNumeroLinhaMeta(item?.eudora_realizado, 0);
+
+      // A listagem usa o total dos consultores como fallback quando uma
+      // resposta antiga da API traz zero no bloco, mas o detalhe já possui
+      // os pedidos Eudora corretamente associados à equipe.
+      const normalizarEudoraLinha = (valor) => String(valor || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+      const aliasesEudoraLinha = new Set([
+        item?.estrutura,
+        ...(Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : []),
+      ].flatMap((valor) => {
+        const texto = String(valor || '').trim();
+        const semCodigo = texto.includes('-') ? texto.split('-', 2)[1].trim() : texto;
+        return [normalizarEudoraLinha(texto), normalizarEudoraLinha(semCodigo)];
+      }).filter(Boolean));
+      const consultoresEudoraLinha = new Map();
+      (dadosMetas?.ranking_consultores || []).forEach((consultor) => {
+        const estruturaConsultor = String(consultor?.estrutura || '').trim();
+        const estruturaSemCodigo = estruturaConsultor.includes('-')
+          ? estruturaConsultor.split('-', 2)[1].trim()
+          : estruturaConsultor;
+        const pertence = aliasesEudoraLinha.has(normalizarEudoraLinha(estruturaConsultor))
+          || aliasesEudoraLinha.has(normalizarEudoraLinha(estruturaSemCodigo));
+        if (!pertence) return;
+        const chaveConsultor = String(consultor?.id_colaborador || consultor?.nome_exibicao || consultor?.nome || estruturaConsultor);
+        consultoresEudoraLinha.set(chaveConsultor, consultor);
+      });
+      const eudoraRealizadoConsultores = [...consultoresEudoraLinha.values()]
+        .reduce((acc, consultor) => acc + obterNumeroLinhaMeta(consultor?.eudora_realizado, 0), 0);
+      const pedidosEudoraConsultores = [...consultoresEudoraLinha.values()]
+        .reduce((acc, consultor) => acc + obterNumeroLinhaMeta(consultor?.pedidos_eudora, 0), 0);
+      const eudoraRealizado = eudoraRealizadoApi > 0 ? eudoraRealizadoApi : eudoraRealizadoConsultores;
+      const percentualEudoraApi = obterNumeroLinhaMeta(item?.percentual_eudora, 0);
+      const percentualEudora = percentualEudoraApi > 0 && eudoraRealizadoApi > 0
+        ? percentualEudoraApi
+        : calcularPercentualSeguro(eudoraRealizado, metaEudoraValor);
+      const pedidosEudoraApi = obterNumeroLinhaMeta(item?.pedidos_eudora, 0);
+      const pedidosEudora = pedidosEudoraApi > 0 ? pedidosEudoraApi : pedidosEudoraConsultores;
+
       return {
         receitaMeta,
         receitaRealizada,
@@ -10593,7 +10748,12 @@ const enviarArquivo = async (tipo) => {
         metaMultimarcasPercentual,
         multimarcasMetaQtd,
         multimarcasRealizado,
-        percentualMultimarcas
+        percentualMultimarcas,
+        metaEudoraPercentual,
+        metaEudoraValor,
+        eudoraRealizado,
+        percentualEudora,
+        pedidosEudora
       };
     };
 
@@ -10854,7 +11014,7 @@ const enviarArquivo = async (tipo) => {
               <div className="space-y-1.5">
                 <button
                   type="button"
-                  onClick={abrirDetalheRpaGeralMetas}
+                  onClick={() => abrirDesempenhoDetalhado('RPA')}
                   className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
                   title={`RPA: ${formatarMoeda(rpaGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_rpa_geral)}`}
                 >
@@ -10869,7 +11029,7 @@ const enviarArquivo = async (tipo) => {
 
                 <button
                   type="button"
-                  onClick={abrirDetalheTicketGeralMetas}
+                  onClick={() => abrirDesempenhoDetalhado('TKT')}
                   className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
                   title={`Ticket Médio: ${formatarMoeda(tktGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_tkt_medio_geral)}`}
                 >
@@ -10884,7 +11044,7 @@ const enviarArquivo = async (tipo) => {
 
                 <button
                   type="button"
-                  onClick={abrirDetalheUpaGeralMetas}
+                  onClick={() => abrirDesempenhoDetalhado('UPA')}
                   className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
                   title={`UPA: ${formatarNumeroBR(upaGeral, 1)} | Meta: ${formatarNumeroBR(dadosMetas?.meta_upa_geral, 1)}`}
                 >
@@ -16748,6 +16908,13 @@ const enviarArquivo = async (tipo) => {
     );
   }
 
+  const dadosModalDesempenho = modalDesempenhoDetalhado.aberto
+    ? montarDesempenhoDetalhado(modalDesempenhoDetalhado.indicador)
+    : { indicador: 'RPA', titulo: 'RPA', gruposEstruturas: [], gruposConsultores: [] };
+  const gruposModalDesempenho = modalDesempenhoDetalhado.visao === 'consultores'
+    ? dadosModalDesempenho.gruposConsultores
+    : dadosModalDesempenho.gruposEstruturas;
+
   return (
     <>
       <div className="h-[100dvh] bg-[#f7fafb] flex overflow-hidden">
@@ -18219,6 +18386,129 @@ const enviarArquivo = async (tipo) => {
               >
                 Fechar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalDesempenhoDetalhado.aberto && (
+        <div className="fixed inset-0 z-[10060] bg-black/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+          <div className="w-full max-w-7xl max-h-[94dvh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+            <div className="px-5 sm:px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">Desempenho por núcleo</p>
+                <h2 className="text-xl sm:text-2xl font-black text-gray-700 mt-1">{dadosModalDesempenho.titulo}</h2>
+                <p className="text-sm text-gray-400 font-semibold mt-1">
+                  Resultado consolidado por núcleo, com abertura por estruturas e consultores.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalDesempenhoDetalhado((atual) => ({ ...atual, aberto: false }))}
+                className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-red-500 flex items-center justify-center shrink-0"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="px-5 sm:px-7 py-4 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 shrink-0 bg-[#fbfdfd]">
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: 'RPA', label: 'RPA' },
+                  { id: 'TKT', label: 'Ticket Médio' },
+                  { id: 'UPA', label: 'UPA' },
+                ].map((opcao) => (
+                  <button
+                    key={opcao.id}
+                    type="button"
+                    onClick={() => setModalDesempenhoDetalhado((atual) => ({ ...atual, indicador: opcao.id }))}
+                    className={`px-4 py-2 rounded-lg text-xs font-black transition-colors ${modalDesempenhoDetalhado.indicador === opcao.id ? 'bg-[#048187] text-white' : 'bg-white border border-gray-200 text-gray-500 hover:border-[#048187]'}`}
+                  >
+                    {opcao.label}
+                  </button>
+                ))}
+              </div>
+              <div className="inline-flex rounded-lg bg-gray-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setModalDesempenhoDetalhado((atual) => ({ ...atual, visao: 'estruturas' }))}
+                  className={`px-4 py-2 rounded-md text-xs font-black ${modalDesempenhoDetalhado.visao === 'estruturas' ? 'bg-white text-[#048187] shadow-sm' : 'text-gray-500'}`}
+                >
+                  Estruturas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalDesempenhoDetalhado((atual) => ({ ...atual, visao: 'consultores' }))}
+                  className={`px-4 py-2 rounded-md text-xs font-black ${modalDesempenhoDetalhado.visao === 'consultores' ? 'bg-white text-[#048187] shadow-sm' : 'text-gray-500'}`}
+                >
+                  Consultores
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6 bg-[#f7fafb]">
+              {gruposModalDesempenho.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400 font-bold">
+                  Nenhum resultado encontrado para os filtros atuais.
+                </div>
+              ) : gruposModalDesempenho.map((grupo) => (
+                <section key={`${modalDesempenhoDetalhado.visao}-${dadosModalDesempenho.indicador}-${grupo.nucleo}`} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center font-black">{grupo.nucleo}</div>
+                      <div>
+                        <h3 className="font-black text-gray-700">Núcleo {grupo.nucleo.replace('N', '')}</h3>
+                        <p className="text-xs text-gray-400 font-semibold">{grupo.itens.length} {modalDesempenhoDetalhado.visao === 'consultores' ? 'consultor(es)' : 'estrutura(s)'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 min-w-0">
+                      <div className="rounded-lg bg-[#f8fafb] px-3 py-2 min-w-[120px]">
+                        <p className="text-[9px] font-black uppercase text-gray-400">Realizado</p>
+                        <p className="font-black text-[#048187] mt-1">{dadosModalDesempenho.indicador === 'UPA' ? formatarNumeroBR(grupo.valor, 2) : formatarMoeda(grupo.valor)}</p>
+                      </div>
+                      <div className="rounded-lg bg-[#f8fafb] px-3 py-2 min-w-[120px]">
+                        <p className="text-[9px] font-black uppercase text-gray-400">Meta média</p>
+                        <p className="font-black text-gray-700 mt-1">{dadosModalDesempenho.indicador === 'UPA' ? formatarNumeroBR(grupo.meta, 1) : formatarMoeda(grupo.meta)}</p>
+                      </div>
+                      <div className="rounded-lg bg-[#f8fafb] px-3 py-2 min-w-[105px]">
+                        <p className="text-[9px] font-black uppercase text-gray-400">% da meta</p>
+                        <p className="font-black mt-1" style={{ color: corPorFaixaMeta(grupo.percentual) }}>{formatarNumeroBR(grupo.percentual, 1)}%</p>
+                      </div>
+                      <div className="rounded-lg bg-[#f8fafb] px-3 py-2 min-w-[115px]">
+                        <p className="text-[9px] font-black uppercase text-gray-400">Receita</p>
+                        <p className="font-black text-gray-700 mt-1">{formatarMoeda(grupo.receita)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[920px]">
+                      <thead className="bg-[#fbfdfd] text-[10px] uppercase text-gray-400">
+                        <tr>
+                          <th className="px-5 py-3 text-left">{modalDesempenhoDetalhado.visao === 'consultores' ? 'Consultor' : 'Estrutura'}</th>
+                          {modalDesempenhoDetalhado.visao === 'consultores' && <th className="px-5 py-3 text-left">Estrutura</th>}
+                          <th className="px-5 py-3 text-right">Realizado</th>
+                          <th className="px-5 py-3 text-right">Meta</th>
+                          <th className="px-5 py-3 text-right">% da meta</th>
+                          <th className="px-5 py-3 text-left">Cálculo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {grupo.itens.map((linha, indice) => (
+                          <tr key={`${linha.nome}-${indice}`} className="border-t border-gray-100 hover:bg-[#fbfdfd]">
+                            <td className="px-5 py-3 font-black text-gray-700">{linha.nome}</td>
+                            {modalDesempenhoDetalhado.visao === 'consultores' && <td className="px-5 py-3 text-sm font-semibold text-gray-500">{linha.estrutura || '-'}</td>}
+                            <td className="px-5 py-3 text-right font-black text-[#048187]">{dadosModalDesempenho.indicador === 'UPA' ? formatarNumeroBR(linha.valor, 2) : formatarMoeda(linha.valor)}</td>
+                            <td className="px-5 py-3 text-right font-bold text-gray-600">{dadosModalDesempenho.indicador === 'UPA' ? formatarNumeroBR(linha.meta, 1) : formatarMoeda(linha.meta)}</td>
+                            <td className="px-5 py-3 text-right font-black" style={{ color: corPorFaixaMeta(linha.percentual) }}>{formatarNumeroBR(linha.percentual, 1)}%</td>
+                            <td className="px-5 py-3 text-xs font-semibold text-gray-500">{linha.baseCalculo}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ))}
             </div>
           </div>
         </div>
