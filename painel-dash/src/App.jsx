@@ -8825,7 +8825,8 @@ const carregarRevendedores = async () => {
   const carregarTelaAtual = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
 
-    if (telaAtual === 'Dashboard' || telaAtual === 'AcompanhamentoVD') return carregarDashboard(filtros, forcarAtualizacao);
+    if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao);
+    if (telaAtual === 'AcompanhamentoVD') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
     if (telaAtual === 'Ações') return carregarAcoesCiclo();
@@ -9524,7 +9525,8 @@ const carregarRevendedores = async () => {
     await carregarOpcoesFiltros(true);
 
     const tarefas = [];
-    if (telaAtual === 'Dashboard' || telaAtual === 'AcompanhamentoVD') tarefas.push(carregarDashboard(filtrosAtivos, true));
+    if (telaAtual === 'Dashboard') tarefas.push(carregarDashboard(filtrosAtivos, true));
+    else if (telaAtual === 'AcompanhamentoVD') tarefas.push(carregarDashboardEMetas(filtrosAtivos, true));
     else if (telaAtual === 'Metas' || telaAtual === 'Ranking') tarefas.push(carregarDashboardEMetas(filtrosAtivos, true));
     else if (telaAtual === 'Comparativo') tarefas.push(carregarComparativo(filtrosAtivos));
     else tarefas.push(carregarDashboard(filtrosAtivos, true));
@@ -10283,6 +10285,473 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
+    const acompanhamentoGerenteVD = telaAtual === 'AcompanhamentoVD'
+      && modoGerenteEstrutura
+      && areaGerenteEstrutura === 'VD';
+
+    const consultoresAcompanhamentoVD = [...(dadosMetas?.ranking_consultores || [])]
+      .sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
+
+    const normalizarEstruturaAcompanhamento = (valor) => String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/^\s*\d+\s*-\s*/, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+
+    const obterMetaEstruturaConsultorAcompanhamento = (consultor) => {
+      const chaveConsultor = normalizarEstruturaAcompanhamento(consultor?.estrutura);
+      return (dadosMetas?.estruturas || []).find((estrutura) => {
+        const nomes = [
+          estrutura?.estrutura,
+          ...(Array.isArray(estrutura?.estruturas_vinculadas)
+            ? estrutura.estruturas_vinculadas
+            : []),
+        ];
+        return nomes.some((nome) => normalizarEstruturaAcompanhamento(nome) === chaveConsultor);
+      }) || {};
+    };
+
+    const montarIndicadoresConsultorAcompanhamento = (consultor) => {
+      const metaEstrutura = obterMetaEstruturaConsultorAcompanhamento(consultor);
+      const metaFaturamento = Number(consultor?.meta_individual || 0);
+      const realizadoFaturamento = Number(consultor?.realizado || 0);
+      const percentualFaturamento = Number(
+        consultor?.percentual
+        || calcPerc(realizadoFaturamento, metaFaturamento)
+      );
+      const pesoMeta = Number(consultor?.peso_meta || 0);
+      const pedidos = Number(consultor?.quantidade_pedidos || 0);
+      const ativados = Number(consultor?.atividade_realizada || 0);
+      const baseAtivaIndividual = Number(consultor?.base_ativa_individual || 0);
+      const totalItens = Number(consultor?.total_itens || 0);
+
+      const metaAtividadePercentual = Number(
+        consultor?.meta_atividade
+        || metaEstrutura?.meta_atividade
+        || dadosMetas?.meta_atividade_geral
+        || 0
+      );
+      const metaAtividadeQuantidade = baseAtivaIndividual > 0
+        ? Math.ceil((baseAtivaIndividual * metaAtividadePercentual) / 100)
+        : 0;
+      const percentualAtividade = Number(
+        consultor?.percentual_atividade
+        || calcPerc(ativados, baseAtivaIndividual)
+      );
+      const atingimentoAtividade = calcPerc(
+        percentualAtividade,
+        metaAtividadePercentual
+      );
+
+      const metaMakePercentual = Number(
+        consultor?.meta_make
+        || metaEstrutura?.meta_make
+        || dadosMetas?.meta_make_geral
+        || 0
+      );
+      const makeRealizado = Number(consultor?.make_realizado || 0);
+      const percentualMake = Number(
+        consultor?.percentual_make
+        || calcPerc(makeRealizado, ativados)
+      );
+      const metaMakeQuantidade = ativados > 0
+        ? Math.ceil((ativados * metaMakePercentual) / 100)
+        : 0;
+
+      const metaCabeloPercentual = Number(
+        consultor?.meta_cabelo
+        || metaEstrutura?.meta_cabelo
+        || dadosMetas?.meta_cabelo_geral
+        || 0
+      );
+      const cabeloRealizado = Number(consultor?.cabelo_realizado || 0);
+      const percentualCabelo = Number(
+        consultor?.percentual_cabelo
+        || calcPerc(cabeloRealizado, ativados)
+      );
+      const metaCabeloQuantidade = ativados > 0
+        ? Math.ceil((ativados * metaCabeloPercentual) / 100)
+        : 0;
+
+      const metaEudoraPercentual = Number(
+        consultor?.meta_eudora
+        || metaEstrutura?.meta_eudora
+        || dadosMetas?.meta_eudora_geral
+        || 20
+      );
+      const metaEudoraValor = Number(
+        consultor?.meta_eudora_valor
+        || ((metaFaturamento * metaEudoraPercentual) / 100)
+      );
+      const eudoraRealizado = Number(consultor?.eudora_realizado || 0);
+      const percentualEudora = Number(
+        consultor?.percentual_eudora
+        || calcPerc(eudoraRealizado, metaEudoraValor)
+      );
+      const pedidosEudora = Number(consultor?.pedidos_eudora || 0);
+
+      const metaRpa = Number(
+        consultor?.meta_rpa
+        || metaEstrutura?.meta_rpa
+        || dadosMetas?.meta_rpa_geral
+        || 0
+      );
+      const rpa = Number(
+        consultor?.rpa
+        || (ativados > 0 ? realizadoFaturamento / ativados : 0)
+      );
+
+      const metaTicket = Number(
+        consultor?.meta_tkt_medio
+        || metaEstrutura?.meta_tkt_medio
+        || dadosMetas?.meta_tkt_medio_geral
+        || 0
+      );
+      const ticket = Number(
+        consultor?.tkt_medio
+        || (pedidos > 0 ? realizadoFaturamento / pedidos : 0)
+      );
+
+      const metaUpa = Number(
+        consultor?.meta_upa
+        || metaEstrutura?.meta_upa
+        || dadosMetas?.meta_upa_geral
+        || 0
+      );
+      const upa = Number(
+        consultor?.upa
+        || (ativados > 0 ? totalItens / ativados : 0)
+      );
+
+      return {
+        metaFaturamento,
+        realizadoFaturamento,
+        percentualFaturamento,
+        pesoMeta,
+        pedidos,
+        ativados,
+        baseAtivaIndividual,
+        totalItens,
+        metaAtividadePercentual,
+        metaAtividadeQuantidade,
+        percentualAtividade,
+        atingimentoAtividade,
+        metaMakePercentual,
+        metaMakeQuantidade,
+        makeRealizado,
+        percentualMake,
+        metaCabeloPercentual,
+        metaCabeloQuantidade,
+        cabeloRealizado,
+        percentualCabelo,
+        metaEudoraPercentual,
+        metaEudoraValor,
+        eudoraRealizado,
+        percentualEudora,
+        pedidosEudora,
+        metaRpa,
+        rpa,
+        metaTicket,
+        ticket,
+        metaUpa,
+        upa,
+      };
+    };
+
+    const abrirDetalheIndicadorConsultorAcompanhamento = (
+      consultor,
+      indicador,
+      valores
+    ) => {
+      const nome = obterNomeExibicaoConsultor(consultor);
+      const tipo = String(indicador || '').toUpperCase();
+
+      if (tipo === 'FATURAMENTO') {
+        const falta = Math.max(
+          valores.metaFaturamento - valores.realizadoFaturamento,
+          0
+        );
+        abrirModalValExp(
+          `Faturamento • ${nome}`,
+          formatarMoeda(valores.realizadoFaturamento),
+          'Resultado acumulado do consultor na estrutura vinculada ao gerente.',
+          [
+            { label: 'Meta individual', valor: formatarMoeda(valores.metaFaturamento) },
+            { label: 'Realizado', valor: formatarMoeda(valores.realizadoFaturamento) },
+            { label: '% da meta', valor: `${formatarNumeroBR(valores.percentualFaturamento, 1)}%` },
+            { label: 'Quantidade de pedidos', valor: formatarNumeroBR(valores.pedidos, 0) },
+            { label: 'Falta para a meta', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' },
+          ],
+          `${formatarMoeda(valores.realizadoFaturamento)} ÷ ${formatarMoeda(valores.metaFaturamento)} = ${formatarNumeroBR(valores.percentualFaturamento, 1)}% da meta`
+        );
+        return;
+      }
+
+      if (tipo === 'EUDORA') {
+        abrirModalValExp(
+          `Eudora • ${nome}`,
+          formatarMoeda(valores.eudoraRealizado),
+          '',
+          [
+            { label: 'Meta Eudora (% do faturamento)', valor: `${formatarNumeroBR(valores.metaEudoraPercentual, 1)}%` },
+            { label: 'Meta Eudora', valor: formatarMoeda(valores.metaEudoraValor) },
+            { label: 'Realizado Eudora', valor: formatarMoeda(valores.eudoraRealizado) },
+            { label: '% da meta', valor: `${formatarNumeroBR(valores.percentualEudora, 1)}%` },
+            { label: 'Pedidos Eudora', valor: formatarNumeroBR(valores.pedidosEudora, 0) },
+          ]
+        );
+        return;
+      }
+
+      if (tipo === 'ATIVIDADE') {
+        abrirModalValExp(
+          `Atividade • ${nome}`,
+          `${formatarNumeroBR(valores.percentualAtividade, 1)}%`,
+          'Atividade individual calculada sobre a base ativa distribuída ao consultor.',
+          [
+            { label: 'Base ativa individual', valor: formatarNumeroBR(valores.baseAtivaIndividual, 0) },
+            { label: 'Meta atividade', valor: `${formatarNumeroBR(valores.metaAtividadePercentual, 1)}%` },
+            { label: 'Meta em revendedores', valor: formatarNumeroBR(valores.metaAtividadeQuantidade, 0) },
+            { label: 'Revendedores ativados', valor: formatarNumeroBR(valores.ativados, 0) },
+            { label: '% da meta', valor: `${formatarNumeroBR(valores.atingimentoAtividade, 1)}%` },
+          ]
+        );
+        return;
+      }
+
+      if (tipo === 'MAKE' || tipo === 'CABELO') {
+        const cabelo = tipo === 'CABELO';
+        const realizadoQtd = cabelo ? valores.cabeloRealizado : valores.makeRealizado;
+        const realizadoPct = cabelo ? valores.percentualCabelo : valores.percentualMake;
+        const metaPct = cabelo ? valores.metaCabeloPercentual : valores.metaMakePercentual;
+        const metaQtd = cabelo ? valores.metaCabeloQuantidade : valores.metaMakeQuantidade;
+        abrirModalValExp(
+          `${tipo} • ${nome}`,
+          `${formatarNumeroBR(realizadoPct, 1)}%`,
+          `${tipo} calculado sobre os revendedores ativados pelo consultor.`,
+          [
+            { label: 'Revendedores ativados', valor: formatarNumeroBR(valores.ativados, 0) },
+            { label: `Meta ${tipo}`, valor: `${formatarNumeroBR(metaPct, 1)}%` },
+            { label: 'Meta em revendedores', valor: formatarNumeroBR(metaQtd, 0) },
+            { label: 'Realizado em revendedores', valor: formatarNumeroBR(realizadoQtd, 0) },
+            { label: `% ${tipo} realizado`, valor: `${formatarNumeroBR(realizadoPct, 1)}%` },
+            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(realizadoPct, metaPct), 1)}%` },
+          ]
+        );
+        return;
+      }
+
+      if (tipo === 'RPA') {
+        abrirModalValExp(
+          `RPA • ${nome}`,
+          formatarMoeda(valores.rpa),
+          'RPA = faturamento realizado dividido pelos revendedores ativados.',
+          [
+            { label: 'Meta RPA', valor: formatarMoeda(valores.metaRpa) },
+            { label: 'RPA realizado', valor: formatarMoeda(valores.rpa) },
+            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(valores.rpa, valores.metaRpa), 1)}%` },
+            { label: 'Faturamento realizado', valor: formatarMoeda(valores.realizadoFaturamento) },
+            { label: 'Revendedores ativados', valor: formatarNumeroBR(valores.ativados, 0) },
+          ]
+        );
+        return;
+      }
+
+      if (tipo === 'TICKET') {
+        abrirModalValExp(
+          `Ticket Médio • ${nome}`,
+          formatarMoeda(valores.ticket),
+          'Ticket médio = faturamento realizado dividido pela quantidade de pedidos.',
+          [
+            { label: 'Meta ticket médio', valor: formatarMoeda(valores.metaTicket) },
+            { label: 'Ticket médio realizado', valor: formatarMoeda(valores.ticket) },
+            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(valores.ticket, valores.metaTicket), 1)}%` },
+            { label: 'Faturamento realizado', valor: formatarMoeda(valores.realizadoFaturamento) },
+            { label: 'Quantidade de pedidos', valor: formatarNumeroBR(valores.pedidos, 0) },
+          ]
+        );
+        return;
+      }
+
+      abrirModalValExp(
+        `UPA • ${nome}`,
+        formatarNumeroBR(valores.upa, 1),
+        'UPA = total de itens vendidos dividido pelos revendedores ativados.',
+        [
+          { label: 'Meta UPA', valor: formatarNumeroBR(valores.metaUpa, 1) },
+          { label: 'UPA realizado', valor: formatarNumeroBR(valores.upa, 1) },
+          { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(valores.upa, valores.metaUpa), 1)}%` },
+          { label: 'Itens vendidos', valor: formatarNumeroBR(valores.totalItens, 0) },
+          { label: 'Revendedores ativados', valor: formatarNumeroBR(valores.ativados, 0) },
+        ]
+      );
+    };
+
+    const CardConsultorAcompanhamento = ({
+      titulo,
+      meta,
+      realizado,
+      percentual,
+      onClick,
+    }) => {
+      const percentualSeguro = Number(percentual || 0);
+      const cor = corPorFaixaMeta(percentualSeguro);
+      return (
+        <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-black uppercase tracking-wide text-gray-500 truncate">{titulo}</p>
+            <button
+              type="button"
+              onClick={onClick}
+              className="w-7 h-7 shrink-0 rounded-full bg-[#e6f6f7] text-[#048187] inline-flex items-center justify-center hover:bg-[#d0f0f1]"
+              title={`Ver detalhes de ${titulo}`}
+            >
+              <Eye size={13} />
+            </button>
+          </div>
+          <div className="mt-2">
+            <p className="text-[9px] font-black uppercase text-gray-400">Meta</p>
+            <p className="text-[12px] font-black text-[#7c1f31] truncate" title={String(meta)}>{meta}</p>
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100">
+            <p className="text-[9px] font-black uppercase text-gray-400">Realizado</p>
+            <p className="text-[13px] font-black truncate" style={{ color }} title={String(realizado)}>{realizado}</p>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2 text-[9px] font-black">
+            <span style={{ color }}>{formatarNumeroBR(percentualSeguro, 1)}% da meta</span>
+            <span style={{ color }}>{percentualSeguro >= 100 ? 'Meta batida' : `Falta ${formatarNumeroBR(Math.max(100 - percentualSeguro, 0), 1)}%`}</span>
+          </div>
+          <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.max(0, Math.min(percentualSeguro, 100))}%`,
+                backgroundColor: cor,
+              }}
+            />
+          </div>
+        </div>
+      );
+    };
+
+    const RankingConsultoresAcompanhamento = () => (
+      <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-gray-100 pb-4 mb-4">
+          <div>
+            <h2 className="text-lg sm:text-xl font-black text-gray-700">Resultado dos consultores</h2>
+            <p className="text-xs sm:text-sm font-semibold text-gray-400">Quanto cada consultor vendeu e o desempenho individual em todos os indicadores.</p>
+          </div>
+          <span className="inline-flex w-fit rounded-full bg-[#e6f6f7] px-3 py-1.5 text-xs font-black text-[#048187]">
+            {consultoresAcompanhamentoVD.length} consultor(es)
+          </span>
+        </div>
+
+        {carregandoMetas && !dadosMetas ? (
+          <div className="py-12 flex items-center justify-center gap-3 text-[#048187] font-black">
+            <Loader2 size={20} className="animate-spin" /> Carregando consultores...
+          </div>
+        ) : consultoresAcompanhamentoVD.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-sm font-bold text-gray-400">
+            Nenhum consultor foi encontrado para a estrutura vinculada ao perfil.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {consultoresAcompanhamentoVD.map((consultor, indice) => {
+              const valores = montarIndicadoresConsultorAcompanhamento(consultor);
+              const nome = obterNomeExibicaoConsultor(consultor);
+              return (
+                <article
+                  key={`${consultor?.id_colaborador || nome}-${indice}`}
+                  className="rounded-2xl border border-gray-100 bg-[#fcfbf7] p-3 sm:p-4 min-w-0"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <span className="w-8 h-8 shrink-0 rounded-full bg-[#048187] text-white text-xs font-black inline-flex items-center justify-center">
+                        {indice + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <h3 className="text-sm sm:text-base font-black text-gray-700 break-words">{nome}</h3>
+                        <p className="mt-1 text-[10px] sm:text-xs font-semibold text-gray-400 break-words">
+                          ID: {consultor?.id_colaborador || '-'} • Peso: {formatarNumeroBR(valores.pesoMeta, 2)}% • Pedidos: {formatarNumeroBR(valores.pedidos, 0)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-left sm:text-right shrink-0">
+                      <p className="text-[10px] font-black uppercase text-gray-400">Atingimento</p>
+                      <p className="text-xl font-black" style={{ color: corPorFaixaMeta(valores.percentualFaturamento) }}>
+                        {formatarNumeroBR(valores.percentualFaturamento, 2)}%
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 gap-3">
+                    <CardConsultorAcompanhamento
+                      titulo="Faturamento"
+                      meta={formatarMoeda(valores.metaFaturamento)}
+                      realizado={formatarMoeda(valores.realizadoFaturamento)}
+                      percentual={valores.percentualFaturamento}
+                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'FATURAMENTO', valores)}
+                    />
+                    <CardConsultorAcompanhamento
+                      titulo="Eudora"
+                      meta={formatarMoeda(valores.metaEudoraValor)}
+                      realizado={formatarMoeda(valores.eudoraRealizado)}
+                      percentual={valores.percentualEudora}
+                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'EUDORA', valores)}
+                    />
+                    <CardConsultorAcompanhamento
+                      titulo="Atividade"
+                      meta={`${formatarNumeroBR(valores.metaAtividadeQuantidade, 0)} rev. • ${formatarNumeroBR(valores.metaAtividadePercentual, 1)}%`}
+                      realizado={`${formatarNumeroBR(valores.ativados, 0)} rev. • ${formatarNumeroBR(valores.percentualAtividade, 1)}%`}
+                      percentual={valores.atingimentoAtividade}
+                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'ATIVIDADE', valores)}
+                    />
+                    <CardConsultorAcompanhamento
+                      titulo="MAKE"
+                      meta={`${formatarNumeroBR(valores.metaMakeQuantidade, 0)} rev. • ${formatarNumeroBR(valores.metaMakePercentual, 1)}%`}
+                      realizado={`${formatarNumeroBR(valores.makeRealizado, 0)} rev. • ${formatarNumeroBR(valores.percentualMake, 1)}%`}
+                      percentual={calcPerc(valores.percentualMake, valores.metaMakePercentual)}
+                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'MAKE', valores)}
+                    />
+                    <CardConsultorAcompanhamento
+                      titulo="Cabelo"
+                      meta={`${formatarNumeroBR(valores.metaCabeloQuantidade, 0)} rev. • ${formatarNumeroBR(valores.metaCabeloPercentual, 1)}%`}
+                      realizado={`${formatarNumeroBR(valores.cabeloRealizado, 0)} rev. • ${formatarNumeroBR(valores.percentualCabelo, 1)}%`}
+                      percentual={calcPerc(valores.percentualCabelo, valores.metaCabeloPercentual)}
+                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'CABELO', valores)}
+                    />
+                    <CardConsultorAcompanhamento
+                      titulo="RPA"
+                      meta={formatarMoeda(valores.metaRpa)}
+                      realizado={formatarMoeda(valores.rpa)}
+                      percentual={calcPerc(valores.rpa, valores.metaRpa)}
+                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'RPA', valores)}
+                    />
+                    <CardConsultorAcompanhamento
+                      titulo="Ticket Médio"
+                      meta={formatarMoeda(valores.metaTicket)}
+                      realizado={formatarMoeda(valores.ticket)}
+                      percentual={calcPerc(valores.ticket, valores.metaTicket)}
+                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'TICKET', valores)}
+                    />
+                    <CardConsultorAcompanhamento
+                      titulo="UPA"
+                      meta={formatarNumeroBR(valores.metaUpa, 1)}
+                      realizado={formatarNumeroBR(valores.upa, 1)}
+                      percentual={calcPerc(valores.upa, valores.metaUpa)}
+                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'UPA', valores)}
+                    />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+
     return (
       <>
       <div className="space-y-6 animate-fade-in">
@@ -10379,52 +10848,56 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 xl:gap-6 mt-6">
-          <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
-            <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Vendas por canal</h3>
-            <div className="overflow-x-auto h-[360px]" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-              {vCan.length > 0 ? (
-                <table className="w-full text-[11px] min-w-[800px] border-collapse">
-                  <thead className="bg-[#048187] text-white sticky top-0 z-10">
-                    <tr><th className="px-3 py-2 text-left font-bold border border-white/30">Estrutura</th><th className="px-3 py-2 text-right font-bold border border-white/30">App Rev.</th><th className="px-3 py-2 text-right font-bold border border-white/30">Omni</th><th className="px-3 py-2 text-right font-bold border border-white/30">Portal Rev.</th><th className="px-3 py-2 text-right font-bold border border-white/30">VD+</th><th className="px-3 py-2 text-right font-bold border border-white/30">Cancelado</th><th className="px-3 py-2 text-right font-bold border border-white/30">Receita Total</th></tr>
-                  </thead>
-                  <tbody>
-                    {vCan.map((i, idx) => (
-                      <tr key={`${i.estrutura}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-3 py-2 font-bold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('estruturas', i.estrutura)} className="hover:text-[#048187] hover:underline font-black text-left">{i.estrutura}</button></td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'app_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.app_revendedor)}</button></td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'omni')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.omni)}</button></td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'portal_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.portal_revendedor)}</button></td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'vd_mais')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.vd_mais)}</button></td>
-                        <td className="px-3 py-2 text-right font-semibold text-[#712231] border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('situacoes', 'Cancelado')} className="hover:underline">{formatarMoeda(i.cancelado)}</button></td>
-                        <td className="px-3 py-2 text-right font-extrabold text-green-600 border border-gray-200 whitespace-nowrap">{formatarMoeda(i.receita_total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (<div className="p-10 flex items-center justify-center text-gray-400 text-sm">Sem dados</div>)}
+        {acompanhamentoGerenteVD ? (
+          <RankingConsultoresAcompanhamento />
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 xl:gap-6 mt-6">
+            <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+              <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Vendas por canal</h3>
+              <div className="overflow-x-auto h-[360px]" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
+                {vCan.length > 0 ? (
+                  <table className="w-full text-[11px] min-w-[800px] border-collapse">
+                    <thead className="bg-[#048187] text-white sticky top-0 z-10">
+                      <tr><th className="px-3 py-2 text-left font-bold border border-white/30">Estrutura</th><th className="px-3 py-2 text-right font-bold border border-white/30">App Rev.</th><th className="px-3 py-2 text-right font-bold border border-white/30">Omni</th><th className="px-3 py-2 text-right font-bold border border-white/30">Portal Rev.</th><th className="px-3 py-2 text-right font-bold border border-white/30">VD+</th><th className="px-3 py-2 text-right font-bold border border-white/30">Cancelado</th><th className="px-3 py-2 text-right font-bold border border-white/30">Receita Total</th></tr>
+                    </thead>
+                    <tbody>
+                      {vCan.map((i, idx) => (
+                        <tr key={`${i.estrutura}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-3 py-2 font-bold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('estruturas', i.estrutura)} className="hover:text-[#048187] hover:underline font-black text-left">{i.estrutura}</button></td>
+                          <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'app_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.app_revendedor)}</button></td>
+                          <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'omni')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.omni)}</button></td>
+                          <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'portal_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.portal_revendedor)}</button></td>
+                          <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'vd_mais')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.vd_mais)}</button></td>
+                          <td className="px-3 py-2 text-right font-semibold text-[#712231] border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('situacoes', 'Cancelado')} className="hover:underline">{formatarMoeda(i.cancelado)}</button></td>
+                          <td className="px-3 py-2 text-right font-extrabold text-green-600 border border-gray-200 whitespace-nowrap">{formatarMoeda(i.receita_total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (<div className="p-10 flex items-center justify-center text-gray-400 text-sm">Sem dados</div>)}
+              </div>
             </div>
-          </div>
-          
-          <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
-            <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Realizado por Estrutura</h3>
-            <div className="h-[360px] overflow-y-auto pr-2">
-              <div style={{ height: altEst }}>
-                {rEst.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={rEst} layout="vertical" margin={{ top: 10, right: 45, left: 95, bottom: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
-                      <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => formatarAbrev(v)} />
-                      <YAxis dataKey="Estrutura" type="category" width={95} tick={{ fontSize: 9, fill: '#334155' }} />
-                      <Tooltip content={<TooltipEstrutura />} />
-                      <Bar dataKey="ValorPraticado" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(item) => aplicarFiltroInterativo('estruturas', item?.Estrutura || item?.payload?.Estrutura)}>{rEst.map((e, i) => (<Cell key={e.Estrutura} fill={CORES_ESTRUTURA[i % CORES_ESTRUTURA.length]} />))}<LabelList dataKey="ValorPraticado" position="right" formatter={(v) => formatarAbrev(v)} style={{ fontSize: 10, fill: '#334155', fontWeight: 700 }} /></Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm">Sem dados</div>)}
+            
+            <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+              <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Realizado por Estrutura</h3>
+              <div className="h-[360px] overflow-y-auto pr-2">
+                <div style={{ height: altEst }}>
+                  {rEst.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={rEst} layout="vertical" margin={{ top: 10, right: 45, left: 95, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+                        <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => formatarAbrev(v)} />
+                        <YAxis dataKey="Estrutura" type="category" width={95} tick={{ fontSize: 9, fill: '#334155' }} />
+                        <Tooltip content={<TooltipEstrutura />} />
+                        <Bar dataKey="ValorPraticado" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(item) => aplicarFiltroInterativo('estruturas', item?.Estrutura || item?.payload?.Estrutura)}>{rEst.map((e, i) => (<Cell key={e.Estrutura} fill={CORES_ESTRUTURA[i % CORES_ESTRUTURA.length]} />))}<LabelList dataKey="ValorPraticado" position="right" formatter={(v) => formatarAbrev(v)} style={{ fontSize: 10, fill: '#334155', fontWeight: 700 }} /></Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm">Sem dados</div>)}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
       </div>
 
