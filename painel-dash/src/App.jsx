@@ -7448,13 +7448,51 @@ const mapearIdentidadesColaboradores = (lista = []) => {
         cicloAtual: cicloAtualApi,
       };
     } catch (erro) {
+      // Contingência: um erro transitório em /ciclos não pode derrubar a
+      // Visão Geral. Mantemos os ciclos já carregados ou recuperamos o último
+      // ciclo salvo no navegador e deixamos Dashboard/Metas continuarem.
+      const cicloFallback = String(
+        cicloSelecionadoVD
+        || localStorage.getItem(CICLO_VD_STORAGE_KEY)
+        || localStorage.getItem(CICLO_ATUAL_CONHECIDO_STORAGE_KEY)
+        || cicloAtualPelaData()
+        || ''
+      ).trim();
+
+      const listaExistente = Array.isArray(ciclos) ? ciclos : [];
+      const listaFallback = listaExistente.length
+        ? listaExistente
+        : (cicloFallback
+          ? [{
+              ciclo: cicloFallback,
+              eh_atual: true,
+              status_ciclo: 'ativo',
+              status_vd: 'aberto',
+              status_loja: 'aberto',
+            }]
+          : []);
+
+      if (!listaExistente.length && listaFallback.length) {
+        setCiclos(listaFallback);
+      }
+
+      if (cicloFallback) {
+        setCicloSelecionadoVD((atual) => atual || cicloFallback);
+        setCicloSelecionadoLoja((atual) => atual || cicloFallback);
+        setCicloUploadVD((atual) => atual || cicloFallback);
+        setCicloUploadLoja((atual) => atual || cicloFallback);
+        if (!cicloLoja) setCicloLoja(cicloFallback);
+      }
+
+      console.error('Falha temporária ao carregar ciclos:', erro);
       setErroCiclo(
-        erro.response?.data?.detail
-        || 'Erro ao carregar ciclos.'
+        'Não foi possível atualizar a lista de ciclos agora. O dashboard continuará usando o último ciclo conhecido.'
       );
+
       return {
-        lista: [],
-        cicloAtual: '',
+        lista: listaFallback,
+        cicloAtual: cicloFallback,
+        contingencia: true,
       };
     } finally {
       setCarregandoCiclos(false);
@@ -9659,6 +9697,14 @@ const enviarArquivo = async (tipo) => {
   };
 
   const abrirDetDesempenhoDashboard = (tipo) => abrirDesempenhoDetalhado(tipo);
+
+  const abrirDetCancelados = () => setModalDetalhes({
+    titulo: 'Cancelados',
+    subtitulo: 'Pedidos Cancelados',
+    tipo: 'cancelados',
+    itens: [{ label: 'Quantidade', valor: dados?.total_cancelados }],
+    motivos_cancelamento: dados?.motivos_cancelamento,
+  });
 
   const abrirDetalheEudora = async () => {
     const ciclo = String(filtrosAtivos?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || '').trim();
