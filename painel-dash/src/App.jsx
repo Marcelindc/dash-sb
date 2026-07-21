@@ -10617,11 +10617,11 @@ const enviarArquivo = async (tipo) => {
           </div>
           <div className="mt-2 pt-2 border-t border-gray-100">
             <p className="text-[9px] font-black uppercase text-gray-400">Realizado</p>
-            <p className="text-[13px] font-black truncate" style={{ color }} title={String(realizado)}>{realizado}</p>
+            <p className="text-[13px] font-black truncate" style={{ color: cor }} title={String(realizado)}>{realizado}</p>
           </div>
           <div className="mt-2 flex items-center justify-between gap-2 text-[9px] font-black">
-            <span style={{ color }}>{formatarNumeroBR(percentualSeguro, 1)}% da meta</span>
-            <span style={{ color }}>{percentualSeguro >= 100 ? 'Meta batida' : `Falta ${formatarNumeroBR(Math.max(100 - percentualSeguro, 0), 1)}%`}</span>
+            <span style={{ color: cor }}>{formatarNumeroBR(percentualSeguro, 1)}% da meta</span>
+            <span style={{ color: cor }}>{percentualSeguro >= 100 ? 'Meta batida' : `Falta ${formatarNumeroBR(Math.max(100 - percentualSeguro, 0), 1)}%`}</span>
           </div>
           <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
             <div
