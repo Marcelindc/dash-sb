@@ -66,9 +66,9 @@ const normalizarAreaGestao = (valor, perfil = '') => {
 };
 
 const ABAS_VISIVEIS_GERENTE_ESTRUTURA = {
-  VD: ['Metas', 'Ranking', 'Revendedores', 'Perfil'],
-  LOJA: ['LojaVisaoGeral', 'LojaRanking', 'Perfil'],
-  AMBOS: ['Metas', 'Ranking', 'Revendedores', 'LojaVisaoGeral', 'LojaRanking', 'Perfil'],
+  VD: ['AcompanhamentoVD', 'Perfil'],
+  LOJA: ['LojaVisaoGeral', 'Perfil'],
+  AMBOS: ['AcompanhamentoVD', 'LojaVisaoGeral', 'Perfil'],
 };
 
 const normalizarEstruturasPermitidasUsuario = (valor) => {
@@ -570,6 +570,7 @@ const permissoesPadrao = {
 
 const obterNomeAba = (nome) => ({
   Dashboard: 'Visão Geral',
+  AcompanhamentoVD: 'Acompanhamento',
   Metas: 'Metas Estruturas',
   N1: 'N1',
   N2: 'N2',
@@ -6061,6 +6062,9 @@ export default function App() {
   ];
 
   const itensMenuVD = itensMenuTopo;
+  const itensMenuVDGerente = [
+    { nome: 'AcompanhamentoVD', icone: LayoutDashboard },
+  ];
   const itensMenuLoja = [
     { nome: 'LojaVisaoGeral', icone: LayoutDashboard },
     { nome: 'LojaRanking', icone: Trophy },
@@ -6142,6 +6146,19 @@ export default function App() {
   const usuarioPodeAcessar = (tela) => {
     if (!usuarioLogado) return false;
     if (usuarioLogado.perfil === 'admin') return true;
+
+    // Acompanhamento é uma experiência exclusiva do gerente VD,
+    // construída sobre as mesmas APIs seguras da Visão Geral.
+    if (tela === 'AcompanhamentoVD') {
+      const escopos = normalizarEstruturasPermitidasUsuario(
+        usuarioLogado?.estruturas_permitidas
+      );
+      const possuiEscopoVD = escopos.some((item) => item.area === 'VD');
+      return String(usuarioLogado?.perfil || '').toLowerCase() === 'visualizador'
+        && possuiEscopoVD
+        && permissoesDoUsuarioAtual().includes('Dashboard');
+    }
+
     return permissoesDoUsuarioAtual().includes(tela);
   };
 
@@ -6152,10 +6169,17 @@ export default function App() {
   );
   const modoGerenteEstrutura = String(usuarioLogado?.perfil || '').toLowerCase() === 'visualizador'
     && estruturasPermitidasUsuarioLogado.length > 0;
-  const areaGerenteEstrutura = normalizarAreaGestao(
-    usuarioLogado?.area_gestao,
-    usuarioLogado?.perfil
-  );
+  const areasEscopoGerente = Array.from(new Set(
+    estruturasPermitidasUsuarioLogado
+      .map((item) => String(item?.area || '').toUpperCase())
+      .filter((area) => area === 'VD' || area === 'LOJA')
+  ));
+  const areaGerenteEstrutura = areasEscopoGerente.length === 1
+    ? areasEscopoGerente[0]
+    : normalizarAreaGestao(
+        usuarioLogado?.area_gestao,
+        usuarioLogado?.perfil
+      );
   const abasVisiveisGerenteEstrutura = ABAS_VISIVEIS_GERENTE_ESTRUTURA[areaGerenteEstrutura]
     || ABAS_VISIVEIS_GERENTE_ESTRUTURA.AMBOS;
   const usuarioPodeExibirAba = (tela) => !modoGerenteEstrutura
@@ -6171,7 +6195,7 @@ export default function App() {
 
     const telaInicial = areaGerenteEstrutura === 'LOJA'
       ? 'LojaVisaoGeral'
-      : 'Metas';
+      : 'AcompanhamentoVD';
     setCanalAtual(areaGerenteEstrutura === 'LOJA' ? 'LOJA' : 'VD');
     setMenuLojaExpandido(areaGerenteEstrutura === 'LOJA');
     setMenuVDExpandido(areaGerenteEstrutura !== 'LOJA');
@@ -8801,7 +8825,7 @@ const carregarRevendedores = async () => {
   const carregarTelaAtual = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
 
-    if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao);
+    if (telaAtual === 'Dashboard' || telaAtual === 'AcompanhamentoVD') return carregarDashboard(filtros, forcarAtualizacao);
     if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
     if (telaAtual === 'Ações') return carregarAcoesCiclo();
@@ -9125,9 +9149,14 @@ const carregarRevendedores = async () => {
       localStorage.setItem(TOKEN_STORAGE_KEY, token);
       const escoposUsuario = normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas);
       const gerenteRestrito = String(usuario?.perfil || '').toLowerCase() === 'visualizador' && escoposUsuario.length > 0;
-      const areaUsuario = normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil);
+      const areasEscopoUsuario = Array.from(new Set(
+        escoposUsuario.map((item) => String(item?.area || '').toUpperCase())
+      ));
+      const areaUsuario = areasEscopoUsuario.length === 1
+        ? areasEscopoUsuario[0]
+        : normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil);
       const telaInicial = gerenteRestrito
-        ? (areaUsuario === 'LOJA' ? 'LojaVisaoGeral' : 'Metas')
+        ? (areaUsuario === 'LOJA' ? 'LojaVisaoGeral' : 'AcompanhamentoVD')
         : 'Dashboard';
       const canalInicial = gerenteRestrito && areaUsuario === 'LOJA' ? 'LOJA' : 'VD';
 
@@ -9495,7 +9524,7 @@ const carregarRevendedores = async () => {
     await carregarOpcoesFiltros(true);
 
     const tarefas = [];
-    if (telaAtual === 'Dashboard') tarefas.push(carregarDashboard(filtrosAtivos, true));
+    if (telaAtual === 'Dashboard' || telaAtual === 'AcompanhamentoVD') tarefas.push(carregarDashboard(filtrosAtivos, true));
     else if (telaAtual === 'Metas' || telaAtual === 'Ranking') tarefas.push(carregarDashboardEMetas(filtrosAtivos, true));
     else if (telaAtual === 'Comparativo') tarefas.push(carregarComparativo(filtrosAtivos));
     else tarefas.push(carregarDashboard(filtrosAtivos, true));
@@ -11262,6 +11291,7 @@ const enviarArquivo = async (tipo) => {
 
     return (
       <div className="space-y-6 animate-fade-in">
+        {!modoGerenteEstrutura && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
             <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -11292,6 +11322,7 @@ const enviarArquivo = async (tipo) => {
             </div>
           </div>
         </div>
+        )}
         {erroMetas && (<div className="rounded-xl p-4 font-bold text-sm bg-red-50 border border-red-100 text-red-600">{erroMetas}</div>)}
         {visaoMetas === 'estruturas' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
@@ -17172,7 +17203,7 @@ const enviarArquivo = async (tipo) => {
   };
 
   const renderContent = () => {
-    if (telaAtual === 'Dashboard') return renderTelaDashboard();
+    if (telaAtual === 'Dashboard' || telaAtual === 'AcompanhamentoVD') return renderTelaDashboard();
     if (telaAtual === 'Metas') return renderTelaMetas();
     if (telaAtual === 'N1') return <TelaGestaoNucleo nucleo="N1" />;
     if (telaAtual === 'N2') return <TelaGestaoNucleo nucleo="N2" />;
@@ -17455,12 +17486,9 @@ const enviarArquivo = async (tipo) => {
     ? (areaGerenteEstrutura === 'LOJA'
         ? [
             { nome: 'LojaVisaoGeral', icone: LayoutDashboard },
-            { nome: 'LojaRanking', icone: Trophy },
           ]
         : [
-            { nome: 'Metas', icone: BarChart2 },
-            { nome: 'Ranking', icone: Medal },
-            { nome: 'Revendedores', icone: UserCircle },
+            { nome: 'AcompanhamentoVD', icone: LayoutDashboard },
           ])
     : [
         ...itensMenuVD,
@@ -17523,7 +17551,7 @@ const enviarArquivo = async (tipo) => {
 
               {menuVDExpandido && (
                 <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
-                  {itensMenuVD.map((item) => {
+                  {(modoGerenteEstrutura ? itensMenuVDGerente : itensMenuVD).map((item) => {
                     if (!usuarioPodeAcessar(item.nome) || !usuarioPodeExibirAba(item.nome)) return null;
                     const Icone = item.icone;
                     const ativo = canalAtual === 'VD' && telaAtual === item.nome;
@@ -17777,7 +17805,7 @@ const enviarArquivo = async (tipo) => {
                 <ChevronRight size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-[#048187]" />
               </div>
               <div className="flex items-center gap-3 sm:gap-5 min-w-0">
-                {(telaAtual === 'Dashboard' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
+                {(telaAtual === 'Dashboard' || telaAtual === 'AcompanhamentoVD' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
                   <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#4a9394] px-3 py-1.5 rounded-full font-medium">
                     <SlidersHorizontal size={18} /><span className="hidden sm:inline">Filtros</span>
                   </button>
@@ -17818,15 +17846,19 @@ const enviarArquivo = async (tipo) => {
                             </p>
                             <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">
                               Área: {
-                                normalizarAreaGestao(
-                                  usuarioLogado?.area_gestao,
-                                  usuarioLogado?.perfil
-                                ) === 'AMBOS'
-                                  ? 'VD + LOJA'
+                                (modoGerenteEstrutura
+                                  ? areaGerenteEstrutura
                                   : normalizarAreaGestao(
                                       usuarioLogado?.area_gestao,
                                       usuarioLogado?.perfil
-                                    )
+                                    )) === 'AMBOS'
+                                  ? 'VD + LOJA'
+                                  : (modoGerenteEstrutura
+                                      ? areaGerenteEstrutura
+                                      : normalizarAreaGestao(
+                                          usuarioLogado?.area_gestao,
+                                          usuarioLogado?.perfil
+                                        ))
                               }
                             </p>
                           </div>
@@ -17979,15 +18011,25 @@ const enviarArquivo = async (tipo) => {
             </header>
             {modoGerenteEstrutura && (
               <div className="mb-4 rounded-2xl border border-[#b9dfe1] bg-gradient-to-r from-[#e6f6f7] to-white p-4 sm:p-5 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-[#048187] text-white flex items-center justify-center shrink-0">
-                    {areaGerenteEstrutura === 'LOJA' ? <IconeCanalLoja size={22} /> : <IconeCanalVD size={22} />}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-2xl bg-[#048187] text-white flex items-center justify-center shrink-0">
+                      {areaGerenteEstrutura === 'LOJA' ? <IconeCanalLoja size={22} /> : <IconeCanalVD size={22} />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#048187]">{areaGerenteEstrutura === 'VD' ? 'Acompanhamento • VD' : 'Minha estrutura • LOJA'}</p>
+                      <h2 className="mt-1 text-base sm:text-lg font-black text-gray-700 break-words">{nomeEscopoUsuario || 'Estrutura vinculada'}</h2>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[#048187]">Minha estrutura • {areaGerenteEstrutura}</p>
-                    <h2 className="mt-1 text-base sm:text-lg font-black text-gray-700 break-words">{nomeEscopoUsuario || 'Estrutura vinculada'}</h2>
-                    <p className="mt-1 text-xs text-gray-500 font-semibold">Os resultados e rankings exibidos estão limitados ao seu perfil.</p>
-                  </div>
+                  {telaAtual === 'Metas' && visaoMetas === 'consultores' && (
+                    <button
+                      type="button"
+                      onClick={voltarParaListaMetas}
+                      className="shrink-0 bg-white border border-[#b9dfe1] text-[#048187] hover:bg-[#e6f6f7] px-3 sm:px-4 py-2 rounded-xl font-black text-xs inline-flex items-center gap-2 transition-colors"
+                    >
+                      <ChevronLeft size={17} /> <span className="hidden sm:inline">Voltar</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -20202,7 +20244,7 @@ const enviarArquivo = async (tipo) => {
               )}
 
               <div className="rounded-xl bg-[#f7fafb] border border-gray-100 px-4 py-3 text-xs text-gray-500 font-semibold">
-                Visualizador VD: Metas por Estrutura, Ranking e Revendedores. Visualizador LOJA: Visão Geral e Ranking. Os dados ficam limitados às estruturas selecionadas.
+                Visualizador VD: acesso exclusivo à aba Acompanhamento. Visualizador LOJA: acesso exclusivo à Visão Geral nesta etapa. Os dados e as notificações ficam limitados às estruturas selecionadas.
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
