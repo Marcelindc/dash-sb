@@ -1,0 +1,26 @@
+{
+  "name": "DASH COMERCIAL SB",
+  "short_name": "DASH SB",
+  "description": "Resultados comerciais de VD e LOJA por estrutura.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f2f6f7",
+  "theme_color": "#048187",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

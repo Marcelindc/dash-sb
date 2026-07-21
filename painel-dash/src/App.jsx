@@ -65,6 +65,127 @@ const normalizarAreaGestao = (valor, perfil = '') => {
     : 'AMBOS';
 };
 
+const ABAS_VISIVEIS_GERENTE_ESTRUTURA = {
+  VD: ['Metas', 'Ranking', 'Revendedores', 'Perfil'],
+  LOJA: ['LojaVisaoGeral', 'LojaRanking', 'Perfil'],
+  AMBOS: ['Metas', 'Ranking', 'Revendedores', 'LojaVisaoGeral', 'LojaRanking', 'Perfil'],
+};
+
+const normalizarEstruturasPermitidasUsuario = (valor) => {
+  let dados = valor;
+  if (typeof dados === 'string') {
+    try { dados = JSON.parse(dados); } catch { dados = []; }
+  }
+  if (dados && !Array.isArray(dados) && typeof dados === 'object') {
+    dados = dados.estruturas || dados.escopos || [];
+  }
+  if (!Array.isArray(dados)) return [];
+
+  const vistos = new Set();
+  return dados.reduce((acc, item) => {
+    const base = typeof item === 'string' ? { area: 'VD', estrutura: item } : item;
+    if (!base || typeof base !== 'object') return acc;
+    const area = String(base.area || 'VD').trim().toUpperCase();
+    if (!['VD', 'LOJA'].includes(area)) return acc;
+    const codigo = String(base.codigo || base.cod_estrutura || base.codigo_pdv || '').trim();
+    const estrutura = String(base.estrutura || base.nome || base.label || codigo).trim();
+    const nucleo = String(base.nucleo || '').trim();
+    const vinculadas = Array.isArray(base.vinculadas || base.estruturas_vinculadas)
+      ? (base.vinculadas || base.estruturas_vinculadas).map((v) => String(v || '').trim()).filter(Boolean)
+      : [];
+    if (!estrutura && !codigo) return acc;
+    const chave = `${area}|${codigo}|${estrutura.toLowerCase()}`;
+    if (vistos.has(chave)) return acc;
+    vistos.add(chave);
+    acc.push({ area, codigo, estrutura: estrutura || codigo, nucleo, vinculadas });
+    return acc;
+  }, []);
+};
+
+const chaveEscopoUsuario = (item) => `${String(item?.area || '')}|${String(item?.codigo || '')}|${String(item?.estrutura || '').toLowerCase()}`;
+
+const SeletorEscopoUsuario = ({ area, opcoes = [], selecionadas = [], onChange, carregando = false }) => {
+  const [busca, setBusca] = useState('');
+  const areaNormalizada = String(area || 'AMBOS').toUpperCase();
+  const areasPermitidas = areaNormalizada === 'AMBOS' ? ['VD', 'LOJA'] : [areaNormalizada];
+  const selecionadasNorm = normalizarEstruturasPermitidasUsuario(selecionadas);
+  const chavesSelecionadas = new Set(selecionadasNorm.map(chaveEscopoUsuario));
+  const termo = busca.trim().toLowerCase();
+  const filtradas = normalizarEstruturasPermitidasUsuario(opcoes).filter((item) => {
+    if (!areasPermitidas.includes(item.area)) return false;
+    const alvo = `${item.codigo} ${item.estrutura} ${item.nucleo}`.toLowerCase();
+    return !termo || alvo.includes(termo);
+  });
+
+  const alternar = (item) => {
+    const chave = chaveEscopoUsuario(item);
+    onChange(
+      chavesSelecionadas.has(chave)
+        ? selecionadasNorm.filter((atual) => chaveEscopoUsuario(atual) !== chave)
+        : [...selecionadasNorm, item]
+    );
+  };
+
+  return (
+    <div className="rounded-2xl border border-[#cde9ea] bg-[#f7fbfb] p-4 sm:p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div>
+          <p className="text-sm font-black text-gray-700">Estruturas permitidas</p>
+          <p className="text-xs text-gray-400 mt-1">O usuário verá somente os resultados selecionados.</p>
+        </div>
+        <span className="w-fit rounded-full bg-[#048187] px-3 py-1 text-xs font-black text-white">
+          {selecionadasNorm.length} selecionada(s)
+        </span>
+      </div>
+
+      <div className="relative mb-3">
+        <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar estrutura, equipe ou PDV..."
+          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm outline-none focus:border-[#048187]"
+        />
+      </div>
+
+      {carregando ? (
+        <div className="py-8 text-center text-sm font-bold text-[#048187]">Carregando estruturas...</div>
+      ) : (
+        <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+          {filtradas.map((item) => {
+            const selecionada = chavesSelecionadas.has(chaveEscopoUsuario(item));
+            return (
+              <button
+                key={chaveEscopoUsuario(item)}
+                type="button"
+                onClick={() => alternar(item)}
+                className={`w-full rounded-xl border p-3 text-left transition-all ${selecionada ? 'border-[#048187] bg-[#e6f6f7] shadow-sm' : 'border-gray-100 bg-white hover:border-[#9bd4d6]'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.area === 'LOJA' ? 'bg-orange-50 text-orange-600' : 'bg-[#dff5f6] text-[#048187]'}`}>{item.area}</span>
+                      {item.nucleo && <span className="text-[10px] font-black text-gray-400">{item.nucleo}</span>}
+                    </div>
+                    <p className="mt-1 text-sm font-black text-gray-700 break-words">{item.estrutura}</p>
+                    {!!item.vinculadas?.length && item.area === 'VD' && (
+                      <p className="mt-1 text-[11px] text-gray-400">{item.vinculadas.length} estrutura(s) vinculada(s)</p>
+                    )}
+                  </div>
+                  <span className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${selecionada ? 'border-[#048187] bg-[#048187] text-white' : 'border-gray-200 text-transparent'}`}>✓</span>
+                </div>
+              </button>
+            );
+          })}
+          {!filtradas.length && (
+            <div className="py-8 text-center text-sm font-bold text-gray-400">Nenhuma estrutura encontrada.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 
 const iniciaisNomeColaborador = (nome) => {
@@ -5555,7 +5676,54 @@ export default function App() {
       appleIcon.rel = 'apple-touch-icon';
       document.head.appendChild(appleIcon);
     }
-    appleIcon.href = logoEmpresa;
+    appleIcon.href = '/pwa-icon-192.png';
+
+    let manifest = document.querySelector("link[rel='manifest']");
+    if (!manifest) {
+      manifest = document.createElement('link');
+      manifest.rel = 'manifest';
+      document.head.appendChild(manifest);
+    }
+    manifest.href = '/manifest.webmanifest';
+
+    let themeColor = document.querySelector("meta[name='theme-color']");
+    if (!themeColor) {
+      themeColor = document.createElement('meta');
+      themeColor.name = 'theme-color';
+      document.head.appendChild(themeColor);
+    }
+    themeColor.content = '#048187';
+
+    const metasPwa = [
+      ['apple-mobile-web-app-capable', 'yes'],
+      ['apple-mobile-web-app-status-bar-style', 'default'],
+      ['apple-mobile-web-app-title', 'DASH SB'],
+      ['mobile-web-app-capable', 'yes'],
+    ];
+    metasPwa.forEach(([nome, conteudo]) => {
+      let meta = document.querySelector(`meta[name='${nome}']`);
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = nome;
+        document.head.appendChild(meta);
+      }
+      meta.content = conteudo;
+    });
+
+    const registrarServiceWorker = () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch((erro) => {
+          console.warn('Service Worker não registrado:', erro);
+        });
+      }
+    };
+
+    window.addEventListener('load', registrarServiceWorker);
+    if (document.readyState === 'complete') registrarServiceWorker();
+
+    return () => {
+      window.removeEventListener('load', registrarServiceWorker);
+    };
   }, []);
 
   useEffect(() => {
@@ -5677,7 +5845,7 @@ export default function App() {
   }, [usuarioLogado, estruturaSelecionada]);
 
 
-  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'AMBOS' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
+  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'VD', estruturas_permitidas: [] }); const [opcoesEscopoUsuarios, setOpcoesEscopoUsuarios] = useState([]); const [carregandoOpcoesEscopoUsuarios, setCarregandoOpcoesEscopoUsuarios] = useState(false); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
   const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' }); const [auditoriaDetalhe, setAuditoriaDetalhe] = useState(null);
   const [modalRelatorioAuditoriaAberto, setModalRelatorioAuditoriaAberto] = useState(false);
   const [gerandoRelatorioAuditoria, setGerandoRelatorioAuditoria] = useState(false);
@@ -5978,6 +6146,39 @@ export default function App() {
   };
 
   const usuarioPodeAcessarLoja = () => usuarioPodeAcessar('Loja') || usuarioPodeAcessar('LojaVisaoGeral') || usuarioPodeAcessar('LojaCadastro') || usuarioPodeAcessar('LojaUnidades') || usuarioPodeAcessar('LojaConsultoras') || usuarioPodeAcessar('LojaRanking');
+
+  const estruturasPermitidasUsuarioLogado = normalizarEstruturasPermitidasUsuario(
+    usuarioLogado?.estruturas_permitidas
+  );
+  const modoGerenteEstrutura = String(usuarioLogado?.perfil || '').toLowerCase() === 'visualizador'
+    && estruturasPermitidasUsuarioLogado.length > 0;
+  const areaGerenteEstrutura = normalizarAreaGestao(
+    usuarioLogado?.area_gestao,
+    usuarioLogado?.perfil
+  );
+  const abasVisiveisGerenteEstrutura = ABAS_VISIVEIS_GERENTE_ESTRUTURA[areaGerenteEstrutura]
+    || ABAS_VISIVEIS_GERENTE_ESTRUTURA.AMBOS;
+  const usuarioPodeExibirAba = (tela) => !modoGerenteEstrutura
+    || abasVisiveisGerenteEstrutura.includes(tela);
+  const nomeEscopoUsuario = estruturasPermitidasUsuarioLogado
+    .map((item) => item.estrutura)
+    .filter(Boolean)
+    .join(' • ');
+
+  useEffect(() => {
+    if (!modoGerenteEstrutura || !usuarioLogado) return;
+    if (abasVisiveisGerenteEstrutura.includes(telaAtual)) return;
+
+    const telaInicial = areaGerenteEstrutura === 'LOJA'
+      ? 'LojaVisaoGeral'
+      : 'Metas';
+    setCanalAtual(areaGerenteEstrutura === 'LOJA' ? 'LOJA' : 'VD');
+    setMenuLojaExpandido(areaGerenteEstrutura === 'LOJA');
+    setMenuVDExpandido(areaGerenteEstrutura !== 'LOJA');
+    setTelaAtual(telaInicial);
+    localStorage.setItem(TELA_ATUAL_STORAGE_KEY, telaInicial);
+    localStorage.setItem(CANAL_ATUAL_STORAGE_KEY, areaGerenteEstrutura === 'LOJA' ? 'LOJA' : 'VD');
+  }, [modoGerenteEstrutura, areaGerenteEstrutura, telaAtual, usuarioLogado?.id]);
 
   const podeGerarRelatorioMetas = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
   const podeGerarRelatorioLoja = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
@@ -7398,8 +7599,25 @@ const mapearIdentidadesColaboradores = (lista = []) => {
 
   const carregarUsuarios = async () => {
     if (!usuarioPodeAcessar('Configurações')) return;
-    setCarregandoUsuarios(true); setErroUsuarios('');
-    try { const resposta = await axios.get(`${API_URL}/auth/usuarios`); setUsuariosSistema(resposta.data.usuarios || []); } catch (erro) { setErroUsuarios('Erro usuários.'); } finally { setCarregandoUsuarios(false); }
+    setCarregandoUsuarios(true);
+    setCarregandoOpcoesEscopoUsuarios(true);
+    setErroUsuarios('');
+    try {
+      const [resUsuarios, resEscopos] = await Promise.all([
+        axios.get(`${API_URL}/auth/usuarios`),
+        axios.get(`${API_URL}/auth/estruturas-disponiveis`),
+      ]);
+      setUsuariosSistema((resUsuarios.data.usuarios || []).map((usuario) => ({
+        ...usuario,
+        estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuario.estruturas_permitidas),
+      })));
+      setOpcoesEscopoUsuarios(normalizarEstruturasPermitidasUsuario(resEscopos.data.todas || []));
+    } catch (erro) {
+      setErroUsuarios(erro.response?.data?.detail || 'Erro ao carregar usuários e estruturas.');
+    } finally {
+      setCarregandoUsuarios(false);
+      setCarregandoOpcoesEscopoUsuarios(false);
+    }
   };
 
   const carregarCiclos = async () => {
@@ -8905,13 +9123,21 @@ const carregarRevendedores = async () => {
       setUsuarioLogado(usuario);
       localStorage.setItem('usuarioLogado', JSON.stringify(usuario));
       localStorage.setItem(TOKEN_STORAGE_KEY, token);
-      localStorage.setItem(TELA_ATUAL_STORAGE_KEY, 'Dashboard');
-      localStorage.setItem(CANAL_ATUAL_STORAGE_KEY, 'VD');
+      const escoposUsuario = normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas);
+      const gerenteRestrito = String(usuario?.perfil || '').toLowerCase() === 'visualizador' && escoposUsuario.length > 0;
+      const areaUsuario = normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil);
+      const telaInicial = gerenteRestrito
+        ? (areaUsuario === 'LOJA' ? 'LojaVisaoGeral' : 'Metas')
+        : 'Dashboard';
+      const canalInicial = gerenteRestrito && areaUsuario === 'LOJA' ? 'LOJA' : 'VD';
+
+      localStorage.setItem(TELA_ATUAL_STORAGE_KEY, telaInicial);
+      localStorage.setItem(CANAL_ATUAL_STORAGE_KEY, canalInicial);
       localStorage.setItem(VISAO_METAS_STORAGE_KEY, 'estruturas');
       localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
       await carregarPermissoesDoBanco();
-      setCanalAtual('VD');
-      setTelaAtual('Dashboard');
+      setCanalAtual(canalInicial);
+      setTelaAtual(telaInicial);
       setVisaoMetas('estruturas');
       setEstruturaSelecionada('');
     } catch (erro) {
@@ -9314,9 +9540,62 @@ const enviarArquivo = async (tipo) => {
     } catch (erro) { setErroUpload(erro.response?.data?.detail || 'Erro.'); } finally { setCarregandoUpload(false); }
   };
 
-  const criarUsuario = async (e) => { e.preventDefault(); setMensagemUsuarios(''); setErroUsuarios(''); try { await axios.post(`${API_URL}/auth/criar-usuario`, { ...novoUsuario, area_gestao: normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil) }); setMensagemUsuarios('Criado com sucesso.'); setNovoUsuario({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'AMBOS' }); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
-  const abrirEditarUsuario = (usuario) => { setUsuarioEditando({ ...usuario, area_gestao: normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil) }); setModalEditarUsuarioAberto(true); };
-  const salvarEdicaoUsuario = async (e) => { e.preventDefault(); try { await axios.put(`${API_URL}/auth/atualizar-usuario`, { id: usuarioEditando.id, nome: usuarioEditando.nome, perfil: usuarioEditando.perfil, status_usuario: usuarioEditando.status_usuario, area_gestao: normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil) }); setModalEditarUsuarioAberto(false); setMensagemUsuarios('Atualizado com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
+  const criarUsuario = async (e) => {
+    e.preventDefault();
+    setMensagemUsuarios('');
+    setErroUsuarios('');
+    const area = normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil);
+    const estruturas = normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas);
+    if (novoUsuario.perfil === 'visualizador' && !estruturas.length) {
+      setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
+      return;
+    }
+    try {
+      await axios.post(`${API_URL}/auth/criar-usuario`, {
+        ...novoUsuario,
+        area_gestao: area,
+        estruturas_permitidas: estruturas,
+      });
+      setMensagemUsuarios('Usuário criado com acesso restrito à estrutura selecionada.');
+      setNovoUsuario({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'VD', estruturas_permitidas: [] });
+      await carregarUsuarios();
+    } catch (erro) {
+      setErroUsuarios(erro.response?.data?.detail || 'Erro ao criar usuário.');
+    }
+  };
+
+  const abrirEditarUsuario = (usuario) => {
+    setUsuarioEditando({
+      ...usuario,
+      area_gestao: normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil),
+      estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas),
+    });
+    setModalEditarUsuarioAberto(true);
+  };
+
+  const salvarEdicaoUsuario = async (e) => {
+    e.preventDefault();
+    const estruturas = normalizarEstruturasPermitidasUsuario(usuarioEditando.estruturas_permitidas);
+    if (usuarioEditando.perfil === 'visualizador' && !estruturas.length) {
+      setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
+      return;
+    }
+    try {
+      await axios.put(`${API_URL}/auth/atualizar-usuario`, {
+        id: usuarioEditando.id,
+        nome: usuarioEditando.nome,
+        perfil: usuarioEditando.perfil,
+        status_usuario: usuarioEditando.status_usuario,
+        area_gestao: normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil),
+        estruturas_permitidas: estruturas,
+      });
+      setModalEditarUsuarioAberto(false);
+      setMensagemUsuarios('Usuário e estruturas atualizados com sucesso.');
+      await carregarUsuarios();
+    } catch (erro) {
+      setErroUsuarios(erro.response?.data?.detail || 'Erro ao atualizar usuário.');
+    }
+  };
   const abrirExcluirUsuario = (usuario) => { setUsuarioParaExcluir(usuario); setModalExcluirUsuarioAberto(true); };
   const confirmarExclusaoUsuario = async () => { if (!usuarioParaExcluir) return; try { await axios.delete(`${API_URL}/auth/deletar-usuario/${usuarioParaExcluir.id}`); setModalExcluirUsuarioAberto(false); setUsuarioParaExcluir(null); setMensagemUsuarios('Excluído com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
   const gerarSenhaTemporariaAdmin = () => {
@@ -9980,7 +10259,7 @@ const enviarArquivo = async (tipo) => {
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-2 min-w-0">
-            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
+            {!modoGerenteEstrutura && (<FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />)}
             {filtrosAtivosResumo.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {filtrosAtivosResumo.map((filtro) => (
@@ -11009,7 +11288,7 @@ const enviarArquivo = async (tipo) => {
                   <FileSpreadsheet size={17} /> Gerar relatório em imagem
                 </button>
               )}
-              <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
+              {!modoGerenteEstrutura && (<FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />)}
             </div>
           </div>
         </div>
@@ -11161,7 +11440,71 @@ const enviarArquivo = async (tipo) => {
         {visaoMetas === 'estruturas' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
-          <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
+
+          <div className="md:hidden space-y-4">
+            {ests.map((i) => {
+              const ind = calcularIndicadoresLinhaEstrutura(i);
+              const metricasMobile = [
+                { label: 'Faturamento', valor: formatarAbrev(ind.receitaRealizada), meta: `Meta ${formatarAbrev(ind.receitaMeta)}`, atingimento: ind.percentualReceita },
+                { label: 'Eudora', valor: formatarAbrev(ind.eudoraRealizado), meta: `Meta ${formatarAbrev(ind.metaEudoraValor)}`, atingimento: ind.percentualEudora },
+                { label: 'Atividade', valor: `${formatarNumeroBR(ind.percentualAtividade, 1)}%`, meta: `${formatarNumeroBR(ind.atividadeRealizada, 0)} de ${formatarNumeroBR(ind.metaAtividadeQtd, 0)} rev.`, atingimento: calcPerc(ind.percentualAtividade, ind.metaAtividadePercentual) },
+                { label: 'RPA', valor: formatarMoeda(ind.rpaRealizado), meta: `Meta ${formatarMoeda(ind.rpaMeta)}`, atingimento: calcPerc(ind.rpaRealizado, ind.rpaMeta) },
+                { label: 'Ticket médio', valor: formatarMoeda(ind.ticketRealizado), meta: `Meta ${formatarMoeda(ind.ticketMeta)}`, atingimento: calcPerc(ind.ticketRealizado, ind.ticketMeta) },
+                { label: 'UPA', valor: formatarNumeroBR(ind.upaRealizada, 1), meta: `Meta ${formatarNumeroBR(ind.upaMeta, 1)}`, atingimento: calcPerc(ind.upaRealizada, ind.upaMeta) },
+                { label: 'MAKE', valor: `${formatarNumeroBR(ind.percentualMake, 1)}%`, meta: `Meta ${formatarNumeroBR(ind.metaMakePercentual, 1)}%`, atingimento: calcPerc(ind.percentualMake, ind.metaMakePercentual) },
+                { label: 'Cabelo', valor: `${formatarNumeroBR(ind.percentualCabelo, 1)}%`, meta: `Meta ${formatarNumeroBR(ind.metaCabeloPercentual, 1)}%`, atingimento: calcPerc(ind.percentualCabelo, ind.metaCabeloPercentual) },
+                { label: 'Multimarcas', valor: `${formatarNumeroBR(ind.percentualMultimarcas, 1)}%`, meta: `Meta ${formatarNumeroBR(ind.metaMultimarcasPercentual, 1)}%`, atingimento: calcPerc(ind.percentualMultimarcas, ind.metaMultimarcasPercentual) },
+              ];
+
+              return (
+                <article key={`mobile-${i.estrutura}`} className="overflow-hidden rounded-[24px] border border-gray-100 bg-white shadow-sm">
+                  <div className="bg-gradient-to-r from-[#048187] to-[#0b9a9f] p-4 text-white">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/70">Minha estrutura</p>
+                        <h3 className="mt-1 text-lg font-black leading-tight break-words">{i.estrutura}</h3>
+                        <p className="mt-1 text-xs font-bold text-white/75">{i.nucleo || 'Núcleo não informado'}</p>
+                      </div>
+                      <span className="shrink-0 rounded-2xl bg-white/15 px-3 py-2 text-right backdrop-blur">
+                        <strong className="block text-xl font-black">{formatarNumeroBR(ind.percentualReceita, 1)}%</strong>
+                        <span className="text-[9px] font-black uppercase">da meta</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 p-3">
+                    {metricasMobile.map((metrica) => {
+                      const cor = corPorFaixaMeta(Number(metrica.atingimento || 0));
+                      return (
+                        <div key={metrica.label} className="relative min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-[#f8fbfc] p-3">
+                          <span className="absolute inset-y-3 left-0 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
+                          <p className="pl-1 text-[9px] font-black uppercase tracking-wide text-gray-400 truncate">{metrica.label}</p>
+                          <p className="mt-1 pl-1 text-sm font-black text-gray-800 truncate">{metrica.valor}</p>
+                          <p className="mt-1 pl-1 text-[9px] font-bold text-gray-400 truncate">{metrica.meta}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="px-3 pb-3">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setEstruturaSelecionada(i.estrutura);
+                        await carregarDetalheMeta(i.estrutura, filtrosAtivos, false);
+                        setVisaoMetas('consultores');
+                      }}
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#048187] px-4 py-3 text-sm font-black text-white shadow-lg shadow-[#048187]/20 active:scale-[0.99]"
+                    >
+                      <Eye size={17} /> Ver consultores e detalhes
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
             <div className="min-w-[1780px] space-y-2">
               <div
                 className="grid gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400"
@@ -11876,7 +12219,7 @@ const enviarArquivo = async (tipo) => {
             <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 truncate">Ranking e Gamificação</h1><p className="text-sm text-gray-400 truncate">Top 5 de alta performance da equipe</p></div>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
+            {!modoGerenteEstrutura && (<FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />)}
             <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
               <button onClick={() => setVisaoRanking('consultores')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'consultores' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Consultores"><User size={18} /></button>
               <button onClick={() => setVisaoRanking('estruturas')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'estruturas' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Estruturas"><Users size={18} /></button>
@@ -12656,7 +12999,43 @@ const enviarArquivo = async (tipo) => {
                     <input value={buscaRevendedores} onChange={(e) => setBuscaRevendedores(e.target.value)} placeholder="Buscar revendedor, estrutura, cidade..." className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#048187]" />
                   </div>
                 </div>
-                <div className="overflow-x-auto max-h-[390px]">
+                <div className="md:hidden space-y-3 max-h-[34rem] overflow-y-auto pr-1">
+                  {listaFiltrada.slice(0, 300).map((r, idx) => (
+                    <article key={`mobile-${r.cod_revendedor}-${idx}`} className="rounded-2xl border border-gray-100 bg-[#fbfefe] p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-[#048187]">#{r.cod_revendedor || '-'}</p>
+                          <h3 className="mt-1 text-sm font-black leading-tight text-gray-800 break-words">{r.nome_revendedor || '-'}</h3>
+                          <p className="mt-1 text-xs font-bold text-gray-400 break-words">{r.nome_estrutura || '-'}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${ehInadimplente(r.inadimplente) ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
+                          {ehInadimplente(r.inadimplente) ? 'Inadimplente' : 'Adimplente'}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="rounded-xl bg-white p-3 border border-gray-100">
+                          <p className="text-[9px] font-black uppercase text-gray-400">Receita</p>
+                          <p className="mt-1 text-sm font-black text-[#048187] truncate">{formatarMoeda(Number(r.receita_praticada_pedidos || 0) > 0 ? r.receita_praticada_pedidos : r.vlr_receita_liquida || 0)}</p>
+                        </div>
+                        <div className="rounded-xl bg-white p-3 border border-gray-100">
+                          <p className="text-[9px] font-black uppercase text-gray-400">Crédito</p>
+                          <p className="mt-1 text-sm font-black text-gray-700 truncate">{formatarMoeda(r.credito_disponivel || 0)}</p>
+                        </div>
+                        <div className="rounded-xl bg-white p-3 border border-gray-100">
+                          <p className="text-[9px] font-black uppercase text-gray-400">Cidade</p>
+                          <p className="mt-1 text-xs font-black text-gray-700 truncate">{r.cidade || '-'}</p>
+                        </div>
+                        <div className="rounded-xl bg-white p-3 border border-gray-100">
+                          <p className="text-[9px] font-black uppercase text-gray-400">Atividade / Papel</p>
+                          <p className="mt-1 text-xs font-black text-gray-700 truncate">{r.atividade || '-'} • {r.papel || '-'}</p>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto max-h-[390px]">
                   <table className="w-full text-sm min-w-[1150px]">
                     <thead className="sticky top-0 bg-white z-10">
                       <tr className="text-left text-gray-500 border-b border-gray-100">
@@ -13362,6 +13741,29 @@ const enviarArquivo = async (tipo) => {
   const renderTelaPerfil = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center gap-4 border-b border-gray-100 pb-6 mb-6"><button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'PERFIL', id_colaborador: String(usuarioLogado.id || ''), nome_oficial: usuarioLogado.nome, foto_data_url: obterFotoColaborador('PERFIL', String(usuarioLogado.id || '')) })} className="relative group shrink-0" title="Alterar foto do perfil"><AvatarColaborador src={obterFotoColaborador('PERFIL', String(usuarioLogado.id || ''))} nome={usuarioLogado.nome} tamanho={72} borda="#048187" /><span className="absolute -right-1 -bottom-1 w-7 h-7 rounded-full bg-[#048187] text-white flex items-center justify-center border-2 border-white"><Camera size={14} /></span></button><div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.nome}</h1><p className="text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.email}</p></div></div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Nome</p><p className="text-lg font-bold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.nome}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Perfil</p><p className="text-lg font-bold text-[#048187] uppercase whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.perfil}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Área</p><p className="text-lg font-bold text-[#712231] uppercase whitespace-nowrap overflow-hidden text-ellipsis">{normalizarAreaGestao(usuarioLogado.area_gestao, usuarioLogado.perfil) === 'AMBOS' ? 'VD + LOJA' : normalizarAreaGestao(usuarioLogado.area_gestao, usuarioLogado.perfil)}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Status</p><p className="text-lg font-bold text-green-600 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.status_usuario}</p></div></div></div>
+      {normalizarEstruturasPermitidasUsuario(usuarioLogado?.estruturas_permitidas).length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><Target size={21} /></div>
+            <div>
+              <h2 className="text-lg font-black text-gray-700">Minhas estruturas</h2>
+              <p className="text-sm text-gray-400 font-semibold">Seu acesso aos resultados está limitado aos itens abaixo.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {normalizarEstruturasPermitidasUsuario(usuarioLogado?.estruturas_permitidas).map((item) => (
+              <div key={chaveEscopoUsuario(item)} className="rounded-2xl border border-[#cde9ea] bg-[#f7fbfb] p-4">
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.area === 'LOJA' ? 'bg-orange-50 text-orange-600' : 'bg-[#dff5f6] text-[#048187]'}`}>{item.area}</span>
+                  {item.nucleo && <span className="text-[10px] font-black text-gray-400">{item.nucleo}</span>}
+                </div>
+                <p className="mt-2 text-sm font-black text-gray-700 break-words">{item.estrutura}</p>
+                {!!item.vinculadas?.length && <p className="mt-1 text-xs font-semibold text-gray-400">{item.vinculadas.length} vínculo(s) comercial(is)</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6"><div className="flex items-center gap-2"><KeyRound size={22} className="text-[#048187]" /><h2 className="text-xl font-bold text-gray-700">Trocar senha</h2></div><button type="button" onClick={() => setMostrarSenhasPerfil(!mostrarSenhasPerfil)} className="flex items-center gap-2 text-sm font-bold text-[#048187]">{mostrarSenhasPerfil ? <EyeOff size={18} /> : <Eye size={18} />}{mostrarSenhasPerfil ? 'Ocultar senhas' : 'Mostrar senhas'}</button></div>{(mensagemSenha || erroSenha) && (<div className={`rounded-xl p-4 font-bold text-sm mb-4 ${mensagemSenha ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemSenha || erroSenha}</div>)}<form onSubmit={alterarSenha} className="grid grid-cols-1 md:grid-cols-3 gap-4"><input type={mostrarSenhasPerfil ? 'text' : 'password'} placeholder="Senha atual" value={senhaPerfil.senha_atual} onChange={(e) => setSenhaPerfil({ ...senhaPerfil, senha_atual: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><input type={mostrarSenhasPerfil ? 'text' : 'password'} placeholder="Nova senha" value={senhaPerfil.nova_senha} onChange={(e) => setSenhaPerfil({ ...senhaPerfil, nova_senha: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><input type={mostrarSenhasPerfil ? 'text' : 'password'} placeholder="Confirmar nova senha" value={senhaPerfil.confirmar_senha} onChange={(e) => setSenhaPerfil({ ...senhaPerfil, confirmar_senha: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><button type="submit" className="md:col-span-3 bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><Save size={18} /> Alterar senha</button></form></div>
     </div>
   );
@@ -13842,7 +14244,10 @@ const enviarArquivo = async (tipo) => {
                 perfil,
                 area_gestao: perfil === 'admin'
                   ? 'AMBOS'
-                  : novoUsuario.area_gestao,
+                  : (novoUsuario.area_gestao || 'VD'),
+                estruturas_permitidas: perfil === 'admin'
+                  ? []
+                  : novoUsuario.estruturas_permitidas,
               });
             }}
             className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"
@@ -13853,10 +14258,15 @@ const enviarArquivo = async (tipo) => {
           </select>
           <select
             value={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
-            onChange={(e) => setNovoUsuario({
-              ...novoUsuario,
-              area_gestao: e.target.value,
-            })}
+            onChange={(e) => {
+              const area = e.target.value;
+              setNovoUsuario({
+                ...novoUsuario,
+                area_gestao: area,
+                estruturas_permitidas: normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas)
+                  .filter((item) => area === 'AMBOS' || item.area === area),
+              });
+            }}
             disabled={novoUsuario.perfil === 'admin'}
             className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
             title="Define quais notificações de meta este usuário receberá."
@@ -13867,9 +14277,20 @@ const enviarArquivo = async (tipo) => {
               </option>
             ))}
           </select>
+          {novoUsuario.perfil !== 'admin' && (
+            <div className="md:col-span-2 xl:col-span-6">
+              <SeletorEscopoUsuario
+                area={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
+                opcoes={opcoesEscopoUsuarios}
+                selecionadas={novoUsuario.estruturas_permitidas}
+                onChange={(estruturas_permitidas) => setNovoUsuario({ ...novoUsuario, estruturas_permitidas })}
+                carregando={carregandoOpcoesEscopoUsuarios}
+              />
+            </div>
+          )}
           <button
             type="submit"
-            className="bg-[#048187] text-white font-bold rounded-lg py-3 hover:bg-[#036b70] inline-flex items-center justify-center gap-2"
+            className="bg-[#048187] text-white font-bold rounded-lg py-3 hover:bg-[#036b70] inline-flex items-center justify-center gap-2 xl:col-start-6"
           >
             <ShieldCheck size={18} />
             Criar
@@ -13887,6 +14308,7 @@ const enviarArquivo = async (tipo) => {
                   <th className="py-3 px-2">E-mail</th>
                   <th className="py-3 px-2">Perfil</th>
                   <th className="py-3 px-2">Área</th>
+                  <th className="py-3 px-2">Estruturas</th>
                   <th className="py-3 px-2">Permissões</th>
                   <th className="py-3 px-2">Status</th>
                   <th className="py-3 px-2 text-right">Ações</th>
@@ -13924,6 +14346,23 @@ const enviarArquivo = async (tipo) => {
                             ? 'VD + LOJA'
                             : areaUsuario}
                         </span>
+                      </td>
+                      <td className="py-4 px-2">
+                        <div className="flex flex-wrap gap-1.5 min-w-[230px] max-w-[360px]">
+                          {normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).slice(0, 3).map((item) => (
+                            <span key={chaveEscopoUsuario(item)} className="rounded-full bg-[#f1fbfb] border border-[#cde9ea] px-2.5 py-1 text-[10px] font-black text-[#048187] max-w-[220px] truncate" title={item.estrutura}>
+                              {item.estrutura}
+                            </span>
+                          ))}
+                          {normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).length > 3 && (
+                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-500">
+                              +{normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).length - 3}
+                            </span>
+                          )}
+                          {!normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).length && (
+                            <span className="text-xs font-bold text-gray-400">Sem restrição cadastrada</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-2">
                         <div className="flex flex-col gap-2 min-w-[220px]">
@@ -17012,6 +17451,39 @@ const enviarArquivo = async (tipo) => {
     ? dadosModalDesempenho.gruposConsultores
     : dadosModalDesempenho.gruposEstruturas;
 
+  const itensMenuMobile = modoGerenteEstrutura
+    ? (areaGerenteEstrutura === 'LOJA'
+        ? [
+            { nome: 'LojaVisaoGeral', icone: LayoutDashboard },
+            { nome: 'LojaRanking', icone: Trophy },
+          ]
+        : [
+            { nome: 'Metas', icone: BarChart2 },
+            { nome: 'Ranking', icone: Medal },
+            { nome: 'Revendedores', icone: UserCircle },
+          ])
+    : [
+        ...itensMenuVD,
+        ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []),
+        { nome: 'ADM', icone: ShieldCheck },
+        { nome: 'Perfil', icone: User },
+      ];
+
+  const navegarMenuMobile = (nome) => {
+    if (nome === 'Perfil') {
+      setTelaAtual('Perfil');
+      return;
+    }
+    if (nome.startsWith('Loja')) {
+      setCanalAtual('LOJA');
+      setMenuLojaExpandido(true);
+      setMenuVDExpandido(false);
+      setTelaAtual(nome);
+      return;
+    }
+    navegarParaTelaVD(nome);
+  };
+
   return (
     <>
       <div className="h-[100dvh] bg-[#f7fafb] flex overflow-hidden">
@@ -17034,6 +17506,7 @@ const enviarArquivo = async (tipo) => {
             )}
           </div>
           <nav className={`${sidebarExpandida ? 'p-4 space-y-2' : 'p-3 space-y-2'} flex-1 overflow-y-auto`}>
+            {(!modoGerenteEstrutura || areaGerenteEstrutura !== 'LOJA') && (
             <div>
               <button
                 type="button"
@@ -17051,7 +17524,7 @@ const enviarArquivo = async (tipo) => {
               {menuVDExpandido && (
                 <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
                   {itensMenuVD.map((item) => {
-                    if (!usuarioPodeAcessar(item.nome)) return null;
+                    if (!usuarioPodeAcessar(item.nome) || !usuarioPodeExibirAba(item.nome)) return null;
                     const Icone = item.icone;
                     const ativo = canalAtual === 'VD' && telaAtual === item.nome;
                     return (
@@ -17069,8 +17542,9 @@ const enviarArquivo = async (tipo) => {
                 </div>
               )}
             </div>
+            )}
 
-            {usuarioPodeAcessarLoja() && (
+            {usuarioPodeAcessarLoja() && (!modoGerenteEstrutura || areaGerenteEstrutura !== 'VD') && (
             <div>
               <button
                 type="button"
@@ -17088,7 +17562,7 @@ const enviarArquivo = async (tipo) => {
               {menuLojaExpandido && (
                 <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
                   {itensMenuLoja.length > 0 ? (
-                    itensMenuLoja.filter((item) => usuarioPodeAcessar(item.nome)).map((item) => {
+                    itensMenuLoja.filter((item) => usuarioPodeAcessar(item.nome) && usuarioPodeExibirAba(item.nome)).map((item) => {
                       const Icone = item.icone;
                       const ativo = canalAtual === 'LOJA' && telaAtual === item.nome;
                       return (
@@ -17116,14 +17590,16 @@ const enviarArquivo = async (tipo) => {
             )}
           </nav>
           <div className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} border-t border-white/10`}>
-            <button
-              onClick={() => setTelaAtual('Perfil')}
-              title="Perfil"
-              className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'Perfil' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
-            >
-              <User size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-              {sidebarExpandida && <span>Perfil</span>}
-            </button>
+            {!modoGerenteEstrutura && (
+              <button
+                onClick={() => setTelaAtual('Perfil')}
+                title="Perfil"
+                className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'Perfil' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+              >
+                <User size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+                {sidebarExpandida && <span>Perfil</span>}
+              </button>
+            )}
             {usuarioPodeAcessar('ADM') && (
               <button
                 onClick={() => { setCanalAtual('VD'); setTelaAtual('ADM'); }}
@@ -17157,10 +17633,20 @@ const enviarArquivo = async (tipo) => {
 
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-white/10 z-40 px-2 py-2">
           <div className="flex items-center justify-around gap-1">
-            {[...itensMenuVD, ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []), { nome: 'ADM', icone: ShieldCheck }, { nome: 'Perfil', icone: User }].map((item) => {
-              if (!usuarioPodeAcessar(item.nome)) return null;
-              const Icone = item.icone; const ativo = telaAtual === item.nome;
-              return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}>{item.nome === 'Loja' ? <IconeCanalLoja size={18} /> : <Icone size={18} />}<span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
+            {itensMenuMobile.map((item) => {
+              if (!usuarioPodeAcessar(item.nome) || !usuarioPodeExibirAba(item.nome)) return null;
+              const Icone = item.icone;
+              const ativo = telaAtual === item.nome;
+              return (
+                <button
+                  key={item.nome}
+                  onClick={() => navegarMenuMobile(item.nome)}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-2.5 min-w-0 flex-1 transition-all ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-black/10' : 'text-gray-300'}`}
+                >
+                  <Icone size={19} />
+                  <span className="text-[10px] font-black truncate max-w-full">{obterNomeAba(item.nome)}</span>
+                </button>
+              );
             })}
           </div>
         </div>
@@ -17491,6 +17977,20 @@ const enviarArquivo = async (tipo) => {
                 </button>
               </div>
             </header>
+            {modoGerenteEstrutura && (
+              <div className="mb-4 rounded-2xl border border-[#b9dfe1] bg-gradient-to-r from-[#e6f6f7] to-white p-4 sm:p-5 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-[#048187] text-white flex items-center justify-center shrink-0">
+                    {areaGerenteEstrutura === 'LOJA' ? <IconeCanalLoja size={22} /> : <IconeCanalVD size={22} />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#048187]">Minha estrutura • {areaGerenteEstrutura}</p>
+                    <h2 className="mt-1 text-base sm:text-lg font-black text-gray-700 break-words">{nomeEscopoUsuario || 'Estrutura vinculada'}</h2>
+                    <p className="mt-1 text-xs text-gray-500 font-semibold">Os resultados e rankings exibidos estão limitados ao seu perfil.</p>
+                  </div>
+                </div>
+              </div>
+            )}
             {renderContent()}
           </div>
         </main>
@@ -19581,7 +20081,7 @@ const enviarArquivo = async (tipo) => {
 
       {modalEditarUsuarioAberto && usuarioEditando && (
         <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4">
-          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-white w-full max-w-3xl max-h-[92vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-start justify-between p-6 border-b border-gray-100">
               <div>
                 <h2 className="text-xl font-bold text-gray-700">
@@ -19599,7 +20099,7 @@ const enviarArquivo = async (tipo) => {
               </button>
             </div>
 
-            <form onSubmit={salvarEdicaoUsuario} className="p-6 space-y-4">
+            <form onSubmit={salvarEdicaoUsuario} className="p-6 space-y-4 overflow-y-auto">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
                   Nome
@@ -19630,7 +20130,10 @@ const enviarArquivo = async (tipo) => {
                         perfil,
                         area_gestao: perfil === 'admin'
                           ? 'AMBOS'
-                          : usuarioEditando.area_gestao,
+                          : (usuarioEditando.area_gestao || 'VD'),
+                        estruturas_permitidas: perfil === 'admin'
+                          ? []
+                          : usuarioEditando.estruturas_permitidas,
                       });
                     }}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
@@ -19650,10 +20153,15 @@ const enviarArquivo = async (tipo) => {
                       usuarioEditando.area_gestao,
                       usuarioEditando.perfil
                     )}
-                    onChange={(e) => setUsuarioEditando({
-                      ...usuarioEditando,
-                      area_gestao: e.target.value,
-                    })}
+                    onChange={(e) => {
+                      const area = e.target.value;
+                      setUsuarioEditando({
+                        ...usuarioEditando,
+                        area_gestao: area,
+                        estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuarioEditando.estruturas_permitidas)
+                          .filter((item) => area === 'AMBOS' || item.area === area),
+                      });
+                    }}
                     disabled={usuarioEditando.perfil === 'admin'}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
                   >
@@ -19683,8 +20191,18 @@ const enviarArquivo = async (tipo) => {
                 </div>
               </div>
 
+              {usuarioEditando.perfil !== 'admin' && (
+                <SeletorEscopoUsuario
+                  area={normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil)}
+                  opcoes={opcoesEscopoUsuarios}
+                  selecionadas={usuarioEditando.estruturas_permitidas}
+                  onChange={(estruturas_permitidas) => setUsuarioEditando({ ...usuarioEditando, estruturas_permitidas })}
+                  carregando={carregandoOpcoesEscopoUsuarios}
+                />
+              )}
+
               <div className="rounded-xl bg-[#f7fafb] border border-gray-100 px-4 py-3 text-xs text-gray-500 font-semibold">
-                Gestor VD recebe alertas somente de VD. Gestor LOJA recebe alertas somente de LOJA. Admin recebe os dois.
+                Visualizador VD: Metas por Estrutura, Ranking e Revendedores. Visualizador LOJA: Visão Geral e Ranking. Os dados ficam limitados às estruturas selecionadas.
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
