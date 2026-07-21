@@ -1003,6 +1003,25 @@ const criarImagemRelatorioMetas = async ({
     detalhe?.meta?.cabelo
   );
 
+  const metaEudoraPercentual = obterNumero(
+    resumo.meta_eudora,
+    detalhe?.meta?.eudora
+  );
+  const metaEudoraValor = obterNumero(
+    resumo.meta_eudora_valor,
+    detalhe.meta_eudora_valor,
+    metaReceita > 0 ? (metaReceita * metaEudoraPercentual) / 100 : 0
+  );
+  const eudoraRealizado = obterNumero(
+    resumo.eudora_realizado,
+    detalhe.eudora_realizado
+  );
+  const percentualEudora = obterNumero(
+    resumo.percentual_eudora,
+    detalhe.percentual_eudora,
+    calcularPercentualRelatorioMetas(eudoraRealizado, metaEudoraValor)
+  );
+
   const corEstrutura = corDesempenhoRelatorioMetas(percentualReceita);
   const nucleosItem = obterNucleosDoItemRelatorioMetas(resumo);
 
@@ -1081,6 +1100,13 @@ const criarImagemRelatorioMetas = async ({
       meta: '100,0%',
       realizado: `${formatarNumeroBR(percentualReceita, 1)}%`,
       percentual: percentualReceita,
+    },
+    {
+      titulo: 'Eudora',
+      meta: formatarMoeda(metaEudoraValor),
+      realizado: formatarMoeda(eudoraRealizado),
+      percentual: calcularPercentualRelatorioMetas(eudoraRealizado, metaEudoraValor),
+      moeda: true,
     },
     {
       titulo: 'Atividade',
@@ -1292,6 +1318,24 @@ const criarImagemRelatorioMetas = async ({
           atividadeConsultor
         )
       );
+      const metaEudoraConsultorPercentual = obterNumero(
+        consultor.meta_eudora,
+        metaEudoraPercentual
+      );
+      const metaEudoraConsultorValor = obterNumero(
+        consultor.meta_eudora_valor,
+        metaConsultor > 0 ? (metaConsultor * metaEudoraConsultorPercentual) / 100 : 0
+      );
+      const eudoraRealizadoConsultor = obterNumero(
+        consultor.eudora_realizado
+      );
+      const percentualEudoraConsultor = obterNumero(
+        consultor.percentual_eudora,
+        calcularPercentualRelatorioMetas(
+          eudoraRealizadoConsultor,
+          metaEudoraConsultorValor
+        )
+      );
       const nomeConsultor = String(
         consultor.nome_exibicao
         || consultor.nome_social
@@ -1352,6 +1396,13 @@ const criarImagemRelatorioMetas = async ({
           meta: formatarMoeda(metaConsultor),
           realizado: formatarMoeda(realizadoConsultor),
           percentual: percentualConsultor,
+          moeda: true,
+        },
+        {
+          titulo: 'Eudora',
+          meta: formatarMoeda(metaEudoraConsultorValor),
+          realizado: formatarMoeda(eudoraRealizadoConsultor),
+          percentual: percentualEudoraConsultor,
           moeda: true,
         },
         {
