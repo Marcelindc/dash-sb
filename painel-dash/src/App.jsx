@@ -10728,13 +10728,17 @@ const enviarArquivo = async (tipo) => {
 
       const metaAtividadePercentual = Number(
         consultor?.meta_atividade
-        || metaEstrutura?.meta_atividade
-        || dadosMetas?.meta_atividade_geral
-        || 0
+        ?? metaEstrutura?.meta_atividade
+        ?? dadosMetas?.meta_atividade_geral
+        ?? 0
       );
       const metaAtividadeQuantidade = baseAtivaIndividual > 0
         ? Math.ceil((baseAtivaIndividual * metaAtividadePercentual) / 100)
         : 0;
+      // Na tela oficial do administrador, o card de Atividade exibe a base
+      // ativa individual ao lado da meta percentual. Mantemos o mesmo padrão
+      // no Acompanhamento do gerente.
+      const baseAtivaExibidaAtividade = baseAtivaIndividual;
       const percentualAtividade = Number(
         consultor?.percentual_atividade
         || calcPerc(ativados, baseAtivaIndividual)
@@ -10746,9 +10750,9 @@ const enviarArquivo = async (tipo) => {
 
       const metaMakePercentual = Number(
         consultor?.meta_make
-        || metaEstrutura?.meta_make
-        || dadosMetas?.meta_make_geral
-        || 0
+        ?? metaEstrutura?.meta_make
+        ?? dadosMetas?.meta_make_geral
+        ?? 0
       );
       const makeRealizado = Number(consultor?.make_realizado || 0);
       const percentualMake = Number(
@@ -10761,9 +10765,9 @@ const enviarArquivo = async (tipo) => {
 
       const metaCabeloPercentual = Number(
         consultor?.meta_cabelo
-        || metaEstrutura?.meta_cabelo
-        || dadosMetas?.meta_cabelo_geral
-        || 0
+        ?? metaEstrutura?.meta_cabelo
+        ?? dadosMetas?.meta_cabelo_geral
+        ?? 0
       );
       const cabeloRealizado = Number(consultor?.cabelo_realizado || 0);
       const percentualCabelo = Number(
@@ -10793,9 +10797,9 @@ const enviarArquivo = async (tipo) => {
 
       const metaRpa = Number(
         consultor?.meta_rpa
-        || metaEstrutura?.meta_rpa
-        || dadosMetas?.meta_rpa_geral
-        || 0
+        ?? metaEstrutura?.meta_rpa
+        ?? dadosMetas?.meta_rpa_geral
+        ?? 0
       );
       const rpa = Number(
         consultor?.rpa
@@ -10804,9 +10808,9 @@ const enviarArquivo = async (tipo) => {
 
       const metaTicket = Number(
         consultor?.meta_tkt_medio
-        || metaEstrutura?.meta_tkt_medio
-        || dadosMetas?.meta_tkt_medio_geral
-        || 0
+        ?? metaEstrutura?.meta_tkt_medio
+        ?? dadosMetas?.meta_tkt_medio_geral
+        ?? 0
       );
       const ticket = Number(
         consultor?.tkt_medio
@@ -10815,9 +10819,9 @@ const enviarArquivo = async (tipo) => {
 
       const metaUpa = Number(
         consultor?.meta_upa
-        || metaEstrutura?.meta_upa
-        || dadosMetas?.meta_upa_geral
-        || 0
+        ?? metaEstrutura?.meta_upa
+        ?? dadosMetas?.meta_upa_geral
+        ?? 0
       );
       const upa = Number(
         consultor?.upa
@@ -10835,6 +10839,7 @@ const enviarArquivo = async (tipo) => {
         totalItens,
         metaAtividadePercentual,
         metaAtividadeQuantidade,
+        baseAtivaExibidaAtividade,
         percentualAtividade,
         atingimentoAtividade,
         metaMakePercentual,
@@ -11102,7 +11107,7 @@ const enviarArquivo = async (tipo) => {
                     />
                     <CardConsultorAcompanhamento
                       titulo="Atividade"
-                      meta={`${formatarNumeroBR(valores.metaAtividadeQuantidade, 0)} rev. • ${formatarNumeroBR(valores.metaAtividadePercentual, 1)}%`}
+                      meta={`${formatarNumeroBR(valores.baseAtivaExibidaAtividade, 0)} rev. • ${formatarNumeroBR(valores.metaAtividadePercentual, 1)}%`}
                       realizado={`${formatarNumeroBR(valores.ativados, 0)} rev. • ${formatarNumeroBR(valores.percentualAtividade, 1)}%`}
                       percentual={valores.atingimentoAtividade}
                       onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'ATIVIDADE', valores)}
