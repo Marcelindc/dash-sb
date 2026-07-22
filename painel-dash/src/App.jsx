@@ -6389,36 +6389,21 @@ export default function App() {
 
     const carregarConsultoresDasEstruturasDoGerente = async () => {
       if (!modoGerenteEstrutura || areaGerenteEstrutura !== 'VD' || telaAtual !== 'AcompanhamentoVD') {
-        if (!cancelado) setConsultoresGerenteVD([]);
+        if (!cancelado) {
+          setConsultoresGerenteVD([]);
+          setCarregandoConsultoresGerenteVD(false);
+        }
         return;
       }
 
       const rankingSeguro = Array.isArray(dadosMetas?.ranking_consultores)
         ? dadosMetas.ranking_consultores
         : [];
-      const estruturasAutorizadasBrutas = Array.isArray(dadosMetas?.estruturas)
-        ? dadosMetas.estruturas
-        : [];
-
-      // Enquanto o resumo ainda está chegando, não apaga um ranking válido.
-      if (!estruturasAutorizadasBrutas.length) {
-        if (!cancelado && !carregandoMetas) setConsultoresGerenteVD(rankingSeguro);
-        return;
-      }
-
-      // Uma mesma meta pode aparecer com aliases diferentes. Fazemos apenas
-      // uma requisição por bloco autorizado.
-      const mapaEstruturas = new Map();
-      estruturasAutorizadasBrutas.forEach((item) => {
-        const nome = String(item?.estrutura || item?.nome_meta || '').trim();
-        const chave = String(item?.meta_id || item?.id || nome).trim().toLowerCase();
-        if (nome && chave && !mapaEstruturas.has(chave)) mapaEstruturas.set(chave, item);
-      });
-      const estruturasAutorizadas = Array.from(mapaEstruturas.values());
 
       if (!cancelado) {
-        // Exibe imediatamente o ranking seguro retornado pelo próprio backend;
-        // o detalhe apenas complementa os campos, sem provocar o efeito de sumir.
+        // O resumo pode ainda não ter carregado. Mantemos qualquer ranking já
+        // autorizado enquanto o endpoint exclusivo do gerente busca o mesmo
+        // detalhe oficial usado pelo botão "Ver" do administrador.
         setConsultoresGerenteVD(rankingSeguro);
         setCarregandoConsultoresGerenteVD(true);
       }
@@ -6427,44 +6412,28 @@ export default function App() {
         const filtrosSeguros = aplicarEscopoGerenteVdNosFiltros({
           ...filtrosAtivos,
           ciclo: filtrosAtivos?.ciclo || cicloSelecionadoVD || '',
+          consultores: [],
         });
-        const respostas = await Promise.allSettled(
-          estruturasAutorizadas.map((item) => axios.post(
-            `${API_URL}/metas/estrutura/${encodeURIComponent(item?.estrutura || item?.nome_meta || '')}`,
-            filtrosSeguros,
-            { headers: { 'X-Ciclo-VD': filtrosSeguros.ciclo || cicloSelecionadoVD || '' } }
-          ))
+
+        const resposta = await axios.post(
+          `${API_URL}/gerente-vd/consultores`,
+          filtrosSeguros,
+          {
+            headers: {
+              'X-Ciclo-VD': filtrosSeguros.ciclo || cicloSelecionadoVD || '',
+            },
+          }
         );
 
-        const mapa = new Map();
-        respostas.forEach((resultado) => {
-          if (resultado.status !== 'fulfilled') {
-            console.error('Falha ao carregar detalhe de consultores do gerente VD:', resultado.reason);
-            return;
-          }
+        if (cancelado) return;
 
-          // O endpoint já aplica o escopo pelo token. Não fazemos uma segunda
-          // exclusão textual no navegador, pois ela removia consultores válidos
-          // quando a estrutura tinha código/núcleo/alias diferente.
-          const detalheSeguro = resultado.value?.data || {};
-          (detalheSeguro?.consultores || []).forEach((consultor) => {
-            const status = String(consultor?.status_consultor || 'ativo').toLowerCase();
-            if (status === 'inativo') return;
-            const id = String(consultor?.id_colaborador || consultor?.nome_exibicao || consultor?.nome || '').trim();
-            if (!id) return;
-            const chave = id.toLowerCase();
-            const atual = mapa.get(chave);
-            if (!atual || Number(consultor?.realizado || 0) > Number(atual?.realizado || 0)) {
-              mapa.set(chave, consultor);
-            }
-          });
-        });
+        const consultores = Array.isArray(resposta?.data?.consultores)
+          ? resposta.data.consultores
+          : [];
 
-        if (!cancelado) {
-          const detalhados = Array.from(mapa.values())
-            .sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
-          setConsultoresGerenteVD(detalhados.length > 0 ? detalhados : rankingSeguro);
-        }
+        setConsultoresGerenteVD(
+          consultores.length > 0 ? consultores : rankingSeguro
+        );
       } catch (erro) {
         console.error('Erro ao carregar consultores do gerente VD:', erro);
         if (!cancelado) setConsultoresGerenteVD(rankingSeguro);
@@ -6481,8 +6450,8 @@ export default function App() {
     telaAtual,
     usuarioLogado?.id,
     filtrosAtivos?.ciclo,
-    dadosMetas,
-    carregandoMetas,
+    cicloSelecionadoVD,
+    dadosMetas?.ranking_consultores,
   ]);
 
   useEffect(() => {
