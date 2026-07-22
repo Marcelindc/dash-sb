@@ -168,6 +168,9 @@ const SeletorEscopoUsuario = ({ area, opcoes = [], selecionadas = [], onChange, 
                       {item.nucleo && <span className="text-[10px] font-black text-gray-400">{item.nucleo}</span>}
                     </div>
                     <p className="mt-1 text-sm font-black text-gray-700 break-words">{item.estrutura}</p>
+                    {item.codigo && (
+                      <p className="mt-0.5 text-[10px] font-bold text-gray-400 break-all">Código: {item.codigo}</p>
+                    )}
                     {!!item.vinculadas?.length && item.area === 'VD' && (
                       <p className="mt-1 text-[11px] text-gray-400">{item.vinculadas.length} estrutura(s) vinculada(s)</p>
                     )}
@@ -6184,10 +6187,11 @@ export default function App() {
     || ABAS_VISIVEIS_GERENTE_ESTRUTURA.AMBOS;
   const usuarioPodeExibirAba = (tela) => !modoGerenteEstrutura
     || abasVisiveisGerenteEstrutura.includes(tela);
-  const nomeEscopoUsuario = estruturasPermitidasUsuarioLogado
-    .map((item) => item.estrutura)
-    .filter(Boolean)
-    .join(' • ');
+  const nomeEscopoUsuario = Array.from(new Set(
+    estruturasPermitidasUsuarioLogado
+      .map((item) => String(item?.estrutura || '').trim())
+      .filter(Boolean)
+  )).join(' • ');
 
   // Segurança adicional do Acompanhamento VD no frontend.
   // O backend continua sendo a fonte oficial da autorização, mas todo clique
@@ -6229,6 +6233,24 @@ export default function App() {
     ]).filter(Boolean)
   );
 
+  // O backend já retorna somente os blocos autorizados. Usamos os nomes dos
+  // blocos e suas estruturas vinculadas como aliases adicionais, porque a
+  // base de consultores pode registrar "EQUIPE PINHEIRO", enquanto o perfil
+  // foi cadastrado pelas quatro estruturas comerciais chamadas "PINHEIRO".
+  const valoresMetasAutorizadasVD = (dadosMetas?.estruturas || []).flatMap((item) => [
+    item?.estrutura,
+    item?.nome_meta,
+    ...(Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : []),
+  ]).map((valor) => String(valor || '').trim()).filter(Boolean);
+
+  const chavesDetalhesPermitidasVD = new Set([
+    ...chavesEstruturasPermitidasVD,
+    ...valoresMetasAutorizadasVD.flatMap((valor) => [
+      normalizarEstruturaEscopoVD(valor),
+      normalizarEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
+    ]).filter(Boolean),
+  ]);
+
   const deveRestringirDetalhesVD = modoGerenteEstrutura
     && areaGerenteEstrutura === 'VD'
     && chavesEstruturasPermitidasVD.size > 0;
@@ -6239,8 +6261,8 @@ export default function App() {
     const chaveSemCodigo = normalizarEstruturaEscopoVD(
       removerCodigoEstruturaEscopoVD(valor)
     );
-    return chavesEstruturasPermitidasVD.has(chaveCompleta)
-      || chavesEstruturasPermitidasVD.has(chaveSemCodigo);
+    return chavesDetalhesPermitidasVD.has(chaveCompleta)
+      || chavesDetalhesPermitidasVD.has(chaveSemCodigo);
   };
 
   const aplicarEscopoGerenteVdNosFiltros = (filtrosBase = {}) => {
@@ -6269,13 +6291,18 @@ export default function App() {
 
   const filtrarListaDetalhePorEstruturaVD = (lista = []) => {
     if (!Array.isArray(lista) || !deveRestringirDetalhesVD) return Array.isArray(lista) ? lista : [];
-    return lista.filter((item) => estruturaPermitidaNoDetalheVD(
-      item?.estrutura
-      || item?.Estrutura
-      || item?.nome_estrutura
-      || item?.estrutura_nome
-      || ''
-    ));
+    return lista.filter((item) => {
+      const aliases = [
+        item?.estrutura,
+        item?.Estrutura,
+        item?.nome_estrutura,
+        item?.estrutura_nome,
+        item?.meta_estrutura,
+        item?.nome_meta,
+        ...(Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : []),
+      ].filter((valor) => String(valor || '').trim());
+      return aliases.some((valor) => estruturaPermitidaNoDetalheVD(valor));
+    });
   };
 
   const filtrarPayloadDetalheVD = (payload) => {
