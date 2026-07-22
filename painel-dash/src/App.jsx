@@ -10444,9 +10444,13 @@ const enviarArquivo = async (tipo) => {
       && modoGerenteEstrutura
       && areaGerenteEstrutura === 'VD';
 
-    const consultoresAcompanhamentoVD = filtrarListaDetalhePorEstruturaVD([
+    // O backend já entrega o ranking limitado aos blocos/estruturas do gerente.
+    // Não aplicamos um segundo filtro por texto aqui, pois equipes com vários
+    // códigos e o mesmo nome (ex.: PINHEIRO) poderiam ter consultores válidos
+    // removidos pelo navegador.
+    const consultoresAcompanhamentoVD = [
       ...(dadosMetas?.ranking_consultores || [])
-    ]).sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
+    ].sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
 
     const normalizarEstruturaAcompanhamento = (valor) => String(valor || '')
       .normalize('NFD')
