@@ -5487,15 +5487,25 @@ export default function App() {
   const [carregandoConsultoresGerenteVD, setCarregandoConsultoresGerenteVD] = useState(false);
   
   const [modalDetalhes, setModalDetalhes] = useState(null);
+  const [abaRealizadoDiarioVD, setAbaRealizadoDiarioVD] = useState('estruturas');
   const [modalRealizadoDiarioVD, setModalRealizadoDiarioVD] = useState({
     aberto: false,
     carregando: false,
     erro: '',
     resumo: {
+      meta_total: 0,
+      realizado_total: 0,
+      gap_meta_total: 0,
+      pedidos_hoje: 0,
       realizado_hoje: 0,
+      vendido_hoje: 0,
       meta_diaria: 0,
+      meta_hoje: 0,
+      percentual_realizado: 0,
       percentual_atingimento: 0,
+      percentual_meta_diaria: 0,
       falta_meta_diaria: 0,
+      gap_meta_diaria: 0,
       data_referencia: '',
       ciclo: '',
       filtros_aplicados: {},
@@ -5503,6 +5513,7 @@ export default function App() {
     meios_captacao: [],
     estruturas: [],
     consultores: [],
+    nucleos: [],
     conferencia: {
       total_meios: 0,
       total_estruturas: 0,
@@ -10066,22 +10077,45 @@ const enviarArquivo = async (tipo) => {
       ciclo: cicloDetalhe,
     });
 
+    const filtrosMetas = aplicarEscopoGerenteVdNosFiltros({
+      ...filtrosAtivos,
+      ciclo: cicloDetalhe,
+      data_inicio: null,
+      data_fim: null,
+      // O detalhamento diário deve listar todos os consultores autorizados
+      // da estrutura, mesmo quando a tela recebeu um filtro transitório.
+      consultores: modoGerenteEstrutura ? [] : [...(filtrosAtivos?.consultores || [])],
+    });
+
+    const metaTotalInicial = Number(
+      dadosMetas?.meta_total_geral
+      || dados?.meta_ciclo
+      || metaFaturamentoDashboard
+      || 0
+    );
+    const realizadoTotalInicial = Number(
+      dadosMetas?.realizado_total_geral
+      || dados?.realizado_ciclo
+      || dados?.valor_total
+      || 0
+    );
+    const realizadoHojeInicial = Number(dados?.realizado_diario || 0);
+    const metaHojeInicial = Number(dados?.meta_diaria || 0);
+
     const resumoInicial = {
-      realizado_hoje: Number(
-        dados?.realizado_diario || 0
-      ),
-      meta_diaria: Number(
-        dados?.meta_diaria || 0
-      ),
-      percentual_atingimento: calcPerc(
-        dados?.realizado_diario || 0,
-        dados?.meta_diaria || 0
-      ),
-      falta_meta_diaria: Math.max(
-        Number(dados?.meta_diaria || 0)
-        - Number(dados?.realizado_diario || 0),
-        0
-      ),
+      meta_total: metaTotalInicial,
+      realizado_total: realizadoTotalInicial,
+      gap_meta_total: Math.max(metaTotalInicial - realizadoTotalInicial, 0),
+      pedidos_hoje: 0,
+      realizado_hoje: realizadoHojeInicial,
+      vendido_hoje: realizadoHojeInicial,
+      meta_diaria: metaHojeInicial,
+      meta_hoje: metaHojeInicial,
+      percentual_realizado: calcPerc(realizadoTotalInicial, metaTotalInicial),
+      percentual_atingimento: calcPerc(realizadoHojeInicial, metaHojeInicial),
+      percentual_meta_diaria: calcPerc(realizadoHojeInicial, metaHojeInicial),
+      falta_meta_diaria: Math.max(metaHojeInicial - realizadoHojeInicial, 0),
+      gap_meta_diaria: Math.max(metaHojeInicial - realizadoHojeInicial, 0),
       data_referencia: (
         filtrosAtivos?.data_fim
         || filtrosAtivos?.data_inicio
@@ -10089,8 +10123,10 @@ const enviarArquivo = async (tipo) => {
       ),
       ciclo: cicloDetalhe,
       filtros_aplicados: {},
+      versao_detalhamento: 'executivo-v2',
     };
 
+    setAbaRealizadoDiarioVD('estruturas');
     setModalRealizadoDiarioVD({
       aberto: true,
       carregando: true,
@@ -10099,6 +10135,7 @@ const enviarArquivo = async (tipo) => {
       meios_captacao: [],
       estruturas: [],
       consultores: [],
+      nucleos: [],
       conferencia: {
         total_meios: 0,
         total_estruturas: 0,
@@ -10109,25 +10146,363 @@ const enviarArquivo = async (tipo) => {
       },
     });
 
+    const normalizarChaveDiaria = (valor) => String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+
+    const aliasesEstruturaDiaria = (valor) => {
+      const bruto = String(valor || '').trim();
+      if (!bruto) return new Set();
+
+      const partes = bruto
+        .split(/[•|;,]/)
+        .map((parte) => parte.trim())
+        .filter(Boolean);
+
+      const aliases = new Set();
+      partes.forEach((parte) => {
+        const completo = normalizarChaveDiaria(parte);
+        const semCodigo = normalizarChaveDiaria(
+          parte.replace(/^\s*\d+\s*-\s*/, '')
+        );
+        const semNucleo = normalizarChaveDiaria(
+          parte
+            .replace(/^\s*\d+\s*-\s*/, '')
+            .replace(/^\s*n[123]\s*-\s*/, '')
+        );
+
+        [completo, semCodigo, semNucleo].filter(Boolean).forEach((alias) => {
+          aliases.add(alias);
+          aliases.add(alias.replace(/^equipe\s+/, '').trim());
+          aliases.add(alias.replace(/^er\s+/, '').trim());
+          aliases.add(alias.replace(/^equipe\s+er\s+/, '').trim());
+        });
+      });
+
+      return new Set([...aliases].filter(Boolean));
+    };
+
+    const estruturasCorrespondem = (valorA, valorB) => {
+      const aliasesA = aliasesEstruturaDiaria(valorA);
+      const aliasesB = aliasesEstruturaDiaria(valorB);
+      if (!aliasesA.size || !aliasesB.size) return false;
+      return [...aliasesA].some((alias) => aliasesB.has(alias));
+    };
+
+    const parseDataSemFuso = (valor) => {
+      if (!valor) return null;
+      const texto = String(valor).slice(0, 10);
+      const partes = texto.split('-').map(Number);
+      if (partes.length !== 3 || partes.some((parte) => !Number.isFinite(parte))) return null;
+      const data = new Date(partes[0], partes[1] - 1, partes[2], 12, 0, 0, 0);
+      return Number.isNaN(data.getTime()) ? null : data;
+    };
+
+    const calcularDiasPonderadosCiclo = (inicio, fim) => {
+      const dataInicio = parseDataSemFuso(inicio);
+      const dataFim = parseDataSemFuso(fim);
+      if (!dataInicio || !dataFim || dataFim < dataInicio) return 0;
+      let total = 0;
+      const cursor = new Date(dataInicio);
+      while (cursor <= dataFim) {
+        const diaSemana = cursor.getDay();
+        if (diaSemana >= 1 && diaSemana <= 5) total += 1;
+        else if (diaSemana === 6) total += 0.5;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return total;
+    };
+
+    const resumirLinhasDiarias = (linhas = []) => {
+      const metaTotal = linhas.reduce((soma, item) => soma + Number(item?.meta_total || 0), 0);
+      const realizadoTotal = linhas.reduce((soma, item) => soma + Number(item?.realizado_total || 0), 0);
+      const metaHoje = linhas.reduce((soma, item) => soma + Number(item?.meta_hoje || 0), 0);
+      const vendidoHoje = linhas.reduce((soma, item) => soma + Number(item?.vendido_hoje || 0), 0);
+      const pedidosHoje = linhas.reduce((soma, item) => soma + Number(item?.pedidos_hoje || 0), 0);
+      return {
+        meta_total: metaTotal,
+        realizado_total: realizadoTotal,
+        gap_meta_total: Math.max(metaTotal - realizadoTotal, 0),
+        pedidos_hoje: pedidosHoje,
+        meta_hoje: metaHoje,
+        vendido_hoje: vendidoHoje,
+        percentual_realizado: calcPerc(realizadoTotal, metaTotal),
+        percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
+        gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
+      };
+    };
+
     try {
-      const resposta = await axios.post(
-        `${API_URL}/dashboard/realizado-diario-detalhe`,
-        filtrosDetalhe,
-        {
-          headers: {
-            'X-Ciclo-VD': cicloDetalhe,
-          },
-        }
+      const requisicoes = [
+        axios.post(
+          `${API_URL}/dashboard/realizado-diario-executivo`,
+          filtrosDetalhe,
+          { headers: { 'X-Ciclo-VD': cicloDetalhe } }
+        ),
+        axios.post(
+          `${API_URL}/metas/resumo`,
+          filtrosMetas,
+          { headers: { 'X-Ciclo-VD': cicloDetalhe } }
+        ),
+      ];
+
+      if (modoGerenteEstrutura && areaGerenteEstrutura === 'VD') {
+        requisicoes.push(
+          axios.post(
+            `${API_URL}/gerente-vd/consultores`,
+            filtrosMetas,
+            { headers: { 'X-Ciclo-VD': cicloDetalhe } }
+          )
+        );
+      }
+
+      const resultados = await Promise.allSettled(requisicoes);
+      const respostaDetalhe = resultados[0]?.status === 'fulfilled'
+        ? (resultados[0].value?.data || {})
+        : {};
+      const resumoMetasAtualizado = resultados[1]?.status === 'fulfilled'
+        ? (resultados[1].value?.data || {})
+        : (dadosMetas || {});
+      const respostaConsultoresGerente = resultados[2]?.status === 'fulfilled'
+        ? (resultados[2].value?.data || {})
+        : {};
+
+      if (resultados[0]?.status !== 'fulfilled') {
+        throw resultados[0]?.reason || new Error('O endpoint executivo do Realizado Diário não respondeu.');
+      }
+
+      const resumoApi = respostaDetalhe?.resumo || {};
+      const estruturasDia = Array.isArray(respostaDetalhe?.estruturas)
+        ? respostaDetalhe.estruturas
+        : [];
+      const consultoresDia = Array.isArray(respostaDetalhe?.consultores)
+        ? respostaDetalhe.consultores
+        : [];
+      const estruturasOficiais = Array.isArray(resumoMetasAtualizado?.estruturas)
+        ? resumoMetasAtualizado.estruturas
+        : [];
+
+      const consultoresOficiais = (
+        modoGerenteEstrutura && areaGerenteEstrutura === 'VD'
+          ? (
+            Array.isArray(respostaConsultoresGerente?.consultores)
+              ? respostaConsultoresGerente.consultores
+              : consultoresGerenteVD
+          )
+          : (
+            Array.isArray(resumoMetasAtualizado?.ranking_consultores)
+              ? resumoMetasAtualizado.ranking_consultores
+              : []
+          )
       );
 
-      const respostaSegura = filtrarPayloadDetalheVD(resposta.data || {});
-      const resumoApi = respostaSegura?.resumo || {};
-      const realizadoDetalhe = Number(
-        resumoApi.realizado_hoje ?? resumoInicial.realizado_hoje ?? 0
+      let diasPonderados = Number(resumoApi?.dias_ponderados_total || 0);
+      if (!(diasPonderados > 0)) {
+        diasPonderados = calcularDiasPonderadosCiclo(
+          resumoApi?.inicio_ciclo || dados?.inicio_ciclo,
+          resumoApi?.fim_ciclo || dados?.fim_ciclo
+        );
+      }
+      if (!(diasPonderados > 0)) {
+        const metaGeralReferencia = Number(
+          resumoMetasAtualizado?.meta_total_geral
+          || resumoInicial.meta_total
+          || 0
+        );
+        const metaDiariaReferencia = Number(
+          resumoApi?.meta_hoje
+          || resumoApi?.meta_diaria
+          || dados?.meta_diaria
+          || 0
+        );
+        diasPonderados = metaDiariaReferencia > 0
+          ? metaGeralReferencia / metaDiariaReferencia
+          : 0;
+      }
+
+      const encontrarLinhasEstrutura = (estruturaOficial) => {
+        const nomesOficiais = [
+          estruturaOficial?.estrutura,
+          ...(Array.isArray(estruturaOficial?.estruturas_vinculadas)
+            ? estruturaOficial.estruturas_vinculadas
+            : []),
+        ].filter(Boolean);
+        return estruturasDia.filter((linhaDia) => nomesOficiais.some(
+          (nome) => estruturasCorrespondem(nome, linhaDia?.estrutura)
+        ));
+      };
+
+      const estruturasExecutivas = estruturasOficiais.map((estruturaOficial) => {
+        const linhasDia = encontrarLinhasEstrutura(estruturaOficial);
+        const metaTotal = Number(estruturaOficial?.receita || estruturaOficial?.meta_total || 0);
+        const realizadoTotal = Number(estruturaOficial?.realizado || estruturaOficial?.realizado_total || 0);
+        const metaHoje = diasPonderados > 0 ? metaTotal / diasPonderados : 0;
+        const vendidoHoje = linhasDia.reduce(
+          (soma, linha) => soma + Number(linha?.vendido_hoje ?? linha?.realizado ?? 0),
+          0
+        );
+        const pedidosHoje = linhasDia.reduce(
+          (soma, linha) => soma + Number(linha?.pedidos_hoje ?? linha?.pedidos ?? 0),
+          0
+        );
+        return {
+          estrutura: estruturaOficial?.estrutura || 'Não informada',
+          estruturas_vinculadas: estruturaOficial?.estruturas_vinculadas || [],
+          nucleo: estruturaOficial?.nucleo || 'A DEFINIR',
+          meta_total: metaTotal,
+          realizado_total: realizadoTotal,
+          gap_meta_total: Math.max(metaTotal - realizadoTotal, 0),
+          saldo_meta_total: realizadoTotal - metaTotal,
+          pedidos_hoje: pedidosHoje,
+          pedidos: pedidosHoje,
+          meta_hoje: metaHoje,
+          vendido_hoje: vendidoHoje,
+          realizado: vendidoHoje,
+          percentual_realizado: calcPerc(realizadoTotal, metaTotal),
+          percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
+          gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
+          saldo_meta_diaria: vendidoHoje - metaHoje,
+        };
+      });
+
+      const idsLinhaConsultor = (item) => String(
+        item?.id_colaborador
+        || item?.id_consultor
+        || item?.id
+        || ''
+      ).replace(/\.0$/, '').trim();
+      const nomeLinhaConsultor = (item) => normalizarChaveDiaria(
+        item?.nome_exibicao
+        || item?.nome
+        || item?.consultor
+        || item?.nome_consultor
+        || ''
       );
-      const metaDiariaDetalhe = Number(
-        resumoApi.meta_diaria || resumoInicial.meta_diaria || 0
+
+      const encontrarLinhasConsultor = (consultorOficial) => {
+        const idOficial = idsLinhaConsultor(consultorOficial);
+        const nomeOficial = nomeLinhaConsultor(consultorOficial);
+        return consultoresDia.filter((linhaDia) => {
+          const idDia = idsLinhaConsultor(linhaDia);
+          const nomeDia = nomeLinhaConsultor(linhaDia);
+          const identidadeConfere = (
+            (idOficial && idDia && idOficial === idDia)
+            || (nomeOficial && nomeDia && nomeOficial === nomeDia)
+          );
+          if (!identidadeConfere) return false;
+          if (!consultorOficial?.estrutura || !linhaDia?.estrutura) return true;
+          return estruturasCorrespondem(
+            consultorOficial.estrutura,
+            linhaDia.estrutura
+          );
+        });
+      };
+
+      const consultoresExecutivos = (consultoresOficiais || []).map((consultorOficial) => {
+        const linhasDia = encontrarLinhasConsultor(consultorOficial);
+        const metaTotal = Number(
+          consultorOficial?.meta_individual
+          || consultorOficial?.meta_total
+          || consultorOficial?.meta_faturamento
+          || 0
+        );
+        const realizadoTotal = Number(
+          consultorOficial?.realizado
+          || consultorOficial?.realizado_total
+          || 0
+        );
+        const metaHoje = diasPonderados > 0 ? metaTotal / diasPonderados : 0;
+        const vendidoHoje = linhasDia.reduce(
+          (soma, linha) => soma + Number(linha?.vendido_hoje ?? linha?.realizado ?? 0),
+          0
+        );
+        const pedidosHoje = linhasDia.reduce(
+          (soma, linha) => soma + Number(linha?.pedidos_hoje ?? linha?.pedidos ?? 0),
+          0
+        );
+        return {
+          id_consultor: idsLinhaConsultor(consultorOficial) || '-',
+          id_colaborador: idsLinhaConsultor(consultorOficial) || '-',
+          consultor: (
+            consultorOficial?.nome_exibicao
+            || consultorOficial?.nome
+            || consultorOficial?.consultor
+            || 'Não identificado'
+          ),
+          estrutura: consultorOficial?.estrutura || 'Não informada',
+          nucleo: consultorOficial?.nucleo || 'A DEFINIR',
+          meta_total: metaTotal,
+          realizado_total: realizadoTotal,
+          gap_meta_total: Math.max(metaTotal - realizadoTotal, 0),
+          saldo_meta_total: realizadoTotal - metaTotal,
+          pedidos_hoje: pedidosHoje,
+          pedidos: pedidosHoje,
+          meta_hoje: metaHoje,
+          vendido_hoje: vendidoHoje,
+          realizado: vendidoHoje,
+          percentual_realizado: calcPerc(realizadoTotal, metaTotal),
+          percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
+          gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
+          saldo_meta_diaria: vendidoHoje - metaHoje,
+        };
+      });
+
+      // Quando a API de metas ainda não tiver estruturas carregadas, preserva
+      // as linhas enriquecidas entregues pelo endpoint executivo.
+      const estruturasFinais = estruturasExecutivas.length
+        ? estruturasExecutivas
+        : estruturasDia;
+      const consultoresFinais = consultoresExecutivos.length
+        ? consultoresExecutivos
+        : consultoresDia;
+
+      estruturasFinais.sort((a, b) => Number(b?.vendido_hoje ?? b?.realizado ?? 0) - Number(a?.vendido_hoje ?? a?.realizado ?? 0));
+      consultoresFinais.sort((a, b) => Number(b?.vendido_hoje ?? b?.realizado ?? 0) - Number(a?.vendido_hoje ?? a?.realizado ?? 0));
+      estruturasFinais.forEach((item, indice) => { item.posicao = indice + 1; });
+      consultoresFinais.forEach((item, indice) => { item.posicao = indice + 1; });
+
+      const nucleosMap = new Map();
+      const garantirNucleo = (valor) => {
+        const nucleo = String(valor || 'A DEFINIR').split(',')[0].trim() || 'A DEFINIR';
+        if (!nucleosMap.has(nucleo)) {
+          nucleosMap.set(nucleo, { nucleo, estruturas: [], consultores: [] });
+        }
+        return nucleosMap.get(nucleo);
+      };
+      estruturasFinais.forEach((item) => garantirNucleo(item?.nucleo).estruturas.push(item));
+      consultoresFinais.forEach((item) => garantirNucleo(item?.nucleo).consultores.push(item));
+      const nucleosFinais = [...nucleosMap.values()]
+        .map((grupo) => ({
+          ...grupo,
+          resumo_estruturas: resumirLinhasDiarias(grupo.estruturas),
+          resumo_consultores: resumirLinhasDiarias(grupo.consultores),
+        }))
+        .sort((a, b) => String(a.nucleo).localeCompare(String(b.nucleo), 'pt-BR'));
+
+      const metaTotalGeral = Number(
+        resumoMetasAtualizado?.meta_total_geral
+        || resumoApi?.meta_total
+        || resumoInicial.meta_total
+        || 0
       );
+      const realizadoTotalGeral = Number(
+        resumoMetasAtualizado?.realizado_total_geral
+        || resumoApi?.realizado_total
+        || resumoInicial.realizado_total
+        || 0
+      );
+      const vendidoHojeGeral = Number(
+        resumoApi?.vendido_hoje
+        ?? resumoApi?.realizado_hoje
+        ?? resumoInicial.vendido_hoje
+        ?? 0
+      );
+      const metaHojeGeral = estruturasFinais.length
+        ? estruturasFinais.reduce((soma, item) => soma + Number(item?.meta_hoje || 0), 0)
+        : Number(resumoApi?.meta_hoje || resumoApi?.meta_diaria || resumoInicial.meta_hoje || 0);
 
       setModalRealizadoDiarioVD({
         aberto: true,
@@ -10136,24 +10511,30 @@ const enviarArquivo = async (tipo) => {
         resumo: {
           ...resumoInicial,
           ...resumoApi,
-          ciclo: resumoApi.ciclo || cicloDetalhe,
-          realizado_hoje: realizadoDetalhe,
-          meta_diaria: metaDiariaDetalhe,
-          percentual_atingimento: calcPerc(
-            realizadoDetalhe,
-            metaDiariaDetalhe
-          ),
-          falta_meta_diaria: Math.max(
-            metaDiariaDetalhe - realizadoDetalhe,
-            0
-          ),
+          meta_total: metaTotalGeral,
+          realizado_total: realizadoTotalGeral,
+          gap_meta_total: Math.max(metaTotalGeral - realizadoTotalGeral, 0),
+          saldo_meta_total: realizadoTotalGeral - metaTotalGeral,
+          pedidos_hoje: Number(resumoApi?.pedidos_hoje || 0),
+          realizado_hoje: vendidoHojeGeral,
+          vendido_hoje: vendidoHojeGeral,
+          meta_diaria: metaHojeGeral,
+          meta_hoje: metaHojeGeral,
+          percentual_realizado: calcPerc(realizadoTotalGeral, metaTotalGeral),
+          percentual_atingimento: calcPerc(vendidoHojeGeral, metaHojeGeral),
+          percentual_meta_diaria: calcPerc(vendidoHojeGeral, metaHojeGeral),
+          falta_meta_diaria: Math.max(metaHojeGeral - vendidoHojeGeral, 0),
+          gap_meta_diaria: Math.max(metaHojeGeral - vendidoHojeGeral, 0),
+          ciclo: resumoApi?.ciclo || cicloDetalhe,
+          dias_ponderados_total: diasPonderados,
+          versao_detalhamento: 'executivo-v2',
         },
-        meios_captacao:
-          respostaSegura?.meios_captacao || [],
-        estruturas:
-          respostaSegura?.estruturas || [],
-        consultores:
-          respostaSegura?.consultores || [],
+        meios_captacao: Array.isArray(respostaDetalhe?.meios_captacao)
+          ? respostaDetalhe.meios_captacao
+          : [],
+        estruturas: estruturasFinais,
+        consultores: consultoresFinais,
+        nucleos: nucleosFinais,
         conferencia: {
           total_meios: 0,
           total_estruturas: 0,
@@ -10161,7 +10542,7 @@ const enviarArquivo = async (tipo) => {
           meios_ok: false,
           estruturas_ok: false,
           consultores_ok: false,
-          ...(respostaSegura?.conferencia || {}),
+          ...(respostaDetalhe?.conferencia || {}),
         },
       });
     } catch (erro) {
@@ -10170,11 +10551,66 @@ const enviarArquivo = async (tipo) => {
         carregando: false,
         erro: (
           erro.response?.data?.detail
-          || 'Não foi possível carregar o detalhamento do Realizado Diário.'
+          || erro.message
+          || 'Não foi possível carregar o detalhamento executivo do Realizado Diário.'
         ),
       }));
     }
   };
+  const obterGruposRealizadoDiarioVD = (tipo = 'estruturas') => {
+    const chaveResumo = tipo === 'consultores'
+      ? 'resumo_consultores'
+      : 'resumo_estruturas';
+
+    if (Array.isArray(modalRealizadoDiarioVD.nucleos) && modalRealizadoDiarioVD.nucleos.length) {
+      return modalRealizadoDiarioVD.nucleos
+        .map((grupo) => ({
+          nucleo: grupo?.nucleo || 'A DEFINIR',
+          linhas: Array.isArray(grupo?.[tipo]) ? grupo[tipo] : [],
+          resumo: grupo?.[chaveResumo] || {},
+        }))
+        .filter((grupo) => grupo.linhas.length > 0);
+    }
+
+    const linhas = Array.isArray(modalRealizadoDiarioVD?.[tipo])
+      ? modalRealizadoDiarioVD[tipo]
+      : [];
+    const mapa = new Map();
+    linhas.forEach((item) => {
+      const nucleo = String(item?.nucleo || 'A DEFINIR').trim() || 'A DEFINIR';
+      if (!mapa.has(nucleo)) mapa.set(nucleo, []);
+      mapa.get(nucleo).push(item);
+    });
+
+    return Array.from(mapa.entries()).map(([nucleo, itens]) => {
+      const metaTotal = itens.reduce((soma, item) => soma + Number(item?.meta_total || 0), 0);
+      const realizadoTotal = itens.reduce((soma, item) => soma + Number(item?.realizado_total || 0), 0);
+      const metaHoje = itens.reduce((soma, item) => soma + Number(item?.meta_hoje || 0), 0);
+      const vendidoHoje = itens.reduce((soma, item) => soma + Number(item?.vendido_hoje || item?.realizado || 0), 0);
+      return {
+        nucleo,
+        linhas: itens,
+        resumo: {
+          meta_total: metaTotal,
+          realizado_total: realizadoTotal,
+          gap_meta_total: Math.max(metaTotal - realizadoTotal, 0),
+          pedidos_hoje: itens.reduce((soma, item) => soma + Number(item?.pedidos_hoje || item?.pedidos || 0), 0),
+          meta_hoje: metaHoje,
+          vendido_hoje: vendidoHoje,
+          percentual_realizado: calcPerc(realizadoTotal, metaTotal),
+          percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
+          gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
+        },
+      };
+    });
+  };
+
+  const textoGapRealizadoDiarioVD = (valor, meta = 0) => {
+    const gap = Number(valor || 0);
+    if (Number(meta || 0) <= 0) return 'Sem meta';
+    return gap > 0 ? formatarMoeda(gap) : 'Meta batida';
+  };
+
   const calcularPlanoInteligenteTendencia = () => {
     const metaCiclo = Number(dados?.meta_ciclo || metaFaturamentoDashboard || 0);
     const realizadoCiclo = Number(dados?.realizado_ciclo || dados?.valor_total || 0);
@@ -11703,22 +12139,7 @@ const enviarArquivo = async (tipo) => {
     };
 
     const abrirDetalheRealizadoDiarioMetas = () => {
-      const realizado = Number(dados?.realizado_diario || 0);
-      const meta = Number(dados?.meta_diaria || 0);
-      const percentual = calcPerc(realizado, meta);
-      const faltam = Math.max(meta - realizado, 0);
-      abrirModalValExp(
-        'Realizado Diário',
-        formatarMoeda(realizado),
-        'Receita total do dia atual.',
-        [
-          { label: 'Realizado hoje', valor: formatarMoeda(realizado) },
-          { label: 'Meta diária', valor: formatarMoeda(meta) },
-          { label: '% da meta diária', valor: `${formatarNumeroBR(percentual, 1)}%` },
-          { label: 'Falta para a meta diária', valor: textoFaltaMoeda(faltam) }
-        ],
-        meta > 0 ? `${formatarMoeda(realizado)} ÷ ${formatarMoeda(meta)} = ${formatarNumeroBR(percentual, 1)}% da meta diária` : 'Meta diária não cadastrada.'
-      );
+      abrirDetRealizadoDiario();
     };
 
     const abrirDetalheEudoraGeralMetas = () => abrirModalValExp(
@@ -19203,16 +19624,24 @@ const enviarArquivo = async (tipo) => {
       )}
 
       {modalRealizadoDiarioVD.aberto && (
-        <div className="fixed inset-0 z-[10020] bg-black/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
-          <div className="bg-white w-full max-w-7xl max-h-[95vh] rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
-            <div className="px-5 sm:px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0">
-              <div>
+        <div className="fixed inset-0 z-[10020] bg-black/55 backdrop-blur-sm flex items-center justify-center p-0 sm:p-3">
+          <div className="bg-white w-full h-full sm:w-[98vw] sm:h-[97vh] rounded-none sm:rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+            <div className="px-4 sm:px-7 py-4 sm:py-5 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0 bg-white">
+              <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">
                   VD — Realizado Diário
                 </p>
                 <h2 className="text-xl sm:text-2xl font-black text-gray-700 mt-1">
-                  Detalhamento das vendas do dia
+                  Detalhamento executivo das vendas do dia
                 </h2>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <p className="text-xs sm:text-sm font-semibold text-gray-400">
+                    Meta e realizado do ciclo, resultado do dia e gaps por núcleo, estrutura e consultor.
+                  </p>
+                  <span className="inline-flex rounded-full bg-[#dff5f6] px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-[#048187]">
+                    Executivo V2
+                  </span>
+                </div>
               </div>
 
               <button
@@ -19227,388 +19656,384 @@ const enviarArquivo = async (tipo) => {
               </button>
             </div>
 
-            <div className="p-5 sm:p-7 overflow-y-auto space-y-6 bg-[#f7fafb]">
-              {modalRealizadoDiarioVD.erro && (
-                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
-                  {modalRealizadoDiarioVD.erro}
-                </div>
-              )}
+            <div className="flex-1 min-h-0 overflow-y-auto bg-[#f5f8f9]">
+              <div className="p-4 sm:p-6 space-y-5">
+                {modalRealizadoDiarioVD.erro && (
+                  <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                    {modalRealizadoDiarioVD.erro}
+                  </div>
+                )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Realizado hoje
-                  </p>
-                  <p className="text-2xl font-black text-[#048187] mt-2">
-                    {formatarMoeda(
-                      modalRealizadoDiarioVD.resumo?.realizado_hoje || 0
-                    )}
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Meta diária
-                  </p>
-                  <p className="text-2xl font-black text-gray-700 mt-2">
-                    {formatarMoeda(
-                      modalRealizadoDiarioVD.resumo?.meta_diaria || 0
-                    )}
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Atingimento
-                  </p>
-                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
-                    {formatarNumeroBR(
-                      modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
-                      1
-                    )}%
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Falta para a meta diária
-                  </p>
-                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-9 gap-2.5">
+                  {[
                     {
-                      Number(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) <= 0
-                        ? 'Sem meta cadastrada'
-                        : Number(
-                            modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0
-                          ) > 0
-                          ? formatarMoeda(
-                              modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0
-                            )
-                          : 'Meta batida'
-                    }
-                  </p>
+                      label: 'Meta total',
+                      valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.meta_total || 0),
+                      cor: '#374151',
+                    },
+                    {
+                      label: 'Realizado total',
+                      valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.realizado_total || 0),
+                      cor: '#048187',
+                    },
+                    {
+                      label: 'Gap meta total',
+                      valor: textoGapRealizadoDiarioVD(
+                        modalRealizadoDiarioVD.resumo?.gap_meta_total || 0,
+                        modalRealizadoDiarioVD.resumo?.meta_total || 0
+                      ),
+                      cor: '#7c1f31',
+                    },
+                    {
+                      label: 'Pedidos hoje',
+                      valor: Number(modalRealizadoDiarioVD.resumo?.pedidos_hoje || 0).toLocaleString('pt-BR'),
+                      cor: '#257B9C',
+                    },
+                    {
+                      label: 'Meta de hoje',
+                      valor: formatarMoeda(
+                        modalRealizadoDiarioVD.resumo?.meta_hoje
+                        || modalRealizadoDiarioVD.resumo?.meta_diaria
+                        || 0
+                      ),
+                      cor: '#374151',
+                    },
+                    {
+                      label: 'Vendido hoje',
+                      valor: formatarMoeda(
+                        modalRealizadoDiarioVD.resumo?.vendido_hoje
+                        || modalRealizadoDiarioVD.resumo?.realizado_hoje
+                        || 0
+                      ),
+                      cor: '#048187',
+                    },
+                    {
+                      label: '% realizado total',
+                      valor: `${formatarNumeroBR(modalRealizadoDiarioVD.resumo?.percentual_realizado || 0, 1)}%`,
+                      cor: '#5c4b8a',
+                    },
+                    {
+                      label: '% da meta diária',
+                      valor: `${formatarNumeroBR(
+                        modalRealizadoDiarioVD.resumo?.percentual_meta_diaria
+                        ?? modalRealizadoDiarioVD.resumo?.percentual_atingimento
+                        ?? 0,
+                        1
+                      )}%`,
+                      cor: '#7c1f31',
+                    },
+                    {
+                      label: 'Gap meta diária',
+                      valor: textoGapRealizadoDiarioVD(
+                        modalRealizadoDiarioVD.resumo?.gap_meta_diaria
+                        ?? modalRealizadoDiarioVD.resumo?.falta_meta_diaria
+                        ?? 0,
+                        modalRealizadoDiarioVD.resumo?.meta_hoje
+                        || modalRealizadoDiarioVD.resumo?.meta_diaria
+                        || 0
+                      ),
+                      cor: '#7c1f31',
+                    },
+                  ].map((card) => (
+                    <div
+                      key={card.label}
+                      className="bg-white rounded-xl border border-gray-100 p-3 sm:p-4 shadow-sm min-w-0"
+                    >
+                      <p className="text-[9px] sm:text-[10px] font-black uppercase text-gray-400 leading-tight min-h-[24px]">
+                        {card.label}
+                      </p>
+                      <p
+                        className="text-sm sm:text-base xl:text-lg font-black mt-2 break-words leading-tight"
+                        style={{ color: card.cor }}
+                      >
+                        {card.valor}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-500">
-                <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
-                  Data: {
-                    formatarDataBR(
-                      modalRealizadoDiarioVD.resumo?.data_referencia
-                      || new Date().toISOString().slice(0, 10)
-                    )
-                  }
-                </span>
-                <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
-                  Ciclo: {
-                    modalRealizadoDiarioVD.resumo?.ciclo || '-'
-                  }
-                </span>
-                <span className={`rounded-full border px-3 py-2 ${
-                  modalRealizadoDiarioVD.conferencia?.meios_ok
-                  && modalRealizadoDiarioVD.conferencia?.estruturas_ok
-                  && modalRealizadoDiarioVD.conferencia?.consultores_ok
-                    ? 'bg-green-50 border-green-100 text-green-700'
-                    : 'bg-orange-50 border-orange-100 text-orange-700'
-                }`}>
-                  {
-                    modalRealizadoDiarioVD.conferencia?.meios_ok
-                    && modalRealizadoDiarioVD.conferencia?.estruturas_ok
-                    && modalRealizadoDiarioVD.conferencia?.consultores_ok
-                      ? '✓ Todos os detalhamentos fecham com o total'
-                      : 'Conferindo composição do resultado'
-                  }
-                </span>
-              </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-gray-500">
+                    <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                      Data: {formatarDataBR(
+                        modalRealizadoDiarioVD.resumo?.data_referencia
+                        || new Date().toISOString().slice(0, 10)
+                      )}
+                    </span>
+                    <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                      Ciclo: {modalRealizadoDiarioVD.resumo?.ciclo || '-'}
+                    </span>
+                    <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                      Escopo: {modoGerenteEstrutura ? 'Somente minha estrutura' : 'Conforme filtros aplicados'}
+                    </span>
+                  </div>
 
-              {modalRealizadoDiarioVD.carregando ? (
-                <div className="bg-white rounded-2xl border border-gray-100 min-h-[300px] flex flex-col items-center justify-center gap-3">
-                  <RefreshCcw
-                    size={28}
-                    className="animate-spin text-[#048187]"
-                  />
-                  <p className="font-black text-gray-500">
-                    Carregando o detalhamento do dia...
-                  </p>
+                  <div className="inline-flex rounded-xl bg-white border border-gray-100 p-1 shadow-sm overflow-x-auto max-w-full">
+                    {[
+                      ['estruturas', 'Por estrutura'],
+                      ['consultores', 'Por consultor'],
+                      ['meios', 'Meios de captação'],
+                    ].map(([valor, rotulo]) => (
+                      <button
+                        key={valor}
+                        type="button"
+                        onClick={() => setAbaRealizadoDiarioVD(valor)}
+                        className={`px-3 sm:px-4 py-2 rounded-lg text-[11px] sm:text-xs font-black whitespace-nowrap transition-colors ${
+                          abaRealizadoDiarioVD === valor
+                            ? 'bg-[#048187] text-white'
+                            : 'text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {rotulo}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                    <div className="px-5 py-4 bg-[#dff5f6] flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h3 className="font-black text-[#048187]">
-                          Vendas por meio de captação
-                        </h3>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">
-                          Valor monetário vendido hoje em cada origem de pedido.
-                        </p>
+
+                {modalRealizadoDiarioVD.carregando ? (
+                  <div className="bg-white rounded-2xl border border-gray-100 min-h-[360px] flex flex-col items-center justify-center gap-3">
+                    <RefreshCcw size={30} className="animate-spin text-[#048187]" />
+                    <p className="font-black text-gray-500">
+                      Calculando metas, realizado e gaps...
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {abaRealizadoDiarioVD === 'estruturas' && (
+                      <div className="space-y-5">
+                        {obterGruposRealizadoDiarioVD('estruturas').map((grupo) => (
+                          <section
+                            key={`diario-estrutura-${grupo.nucleo}`}
+                            className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm"
+                          >
+                            <div className="px-4 sm:px-5 py-4 bg-[#dff5f6] flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <h3 className="font-black text-[#04777d] text-base">
+                                  {grupo.nucleo}
+                                </h3>
+                                <p className="text-xs text-gray-500 font-semibold mt-1">
+                                  Resultado diário e acumulado por estrutura.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2 text-[10px] font-black">
+                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-gray-600">
+                                  {grupo.linhas.length} estrutura(s)
+                                </span>
+                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-[#048187]">
+                                  Hoje: {formatarMoeda(grupo.resumo?.vendido_hoje || 0)}
+                                </span>
+                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-[#7c1f31]">
+                                  Meta dia: {formatarMoeda(grupo.resumo?.meta_hoje || 0)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[1580px] text-xs sm:text-sm">
+                                <thead className="bg-gray-50 text-[9px] sm:text-[10px] uppercase text-gray-400 font-black">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 min-w-[260px]">Estrutura</th>
+                                    <th className="px-4 py-3 text-right">Meta total</th>
+                                    <th className="px-4 py-3 text-right">Realizado total</th>
+                                    <th className="px-4 py-3 text-right">Gap meta total</th>
+                                    <th className="px-4 py-3 text-right">Pedidos hoje</th>
+                                    <th className="px-4 py-3 text-right">Meta de hoje</th>
+                                    <th className="px-4 py-3 text-right">Vendido hoje</th>
+                                    <th className="px-4 py-3 text-right">% realizado</th>
+                                    <th className="px-4 py-3 text-right">% meta diária</th>
+                                    <th className="px-4 py-3 text-right">Gap meta diária</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {grupo.linhas.map((item, indice) => (
+                                    <tr key={`linha-diaria-estrutura-${grupo.nucleo}-${item.estrutura}-${indice}`} className="hover:bg-[#f8fcfc]">
+                                      <td className="px-4 py-3 font-black text-gray-700 sticky left-0 bg-white group-hover:bg-[#f8fcfc] z-10">
+                                        <span className="text-[#257B9C] mr-2">{item.posicao || indice + 1}º</span>
+                                        {item.estrutura || 'Não informada'}
+                                      </td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.meta_total || 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado_total || 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(item.gap_meta_total || 0, item.meta_total || 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#257B9C]">{Number(item.pedidos_hoje ?? item.pedidos ?? 0).toLocaleString('pt-BR')}</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.meta_hoje || 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#257B9C]">{formatarMoeda(item.vendido_hoje ?? item.realizado ?? 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-gray-600">{formatarNumeroBR(item.percentual_realizado || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(item.gap_meta_diaria || 0, item.meta_hoje || 0)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot className="bg-[#f3fbfb] border-t-2 border-[#bfe5e7]">
+                                  <tr>
+                                    <td className="px-4 py-4 font-black text-[#04777d] sticky left-0 bg-[#f3fbfb] z-10">TOTAL {grupo.nucleo}</td>
+                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarMoeda(grupo.resumo?.meta_total || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#048187]">{formatarMoeda(grupo.resumo?.realizado_total || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(grupo.resumo?.gap_meta_total || 0, grupo.resumo?.meta_total || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#257B9C]">{Number(grupo.resumo?.pedidos_hoje || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarMoeda(grupo.resumo?.meta_hoje || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#257B9C]">{formatarMoeda(grupo.resumo?.vendido_hoje || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarNumeroBR(grupo.resumo?.percentual_realizado || 0, 1)}%</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{formatarNumeroBR(grupo.resumo?.percentual_meta_diaria || 0, 1)}%</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(grupo.resumo?.gap_meta_diaria || 0, grupo.resumo?.meta_hoje || 0)}</td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          </section>
+                        ))}
+
+                        {!obterGruposRealizadoDiarioVD('estruturas').length && (
+                          <div className="bg-white rounded-2xl border border-dashed border-gray-200 py-16 text-center text-gray-400 font-bold">
+                            Nenhuma estrutura encontrada para os filtros aplicados.
+                          </div>
+                        )}
                       </div>
-                      <span className="text-xs font-black text-[#048187]">
-                        {modalRealizadoDiarioVD.meios_captacao.length} meio(s)
-                      </span>
-                    </div>
+                    )}
 
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[760px] text-sm">
-                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                          <tr>
-                            <th className="px-5 py-3 text-left">Posição</th>
-                            <th className="px-5 py-3 text-left">Meio de captação</th>
-                            <th className="px-5 py-3 text-right">Pedidos</th>
-                            <th className="px-5 py-3 text-right">Vendido hoje</th>
-                            <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {modalRealizadoDiarioVD.meios_captacao.map((item, indice) => (
-                            <tr
-                              key={`meio-dia-${item.meio_captacao}-${indice}`}
-                              className="hover:bg-[#f8fcfc]"
-                            >
-                              <td className="px-5 py-3 font-black text-[#048187]">
-                                {item.posicao || indice + 1}º
-                              </td>
-                              <td className="px-5 py-3 font-black text-gray-700">
-                                {item.meio_captacao || 'Não informado'}
-                              </td>
-                              <td className="px-5 py-3 text-right font-bold text-gray-600">
-                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-[#048187]">
-                                {formatarMoeda(item.realizado || 0)}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-gray-600">
-                                {formatarNumeroBR(item.participacao || 0, 1)}%
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
-                                {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
-                              </td>
-                            </tr>
-                          ))}
+                    {abaRealizadoDiarioVD === 'consultores' && (
+                      <div className="space-y-5">
+                        {obterGruposRealizadoDiarioVD('consultores').map((grupo) => (
+                          <section
+                            key={`diario-consultor-${grupo.nucleo}`}
+                            className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm"
+                          >
+                            <div className="px-4 sm:px-5 py-4 bg-[#f1eef8] flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <h3 className="font-black text-[#5c4b8a] text-base">
+                                  {grupo.nucleo}
+                                </h3>
+                                <p className="text-xs text-gray-500 font-semibold mt-1">
+                                  Resultado diário e acumulado dos consultores do núcleo.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2 text-[10px] font-black">
+                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-gray-600">
+                                  {grupo.linhas.length} consultor(es)
+                                </span>
+                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-[#5c4b8a]">
+                                  Hoje: {formatarMoeda(grupo.resumo?.vendido_hoje || 0)}
+                                </span>
+                              </div>
+                            </div>
 
-                          {!modalRealizadoDiarioVD.meios_captacao.length && (
-                            <tr>
-                              <td colSpan="6" className="px-5 py-10 text-center text-gray-400 font-semibold">
-                                Nenhuma venda encontrada por meio de captação.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                        <tfoot className="bg-[#f2fbfb]">
-                          <tr>
-                            <td colSpan="3" className="px-5 py-4 font-black text-gray-600">
-                              TOTAL DOS MEIOS
-                            </td>
-                            <td className="px-5 py-4 text-right font-black text-[#048187]">
-                              {formatarMoeda(
-                                modalRealizadoDiarioVD.conferencia?.total_meios || 0
-                              )}
-                            </td>
-                            <td className="px-5 py-4 text-right font-black text-[#048187]">
-                              100,0%
-                            </td>
-                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
-                              {formatarNumeroBR(
-                                modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
-                                1
-                              )}%
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </section>
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[1780px] text-xs sm:text-sm">
+                                <thead className="bg-gray-50 text-[9px] sm:text-[10px] uppercase text-gray-400 font-black">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 min-w-[260px]">Consultor</th>
+                                    <th className="px-4 py-3 text-left min-w-[220px]">Estrutura</th>
+                                    <th className="px-4 py-3 text-right">Meta total</th>
+                                    <th className="px-4 py-3 text-right">Realizado total</th>
+                                    <th className="px-4 py-3 text-right">Gap meta total</th>
+                                    <th className="px-4 py-3 text-right">Pedidos hoje</th>
+                                    <th className="px-4 py-3 text-right">Meta de hoje</th>
+                                    <th className="px-4 py-3 text-right">Vendido hoje</th>
+                                    <th className="px-4 py-3 text-right">% realizado</th>
+                                    <th className="px-4 py-3 text-right">% meta diária</th>
+                                    <th className="px-4 py-3 text-right">Gap meta diária</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {grupo.linhas.map((item, indice) => (
+                                    <tr key={`linha-diaria-consultor-${grupo.nucleo}-${item.id_consultor}-${indice}`} className="hover:bg-[#fbfaff]">
+                                      <td className="px-4 py-3 sticky left-0 bg-white z-10">
+                                        <div className="font-black text-gray-700">
+                                          <span className="text-[#5c4b8a] mr-2">{item.posicao || indice + 1}º</span>
+                                          {item.consultor || 'Não identificado'}
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 font-bold mt-1">ID: {item.id_consultor || '-'}</div>
+                                      </td>
+                                      <td className="px-4 py-3 font-bold text-gray-500">{item.estrutura || 'Não informada'}</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.meta_total || 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#5c4b8a]">{formatarMoeda(item.realizado_total || 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(item.gap_meta_total || 0, item.meta_total || 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#257B9C]">{Number(item.pedidos_hoje ?? item.pedidos ?? 0).toLocaleString('pt-BR')}</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.meta_hoje || 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#5c4b8a]">{formatarMoeda(item.vendido_hoje ?? item.realizado ?? 0)}</td>
+                                      <td className="px-4 py-3 text-right font-black text-gray-600">{formatarNumeroBR(item.percentual_realizado || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
+                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(item.gap_meta_diaria || 0, item.meta_hoje || 0)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot className="bg-[#faf8fd] border-t-2 border-[#ded7ee]">
+                                  <tr>
+                                    <td colSpan="2" className="px-4 py-4 font-black text-[#5c4b8a] sticky left-0 bg-[#faf8fd] z-10">TOTAL CONSULTORES — {grupo.nucleo}</td>
+                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarMoeda(grupo.resumo?.meta_total || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#5c4b8a]">{formatarMoeda(grupo.resumo?.realizado_total || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(grupo.resumo?.gap_meta_total || 0, grupo.resumo?.meta_total || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#257B9C]">{Number(grupo.resumo?.pedidos_hoje || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarMoeda(grupo.resumo?.meta_hoje || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#5c4b8a]">{formatarMoeda(grupo.resumo?.vendido_hoje || 0)}</td>
+                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarNumeroBR(grupo.resumo?.percentual_realizado || 0, 1)}%</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{formatarNumeroBR(grupo.resumo?.percentual_meta_diaria || 0, 1)}%</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(grupo.resumo?.gap_meta_diaria || 0, grupo.resumo?.meta_hoje || 0)}</td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          </section>
+                        ))}
 
-                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                    <div className="px-5 py-4 bg-[#e9f4f8] flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h3 className="font-black text-[#257B9C]">
-                          Vendas por estrutura
-                        </h3>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">
-                          Quanto cada estrutura vendeu na data de referência.
-                        </p>
+                        {!obterGruposRealizadoDiarioVD('consultores').length && (
+                          <div className="bg-white rounded-2xl border border-dashed border-gray-200 py-16 text-center text-gray-400 font-bold">
+                            Nenhum consultor encontrado para as estruturas autorizadas.
+                          </div>
+                        )}
                       </div>
-                      <span className="text-xs font-black text-[#257B9C]">
-                        {modalRealizadoDiarioVD.estruturas.length} estrutura(s)
-                      </span>
-                    </div>
+                    )}
 
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[760px] text-sm">
-                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                          <tr>
-                            <th className="px-5 py-3 text-left">Posição</th>
-                            <th className="px-5 py-3 text-left">Estrutura</th>
-                            <th className="px-5 py-3 text-right">Pedidos</th>
-                            <th className="px-5 py-3 text-right">Vendido hoje</th>
-                            <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {modalRealizadoDiarioVD.estruturas.map((item, indice) => (
-                            <tr
-                              key={`estrutura-dia-${item.estrutura}-${indice}`}
-                              className="hover:bg-[#f8fcfc]"
-                            >
-                              <td className="px-5 py-3 font-black text-[#257B9C]">
-                                {item.posicao || indice + 1}º
-                              </td>
-                              <td className="px-5 py-3 font-black text-gray-700">
-                                {item.estrutura || 'Não informada'}
-                              </td>
-                              <td className="px-5 py-3 text-right font-bold text-gray-600">
-                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-[#257B9C]">
-                                {formatarMoeda(item.realizado || 0)}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-gray-600">
-                                {formatarNumeroBR(item.participacao || 0, 1)}%
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
-                                {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
-                              </td>
-                            </tr>
-                          ))}
-
-                          {!modalRealizadoDiarioVD.estruturas.length && (
-                            <tr>
-                              <td colSpan="6" className="px-5 py-10 text-center text-gray-400 font-semibold">
-                                Nenhuma venda encontrada por estrutura.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                        <tfoot className="bg-[#f5fafd]">
-                          <tr>
-                            <td colSpan="3" className="px-5 py-4 font-black text-gray-600">
-                              TOTAL DAS ESTRUTURAS
-                            </td>
-                            <td className="px-5 py-4 text-right font-black text-[#257B9C]">
-                              {formatarMoeda(
-                                modalRealizadoDiarioVD.conferencia?.total_estruturas || 0
-                              )}
-                            </td>
-                            <td className="px-5 py-4 text-right font-black text-[#257B9C]">
-                              100,0%
-                            </td>
-                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
-                              {formatarNumeroBR(
-                                modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
-                                1
-                              )}%
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </section>
-
-                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                    <div className="px-5 py-4 bg-[#f1eef8] flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h3 className="font-black text-[#5c4b8a]">
-                          Vendas por consultor
-                        </h3>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">
-                          Resultado individual e estrutura onde o pedido foi finalizado.
-                        </p>
-                      </div>
-                      <span className="text-xs font-black text-[#5c4b8a]">
-                        {modalRealizadoDiarioVD.consultores.length} consultor(es)
-                      </span>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[980px] text-sm">
-                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                          <tr>
-                            <th className="px-5 py-3 text-left">Posição</th>
-                            <th className="px-5 py-3 text-left">ID</th>
-                            <th className="px-5 py-3 text-left">Consultor</th>
-                            <th className="px-5 py-3 text-left">Estrutura</th>
-                            <th className="px-5 py-3 text-right">Pedidos</th>
-                            <th className="px-5 py-3 text-right">Vendido hoje</th>
-                            <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {modalRealizadoDiarioVD.consultores.map((item, indice) => (
-                            <tr
-                              key={`consultor-vd-dia-${item.id_consultor}-${item.estrutura}-${indice}`}
-                              className="hover:bg-[#fbfaff]"
-                            >
-                              <td className="px-5 py-3 font-black text-[#5c4b8a]">
-                                {item.posicao || indice + 1}º
-                              </td>
-                              <td className="px-5 py-3 font-black text-[#048187]">
-                                {item.id_consultor || '-'}
-                              </td>
-                              <td className="px-5 py-3 font-black text-gray-700">
-                                {item.consultor || 'Não identificado'}
-                              </td>
-                              <td className="px-5 py-3 font-bold text-gray-500">
-                                {item.estrutura || 'Não informada'}
-                              </td>
-                              <td className="px-5 py-3 text-right font-bold text-gray-600">
-                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-[#5c4b8a]">
-                                {formatarMoeda(item.realizado || 0)}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-gray-600">
-                                {formatarNumeroBR(item.participacao || 0, 1)}%
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
-                                {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
-                              </td>
-                            </tr>
-                          ))}
-
-                          {!modalRealizadoDiarioVD.consultores.length && (
-                            <tr>
-                              <td colSpan="8" className="px-5 py-10 text-center text-gray-400 font-semibold">
-                                Nenhuma venda encontrada por consultor.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                        <tfoot className="bg-[#faf8fd]">
-                          <tr>
-                            <td colSpan="5" className="px-5 py-4 font-black text-gray-600">
-                              TOTAL DOS CONSULTORES
-                            </td>
-                            <td className="px-5 py-4 text-right font-black text-[#5c4b8a]">
-                              {formatarMoeda(
-                                modalRealizadoDiarioVD.conferencia?.total_consultores || 0
-                              )}
-                            </td>
-                            <td className="px-5 py-4 text-right font-black text-[#5c4b8a]">
-                              100,0%
-                            </td>
-                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
-                              {formatarNumeroBR(
-                                modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
-                                1
-                              )}%
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </section>
-                </>
-              )}
+                    {abaRealizadoDiarioVD === 'meios' && (
+                      <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                        <div className="px-5 py-4 bg-[#eaf6fb] flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h3 className="font-black text-[#257B9C]">Meios de captação</h3>
+                            <p className="text-xs text-gray-500 font-semibold mt-1">Composição do vendido na data de referência.</p>
+                          </div>
+                          <span className="text-xs font-black text-[#257B9C]">{modalRealizadoDiarioVD.meios_captacao.length} meio(s)</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[760px] text-sm">
+                            <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                              <tr>
+                                <th className="px-5 py-3 text-left">Posição</th>
+                                <th className="px-5 py-3 text-left">Meio de captação</th>
+                                <th className="px-5 py-3 text-right">Pedidos hoje</th>
+                                <th className="px-5 py-3 text-right">Vendido hoje</th>
+                                <th className="px-5 py-3 text-right">Participação</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {modalRealizadoDiarioVD.meios_captacao.map((item, indice) => (
+                                <tr key={`meio-dia-${item.meio_captacao}-${indice}`} className="hover:bg-[#f8fcfc]">
+                                  <td className="px-5 py-3 font-black text-[#257B9C]">{item.posicao || indice + 1}º</td>
+                                  <td className="px-5 py-3 font-black text-gray-700">{item.meio_captacao || 'Não informado'}</td>
+                                  <td className="px-5 py-3 text-right font-bold text-gray-600">{Number(item.pedidos || 0).toLocaleString('pt-BR')}</td>
+                                  <td className="px-5 py-3 text-right font-black text-[#257B9C]">{formatarMoeda(item.realizado || 0)}</td>
+                                  <td className="px-5 py-3 text-right font-black text-gray-600">{formatarNumeroBR(item.participacao || 0, 1)}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="p-5 border-t border-gray-100 bg-white shrink-0">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 bg-white shrink-0 flex items-center justify-between gap-3">
+              <p className="hidden sm:block text-xs font-semibold text-gray-400">
+                Os valores respeitam o ciclo, os filtros e o escopo de acesso do usuário.
+              </p>
               <button
                 type="button"
                 onClick={() => setModalRealizadoDiarioVD((atual) => ({
                   ...atual,
                   aberto: false,
                 }))}
-                className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-black py-3"
+                className="w-full sm:w-auto sm:min-w-[220px] rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-black py-3 px-6"
               >
                 Fechar
               </button>
