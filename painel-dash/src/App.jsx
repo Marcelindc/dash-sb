@@ -5898,6 +5898,9 @@ export default function App() {
   const dashboardRequestSeqRef = useRef(0);
   const metasRequestSeqRef = useRef(0);
   const opcoesRequestSeqRef = useRef(0);
+  // Incrementado a cada login/logout para impedir que respostas iniciadas
+  // por outro usuário sobrescrevam a tela da sessão atual.
+  const sessaoDadosSeqRef = useRef(0);
   const [modalEudoraAberto, setModalEudoraAberto] = useState(false);
   const [detalheEudora, setDetalheEudora] = useState(null);
   const [carregandoDetalheEudora, setCarregandoDetalheEudora] = useState(false);
@@ -6390,15 +6393,36 @@ export default function App() {
         return;
       }
 
-      const estruturasAutorizadas = Array.isArray(dadosMetas?.estruturas)
+      const rankingSeguro = Array.isArray(dadosMetas?.ranking_consultores)
+        ? dadosMetas.ranking_consultores
+        : [];
+      const estruturasAutorizadasBrutas = Array.isArray(dadosMetas?.estruturas)
         ? dadosMetas.estruturas
         : [];
-      if (!estruturasAutorizadas.length) {
-        if (!cancelado) setConsultoresGerenteVD([]);
+
+      // Enquanto o resumo ainda está chegando, não apaga um ranking válido.
+      if (!estruturasAutorizadasBrutas.length) {
+        if (!cancelado && !carregandoMetas) setConsultoresGerenteVD(rankingSeguro);
         return;
       }
 
-      setCarregandoConsultoresGerenteVD(true);
+      // Uma mesma meta pode aparecer com aliases diferentes. Fazemos apenas
+      // uma requisição por bloco autorizado.
+      const mapaEstruturas = new Map();
+      estruturasAutorizadasBrutas.forEach((item) => {
+        const nome = String(item?.estrutura || item?.nome_meta || '').trim();
+        const chave = String(item?.meta_id || item?.id || nome).trim().toLowerCase();
+        if (nome && chave && !mapaEstruturas.has(chave)) mapaEstruturas.set(chave, item);
+      });
+      const estruturasAutorizadas = Array.from(mapaEstruturas.values());
+
+      if (!cancelado) {
+        // Exibe imediatamente o ranking seguro retornado pelo próprio backend;
+        // o detalhe apenas complementa os campos, sem provocar o efeito de sumir.
+        setConsultoresGerenteVD(rankingSeguro);
+        setCarregandoConsultoresGerenteVD(true);
+      }
+
       try {
         const filtrosSeguros = aplicarEscopoGerenteVdNosFiltros({
           ...filtrosAtivos,
@@ -6414,9 +6438,18 @@ export default function App() {
 
         const mapa = new Map();
         respostas.forEach((resultado) => {
-          if (resultado.status !== 'fulfilled') return;
-          const detalheSeguro = filtrarPayloadDetalheVD(resultado.value?.data || {});
+          if (resultado.status !== 'fulfilled') {
+            console.error('Falha ao carregar detalhe de consultores do gerente VD:', resultado.reason);
+            return;
+          }
+
+          // O endpoint já aplica o escopo pelo token. Não fazemos uma segunda
+          // exclusão textual no navegador, pois ela removia consultores válidos
+          // quando a estrutura tinha código/núcleo/alias diferente.
+          const detalheSeguro = resultado.value?.data || {};
           (detalheSeguro?.consultores || []).forEach((consultor) => {
+            const status = String(consultor?.status_consultor || 'ativo').toLowerCase();
+            if (status === 'inativo') return;
             const id = String(consultor?.id_colaborador || consultor?.nome_exibicao || consultor?.nome || '').trim();
             if (!id) return;
             const chave = id.toLowerCase();
@@ -6428,14 +6461,13 @@ export default function App() {
         });
 
         if (!cancelado) {
-          const consultores = Array.from(mapa.values())
-            .filter((item) => String(item?.status_consultor || 'ativo').toLowerCase() !== 'inativo')
+          const detalhados = Array.from(mapa.values())
             .sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
-          setConsultoresGerenteVD(consultores);
+          setConsultoresGerenteVD(detalhados.length > 0 ? detalhados : rankingSeguro);
         }
       } catch (erro) {
         console.error('Erro ao carregar consultores do gerente VD:', erro);
-        if (!cancelado) setConsultoresGerenteVD([]);
+        if (!cancelado) setConsultoresGerenteVD(rankingSeguro);
       } finally {
         if (!cancelado) setCarregandoConsultoresGerenteVD(false);
       }
@@ -6450,6 +6482,7 @@ export default function App() {
     usuarioLogado?.id,
     filtrosAtivos?.ciclo,
     dadosMetas,
+    carregandoMetas,
   ]);
 
   useEffect(() => {
@@ -6542,6 +6575,28 @@ export default function App() {
     try { sessionStorage.removeItem(CACHE_SESSAO_DASH_KEY); } catch { /* sem ação */ }
   };
 
+  const limparDadosVisuaisDaSessao = () => {
+    // Invalida todas as respostas que ainda estiverem em andamento.
+    sessaoDadosSeqRef.current += 1;
+    dashboardRequestSeqRef.current += 1;
+    metasRequestSeqRef.current += 1;
+    opcoesRequestSeqRef.current += 1;
+    promessasEmAndamentoRef.current = {};
+    ultimoCarregamentoTelaRef.current = '';
+
+    limparCachesDados();
+    setDados(null);
+    setDadosMetas(null);
+    setDetalheMeta(null);
+    setConsultoresGerenteVD([]);
+    setMetaFaturamentoDashboard(0);
+    setErroMetas('');
+    setCarregandoDashboard(false);
+    setCarregandoMetas(false);
+    setCarregandoDetalheMeta(false);
+    setCarregandoConsultoresGerenteVD(false);
+  };
+
   const carregarOpcoesFiltros = async (forcarAtualizacao = false, cicloForcado = null) => {
     if (opcoesFiltrosCarregadas && !forcarAtualizacao) return;
 
@@ -6630,6 +6685,7 @@ export default function App() {
 
   const carregarDashboard = async (filtros, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
+    const sessaoSeq = sessaoDadosSeqRef.current;
     const chaveCache = gerarChaveFiltros(filtros);
     const chavePromessa = `dashboard_${chaveCache}_${forcarAtualizacao ? 'force' : 'cache'}`;
 
@@ -6662,7 +6718,11 @@ export default function App() {
           axios.post(`${API_URL}/dashboard/dados`, { ...filtros, ciclo: cicloSolicitado }, configCiclo)
         ]);
 
-        if (requestSeq !== dashboardRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado) return null;
+        if (
+          sessaoSeq !== sessaoDadosSeqRef.current
+          || requestSeq !== dashboardRequestSeqRef.current
+          || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado
+        ) return null;
         if (resDados.status === 'fulfilled' && resDados.value.data?.ciclo_retorno && String(resDados.value.data.ciclo_retorno) !== cicloSolicitado) return null;
         const resumoMetas = resMetas.status === 'fulfilled'
           ? { ...resMetas.value.data, estruturas: [...(resMetas.value.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0)) }
@@ -6686,7 +6746,9 @@ export default function App() {
           setMetaFaturamentoDashboard(0);
         }
       } finally {
-        if (requestSeq === dashboardRequestSeqRef.current) setCarregandoDashboard(false);
+        if (sessaoSeq === sessaoDadosSeqRef.current && requestSeq === dashboardRequestSeqRef.current) {
+          setCarregandoDashboard(false);
+        }
         delete promessasEmAndamentoRef.current[chavePromessa];
       }
     })();
@@ -6696,6 +6758,7 @@ export default function App() {
   };
 
   const carregarMetas = async (filtros, forcarAtualizacao = false) => {
+    const sessaoSeq = sessaoDadosSeqRef.current;
     setErroMetas('');
     const chaveCache = 'metas_' + gerarChaveFiltros(filtros);
     const chavePromessa = `${chaveCache}_${forcarAtualizacao ? 'force' : 'cache'}`;
@@ -6720,7 +6783,11 @@ export default function App() {
     const promessa = (async () => {
       try {
         const resposta = await axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, { headers: { 'X-Ciclo-VD': cicloSolicitado } });
-        if (requestSeq !== metasRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado) return null;
+        if (
+          sessaoSeq !== sessaoDadosSeqRef.current
+          || requestSeq !== metasRequestSeqRef.current
+          || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado
+        ) return null;
         const estruturasOrdenadas = [...(resposta.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
         const dadosOrdenados = { ...resposta.data, estruturas: estruturasOrdenadas };
         setDadosMetas(dadosOrdenados);
@@ -6736,7 +6803,9 @@ export default function App() {
         console.error('Erro metas:', erro);
         setErroMetas('Erro ao carregar metas.');
       } finally {
-        if (requestSeq === metasRequestSeqRef.current) setCarregandoMetas(false);
+        if (sessaoSeq === sessaoDadosSeqRef.current && requestSeq === metasRequestSeqRef.current) {
+          setCarregandoMetas(false);
+        }
         delete promessasEmAndamentoRef.current[chavePromessa];
       }
     })();
@@ -6747,6 +6816,7 @@ export default function App() {
 
   const carregarDashboardEMetas = async (filtros, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
+    const sessaoSeq = sessaoDadosSeqRef.current;
     setErroMetas('');
 
     const chaveFiltro = gerarChaveFiltros(filtros);
@@ -6777,10 +6847,16 @@ export default function App() {
     const promessa = (async () => {
       try {
         void carregarOpcoesFiltros(false);
+        const cicloSolicitado = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
+        const configCiclo = { headers: { 'X-Ciclo-VD': cicloSolicitado } };
         const [resMetas, resDados] = await Promise.allSettled([
-          axios.post(`${API_URL}/metas/resumo`, filtros),
-          axios.post(`${API_URL}/dashboard/dados`, filtros)
+          axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, configCiclo),
+          axios.post(`${API_URL}/dashboard/dados`, { ...filtros, ciclo: cicloSolicitado }, configCiclo)
         ]);
+
+        // Uma resposta iniciada pelo administrador nunca pode aparecer após
+        // o login de um gerente (ou vice-versa).
+        if (sessaoSeq !== sessaoDadosSeqRef.current) return;
 
         let dadosMetasAtualizados = null;
         if (resMetas.status === 'fulfilled') {
@@ -6811,8 +6887,10 @@ export default function App() {
           await carregarDetalheMeta(estruturaSelecionada, filtros, forcarAtualizacao);
         }
       } finally {
-        setCarregandoDashboard(false);
-        setCarregandoMetas(false);
+        if (sessaoSeq === sessaoDadosSeqRef.current) {
+          setCarregandoDashboard(false);
+          setCarregandoMetas(false);
+        }
         delete promessasEmAndamentoRef.current[chavePromessa];
       }
     })();
@@ -9406,6 +9484,10 @@ const carregarRevendedores = async () => {
       const usuario = resposta.data.usuario;
       const token = resposta.data.access_token;
       if (!token) throw new Error('Token não retornado pelo backend.');
+
+      // Remove qualquer resultado/carga/cache pertencente ao usuário anterior
+      // antes de renderizar a nova sessão.
+      limparDadosVisuaisDaSessao();
       aplicarTokenAxios(token);
       setTokenAuth(token);
       setUsuarioLogado(usuario);
@@ -9536,6 +9618,7 @@ const carregarRevendedores = async () => {
   };
 
   const handleLogout = () => {
+    limparDadosVisuaisDaSessao();
     localStorage.removeItem('usuarioLogado');
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     localStorage.removeItem(TELA_ATUAL_STORAGE_KEY);
@@ -9549,7 +9632,6 @@ const carregarRevendedores = async () => {
     setTelaAtual('Dashboard');
     setVisaoMetas('estruturas');
     setEstruturaSelecionada('');
-    limparCachesDados();
   };
 
   const toggleFiltroArray = (categoria, valor) => {
