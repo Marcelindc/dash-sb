@@ -97,7 +97,20 @@ const normalizarEstruturasPermitidasUsuario = (valor) => {
     const chave = `${area}|${codigo}|${estrutura.toLowerCase()}`;
     if (vistos.has(chave)) return acc;
     vistos.add(chave);
-    acc.push({ area, codigo, estrutura: estrutura || codigo, nucleo, vinculadas });
+    const codigosVinculados = Array.isArray(base.codigos_vinculados)
+      ? base.codigos_vinculados.map((v) => String(v || '').trim()).filter(Boolean)
+      : [];
+    acc.push({
+      area,
+      codigo,
+      estrutura: estrutura || codigo,
+      nucleo,
+      vinculadas,
+      meta_id: String(base.meta_id || '').trim(),
+      codigos_vinculados: codigosVinculados,
+      qtd_consultores_ativos: Number(base.qtd_consultores_ativos || 0),
+      rotulo: String(base.rotulo || base.label_exibicao || '').trim(),
+    });
     return acc;
   }, []);
 };
@@ -113,7 +126,7 @@ const SeletorEscopoUsuario = ({ area, opcoes = [], selecionadas = [], onChange, 
   const termo = busca.trim().toLowerCase();
   const filtradas = normalizarEstruturasPermitidasUsuario(opcoes).filter((item) => {
     if (!areasPermitidas.includes(item.area)) return false;
-    const alvo = `${item.codigo} ${item.estrutura} ${item.nucleo}`.toLowerCase();
+    const alvo = `${item.codigo} ${item.estrutura} ${item.nucleo} ${item.rotulo || ''}`.toLowerCase();
     return !termo || alvo.includes(termo);
   });
 
@@ -167,12 +180,19 @@ const SeletorEscopoUsuario = ({ area, opcoes = [], selecionadas = [], onChange, 
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.area === 'LOJA' ? 'bg-orange-50 text-orange-600' : 'bg-[#dff5f6] text-[#048187]'}`}>{item.area}</span>
                       {item.nucleo && <span className="text-[10px] font-black text-gray-400">{item.nucleo}</span>}
                     </div>
-                    <p className="mt-1 text-sm font-black text-gray-700 break-words">{item.estrutura}</p>
-                    {item.codigo && (
+                    <p className="mt-1 text-sm font-black text-gray-700 break-words">
+                      {item.rotulo || item.estrutura}
+                    </p>
+                    {!item.rotulo && item.codigo && (
                       <p className="mt-0.5 text-[10px] font-bold text-gray-400 break-all">Código: {item.codigo}</p>
                     )}
-                    {!!item.vinculadas?.length && item.area === 'VD' && (
-                      <p className="mt-1 text-[11px] text-gray-400">{item.vinculadas.length} estrutura(s) vinculada(s)</p>
+                    {item.area === 'VD' && (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-gray-400">
+                        {!!item.vinculadas?.length && <span>{item.vinculadas.length} estrutura(s) vinculada(s)</span>}
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[#048187] border border-[#cde9ea]">
+                          {Number(item.qtd_consultores_ativos || 0)} consultor(es) ativo(s)
+                        </span>
+                      </div>
                     )}
                   </div>
                   <span className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${selecionada ? 'border-[#048187] bg-[#048187] text-white' : 'border-gray-200 text-transparent'}`}>✓</span>
@@ -5463,6 +5483,8 @@ export default function App() {
 
   const [cacheDashboard, setCacheDashboard] = useState(() => carregarCacheSessaoDash()); const [cacheDetalheMetas, setCacheDetalheMetas] = useState({}); const [cacheMetas, setCacheMetas] = useState(null); const [opcoesFiltrosCarregadas, setOpcoesFiltrosCarregadas] = useState(false);
   const [carregandoDashboard, setCarregandoDashboard] = useState(false); const [carregandoMetas, setCarregandoMetas] = useState(false); const [carregandoDetalheMeta, setCarregandoDetalheMeta] = useState(false); const [erroMetas, setErroMetas] = useState('');
+  const [consultoresGerenteVD, setConsultoresGerenteVD] = useState([]);
+  const [carregandoConsultoresGerenteVD, setCarregandoConsultoresGerenteVD] = useState(false);
   
   const [modalDetalhes, setModalDetalhes] = useState(null);
   const [modalRealizadoDiarioVD, setModalRealizadoDiarioVD] = useState({
@@ -6206,6 +6228,29 @@ export default function App() {
     .trim()
     .toLowerCase();
 
+  const aliasesEstruturaEscopoVD = (valor) => {
+    const original = String(valor || '').replace(/[–—]/g, '-').trim();
+    if (!original) return [];
+    const aliases = new Set();
+    const adicionar = (texto) => {
+      const normalizado = normalizarEstruturaEscopoVD(String(texto || '').replace(/^\s*-| -\s*$/g, ''));
+      if (normalizado) aliases.add(normalizado);
+    };
+    original.split(/[•|]/).map((parte) => parte.trim()).filter(Boolean).forEach((parte) => {
+      const semCodigo = parte.replace(/^\s*\d+\s*-\s*/, '').trim();
+      const semNucleo = semCodigo.replace(/^\s*(?:nucleo|n)\s*\d+\s*-\s*/i, '').trim();
+      [parte, semCodigo, semNucleo].forEach((candidato) => {
+        adicionar(candidato);
+        adicionar(String(candidato || '')
+          .replace(/^\s*equipe\s+er\s+/i, '')
+          .replace(/^\s*equipe\s+/i, '')
+          .replace(/^\s*er\s+/i, '')
+          .replace(/^\s*estrutura\s+/i, ''));
+      });
+    });
+    return Array.from(aliases);
+  };
+
   const removerCodigoEstruturaEscopoVD = (valor) => {
     const texto = String(valor || '').replace(/\s+/g, ' ').trim();
     if (!texto) return '';
@@ -6228,8 +6273,8 @@ export default function App() {
 
   const chavesEstruturasPermitidasVD = new Set(
     valoresEstruturasPermitidasVD.flatMap((valor) => [
-      normalizarEstruturaEscopoVD(valor),
-      normalizarEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
+      ...aliasesEstruturaEscopoVD(valor),
+      ...aliasesEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
     ]).filter(Boolean)
   );
 
@@ -6246,8 +6291,8 @@ export default function App() {
   const chavesDetalhesPermitidasVD = new Set([
     ...chavesEstruturasPermitidasVD,
     ...valoresMetasAutorizadasVD.flatMap((valor) => [
-      normalizarEstruturaEscopoVD(valor),
-      normalizarEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
+      ...aliasesEstruturaEscopoVD(valor),
+      ...aliasesEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
     ]).filter(Boolean),
   ]);
 
@@ -6257,12 +6302,11 @@ export default function App() {
 
   const estruturaPermitidaNoDetalheVD = (valor) => {
     if (!deveRestringirDetalhesVD) return true;
-    const chaveCompleta = normalizarEstruturaEscopoVD(valor);
-    const chaveSemCodigo = normalizarEstruturaEscopoVD(
-      removerCodigoEstruturaEscopoVD(valor)
-    );
-    return chavesDetalhesPermitidasVD.has(chaveCompleta)
-      || chavesDetalhesPermitidasVD.has(chaveSemCodigo);
+    const aliases = [
+      ...aliasesEstruturaEscopoVD(valor),
+      ...aliasesEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
+    ];
+    return aliases.some((alias) => chavesDetalhesPermitidasVD.has(alias));
   };
 
   const aplicarEscopoGerenteVdNosFiltros = (filtrosBase = {}) => {
@@ -6336,6 +6380,77 @@ export default function App() {
 
     return resultado;
   };
+
+  useEffect(() => {
+    let cancelado = false;
+
+    const carregarConsultoresDasEstruturasDoGerente = async () => {
+      if (!modoGerenteEstrutura || areaGerenteEstrutura !== 'VD' || telaAtual !== 'AcompanhamentoVD') {
+        if (!cancelado) setConsultoresGerenteVD([]);
+        return;
+      }
+
+      const estruturasAutorizadas = Array.isArray(dadosMetas?.estruturas)
+        ? dadosMetas.estruturas
+        : [];
+      if (!estruturasAutorizadas.length) {
+        if (!cancelado) setConsultoresGerenteVD([]);
+        return;
+      }
+
+      setCarregandoConsultoresGerenteVD(true);
+      try {
+        const filtrosSeguros = aplicarEscopoGerenteVdNosFiltros({
+          ...filtrosAtivos,
+          ciclo: filtrosAtivos?.ciclo || cicloSelecionadoVD || '',
+        });
+        const respostas = await Promise.allSettled(
+          estruturasAutorizadas.map((item) => axios.post(
+            `${API_URL}/metas/estrutura/${encodeURIComponent(item?.estrutura || item?.nome_meta || '')}`,
+            filtrosSeguros,
+            { headers: { 'X-Ciclo-VD': filtrosSeguros.ciclo || cicloSelecionadoVD || '' } }
+          ))
+        );
+
+        const mapa = new Map();
+        respostas.forEach((resultado) => {
+          if (resultado.status !== 'fulfilled') return;
+          const detalheSeguro = filtrarPayloadDetalheVD(resultado.value?.data || {});
+          (detalheSeguro?.consultores || []).forEach((consultor) => {
+            const id = String(consultor?.id_colaborador || consultor?.nome_exibicao || consultor?.nome || '').trim();
+            if (!id) return;
+            const chave = id.toLowerCase();
+            const atual = mapa.get(chave);
+            if (!atual || Number(consultor?.realizado || 0) > Number(atual?.realizado || 0)) {
+              mapa.set(chave, consultor);
+            }
+          });
+        });
+
+        if (!cancelado) {
+          const consultores = Array.from(mapa.values())
+            .filter((item) => String(item?.status_consultor || 'ativo').toLowerCase() !== 'inativo')
+            .sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
+          setConsultoresGerenteVD(consultores);
+        }
+      } catch (erro) {
+        console.error('Erro ao carregar consultores do gerente VD:', erro);
+        if (!cancelado) setConsultoresGerenteVD([]);
+      } finally {
+        if (!cancelado) setCarregandoConsultoresGerenteVD(false);
+      }
+    };
+
+    carregarConsultoresDasEstruturasDoGerente();
+    return () => { cancelado = true; };
+  }, [
+    modoGerenteEstrutura,
+    areaGerenteEstrutura,
+    telaAtual,
+    usuarioLogado?.id,
+    filtrosAtivos?.ciclo,
+    dadosMetas,
+  ]);
 
   useEffect(() => {
     if (!modoGerenteEstrutura || !usuarioLogado) return;
@@ -6417,7 +6532,7 @@ export default function App() {
     }
   };
 
-  const gerarChaveFiltros = (filtros) => JSON.stringify({ ci: filtros?.ciclo || '', nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
+  const gerarChaveFiltros = (filtros) => JSON.stringify({ us: usuarioLogado?.id || usuarioLogado?.email || 'anonimo', ci: filtros?.ciclo || '', nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
 
   const limparCachesDados = () => {
     setCacheDashboard({});
@@ -10114,30 +10229,101 @@ const enviarArquivo = async (tipo) => {
 
   const abrirDetAtiv = () => {
     const resumoMetas = obterResumoMetasAtual();
+    const estruturas = Array.isArray(resumoMetas?.estruturas) ? resumoMetas.estruturas : [];
     const ativados = Number(dados?.revendedores_ativados || resumoMetas?.atividade_total_geral || 0);
     const percentualAtual = Number(dados?.percentual_atividade_geral || resumoMetas?.percentual_atividade_total_geral || 0);
     const baseAtivaCalculada = percentualAtual > 0 && ativados > 0 ? Math.round(ativados / (percentualAtual / 100)) : 0;
     const baseAtiva = Number(resumoMetas?.base_ativa_total_geral || baseAtivaCalculada || 0);
     const metaAtividade = Number(resumoMetas?.meta_atividade_geral || 0);
     const metaEmRevendedores = calcularQtdMetaAtividade(baseAtiva, metaAtividade);
-    const faltamAtivar = calcularFaltamAtivar(ativados, baseAtiva, metaAtividade);
+    const saldoGeral = ativados - metaEmRevendedores;
     const percentualDaMeta = calcPerc(percentualAtual, metaAtividade);
 
-    abrirModalValExp(
-      'Atividade Geral',
-      `${formatarNumeroBR(percentualAtual, 1)}%`,
-      'Atividade = revendedores ativados dividido pela base ativa.',
-      [
+    const gruposMap = new Map();
+    estruturas.forEach((item) => {
+      const nucleo = String(item?.nucleo || 'A DEFINIR').split(',')[0].trim() || 'A DEFINIR';
+      const ativosEstrutura = Number(item?.atividade_realizada || 0);
+      const baseEstrutura = Number(item?.base_ativa || 0);
+      const metaEstrutura = Number(item?.meta_atividade || metaAtividade || 0);
+      const percentualEstrutura = Number(
+        item?.percentual_atividade
+        || (baseEstrutura > 0 ? (ativosEstrutura / baseEstrutura) * 100 : 0)
+      );
+      const idealEstrutura = Math.ceil((baseEstrutura * metaEstrutura) / 100);
+      const linha = {
+        estrutura: item?.estrutura || 'A DEFINIR',
+        com_indicador: ativosEstrutura,
+        ativos: baseEstrutura,
+        percentual_ativacao: percentualEstrutura,
+        meta_percentual: metaEstrutura,
+        percentual_meta: calcPerc(percentualEstrutura, metaEstrutura),
+        ativacao_ideal: idealEstrutura,
+        saldo_meta: ativosEstrutura - idealEstrutura,
+      };
+      if (!gruposMap.has(nucleo)) gruposMap.set(nucleo, []);
+      gruposMap.get(nucleo).push(linha);
+    });
+
+    const porEstrutura = Array.from(gruposMap.entries())
+      .map(([nucleo, linhas]) => {
+        const comIndicador = linhas.reduce((soma, item) => soma + Number(item.com_indicador || 0), 0);
+        const base = linhas.reduce((soma, item) => soma + Number(item.ativos || 0), 0);
+        const ideal = linhas.reduce((soma, item) => soma + Number(item.ativacao_ideal || 0), 0);
+        const percentual = base > 0 ? (comIndicador / base) * 100 : 0;
+        const metaPonderada = base > 0 ? (ideal / base) * 100 : metaAtividade;
+        return {
+          nucleo,
+          estruturas: linhas.sort((a, b) => Number(b.percentual_ativacao || 0) - Number(a.percentual_ativacao || 0)),
+          resumo: {
+            com_indicador: comIndicador,
+            ativos: base,
+            percentual_ativacao: percentual,
+            meta_percentual: metaPonderada,
+            percentual_meta: calcPerc(percentual, metaPonderada),
+            ativacao_ideal: ideal,
+            saldo_meta: comIndicador - ideal,
+          },
+        };
+      })
+      .sort((a, b) => String(a.nucleo).localeCompare(String(b.nucleo), 'pt-BR'));
+
+    setModalValorExpandido({
+      aberto: true,
+      titulo: 'Atividade Geral',
+      valorTexto: `${formatarNumeroBR(percentualAtual, 1)}%`,
+      descricao: 'Atividade = revendedores ativados no ciclo dividido pela base ativa.',
+      detalhes: [
         { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
-        { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtual, 1)}%` },
-        { label: '% da meta', valor: `${formatarNumeroBR(percentualDaMeta, 1)}%` },
         { label: 'Base ativa', valor: formatarNumeroBR(baseAtiva, 0) },
-        { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividade, 1)}%` },
-        { label: 'Meta em revendedores', valor: formatarNumeroBR(metaEmRevendedores, 0) },
-        { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivar) }
+        { label: '% atividade', valor: `${formatarNumeroBR(percentualAtual, 1)}%` },
+        { label: 'Meta', valor: `${formatarNumeroBR(metaAtividade, 1)}%` },
+        { label: '% da meta', valor: `${formatarNumeroBR(percentualDaMeta, 1)}%` },
+        { label: 'Ativação ideal', valor: formatarNumeroBR(metaEmRevendedores, 0) },
+        { label: 'Saldo', valor: saldoGeral >= 0 ? `+${formatarNumeroBR(saldoGeral, 0)}` : formatarNumeroBR(saldoGeral, 0) },
       ],
-      `${formatarNumeroBR(baseAtiva, 0)} × ${formatarNumeroBR(metaAtividade, 1)}% = ${formatarNumeroBR(metaEmRevendedores, 0)} revendedores necessários`
-    );
+      formula: `${formatarNumeroBR(baseAtiva, 0)} × ${formatarNumeroBR(metaAtividade, 1)}% = ${formatarNumeroBR(metaEmRevendedores, 0)} revendedores necessários`,
+      carregando: false,
+      erro: '',
+      indicadorIaf: {
+        indicador: 'ATIVIDADE',
+        ciclo: filtrosAtivos?.ciclo || cicloSelecionadoVD || '',
+        resumo: {
+          com_indicador: ativados,
+          ativos: baseAtiva,
+          percentual_ativacao: percentualAtual,
+          meta_percentual: metaAtividade,
+          percentual_meta: percentualDaMeta,
+          ativacao_ideal: metaEmRevendedores,
+          saldo_meta: saldoGeral,
+        },
+        por_estrutura: porEstrutura,
+        por_consultor: [],
+        permite_consultor: false,
+        rotulo_percentual: '% atividade',
+        rotulo_coluna_realizado: 'Ativos no ciclo',
+        rotulo_coluna_base: 'Base ativa',
+      },
+    });
   };
 
   const abrirDetIndicadorDashboard = async (tipo) => {
@@ -10449,7 +10635,9 @@ const enviarArquivo = async (tipo) => {
     // códigos e o mesmo nome (ex.: PINHEIRO) poderiam ter consultores válidos
     // removidos pelo navegador.
     const consultoresAcompanhamentoVD = [
-      ...(dadosMetas?.ranking_consultores || [])
+      ...(consultoresGerenteVD.length > 0
+        ? consultoresGerenteVD
+        : (dadosMetas?.ranking_consultores || []))
     ].sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
 
     const normalizarEstruturaAcompanhamento = (valor) => String(valor || '')
@@ -10808,7 +10996,7 @@ const enviarArquivo = async (tipo) => {
           </span>
         </div>
 
-        {carregandoMetas && !dadosMetas ? (
+        {(carregandoMetas && !dadosMetas) || carregandoConsultoresGerenteVD ? (
           <div className="py-12 flex items-center justify-center gap-3 text-[#048187] font-black">
             <Loader2 size={20} className="animate-spin" /> Carregando consultores...
           </div>
@@ -19823,7 +20011,7 @@ const enviarArquivo = async (tipo) => {
                 <>
                   <div className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-6">
                     <p className="text-sm font-bold uppercase tracking-wide text-gray-400">
-                      {modalValorExpandido.indicadorIaf ? '% ativação' : 'Valor completo'}
+                      {modalValorExpandido.indicadorIaf ? (modalValorExpandido.indicadorIaf.rotulo_percentual || '% ativação') : 'Valor completo'}
                     </p>
                     <h4 className="mt-3 text-4xl font-extrabold text-[#048187] break-words">{modalValorExpandido.valorTexto}</h4>
                   </div>
@@ -19863,9 +20051,9 @@ const enviarArquivo = async (tipo) => {
                                 <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
                                   <tr>
                                     <th className="px-4 py-3 text-left">Estrutura</th>
-                                    <th className="px-4 py-3 text-right">Ativos com {modalValorExpandido.indicadorIaf.indicador}</th>
-                                    <th className="px-4 py-3 text-right">Ativos no ciclo</th>
-                                    <th className="px-4 py-3 text-right">% ativação</th>
+                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_coluna_realizado || `Ativos com ${modalValorExpandido.indicadorIaf.indicador}`}</th>
+                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_coluna_base || 'Ativos no ciclo'}</th>
+                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_percentual || '% ativação'}</th>
                                     <th className="px-4 py-3 text-right">Meta</th>
                                     <th className="px-4 py-3 text-right">% da meta</th>
                                     <th className="px-4 py-3 text-right">Ativação ideal</th>
@@ -19925,9 +20113,9 @@ const enviarArquivo = async (tipo) => {
                                   <tr>
                                     <th className="px-4 py-3 text-left">Consultor</th>
                                     <th className="px-4 py-3 text-left">Estrutura</th>
-                                    <th className="px-4 py-3 text-right">Ativos com {modalValorExpandido.indicadorIaf.indicador}</th>
-                                    <th className="px-4 py-3 text-right">Ativos no ciclo</th>
-                                    <th className="px-4 py-3 text-right">% ativação</th>
+                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_coluna_realizado || `Ativos com ${modalValorExpandido.indicadorIaf.indicador}`}</th>
+                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_coluna_base || 'Ativos no ciclo'}</th>
+                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_percentual || '% ativação'}</th>
                                     <th className="px-4 py-3 text-right">Meta</th>
                                     <th className="px-4 py-3 text-right">% da meta</th>
                                     <th className="px-4 py-3 text-right">Ativação ideal</th>
