@@ -3719,7 +3719,7 @@ const CampoMetaIndicador = ({ label, value, onChange, placeholder = '0,00', casa
   </div>
 );
 
-function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao, modoInline = false }) {
+function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao, modoInline = false, nucleosPermitidos = [] }) {
   const [metas, setMetas] = useState([]);
   const [estruturas, setEstruturas] = useState([]);
   const [estruturasConfigMeta, setEstruturasConfigMeta] = useState([]);
@@ -3743,6 +3743,17 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const [salvandoLinhaMeta, setSalvandoLinhaMeta] = useState(false);
   const [filtroNucleoMetas, setFiltroNucleoMetas] = useState('Todos');
   const [cadastroMetasVdExpandido, setCadastroMetasVdExpandido] = useState(false);
+  const [modoAssistente, setModoAssistente] = useState(true);
+  const [passoAssistente, setPassoAssistente] = useState(1);
+  const [nucleoAssistente, setNucleoAssistente] = useState('');
+  const [cicloAssistente, setCicloAssistente] = useState('');
+  const [contextoAssistente, setContextoAssistente] = useState({ ciclos: [], equipes: [] });
+  const [equipesAssistente, setEquipesAssistente] = useState([]);
+  const [carregandoAssistente, setCarregandoAssistente] = useState(false);
+  const [salvandoAssistente, setSalvandoAssistente] = useState(false);
+  const [buscaEquipeAssistente, setBuscaEquipeAssistente] = useState('');
+  const [filtroStatusAssistente, setFiltroStatusAssistente] = useState('TODOS');
+  const [resumoAssistente, setResumoAssistente] = useState({ grupos: {} });
 
   const cicloConsulta = form.ciclo || cicloPadrao || '';
 
@@ -3775,6 +3786,190 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       setEstruturasConfigMeta(data.estruturas || []);
     } catch (e) {
       setEstruturasConfigMeta([]);
+    }
+  };
+
+
+  const numeroAssistente = (valor) => {
+    if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
+    const texto = String(valor ?? '').trim();
+    if (!texto) return 0;
+    const limpo = texto.replace(/R\$/gi, '').replace(/\s/g, '');
+    const normalizado = limpo.includes(',')
+      ? limpo.replace(/\./g, '').replace(',', '.')
+      : limpo;
+    const numero = Number(normalizado);
+    return Number.isFinite(numero) ? numero : 0;
+  };
+
+  const normalizarEquipeAssistente = (equipe) => {
+    const meta = equipe?.meta_existente || {};
+    const distMap = new Map((meta.consultores || []).map((d) => [String(d.id_colaborador || ''), d]));
+    const metaReal = numeroAssistente(meta.meta_real || 0);
+    return {
+      ...equipe,
+      aberta: true,
+      selecionada: metaReal > 0,
+      meta_real: metaReal || '',
+      meta_atividade: numeroAssistente(meta.meta_atividade || 45),
+      meta_make: numeroAssistente(meta.meta_make || 40),
+      meta_cabelo: numeroAssistente(meta.meta_cabelo || 40),
+      meta_multimarcas: numeroAssistente(meta.meta_multimarcas || 78),
+      meta_eudora: numeroAssistente(meta.meta_eudora || 20),
+      meta_rpa: numeroAssistente(meta.meta_rpa || 1500),
+      meta_tkt_medio: numeroAssistente(meta.meta_tkt_medio || 800),
+      meta_upa: numeroAssistente(meta.meta_upa || 15),
+      observacao: meta.observacao || '',
+      status_publicacao: meta.status_publicacao || 'rascunho',
+      consultores: (equipe.consultores || []).map((consultor) => {
+        const dist = distMap.get(String(consultor.id_colaborador || '')) || {};
+        const peso = numeroAssistente(dist.peso_meta ?? consultor.peso_meta ?? 0);
+        const valor = numeroAssistente(dist.meta_valor || (metaReal > 0 ? metaReal * peso / 100 : 0));
+        return {
+          ...consultor,
+          peso_meta: Number(peso.toFixed(4)),
+          meta_valor: Number(valor.toFixed(2)),
+          status_meta: dist.status || 'ativo',
+        };
+      }),
+    };
+  };
+
+  const carregarResumoAssistente = async (ciclo = cicloAssistente, nucleo = nucleoAssistente) => {
+    if (!ciclo) return;
+    try {
+      const { data } = await axios.get(`${apiUrl}/metas-assistente/resumo`, { params: { ciclo } });
+      setResumoAssistente(data || { grupos: {} });
+    } catch (_) {
+      setResumoAssistente({ grupos: {} });
+    }
+  };
+
+  const carregarContextoAssistente = async ({ ciclo = '', nucleo = '', prepararEquipes = false } = {}) => {
+    setCarregandoAssistente(true);
+    setErro('');
+    try {
+      const { data } = await axios.get(`${apiUrl}/metas-assistente/contexto`, { params: { ...(ciclo ? { ciclo } : {}), ...(nucleo ? { nucleo } : {}) } });
+      setContextoAssistente(data || { ciclos: [], equipes: [] });
+      if (prepararEquipes) {
+        setEquipesAssistente((data.equipes || []).map(normalizarEquipeAssistente));
+        await carregarResumoAssistente(ciclo, nucleo);
+      }
+      return data;
+    } catch (e) {
+      setErro(e.response?.data?.detail || 'Não foi possível carregar o assistente de metas.');
+      return null;
+    } finally {
+      setCarregandoAssistente(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!aberto || !modoAssistente) return;
+    carregarContextoAssistente();
+  }, [aberto, modoAssistente]);
+
+  const selecionarNucleoAssistente = async (nucleo) => {
+    setNucleoAssistente(nucleo);
+    setCicloAssistente('');
+    setEquipesAssistente([]);
+    setPassoAssistente(2);
+    await carregarContextoAssistente({ nucleo });
+  };
+
+  const selecionarCicloAssistente = async (ciclo) => {
+    setCicloAssistente(ciclo);
+    setPassoAssistente(3);
+    await carregarContextoAssistente({ ciclo, nucleo: nucleoAssistente, prepararEquipes: true });
+  };
+
+  const atualizarEquipeAssistente = (indice, campo, valor) => {
+    setEquipesAssistente((atuais) => atuais.map((equipe, idx) => {
+      if (idx !== indice) return equipe;
+      const nova = { ...equipe, [campo]: valor, selecionada: true };
+      if (campo === 'meta_real') {
+        const metaTotal = numeroAssistente(valor);
+        nova.consultores = (nova.consultores || []).map((c) => ({
+          ...c,
+          meta_valor: Number((metaTotal * numeroAssistente(c.peso_meta) / 100).toFixed(2)),
+        }));
+      }
+      return nova;
+    }));
+  };
+
+  const atualizarConsultorAssistente = (indiceEquipe, indiceConsultor, campo, valor) => {
+    setEquipesAssistente((atuais) => atuais.map((equipe, idxEquipe) => {
+      if (idxEquipe !== indiceEquipe) return equipe;
+      const metaTotal = numeroAssistente(equipe.meta_real);
+      const consultores = (equipe.consultores || []).map((consultor, idxConsultor) => {
+        if (idxConsultor !== indiceConsultor) return consultor;
+        const atualizado = { ...consultor, [campo]: valor };
+        if (campo === 'peso_meta') {
+          const peso = numeroAssistente(valor);
+          atualizado.peso_meta = peso;
+          atualizado.meta_valor = Number((metaTotal * peso / 100).toFixed(2));
+        }
+        if (campo === 'meta_valor') {
+          const metaValor = numeroAssistente(valor);
+          atualizado.meta_valor = metaValor;
+          atualizado.peso_meta = metaTotal > 0 ? Number(((metaValor / metaTotal) * 100).toFixed(4)) : 0;
+        }
+        return atualizado;
+      });
+      return { ...equipe, consultores, selecionada: true };
+    }));
+  };
+
+  const salvarAssistenteMetas = async (statusPublicacao) => {
+    const equipesValidas = equipesAssistente.filter((equipe) => numeroAssistente(equipe.meta_real) > 0);
+    if (!nucleoAssistente || !cicloAssistente) {
+      setErro('Selecione o núcleo e o ciclo.');
+      return;
+    }
+    if (!equipesValidas.length) {
+      setErro('Informe pelo menos uma meta de faturamento.');
+      return;
+    }
+    setSalvandoAssistente(true);
+    setErro('');
+    setMensagem('');
+    try {
+      const payload = {
+        ciclo: cicloAssistente,
+        nucleo: nucleoAssistente,
+        status_publicacao: statusPublicacao,
+        equipes: equipesValidas.map((equipe) => ({
+          equipe_id: equipe.id || null,
+          nome_meta: String(equipe.nome || '').replace(/^\d+\s*-\s*/i, '').trim() || equipe.nome,
+          estrutura_ids: equipe.estrutura_ids || [],
+          meta_real: numeroAssistente(equipe.meta_real),
+          meta_atividade: numeroAssistente(equipe.meta_atividade),
+          meta_make: numeroAssistente(equipe.meta_make),
+          meta_cabelo: numeroAssistente(equipe.meta_cabelo),
+          meta_multimarcas: numeroAssistente(equipe.meta_multimarcas),
+          meta_eudora: numeroAssistente(equipe.meta_eudora),
+          meta_rpa: numeroAssistente(equipe.meta_rpa),
+          meta_tkt_medio: numeroAssistente(equipe.meta_tkt_medio),
+          meta_upa: numeroAssistente(equipe.meta_upa),
+          observacao: equipe.observacao || '',
+          consultores: (equipe.consultores || []).map((consultor) => ({
+            id_colaborador: String(consultor.id_colaborador || ''),
+            peso_meta: numeroAssistente(consultor.peso_meta),
+            meta_valor: numeroAssistente(consultor.meta_valor),
+            status: consultor.status_meta || 'ativo',
+          })),
+        })),
+      };
+      const { data } = await axios.post(`${apiUrl}/metas-assistente/salvar`, payload);
+      setMensagem(data?.mensagem || 'Metas salvas com sucesso.');
+      await carregarContextoAssistente({ ciclo: cicloAssistente, nucleo: nucleoAssistente, prepararEquipes: true });
+      await carregarMetas(cicloAssistente);
+      onAtualizacao?.();
+    } catch (e) {
+      setErro(e.response?.data?.detail || 'Erro ao salvar as metas.');
+    } finally {
+      setSalvandoAssistente(false);
     }
   };
 
@@ -4541,6 +4736,191 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
   if (!aberto) return null;
 
+  if (modoAssistente) {
+    const ciclosDisponiveis = contextoAssistente.ciclos || [];
+    const normalizarNucleoAssistente = (valor) => {
+      const numero = String(valor || '').match(/\d+/)?.[0];
+      return numero ? `NUCLEO ${numero}` : '';
+    };
+    const nucleosEtapaAssistente = Array.from(new Set((nucleosPermitidos || []).map(normalizarNucleoAssistente).filter(Boolean)));
+    const nucleosDisponiveisAssistente = nucleosEtapaAssistente.length ? nucleosEtapaAssistente : ['NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'];
+    const equipesFiltradasAssistente = equipesAssistente.filter((equipe) => {
+      const termo = buscaEquipeAssistente.trim().toLowerCase();
+      const okBusca = !termo || String(equipe.nome || '').toLowerCase().includes(termo)
+        || (equipe.estruturas || []).some((e) => String(e.estrutura || '').toLowerCase().includes(termo));
+      const meta = equipe.meta_existente || {};
+      const status = String(meta.status_publicacao || equipe.status_publicacao || 'rascunho').toUpperCase();
+      const okStatus = filtroStatusAssistente === 'TODOS' || status === filtroStatusAssistente;
+      return okBusca && okStatus;
+    });
+
+    const CartaoEtapa = ({ numero, titulo, ativo, concluido }) => (
+      <div className={`rounded-2xl border px-4 py-3 flex items-center gap-3 ${ativo ? 'border-[#048187] bg-[#eaf8f8]' : concluido ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-white'}`}>
+        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${ativo ? 'bg-[#048187] text-white' : concluido ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-400'}`}>{concluido ? '✓' : numero}</span>
+        <span className={`font-black text-sm ${ativo ? 'text-[#048187]' : concluido ? 'text-green-700' : 'text-gray-400'}`}>{titulo}</span>
+      </div>
+    );
+
+    return (
+      <div className={modoInline ? 'w-full' : 'fixed inset-0 bg-black/45 z-[9999] flex items-center justify-center p-2 md:p-4'}>
+        <div className={modoInline ? 'bg-[#f7fafb] w-full rounded-xl border border-gray-100 overflow-hidden' : 'bg-[#f7fafb] w-full max-w-[98vw] h-[95vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col'}>
+          <div className="bg-white border-b border-gray-100 p-5 md:p-7 flex items-start justify-between gap-4">
+            <div>
+              <span className="inline-flex rounded-full bg-[#e6f6f7] text-[#048187] px-3 py-1 text-[10px] font-black uppercase">Novo fluxo simplificado</span>
+              <h2 className="text-2xl md:text-3xl font-black text-gray-700 mt-2">Lançar metas</h2>
+              <p className="text-sm text-gray-400 font-semibold mt-1">Escolha o núcleo e o ciclo. Depois preencha as equipes e distribua a meta entre os consultores.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setModoAssistente(false)} className="bg-white border border-gray-200 text-gray-500 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 text-xs">Modo avançado</button>
+              {!modoInline && <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={24} /></button>}
+            </div>
+          </div>
+
+          <div className={modoInline ? 'p-5 md:p-7 space-y-5' : 'p-5 md:p-7 overflow-y-auto flex-1 space-y-5'}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <CartaoEtapa numero="1" titulo="Escolha o núcleo" ativo={passoAssistente === 1} concluido={passoAssistente > 1} />
+              <CartaoEtapa numero="2" titulo="Selecione o ciclo" ativo={passoAssistente === 2} concluido={passoAssistente > 2} />
+              <CartaoEtapa numero="3" titulo="Preencha e distribua" ativo={passoAssistente === 3} concluido={false} />
+            </div>
+
+            {(mensagem || erro) && <div className={`rounded-2xl border px-4 py-3 text-sm font-black ${mensagem ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-600'}`}>{mensagem || erro}</div>}
+
+            {carregandoAssistente && <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center font-black text-[#048187]"><Loader2 size={24} className="animate-spin inline mr-2" />Carregando...</div>}
+
+            {!carregandoAssistente && passoAssistente === 1 && (
+              <div className="bg-white rounded-[24px] border border-gray-100 p-6 md:p-8">
+                <h3 className="text-xl font-black text-gray-700">Escolha seu núcleo</h3>
+                <p className="text-sm text-gray-400 font-semibold mt-1">Serão carregadas somente as equipes pertencentes ao núcleo selecionado.</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                  {nucleosDisponiveisAssistente.map((nucleo) => (
+                    <button key={nucleo} type="button" onClick={() => selecionarNucleoAssistente(nucleo)} className="rounded-[22px] border border-[#cde9ea] bg-gradient-to-br from-[#f7fbfb] to-[#e6f6f7] p-7 text-left hover:-translate-y-0.5 hover:shadow-md transition-all">
+                      <span className="w-12 h-12 rounded-2xl bg-[#048187] text-white flex items-center justify-center font-black">{nucleo.replace('NUCLEO ', 'N')}</span>
+                      <h4 className="mt-4 text-xl font-black text-gray-700">{nucleo.replace('NUCLEO', 'NÚCLEO')}</h4>
+                      <p className="text-sm text-gray-400 font-semibold mt-1">Clique para continuar</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!carregandoAssistente && passoAssistente === 2 && (
+              <div className="bg-white rounded-[24px] border border-gray-100 p-6 md:p-8">
+                <div className="flex items-center justify-between gap-3">
+                  <div><h3 className="text-xl font-black text-gray-700">Selecione o ciclo</h3><p className="text-sm text-gray-400 font-semibold mt-1">Ciclos atuais e futuros disponíveis para lançamento antecipado.</p></div>
+                  <button type="button" onClick={() => setPassoAssistente(1)} className="bg-[#e6f6f7] text-[#048187] rounded-xl px-4 py-2 font-black text-sm"><ChevronLeft size={16} className="inline" /> Voltar</button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
+                  {ciclosDisponiveis.map((ciclo) => (
+                    <button key={ciclo.id || ciclo.ciclo} type="button" onClick={() => selecionarCicloAssistente(ciclo.ciclo)} className="rounded-2xl border border-gray-100 bg-white p-5 text-left hover:border-[#048187] hover:shadow-md transition-all">
+                      <div className="flex items-center justify-between"><span className="text-xl font-black text-gray-700">{ciclo.ciclo}</span>{ciclo.eh_atual && <span className="bg-green-50 text-green-700 rounded-full px-2 py-1 text-[10px] font-black">ATUAL</span>}</div>
+                      <p className="mt-2 text-xs font-bold text-gray-400">{formatarDataBR(ciclo.data_inicio)} até {formatarDataBR(ciclo.data_fim)}</p>
+                      <p className="mt-3 text-xs font-black text-[#048187]">{ciclo.eh_atual ? 'Lançar no ciclo atual' : 'Lançar antecipadamente'}</p>
+                    </button>
+                  ))}
+                  {!ciclosDisponiveis.length && <div className="col-span-full rounded-2xl bg-yellow-50 border border-yellow-100 p-5 text-sm font-bold text-yellow-700">Nenhum ciclo atual ou futuro foi encontrado. Cadastre o ciclo primeiro.</div>}
+                </div>
+              </div>
+            )}
+
+            {!carregandoAssistente && passoAssistente === 3 && (
+              <>
+                <div className="bg-white rounded-[24px] border border-gray-100 p-5">
+                  <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-[#048187]">{nucleoAssistente.replace('NUCLEO', 'NÚCLEO')} • {cicloAssistente}</p>
+                      <h3 className="text-xl font-black text-gray-700 mt-1">Metas das equipes</h3>
+                      <p className="text-sm font-semibold text-gray-400">A meta do consultor pode ser digitada em percentual ou em reais. O outro campo é calculado automaticamente.</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={buscaEquipeAssistente} onChange={(e) => setBuscaEquipeAssistente(e.target.value)} placeholder="Buscar equipe..." className="border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#048187]" /></div>
+                      <select value={filtroStatusAssistente} onChange={(e) => setFiltroStatusAssistente(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os status</option><option value="PUBLICADO">Publicados</option><option value="RASCUNHO">Rascunhos</option></select>
+                      <button type="button" onClick={() => setPassoAssistente(2)} className="bg-[#e6f6f7] text-[#048187] rounded-xl px-4 py-2.5 font-black text-sm"><ChevronLeft size={16} className="inline" /> Ciclo</button>
+                    </div>
+                  </div>
+                </div>
+
+                {equipesFiltradasAssistente.map((equipe) => {
+                  const indiceEquipe = equipesAssistente.findIndex((item) => (item.chave || item.id || item.nome) === (equipe.chave || equipe.id || equipe.nome));
+                  const totalPeso = (equipe.consultores || []).reduce((soma, c) => soma + numeroAssistente(c.peso_meta), 0);
+                  const totalValor = (equipe.consultores || []).reduce((soma, c) => soma + numeroAssistente(c.meta_valor), 0);
+                  const metaTotal = numeroAssistente(equipe.meta_real);
+                  const saldoPeso = 100 - totalPeso;
+                  const saldoValor = metaTotal - totalValor;
+                  return (
+                    <div key={equipe.chave || equipe.id || equipe.nome} className="bg-white rounded-[24px] border border-gray-100 overflow-hidden shadow-sm">
+                      <button type="button" onClick={() => atualizarEquipeAssistente(indiceEquipe, 'aberta', !equipe.aberta)} className="w-full p-5 flex items-center justify-between gap-4 text-left bg-gradient-to-r from-[#f7fbfb] to-white">
+                        <div className="min-w-0"><div className="flex items-center gap-2 flex-wrap"><h4 className="text-lg font-black text-gray-700 truncate">{equipe.nome}</h4><span className="rounded-full bg-[#e6f6f7] text-[#048187] px-2 py-1 text-[10px] font-black">{(equipe.estruturas || []).length} estrutura(s)</span><span className="rounded-full bg-green-50 text-green-700 px-2 py-1 text-[10px] font-black">{equipe.consultores_ativos || 0} consultores ativos</span></div><p className="text-xs font-bold text-gray-400 mt-1 truncate">{(equipe.estruturas || []).map((e) => e.estrutura).join(' + ')}</p></div>
+                        <ChevronRight size={20} className={`text-[#048187] transition-transform ${equipe.aberta ? 'rotate-90' : ''}`} />
+                      </button>
+
+                      {equipe.aberta && (
+                        <div className="p-5 space-y-5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                            {[['meta_real', 'Faturamento (R$)'], ['meta_eudora', 'Eudora (%)'], ['meta_atividade', 'Atividade (%)'], ['meta_rpa', 'RPA (R$)'], ['meta_tkt_medio', 'Ticket Médio (R$)'], ['meta_upa', 'UPA'], ['meta_make', 'MAKE (%)'], ['meta_cabelo', 'Cabelo (%)'], ['meta_multimarcas', 'Multimarcas (%)']].map(([campo, label]) => (
+                              <label key={campo} className="rounded-2xl border border-gray-100 bg-[#fbfefe] p-3"><span className="block text-[10px] uppercase font-black text-gray-400 mb-1">{label}</span><input type="number" step="0.01" min="0" value={equipe[campo]} onChange={(e) => atualizarEquipeAssistente(indiceEquipe, campo, e.target.value)} className="w-full bg-transparent outline-none font-black text-gray-700" /></label>
+                            ))}
+                          </div>
+
+                          <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                            <div className="bg-[#f2fafb] px-4 py-3 flex items-center justify-between"><div><h5 className="font-black text-gray-700">Distribuição por consultor</h5><p className="text-xs text-gray-400 font-semibold">Peso vale somente para a meta monetária de faturamento.</p></div><div className="text-right"><p className={`text-sm font-black ${Math.abs(saldoPeso) < 0.01 ? 'text-green-600' : saldoPeso < 0 ? 'text-red-600' : 'text-orange-500'}`}>{totalPeso.toFixed(2)}% distribuído</p><p className="text-xs font-bold text-gray-400">{formatarMoeda(totalValor)} de {formatarMoeda(metaTotal)}</p></div></div>
+                            <div className="divide-y divide-gray-100">
+                              {(equipe.consultores || []).map((consultor, indiceConsultor) => (
+                                <div key={consultor.id_colaborador || consultor.id} className="grid grid-cols-1 lg:grid-cols-[1.5fr_.55fr_.75fr_.55fr] gap-3 p-4 items-center">
+                                  <div><p className="font-black text-gray-700">{consultor.nome_exibicao || consultor.nome_social || consultor.nome}</p><p className="text-xs font-bold text-gray-400">ID {consultor.id_colaborador} • {consultor.status_consultor}</p></div>
+                                  <label><span className="text-[10px] uppercase font-black text-gray-400">Peso (%)</span><input type="number" min="0" step="0.01" value={consultor.peso_meta} onChange={(e) => atualizarConsultorAssistente(indiceEquipe, indiceConsultor, 'peso_meta', e.target.value)} className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 font-black text-[#048187] outline-none focus:border-[#048187]" /></label>
+                                  <label><span className="text-[10px] uppercase font-black text-gray-400">Meta em R$</span><input type="number" min="0" step="0.01" value={consultor.meta_valor} onChange={(e) => atualizarConsultorAssistente(indiceEquipe, indiceConsultor, 'meta_valor', e.target.value)} className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 font-black text-[#7c1f31] outline-none focus:border-[#048187]" /></label>
+                                  <div className="rounded-xl bg-gray-50 px-3 py-2.5"><p className="text-[10px] uppercase font-black text-gray-400">Representa</p><p className="font-black text-gray-700">{metaTotal > 0 ? ((numeroAssistente(consultor.meta_valor) / metaTotal) * 100).toFixed(2) : '0.00'}%</p></div>
+                                </div>
+                              ))}
+                              {!equipe.consultores?.length && <div className="p-5 text-sm font-bold text-gray-400">Esta equipe ainda não possui consultores cadastrados.</div>}
+                            </div>
+                          </div>
+
+                          <div className={`rounded-2xl border p-4 grid grid-cols-1 md:grid-cols-3 gap-3 ${Math.abs(saldoPeso) < 0.01 ? 'bg-green-50 border-green-100' : saldoPeso < 0 ? 'bg-red-50 border-red-100' : 'bg-yellow-50 border-yellow-100'}`}>
+                            <div><p className="text-[10px] uppercase font-black text-gray-400">Distribuído</p><p className="text-lg font-black text-gray-700">{totalPeso.toFixed(2)}%</p></div>
+                            <div><p className="text-[10px] uppercase font-black text-gray-400">{saldoPeso < 0 ? 'Excedente' : 'Falta distribuir'}</p><p className="text-lg font-black text-gray-700">{Math.abs(saldoPeso).toFixed(2)}%</p></div>
+                            <div><p className="text-[10px] uppercase font-black text-gray-400">Saldo em R$</p><p className="text-lg font-black text-gray-700">{formatarMoeda(Math.abs(saldoValor))}</p></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {!equipesFiltradasAssistente.length && <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-400 font-black">Nenhuma equipe encontrada nesse núcleo.</div>}
+
+                <div className="sticky bottom-3 z-20 bg-white/95 backdrop-blur border border-gray-100 rounded-2xl shadow-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div><p className="font-black text-gray-700">{equipesAssistente.filter((e) => numeroAssistente(e.meta_real) > 0).length} equipe(s) preenchida(s)</p><p className="text-xs font-semibold text-gray-400">Você pode salvar parcialmente e continuar depois.</p></div>
+                  <div className="flex flex-wrap gap-2"><button type="button" disabled={salvandoAssistente} onClick={() => salvarAssistenteMetas('rascunho')} className="border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-xl hover:bg-gray-50 disabled:opacity-60">Salvar rascunho</button><button type="button" disabled={salvandoAssistente} onClick={() => salvarAssistenteMetas('publicado')} className="bg-[#048187] text-white font-black px-6 py-3 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2"><Save size={17} />{salvandoAssistente ? 'Salvando...' : 'Salvar e publicar'}</button></div>
+                </div>
+
+                {Object.keys(resumoAssistente.grupos || {}).length > 0 && (
+                  <div className="bg-white rounded-[24px] border border-gray-100 p-5 md:p-6">
+                    <h3 className="text-xl font-black text-gray-700">Metas salvas do ciclo</h3>
+                    <p className="text-sm text-gray-400 font-semibold mt-1">Resumo separado por blocos de núcleo.</p>
+                    <div className="space-y-4 mt-5">
+                      {Object.entries(resumoAssistente.grupos || {}).filter(([nucleo]) => !nucleosEtapaAssistente.length || nucleosEtapaAssistente.includes(normalizarNucleoAssistente(nucleo))).map(([nucleo, itens]) => {
+                        const itensFiltrados = itens.filter((item) => {
+                          const termo = buscaEquipeAssistente.trim().toLowerCase();
+                          const okBusca = !termo || String(item.nome_meta || '').toLowerCase().includes(termo);
+                          const status = String(item.status_publicacao || 'rascunho').toUpperCase();
+                          const okStatus = filtroStatusAssistente === 'TODOS' || status === filtroStatusAssistente;
+                          return okBusca && okStatus;
+                        });
+                        if (!itensFiltrados.length) return null;
+                        return <div key={nucleo} className="rounded-2xl border border-gray-100 overflow-hidden"><div className="bg-[#dff5f6] px-4 py-3 flex items-center justify-between"><span className="font-black text-[#048187]">{nucleo.replace('NUCLEO', 'NÚCLEO')}</span><span className="text-xs font-black text-[#048187]">{itensFiltrados.length} equipe(s)</span></div><div className="divide-y divide-gray-100">{itensFiltrados.map((item) => <div key={item.id} className="grid grid-cols-1 md:grid-cols-[1.3fr_.7fr_.7fr_.5fr] gap-2 px-4 py-3 items-center"><span className="font-black text-gray-700">{item.nome_meta}</span><span className="font-black text-[#048187]">{formatarMoeda(item.meta_real)}</span><span className="text-xs font-bold text-gray-400">{item.total_consultores || 0} consultor(es)</span><span className={`w-fit rounded-full px-2 py-1 text-[10px] font-black uppercase ${String(item.status_publicacao).toLowerCase() === 'publicado' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>{item.status_publicacao}</span></div>)}</div></div>;
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={modoInline ? "w-full" : "fixed inset-0 bg-black/45 z-[9999] flex items-center justify-center p-2 md:p-4"}>
       <div className={modoInline ? "bg-white w-full rounded-xl shadow-sm border border-gray-100 overflow-visible flex flex-col" : "bg-white w-full max-w-[98vw] h-[95vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col"}>
@@ -4567,7 +4947,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={abrirTabelaNovoCiclo} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center gap-2 text-sm"><Plus size={18} /> Novo ciclo</button>
+              <button type="button" onClick={() => { setModoAssistente(true); setPassoAssistente(1); }} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center gap-2 text-sm"><Plus size={18} /> Lançar meta</button><button type="button" onClick={abrirTabelaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><FileSpreadsheet size={16} /> Modo planilha</button>
               <button type="button" onClick={() => { setModoTabelaCiclo(false); setMostrarFormularioMeta(true); setEditandoId(null); setForm({ ...metaRealVazia, ciclo: form.ciclo || cicloPadrao || '' }); }} className="bg-white border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Pencil size={16} /> Cadastro simples</button>
               <button type="button" onClick={() => { carregarMetas(); carregarEstruturas(); carregarEstruturasConfigMeta(); }} className="bg-[#e6f6f7] text-[#048187] font-black px-5 py-3 rounded-xl hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button>
             </div>
@@ -5917,7 +6297,7 @@ export default function App() {
   const [carregandoDetalheEudora, setCarregandoDetalheEudora] = useState(false);
   const [erroDetalheEudora, setErroDetalheEudora] = useState('');
 
-  const [listaConsultores, setListaConsultores] = useState([]); const [carregandoListaConsultores, setCarregandoListaConsultores] = useState(false); const [buscaConsultor, setBuscaConsultor] = useState(''); const [novoConsultor, setNovoConsultor] = useState(consultorVazio); const [modalCriarConsultorAberto, setModalCriarConsultorAberto] = useState(false); const [consultorEditando, setConsultorEditando] = useState(null); const [modalEditarConsultorAberto, setModalEditarConsultorAberto] = useState(false); const [consultorParaExcluir, setConsultorParaExcluir] = useState(null); const [modalExcluirConsultorAberto, setModalExcluirConsultorAberto] = useState(false); const [mensagemConsultor, setMensagemConsultor] = useState(''); const [erroGestaoConsultor, setErroGestaoConsultor] = useState('');
+  const [listaConsultores, setListaConsultores] = useState([]); const [carregandoListaConsultores, setCarregandoListaConsultores] = useState(false); const [buscaConsultor, setBuscaConsultor] = useState(''); const [filtroNucleoConsultor, setFiltroNucleoConsultor] = useState('TODOS'); const [filtroEstruturaConsultor, setFiltroEstruturaConsultor] = useState('TODAS'); const [filtroStatusConsultor, setFiltroStatusConsultor] = useState('TODOS'); const [novoConsultor, setNovoConsultor] = useState(consultorVazio); const [modalCriarConsultorAberto, setModalCriarConsultorAberto] = useState(false); const [consultorEditando, setConsultorEditando] = useState(null); const [modalEditarConsultorAberto, setModalEditarConsultorAberto] = useState(false); const [consultorParaExcluir, setConsultorParaExcluir] = useState(null); const [modalExcluirConsultorAberto, setModalExcluirConsultorAberto] = useState(false); const [mensagemConsultor, setMensagemConsultor] = useState(''); const [erroGestaoConsultor, setErroGestaoConsultor] = useState('');
   const [identidadesColaboradores, setIdentidadesColaboradores] = useState({ VD: {}, LOJA: {}, PERFIL: {} });
   const [modalIdentidadeColaborador, setModalIdentidadeColaborador] = useState({
     aberto: false,
@@ -5949,7 +6329,7 @@ export default function App() {
     deslocamentoInicialX: 0,
     deslocamentoInicialY: 0,
   });
-  const [listaEstruturasConfig, setListaEstruturasConfig] = useState([]); const [carregandoEstruturasConfig, setCarregandoEstruturasConfig] = useState(false); const [buscaEstruturaConfig, setBuscaEstruturaConfig] = useState(''); const [estruturaConfigForm, setEstruturaConfigForm] = useState(estruturaConfigVazia); const [estruturaConfigEditando, setEstruturaConfigEditando] = useState(null); const [mensagemEstruturaConfig, setMensagemEstruturaConfig] = useState(''); const [erroEstruturaConfig, setErroEstruturaConfig] = useState('');
+  const [listaEstruturasConfig, setListaEstruturasConfig] = useState([]); const [carregandoEstruturasConfig, setCarregandoEstruturasConfig] = useState(false); const [buscaEstruturaConfig, setBuscaEstruturaConfig] = useState(''); const [filtroNucleoEstrutura, setFiltroNucleoEstrutura] = useState('TODOS'); const [filtroTipoEstrutura, setFiltroTipoEstrutura] = useState('TODOS'); const [filtroStatusEstrutura, setFiltroStatusEstrutura] = useState('TODOS'); const [estruturaConfigForm, setEstruturaConfigForm] = useState(estruturaConfigVazia); const [estruturaConfigEditando, setEstruturaConfigEditando] = useState(null); const [mensagemEstruturaConfig, setMensagemEstruturaConfig] = useState(''); const [erroEstruturaConfig, setErroEstruturaConfig] = useState(''); const [equipesConsolidadas, setEquipesConsolidadas] = useState([]); const [modalEquipeConsolidadaAberto, setModalEquipeConsolidadaAberto] = useState(false); const [equipeConsolidadaEditando, setEquipeConsolidadaEditando] = useState(null); const [equipeConsolidadaForm, setEquipeConsolidadaForm] = useState({ nome: '', canal: 'VD', nucleo: 'NUCLEO 1', status: 'ativo', observacao: '', estrutura_ids: [] });
 
   const [dadosRevendedores, setDadosRevendedores] = useState(null); const [carregandoRevendedores, setCarregandoRevendedores] = useState(false); const [erroRevendedores, setErroRevendedores] = useState(''); const [buscaRevendedores, setBuscaRevendedores] = useState('');
   const [filtrosRevendedores, setFiltrosRevendedores] = useState({ estruturas: [], cidades: [], atividades: [], papeis: [], inadimplentes: [] }); const [buscaFiltrosRevendedores, setBuscaFiltrosRevendedores] = useState({ estruturas: '', cidades: '', atividades: '', papeis: '', inadimplentes: '' });
@@ -8131,10 +8511,67 @@ const mapearIdentidadesColaboradores = (lista = []) => {
       const resposta = await axios.get(`${API_URL}/estruturas-config`);
       setListaEstruturasConfig(resposta.data.estruturas || []);
       if (resposta.data.nucleos?.length) setOpcFiltros((prev) => ({ ...prev, nucleos: resposta.data.nucleos }));
+      carregarEquipesConsolidadas();
     } catch (erro) {
       setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao carregar estruturas e núcleos.');
     } finally {
       setCarregandoEstruturasConfig(false);
+    }
+  };
+
+
+  const carregarEquipesConsolidadas = async () => {
+    try {
+      const resposta = await axios.get(`${API_URL}/equipes-consolidadas`);
+      setEquipesConsolidadas(resposta.data?.equipes || []);
+    } catch (_) {
+      setEquipesConsolidadas([]);
+    }
+  };
+
+  const abrirNovaEquipeConsolidada = () => {
+    setEquipeConsolidadaEditando(null);
+    setEquipeConsolidadaForm({ nome: '', canal: 'VD', nucleo: filtroNucleoEstrutura !== 'TODOS' ? filtroNucleoEstrutura : 'NUCLEO 1', status: 'ativo', observacao: '', estrutura_ids: [] });
+    setModalEquipeConsolidadaAberto(true);
+  };
+
+  const abrirEditarEquipeConsolidada = (equipe) => {
+    setEquipeConsolidadaEditando(equipe);
+    setEquipeConsolidadaForm({ nome: equipe.nome || '', canal: equipe.canal || 'VD', nucleo: equipe.nucleo || 'NUCLEO 1', status: equipe.status || 'ativo', observacao: equipe.observacao || '', estrutura_ids: equipe.estrutura_ids || [] });
+    setModalEquipeConsolidadaAberto(true);
+  };
+
+  const alternarEstruturaEquipeConsolidada = (estruturaId) => {
+    setEquipeConsolidadaForm((atual) => ({
+      ...atual,
+      estrutura_ids: atual.estrutura_ids.includes(estruturaId)
+        ? atual.estrutura_ids.filter((id) => id !== estruturaId)
+        : [...atual.estrutura_ids, estruturaId],
+    }));
+  };
+
+  const salvarEquipeConsolidada = async (e) => {
+    e.preventDefault();
+    setErroEstruturaConfig(''); setMensagemEstruturaConfig('');
+    try {
+      if (equipeConsolidadaEditando?.id) await axios.put(`${API_URL}/equipes-consolidadas/${equipeConsolidadaEditando.id}`, equipeConsolidadaForm);
+      else await axios.post(`${API_URL}/equipes-consolidadas`, equipeConsolidadaForm);
+      setMensagemEstruturaConfig(equipeConsolidadaEditando?.id ? 'Equipe consolidada atualizada.' : 'Equipe consolidada criada.');
+      setModalEquipeConsolidadaAberto(false);
+      await Promise.all([carregarEstruturasConfig(), carregarEquipesConsolidadas(), carregarListaConsultores()]);
+    } catch (erro) {
+      setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao salvar equipe consolidada.');
+    }
+  };
+
+  const excluirEquipeConsolidada = async (equipe) => {
+    if (!window.confirm(`Remover a equipe consolidada "${equipe.nome}"? As estruturas físicas serão preservadas.`)) return;
+    try {
+      await axios.delete(`${API_URL}/equipes-consolidadas/${equipe.id}`);
+      setMensagemEstruturaConfig('Equipe consolidada removida.');
+      await Promise.all([carregarEstruturasConfig(), carregarEquipesConsolidadas(), carregarListaConsultores()]);
+    } catch (erro) {
+      setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao remover equipe consolidada.');
     }
   };
 
@@ -14485,8 +14922,12 @@ const enviarArquivo = async (tipo) => {
   const renderTelaEstruturasConfig = () => {
     const lista = listaEstruturasConfig.filter((item) => {
       const termo = buscaEstruturaConfig.toLowerCase().trim();
-      if (!termo) return true;
-      return String(item.estrutura || '').toLowerCase().includes(termo) || String(item.cod_estrutura || '').toLowerCase().includes(termo) || String(item.nucleo || '').toLowerCase().includes(termo);
+      const okBusca = !termo || String(item.estrutura || '').toLowerCase().includes(termo) || String(item.cod_estrutura || '').toLowerCase().includes(termo) || String(item.nucleo || '').toLowerCase().includes(termo) || String(item.equipe_consolidada_nome || '').toLowerCase().includes(termo);
+      const okNucleo = filtroNucleoEstrutura === 'TODOS' || String(item.nucleo || '') === filtroNucleoEstrutura;
+      const tipoTela = item.equipe_consolidada_id ? 'CONSOLIDADA' : String(item.tipo_estrutura || 'estrutura').toUpperCase();
+      const okTipo = filtroTipoEstrutura === 'TODOS' || tipoTela === filtroTipoEstrutura;
+      const okStatus = filtroStatusEstrutura === 'TODOS' || String(item.status || '').toUpperCase() === filtroStatusEstrutura;
+      return okBusca && okNucleo && okTipo && okStatus;
     });
     const resumo = listaEstruturasConfig.reduce((acc, item) => {
       const nucleo = item.nucleo || 'SEM NÚCLEO';
@@ -14506,6 +14947,7 @@ const enviarArquivo = async (tipo) => {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
+            <button onClick={abrirNovaEquipeConsolidada} className="bg-[#048187] text-white font-black px-4 py-3 rounded-lg hover:brightness-110 inline-flex items-center justify-center gap-2 text-sm"><Plus size={16} /> Nova equipe consolidada</button>
             <button onClick={sincronizarEstruturasConfig} className="bg-[#e6f6f7] text-[#048187] font-black px-4 py-3 rounded-lg hover:bg-[#d0f0f1] inline-flex items-center justify-center gap-2 text-sm"><RefreshCcw size={16} /> Sincronizar bases</button>
             <button onClick={carregarEstruturasConfig} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-3 rounded-lg hover:bg-gray-50 inline-flex items-center justify-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button>
           </div>
@@ -14537,12 +14979,19 @@ const enviarArquivo = async (tipo) => {
           </div>
         </form>
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div className="relative w-full sm:w-96">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={buscaEstruturaConfig} onChange={(e) => setBuscaEstruturaConfig(e.target.value)} placeholder="Buscar estrutura, código ou núcleo..." className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" />
+        {equipesConsolidadas.length > 0 && (
+          <div className="mb-6 rounded-[22px] border border-[#cde9ea] overflow-hidden">
+            <div className="bg-[#dff5f6] px-4 py-3 flex items-center justify-between"><div><h3 className="font-black text-[#048187]">Equipes consolidadas</h3><p className="text-xs font-semibold text-[#048187]/70">Uma única equipe pode somar duas ou mais estruturas físicas.</p></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#048187]">{equipesConsolidadas.length}</span></div>
+            <div className="divide-y divide-gray-100 bg-white">{equipesConsolidadas.map((equipe) => <div key={equipe.id} className="grid grid-cols-1 lg:grid-cols-[1fr_.5fr_1.4fr_.5fr_auto] gap-3 px-4 py-4 items-center"><div><p className="font-black text-gray-700">{equipe.nome}</p><p className="text-xs font-bold text-gray-400">{equipe.consultores_ativos || 0} consultores ativos</p></div><span className="w-fit rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">{String(equipe.nucleo || '').replace('NUCLEO', 'NÚCLEO')}</span><div className="text-xs font-bold text-gray-500">{(equipe.estruturas || []).map((e) => e.estrutura).join(' + ')}</div><span className="text-xs font-black text-gray-500">{(equipe.estruturas || []).length} estrutura(s)</span><div className="flex justify-end gap-2"><button type="button" onClick={() => abrirEditarEquipeConsolidada(equipe)} className="text-[#048187] p-2 hover:bg-[#e6f6f7] rounded-lg"><Pencil size={17} /></button><button type="button" onClick={() => excluirEquipeConsolidada(equipe)} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={17} /></button></div></div>)}</div>
           </div>
-          <div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{lista.length} Estruturas</div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.4fr_.7fr_.8fr_.7fr_auto] gap-3 mb-4 bg-[#f7fafb] border border-gray-100 rounded-2xl p-4">
+          <div className="relative"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={buscaEstruturaConfig} onChange={(e) => setBuscaEstruturaConfig(e.target.value)} placeholder="Buscar estrutura, código, núcleo ou equipe..." className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div>
+          <select value={filtroNucleoEstrutura} onChange={(e) => setFiltroNucleoEstrutura(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os núcleos</option><option value="NUCLEO 1">N1</option><option value="NUCLEO 2">N2</option><option value="NUCLEO 3">N3</option></select>
+          <select value={filtroTipoEstrutura} onChange={(e) => setFiltroTipoEstrutura(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os tipos</option><option value="ESTRUTURA">Individual</option><option value="CONSOLIDADA">Consolidada</option><option value="LOJA">Loja</option></select>
+          <select value={filtroStatusEstrutura} onChange={(e) => setFiltroStatusEstrutura(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os status</option><option value="ATIVO">Ativos</option><option value="INATIVO">Inativos</option></select>
+          <div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-2.5 rounded-lg text-center whitespace-nowrap">{lista.length} Estruturas</div>
         </div>
 
         {carregandoEstruturasConfig ? <div className="py-10 text-center text-[#048187] font-bold">Carregando estruturas...</div> : (
@@ -14550,7 +14999,7 @@ const enviarArquivo = async (tipo) => {
             <div className="overflow-visible pr-2">
               <table className="w-full text-sm min-w-[900px]">
                 <thead className="sticky top-0 bg-white z-10">
-                  <tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">Código</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Núcleo</th><th className="py-3 px-2">Tipo</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr>
+                  <tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">Código</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Núcleo</th><th className="py-3 px-2">Tipo</th><th className="py-3 px-2">Equipe consolidada</th><th className="py-3 px-2">Consultores</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr>
                 </thead>
                 <tbody>
                   {lista.map((item) => (
@@ -14559,6 +15008,8 @@ const enviarArquivo = async (tipo) => {
                       <td className="py-3 px-2 font-bold text-gray-700">{item.estrutura}</td>
                       <td className="py-3 px-2"><span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-xs font-black">{String(item.nucleo || '').replace('NUCLEO', 'NÚCLEO')}</span></td>
                       <td className="py-3 px-2 text-gray-500 font-bold uppercase text-xs">{item.tipo_estrutura || '-'}</td>
+                      <td className="py-3 px-2 text-xs font-bold text-gray-500">{item.equipe_consolidada_nome || 'Individual'}</td>
+                      <td className="py-3 px-2 text-center font-black text-[#048187]">{item.consultores_ativos || 0}</td>
                       <td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${item.status === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{item.status}</span></td>
                       <td className="py-3 px-2 text-right whitespace-nowrap"><button onClick={() => editarEstruturaConfig(item)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => excluirEstruturaConfig(item)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td>
                     </tr>
@@ -14567,6 +15018,20 @@ const enviarArquivo = async (tipo) => {
               </table>
               {!lista.length && <div className="py-10 text-center text-gray-400 font-bold">Nenhuma estrutura encontrada. Clique em Sincronizar bases para carregar todas as equipes das bases. Agora estruturas com o mesmo código também aparecem separadas.</div>}
             </div>
+          </div>
+        )}
+
+        {modalEquipeConsolidadaAberto && (
+          <div className="fixed inset-0 z-[9999] bg-black/45 flex items-center justify-center p-4">
+            <form onSubmit={salvarEquipeConsolidada} className="bg-white rounded-[24px] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4"><div><h3 className="text-xl font-black text-gray-700">{equipeConsolidadaEditando ? 'Editar equipe consolidada' : 'Nova equipe consolidada'}</h3><p className="text-sm font-semibold text-gray-400 mt-1">Agrupe estruturas físicas que devem funcionar como uma única equipe para metas, permissões e resultados.</p></div><button type="button" onClick={() => setModalEquipeConsolidadaAberto(false)} className="p-2 rounded-full text-gray-400 hover:bg-gray-50"><X size={20} /></button></div>
+              <div className="p-5 overflow-y-auto space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3"><input value={equipeConsolidadaForm.nome} onChange={(e) => setEquipeConsolidadaForm({ ...equipeConsolidadaForm, nome: e.target.value })} placeholder="Nome da equipe. Ex.: EQUIPE GRAZIELLE" className="md:col-span-2 border border-gray-200 rounded-xl px-4 py-3 font-bold outline-none focus:border-[#048187]" required /><select value={equipeConsolidadaForm.nucleo} onChange={(e) => setEquipeConsolidadaForm({ ...equipeConsolidadaForm, nucleo: e.target.value, estrutura_ids: [] })} className="border border-gray-200 rounded-xl px-4 py-3 font-bold outline-none"><option value="NUCLEO 1">N1</option><option value="NUCLEO 2">N2</option><option value="NUCLEO 3">N3</option></select><select value={equipeConsolidadaForm.status} onChange={(e) => setEquipeConsolidadaForm({ ...equipeConsolidadaForm, status: e.target.value })} className="border border-gray-200 rounded-xl px-4 py-3 font-bold outline-none"><option value="ativo">Ativa</option><option value="inativo">Inativa</option></select></div>
+                <div><p className="text-xs font-black uppercase text-gray-400 mb-2">Estruturas vinculadas</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[360px] overflow-y-auto pr-2">{listaEstruturasConfig.filter((item) => item.nucleo === equipeConsolidadaForm.nucleo && String(item.canal || 'VD').toUpperCase() === String(equipeConsolidadaForm.canal || 'VD').toUpperCase()).map((item) => { const marcada = equipeConsolidadaForm.estrutura_ids.includes(item.id); const ocupada = item.equipe_consolidada_id && Number(item.equipe_consolidada_id) !== Number(equipeConsolidadaEditando?.id); return <label key={item.id} className={`rounded-2xl border p-4 flex items-start gap-3 ${ocupada ? 'opacity-50 cursor-not-allowed bg-gray-50' : marcada ? 'border-[#048187] bg-[#eaf8f8]' : 'border-gray-100 hover:border-[#048187]/40'}`}><input type="checkbox" disabled={ocupada} checked={marcada} onChange={() => alternarEstruturaEquipeConsolidada(item.id)} className="mt-1 accent-[#048187]" /><div><p className="font-black text-gray-700">{item.estrutura}</p><p className="text-xs font-bold text-gray-400">{item.consultores_ativos || 0} consultores ativos{ocupada ? ` • já vinculada a ${item.equipe_consolidada_nome}` : ''}</p></div></label>; })}</div></div>
+                <textarea value={equipeConsolidadaForm.observacao} onChange={(e) => setEquipeConsolidadaForm({ ...equipeConsolidadaForm, observacao: e.target.value })} placeholder="Observação opcional" rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-[#048187]" />
+              </div>
+              <div className="p-5 border-t border-gray-100 flex justify-end gap-2"><button type="button" onClick={() => setModalEquipeConsolidadaAberto(false)} className="border border-gray-200 text-gray-500 font-black px-5 py-3 rounded-xl">Cancelar</button><button type="submit" className="bg-[#048187] text-white font-black px-6 py-3 rounded-xl"><Save size={17} className="inline mr-2" />Salvar equipe</button></div>
+            </form>
           </div>
         )}
       </div>
@@ -14682,6 +15147,7 @@ const enviarArquivo = async (tipo) => {
             apiUrl={API_URL}
             cicloPadrao={dados?.ciclo_atual || ciclos.find((c) => c.status_ciclo === 'ativo')?.ciclo || ''}
             onAtualizacao={atualizarTelasAposMudancaBanco}
+            nucleosPermitidos={usuarioLogado?.perfil === 'admin' ? [] : normalizarEstruturasPermitidasUsuario(usuarioLogado?.estruturas_permitidas).map((item) => item.nucleo).filter(Boolean)}
             modoInline
           />
         </div>
@@ -14902,7 +15368,17 @@ const enviarArquivo = async (tipo) => {
   };
 
   const renderTelaConsultores = () => {
-    const cFilt = listaConsultores.filter(c => String(c.nome || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.nome_social || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.id_colaborador).includes(buscaConsultor));
+    const nucleosConsultores = Array.from(new Set(listaConsultores.map((c) => c.nucleo).filter(Boolean))).sort();
+    const estruturasConsultores = Array.from(new Set(listaConsultores.map((c) => c.equipe_consolidada_nome || c.estrutura).filter(Boolean))).sort();
+    const cFilt = listaConsultores.filter((c) => {
+      const termo = buscaConsultor.toLowerCase().trim();
+      const okBusca = !termo || String(c.nome || '').toLowerCase().includes(termo) || String(c.nome_social || '').toLowerCase().includes(termo) || String(c.id_colaborador).includes(termo);
+      const okNucleo = filtroNucleoConsultor === 'TODOS' || String(c.nucleo || '') === filtroNucleoConsultor;
+      const nomeEstruturaFiltro = c.equipe_consolidada_nome || c.estrutura || '';
+      const okEstrutura = filtroEstruturaConsultor === 'TODAS' || nomeEstruturaFiltro === filtroEstruturaConsultor;
+      const okStatus = filtroStatusConsultor === 'TODOS' || String(c.status_consultor || '').toUpperCase() === filtroStatusConsultor;
+      return okBusca && okNucleo && okEstrutura && okStatus;
+    });
 
     const obterNumeroLinhaMeta = (valor, fallback = 0) => {
       const numero = Number(valor);
@@ -15060,7 +15536,13 @@ const enviarArquivo = async (tipo) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2"><h1 className="text-xl sm:text-2xl font-bold text-gray-700">Gestão de Consultores</h1><div className="flex gap-2"><button onClick={() => setModalCriarConsultorAberto(true)} className="bg-[#048187] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#036b70] flex items-center gap-2 text-sm"><Plus size={16} /> Novo consultor</button><button onClick={carregarListaConsultores} className="bg-[#e6f6f7] text-[#048187] font-bold px-4 py-2 rounded-lg hover:bg-[#d0f0f1] flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button></div></div></div>
         {(mensagemConsultor || erroGestaoConsultor) && (<div className={`rounded-xl p-4 font-bold text-sm ${mensagemConsultor ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemConsultor || erroGestaoConsultor}</div>)}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"><div className="relative w-full sm:w-96"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Buscar por nome ou ID..." value={buscaConsultor} onChange={(e) => setBuscaConsultor(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div><div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{cFilt.length} Registros</div></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.4fr_.7fr_1fr_.7fr_auto] gap-3 mb-6 bg-[#f7fafb] border border-gray-100 rounded-2xl p-4">
+            <div className="relative"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Buscar por nome ou ID..." value={buscaConsultor} onChange={(e) => setBuscaConsultor(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div>
+            <select value={filtroNucleoConsultor} onChange={(e) => setFiltroNucleoConsultor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os núcleos</option>{nucleosConsultores.map((n) => <option key={n} value={n}>{String(n).replace('NUCLEO', 'NÚCLEO')}</option>)}</select>
+            <select value={filtroEstruturaConsultor} onChange={(e) => setFiltroEstruturaConsultor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODAS">Todas as equipes</option>{estruturasConsultores.map((n) => <option key={n} value={n}>{n}</option>)}</select>
+            <select value={filtroStatusConsultor} onChange={(e) => setFiltroStatusConsultor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os status</option><option value="ATIVO">Ativos</option><option value="INATIVO">Inativos</option><option value="FERIAS">Férias</option></select>
+            <div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-2.5 rounded-lg text-center whitespace-nowrap">{cFilt.length} Registros</div>
+          </div>
           {carregandoListaConsultores ? (<div className="py-10 text-center text-[#048187] font-bold">Carregando...</div>) : (
             <div className="overflow-x-auto"><div className="max-h-[600px] overflow-y-auto pr-2"><table className="w-full text-sm min-w-[980px]"><thead className="sticky top-0 bg-white z-10"><tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">Foto</th><th className="py-3 px-2">ID</th><th className="py-3 px-2">Nome</th><th className="py-3 px-2">Nome Social</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Canal</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Peso Meta</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>
               {cFilt.map((c) => (<tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50"><td className="py-3 px-2"><button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'VD', id_colaborador: c.id_colaborador, nome_oficial: c.nome_exibicao || c.nome, codigo_contexto: c.estrutura || '', foto_data_url: c.foto_data_url, aliases: c.aliases })} title="Foto e nomes alternativos"><AvatarColaborador src={obterFotoColaborador('VD', c.id_colaborador, c.foto_data_url)} nome={c.nome_exibicao || c.nome} tamanho={40} /></button></td><td className="py-3 px-2 font-medium text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2 font-bold text-gray-700">{c.nome}</td><td className="py-3 px-2 font-bold text-[#048187]">{c.nome_social || '-'}</td><td className="py-3 px-2 text-gray-600">{c.estrutura}</td><td className="py-3 px-2 text-gray-600">{c.canal}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${c.status_consultor === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="py-3 px-2 text-right whitespace-nowrap">{podeGerenciarIdentidadeColaborador('VD') && <button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'VD', id_colaborador: c.id_colaborador, nome_oficial: c.nome_exibicao || c.nome, codigo_contexto: c.estrutura || '', foto_data_url: c.foto_data_url, aliases: c.aliases })} className="text-[#257B9C] hover:text-[#1f6884] mr-3" title="Foto e nomes alternativos"><ImagePlus size={17} /></button>}<button onClick={() => abrirEditarConsultor(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirConsultor(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>))}
@@ -20806,6 +21288,7 @@ const enviarArquivo = async (tipo) => {
           apiUrl={API_URL}
           cicloPadrao={dados?.ciclo_atual || ciclos.find((c) => c.status_ciclo === 'ativo')?.ciclo || ''}
           onAtualizacao={atualizarTelasAposMudancaBanco}
+          nucleosPermitidos={usuarioLogado?.perfil === 'admin' ? [] : normalizarEstruturasPermitidasUsuario(usuarioLogado?.estruturas_permitidas).map((item) => item.nucleo).filter(Boolean)}
         />
       )}
 
