@@ -660,6 +660,92 @@ const formatarAbrev = (v) => {
   if (a >= 1000) return `${s}R$${(a / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} Mil`;
   return `${s}R$${a.toLocaleString('pt-BR')}`;
 };
+
+
+const formatarMoedaRotuloGrafico = (valor) => {
+  const numero = Number(valor || 0);
+  const absoluto = Math.abs(numero);
+  const sinal = numero < 0 ? '-' : '';
+
+  if (absoluto >= 1000000) {
+    return `${sinal}R$ ${(absoluto / 1000000).toLocaleString('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 2,
+    })} Mi`;
+  }
+
+  if (absoluto >= 1000) {
+    return `${sinal}R$ ${(absoluto / 1000).toLocaleString('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 2,
+    })} Mil`;
+  }
+
+  return `${sinal}${formatarMoeda(absoluto)}`;
+};
+
+const renderizarRotuloModeloVenda = ({
+  cx,
+  cy,
+  midAngle,
+  outerRadius,
+  name,
+  value,
+  percent,
+}) => {
+  const radianos = Math.PI / 180;
+  const angulo = -Number(midAngle || 0) * radianos;
+  const raioBase = Number(outerRadius || 0);
+  const raioInicio = raioBase + 2;
+  const raioCotovelo = raioBase + 16;
+  const cos = Math.cos(angulo);
+  const sen = Math.sin(angulo);
+
+  const xInicio = Number(cx || 0) + raioInicio * cos;
+  const yInicio = Number(cy || 0) + raioInicio * sen;
+  const xCotovelo = Number(cx || 0) + raioCotovelo * cos;
+  const yCotovelo = Number(cy || 0) + raioCotovelo * sen;
+  const ladoDireito = cos >= 0;
+  const xFim = xCotovelo + (ladoDireito ? 10 : -10);
+  const xTexto = xFim + (ladoDireito ? 4 : -4);
+  const ancora = ladoDireito ? 'start' : 'end';
+  const percentual = Number(percent || 0) * 100;
+
+  return (
+    <g pointerEvents="none">
+      <path
+        d={`M${xInicio},${yInicio}L${xCotovelo},${yCotovelo}L${xFim},${yCotovelo}`}
+        fill="none"
+        stroke="#94a3b8"
+        strokeWidth={1}
+      />
+      <circle cx={xInicio} cy={yInicio} r={2} fill="#64748b" />
+      <text
+        x={xTexto}
+        y={yCotovelo - 3}
+        textAnchor={ancora}
+        fill="#334155"
+        fontSize={10}
+        fontWeight={900}
+      >
+        {formatarMoedaRotuloGrafico(value)}
+      </text>
+      <text
+        x={xTexto}
+        y={yCotovelo + 10}
+        textAnchor={ancora}
+        fill="#64748b"
+        fontSize={8.5}
+        fontWeight={700}
+      >
+        {`${String(name || 'Modelo')} • ${percentual.toLocaleString('pt-BR', {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })}%`}
+      </text>
+    </g>
+  );
+};
 const formatarMoedaCompactaCard = (v) => {
   const n = Number(v || 0);
   const a = Math.abs(n);
@@ -10879,17 +10965,54 @@ const enviarArquivo = async (tipo) => {
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
             <h3 className="text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2">Modelo de venda</h3>
-            <div className="h-[280px]">
+            <div className="h-[280px] overflow-visible">
               {modelosVenda.length ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={modelosVenda} dataKey="value" nameKey="name" cx="50%" cy="45%" innerRadius="42%" outerRadius="72%">
+                  <PieChart margin={{ top: 18, right: 64, bottom: 38, left: 64 }}>
+                    <Pie
+                      data={modelosVenda}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="45%"
+                      innerRadius={48}
+                      outerRadius={70}
+                      paddingAngle={1}
+                      labelLine={false}
+                      label={renderizarRotuloModeloVenda}
+                    >
                       {modelosVenda.map((item, indice) => (
                         <Cell key={`${item?.name || indice}`} fill={CORES_GRAFICO[indice % CORES_GRAFICO.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => formatarMoeda(value)} />
-                    <Legend verticalAlign="bottom" wrapperStyle={{ fontSize: '10px' }} />
+                    <text
+                      x="50%"
+                      y="42%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="#94a3b8"
+                      fontSize="9"
+                      fontWeight="900"
+                      pointerEvents="none"
+                    >
+                      TOTAL
+                    </text>
+                    <text
+                      x="50%"
+                      y="48%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="#048187"
+                      fontSize="10"
+                      fontWeight="900"
+                      pointerEvents="none"
+                    >
+                      {formatarMoedaRotuloGrafico(
+                        modelosVenda.reduce((soma, item) => soma + Number(item?.value || 0), 0)
+                      )}
+                    </text>
+                    <Tooltip formatter={(value, name) => [formatarMoeda(value), name]} />
+                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '9px', paddingTop: '8px' }} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : <div className="h-full flex items-center justify-center text-sm text-gray-400">Sem dados</div>}
@@ -11260,13 +11383,59 @@ const enviarArquivo = async (tipo) => {
           </div>
           <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
             <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">MODELO DE VENDA</h3>
-            <div className="h-[260px] sm:h-[300px] overflow-hidden">
+            <div className="h-[260px] sm:h-[300px] overflow-visible">
               {rMar.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={{ top: 0, right: 0, bottom: 20, left: 0 }}>
-                    <Pie data={rMar} dataKey="value" nameKey="name" cx="50%" cy="45%" innerRadius="40%" outerRadius="75%" cursor="pointer" onClick={(item) => aplicarFiltroInterativo('modelos_comerciais', item?.name || item?.payload?.name)}>{rMar.map((entry, index) => (<Cell key={entry.name} fill={CORES_GRAFICO[index % CORES_GRAFICO.length]} />))}</Pie>
-                    <Tooltip formatter={(value) => formatarMoeda(value)} />
-                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                  <PieChart margin={{ top: 18, right: 64, bottom: 38, left: 64 }}>
+                    <Pie
+                      data={rMar}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="45%"
+                      innerRadius={48}
+                      outerRadius={70}
+                      paddingAngle={1}
+                      cursor="pointer"
+                      labelLine={false}
+                      label={renderizarRotuloModeloVenda}
+                      onClick={(item) => aplicarFiltroInterativo(
+                        'modelos_comerciais',
+                        item?.name || item?.payload?.name
+                      )}
+                    >
+                      {rMar.map((entry, index) => (
+                        <Cell key={entry.name} fill={CORES_GRAFICO[index % CORES_GRAFICO.length]} />
+                      ))}
+                    </Pie>
+                    <text
+                      x="50%"
+                      y="42%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="#94a3b8"
+                      fontSize="9"
+                      fontWeight="900"
+                      pointerEvents="none"
+                    >
+                      TOTAL
+                    </text>
+                    <text
+                      x="50%"
+                      y="48%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="#048187"
+                      fontSize="10"
+                      fontWeight="900"
+                      pointerEvents="none"
+                    >
+                      {formatarMoedaRotuloGrafico(
+                        rMar.reduce((soma, item) => soma + Number(item?.value || 0), 0)
+                      )}
+                    </text>
+                    <Tooltip formatter={(value, name) => [formatarMoeda(value), name]} />
+                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '9px', paddingTop: '8px' }} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm">Nenhum dado</div>)}
