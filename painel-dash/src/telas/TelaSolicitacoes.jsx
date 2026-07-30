@@ -10,6 +10,7 @@ import {
   Inbox,
   LifeBuoy,
   Loader2,
+  Lock,
   MessageSquare,
   Paperclip,
   Plus,
@@ -17,6 +18,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Timer,
   Upload,
   User,
   X,
@@ -94,6 +96,42 @@ const BadgeStatus = ({ status }) => {
   );
 };
 
+const AvatarMensagem = ({ src, nome, minhaMensagem }) => {
+  const [falhou, setFalhou] = useState(false);
+
+  useEffect(() => {
+    setFalhou(false);
+  }, [src]);
+
+  return (
+    <div className={`w-8 h-8 rounded-full overflow-hidden flex items-center justify-center shrink-0 border ${minhaMensagem ? 'bg-white/15 border-white/20' : 'bg-[#e6f6f7] text-[#048187] border-[#ccecee]'}`}>
+      {src && !falhou ? (
+        <img
+          src={src}
+          alt={nome || 'Foto do perfil'}
+          className="w-full h-full object-cover"
+          onError={() => setFalhou(true)}
+        />
+      ) : (
+        <User size={15} />
+      )}
+    </div>
+  );
+};
+
+const formatarTempoRestanteChat = (prazo, agora) => {
+  const fim = new Date(prazo || '').getTime();
+  if (!Number.isFinite(fim)) return '';
+  const diferenca = Math.max(fim - Number(agora || Date.now()), 0);
+  const minutos = Math.ceil(diferenca / 60000);
+  if (minutos <= 0) return 'encerrado';
+  const horas = Math.floor(minutos / 60);
+  const restante = minutos % 60;
+  if (horas > 0 && restante > 0) return `${horas}h ${restante}min`;
+  if (horas > 0) return `${horas}h`;
+  return `${restante}min`;
+};
+
 const CardResumo = ({ titulo, valor, icone: Icone, destaque = false, onClick }) => (
   <button
     type="button"
@@ -134,6 +172,7 @@ export default function TelaSolicitacoes({ API_URL, usuarioLogado, onNotificacoe
   const [enviandoMensagem, setEnviandoMensagem] = useState(false);
   const [alterandoStatus, setAlterandoStatus] = useState(false);
   const [baixandoAnexo, setBaixandoAnexo] = useState(null);
+  const [relogioChat, setRelogioChat] = useState(Date.now());
   const arquivoNovaRef = useRef(null);
   const arquivoChatRef = useRef(null);
   const chatFinalRef = useRef(null);
@@ -210,6 +249,13 @@ export default function TelaSolicitacoes({ API_URL, usuarioLogado, onNotificacoe
     return () => window.clearInterval(timer);
   }, [ticketSelecionado, paramsListagem]);
 
+  useEffect(() => {
+    if (!ticketSelecionado) return undefined;
+    setRelogioChat(Date.now());
+    const timer = window.setInterval(() => setRelogioChat(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, [ticketSelecionado, detalhe?.solicitacao?.chat_fecha_em]);
+
   const criarSolicitacao = async (e) => {
     e.preventDefault();
     setSalvandoNova(true);
@@ -256,6 +302,9 @@ export default function TelaSolicitacoes({ API_URL, usuarioLogado, onNotificacoe
       onNotificacoesAtualizadas?.();
     } catch (e2) {
       setErro(e2.response?.data?.detail || 'Não foi possível enviar a mensagem.');
+      if (Number(e2.response?.status) === 409) {
+        await abrirTicket(ticketSelecionado, true).catch(() => null);
+      }
     } finally {
       setEnviandoMensagem(false);
     }
@@ -308,6 +357,14 @@ export default function TelaSolicitacoes({ API_URL, usuarioLogado, onNotificacoe
 
   const ticketAtual = detalhe?.solicitacao || null;
   const mensagens = Array.isArray(detalhe?.mensagens) ? detalhe.mensagens : [];
+  const avatares = detalhe?.avatares || {};
+  const prazoChatTimestamp = ticketAtual?.chat_fecha_em ? new Date(ticketAtual.chat_fecha_em).getTime() : null;
+  const prazoChatValido = Number.isFinite(prazoChatTimestamp);
+  const chatConcluido = ticketAtual?.status === 'concluido';
+  const chatAberto = !chatConcluido || (ticketAtual?.chat_aberto !== false && (!prazoChatValido || relogioChat < prazoChatTimestamp));
+  const tempoRestanteChat = chatConcluido && prazoChatValido
+    ? formatarTempoRestanteChat(ticketAtual.chat_fecha_em, relogioChat)
+    : '';
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -472,7 +529,11 @@ export default function TelaSolicitacoes({ API_URL, usuarioLogado, onNotificacoe
                         <div key={item.id} className={`flex ${minhaMensagem ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[92%] sm:max-w-[78%] rounded-2xl p-4 shadow-sm border ${minhaMensagem ? 'bg-[#048187] text-white border-[#048187]' : 'bg-white text-gray-700 border-gray-100'}`}>
                             <div className="flex items-center gap-2 mb-2">
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center ${minhaMensagem ? 'bg-white/15' : 'bg-[#e6f6f7] text-[#048187]'}`}><User size={14} /></div>
+                              <AvatarMensagem
+                                src={avatares[String(item.usuario_id)] || ''}
+                                nome={item.nome_usuario}
+                                minhaMensagem={minhaMensagem}
+                              />
                               <div className="min-w-0"><p className="text-xs font-black truncate">{item.nome_usuario}</p><p className={`text-[9px] font-bold uppercase ${minhaMensagem ? 'text-white/70' : 'text-gray-400'}`}>{item.perfil_usuario === 'admin' ? 'Administrador' : 'Usuário'} • {formatarDataHora(item.criado_em)}</p></div>
                             </div>
                             <p className="text-sm font-medium whitespace-pre-wrap break-words leading-relaxed">{item.mensagem}</p>
@@ -494,14 +555,41 @@ export default function TelaSolicitacoes({ API_URL, usuarioLogado, onNotificacoe
                     <div ref={chatFinalRef} />
                   </div>
 
-                  <form onSubmit={enviarMensagem} className="p-3 sm:p-4 bg-white border-t border-gray-100 shrink-0">
-                    {anexoChat && <div className="mb-2 inline-flex items-center gap-2 bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-xl text-xs font-black max-w-full"><Paperclip size={15} className="shrink-0" /><span className="truncate">{anexoChat.name}</span><button type="button" onClick={() => { setAnexoChat(null); if (arquivoChatRef.current) arquivoChatRef.current.value = ''; }}><X size={15} /></button></div>}
-                    <div className="flex items-end gap-2">
-                      <label className="w-11 h-11 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 flex items-center justify-center cursor-pointer shrink-0" title="Anexar arquivo"><Paperclip size={19} /><input ref={arquivoChatRef} type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.xlsx,.xls,.txt" className="hidden" onChange={(e) => setAnexoChat(e.target.files?.[0] || null)} /></label>
-                      <textarea value={mensagemChat} onChange={(e) => setMensagemChat(e.target.value)} placeholder="Digite sua mensagem..." rows={2} maxLength={6000} className="flex-1 resize-none border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" />
-                      <button disabled={enviandoMensagem || (!mensagemChat.trim() && !anexoChat)} type="submit" className="w-11 h-11 rounded-xl bg-[#048187] text-white hover:bg-[#036b70] flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{enviandoMensagem ? <Loader2 size={19} className="animate-spin" /> : <Send size={19} />}</button>
+                  {chatAberto ? (
+                    <form onSubmit={enviarMensagem} className="p-3 sm:p-4 bg-white border-t border-gray-100 shrink-0">
+                      {chatConcluido && (
+                        <div className="mb-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2.5 text-amber-800 flex items-start gap-2">
+                          <Timer size={17} className="shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-black">Chat temporariamente aberto após a conclusão</p>
+                            <p className="text-[11px] font-semibold mt-0.5 leading-relaxed">
+                              Ele será encerrado depois de 3 horas sem interação. Cada nova mensagem reinicia o prazo.
+                              {tempoRestanteChat ? ` Restam ${tempoRestanteChat}.` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {anexoChat && <div className="mb-2 inline-flex items-center gap-2 bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-xl text-xs font-black max-w-full"><Paperclip size={15} className="shrink-0" /><span className="truncate">{anexoChat.name}</span><button type="button" onClick={() => { setAnexoChat(null); if (arquivoChatRef.current) arquivoChatRef.current.value = ''; }}><X size={15} /></button></div>}
+                      <div className="flex items-end gap-2">
+                        <label className="w-11 h-11 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 flex items-center justify-center cursor-pointer shrink-0" title="Anexar arquivo"><Paperclip size={19} /><input ref={arquivoChatRef} type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.xlsx,.xls,.txt" className="hidden" onChange={(e) => setAnexoChat(e.target.files?.[0] || null)} /></label>
+                        <textarea value={mensagemChat} onChange={(e) => setMensagemChat(e.target.value)} placeholder="Digite sua mensagem..." rows={2} maxLength={6000} className="flex-1 resize-none border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" />
+                        <button disabled={enviandoMensagem || (!mensagemChat.trim() && !anexoChat)} type="submit" className="w-11 h-11 rounded-xl bg-[#048187] text-white hover:bg-[#036b70] flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{enviandoMensagem ? <Loader2 size={19} className="animate-spin" /> : <Send size={19} />}</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="p-4 bg-white border-t border-gray-100 shrink-0">
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 flex items-start gap-3 text-gray-600">
+                        <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shrink-0"><Lock size={18} /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-gray-700">Chat encerrado automaticamente</p>
+                          <p className="text-xs font-semibold text-gray-500 mt-1 leading-relaxed">
+                            A solicitação ficou concluída por 3 horas sem novas interações.
+                            {admin ? ' Para reabrir o chat, altere o status para Em Análise.' : ' Caso precise continuar, aguarde o administrador reabrir ou crie uma nova solicitação.'}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </form>
+                  )}
                 </main>
               </div>
             )}
