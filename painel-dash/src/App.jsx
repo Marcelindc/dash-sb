@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoBrancaLogin from './assets/logo-branca.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
+import TelaSolicitacoes from './telas/TelaSolicitacoes';
 
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
@@ -549,9 +550,9 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
-  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
+  admin: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
+  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil', 'Solicitações'],
+  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil', 'Solicitações']
 };
 
 const obterNomeAba = (nome) => ({
@@ -567,10 +568,11 @@ const obterNomeAba = (nome) => ({
   LojaConsultoras: 'Consultoras',
   LojaRanking: 'Ranking',
   ADM: 'Painel ADM',
+  Solicitações: 'Solicitações',
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -596,6 +598,12 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   // Garante que abas importantes continuem aparecendo mesmo quando as permissões antigas já estavam salvas no banco.
   PERFIS_SISTEMA.forEach((perfil) => {
     if (!normalizadas[perfil].includes('Histórico')) normalizadas[perfil].push('Histórico');
+  });
+
+
+  // Solicitações é uma aba geral e obrigatória para todos os usuários.
+  PERFIS_SISTEMA.forEach((perfil) => {
+    if (!normalizadas[perfil].includes('Solicitações')) normalizadas[perfil].push('Solicitações');
   });
 
   // Ações é uma aba de gestão operacional. Libera por padrão para admin e gestor.
@@ -631,6 +639,7 @@ const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') =>
   const normalizadas = Array.from(new Set(migradas.filter((aba) => ABAS_SISTEMA.includes(aba))));
 
   if (!normalizadas.includes('Perfil')) normalizadas.push('Perfil');
+  if (!normalizadas.includes('Solicitações')) normalizadas.push('Solicitações');
 
   if (perfil === 'admin') {
     ['ADM', 'Configurações', 'Perfil'].forEach((abaObrigatoria) => {
@@ -5828,7 +5837,7 @@ export default function App() {
   useEffect(() => {
     if (!usuarioLogado) return;
 
-    if (modoGerenteVD && telaAtual !== 'AcompanhamentoVD' && telaAtual !== 'Perfil') {
+    if (modoGerenteVD && !['AcompanhamentoVD', 'Solicitações', 'Perfil'].includes(telaAtual)) {
       setCanalAtual('VD');
       setMenuLojaExpandido(false);
       setMenuVDExpandido(true);
@@ -6189,12 +6198,13 @@ export default function App() {
 
   const usuarioPodeAcessar = (tela) => {
     if (!usuarioLogado) return false;
+    if (tela === 'Solicitações') return true;
     if (usuarioLogado.perfil === 'admin') return true;
     if (tela === 'AcompanhamentoVD') {
       return modoGerenteVD && permissoesDoUsuarioAtual().includes('Dashboard');
     }
     if (modoGerenteVD) {
-      return ['AcompanhamentoVD', 'Perfil'].includes(tela);
+      return ['AcompanhamentoVD', 'Solicitações', 'Perfil'].includes(tela);
     }
     return permissoesDoUsuarioAtual().includes(tela);
   };
@@ -18377,6 +18387,7 @@ const enviarArquivo = async (tipo) => {
     if (telaEhLoja(telaAtual)) return renderTelaLoja();
     if (telaAtual === 'ADM') return renderTelaADM();
     if (telaAtual === 'Configurações') return renderTelaConfiguracoes();
+    if (telaAtual === 'Solicitações') return <TelaSolicitacoes API_URL={API_URL} usuarioLogado={usuarioLogado} onNotificacoesAtualizadas={() => carregarNotificacoesSistema(true)} />;
     if (telaAtual === 'Perfil') return renderTelaPerfil();
     return null;
   };
@@ -18746,6 +18757,14 @@ const enviarArquivo = async (tipo) => {
           </nav>
           <div className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} border-t border-white/10`}>
             <button
+              onClick={() => setTelaAtual('Solicitações')}
+              title="Solicitações"
+              className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'Solicitações' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+            >
+              <LifeBuoy size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+              {sidebarExpandida && <span>Solicitações</span>}
+            </button>
+            <button
               onClick={() => setTelaAtual('Perfil')}
               title="Perfil"
               className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'Perfil' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
@@ -18786,7 +18805,7 @@ const enviarArquivo = async (tipo) => {
 
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-white/10 z-40 px-2 py-2">
           <div className="flex items-center justify-around gap-1">
-            {[...itensMenuVD, ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []), { nome: 'ADM', icone: ShieldCheck }, { nome: 'Perfil', icone: User }].map((item) => {
+            {[...itensMenuVD, ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []), { nome: 'Solicitações', icone: LifeBuoy }, { nome: 'ADM', icone: ShieldCheck }, { nome: 'Perfil', icone: User }].map((item) => {
               if (!usuarioPodeAcessar(item.nome)) return null;
               const Icone = item.icone; const ativo = telaAtual === item.nome;
               return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}>{item.nome === 'Loja' ? <IconeCanalLoja size={18} /> : <Icone size={18} />}<span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
@@ -18953,7 +18972,7 @@ const enviarArquivo = async (tipo) => {
                         }
                       }}
                       className="relative flex items-center justify-center w-10 h-10 hover:bg-[#4a9394] rounded-full"
-                      title="Notificações de metas"
+                      title="Notificações"
                     >
                       <Bell size={20} />
                       {notificacoesNaoLidas > 0 && (
@@ -19029,6 +19048,12 @@ const enviarArquivo = async (tipo) => {
                                 if (!item.lida) {
                                   marcarNotificacaoComoLida(item.id);
                                 }
+                                if (String(item.entidade_tipo || '').toUpperCase() === 'SOLICITACAO') {
+                                  const ticketId = Number(String(item.entidade_id || '').split('|')[0]);
+                                  if (ticketId) sessionStorage.setItem('dashSbSolicitacaoAbrirId', String(ticketId));
+                                  setPainelNotificacoesAberto(false);
+                                  setTelaAtual('Solicitações');
+                                }
                               }}
                               className={`w-full text-left px-4 py-4 border-b border-gray-50 hover:bg-[#f8fcfc] transition-colors ${
                                 item.lida
@@ -19042,7 +19067,7 @@ const enviarArquivo = async (tipo) => {
                                     ? 'bg-[#e6f6f7] text-[#048187]'
                                     : 'bg-orange-50 text-orange-600'
                                 }`}>
-                                  <Target size={18} />
+                                  {String(item.entidade_tipo || '').toUpperCase() === 'SOLICITACAO' ? <LifeBuoy size={18} /> : <Target size={18} />}
                                 </div>
 
                                 <div className="min-w-0 flex-1">
@@ -19075,21 +19100,14 @@ const enviarArquivo = async (tipo) => {
                                     </span>
                                   </div>
 
-                                  <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] font-bold text-gray-400">
-                                    <span>
-                                      {formatarNumeroBR(item.percentual || 0, 1)}%
-                                    </span>
-                                    <span>•</span>
-                                    <span>
-                                      {formatarMoeda(item.realizado || 0)}
-                                    </span>
-                                    {item.ciclo && (
-                                      <>
-                                        <span>•</span>
-                                        <span>Ciclo {item.ciclo}</span>
-                                      </>
-                                    )}
-                                  </div>
+                                  {String(item.entidade_tipo || '').toUpperCase() !== 'SOLICITACAO' && (
+                                    <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] font-bold text-gray-400">
+                                      <span>{formatarNumeroBR(item.percentual || 0, 1)}%</span>
+                                      <span>•</span>
+                                      <span>{formatarMoeda(item.realizado || 0)}</span>
+                                      {item.ciclo && (<><span>•</span><span>Ciclo {item.ciclo}</span></>)}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </button>
@@ -19102,7 +19120,7 @@ const enviarArquivo = async (tipo) => {
                                 Nenhuma notificação
                               </p>
                               <p className="text-xs text-gray-400 font-semibold mt-1">
-                                Os alertas aparecerão quando uma meta for atingida.
+                                Alertas de metas e solicitações aparecerão aqui.
                               </p>
                             </div>
                           )}
