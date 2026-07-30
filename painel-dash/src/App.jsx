@@ -17,17 +17,86 @@ const CICLO_LOJA_STORAGE_KEY = 'dashSbCicloSelecionadoLoja';
 const CICLO_UPLOAD_VD_STORAGE_KEY = 'dashSbCicloUploadVD';
 const CICLO_UPLOAD_LOJA_STORAGE_KEY = 'dashSbCicloUploadLoja';
 const CICLO_ATUAL_CONHECIDO_STORAGE_KEY = 'dashSbCicloAtualConhecido';
+const CICLO_SELECTOR_REPAIR_KEY = 'dashSbCicloSelectorRepairV1';
 const APP_NAME = 'DASH COMERCIAL SB';
 const CACHE_SESSAO_DASH_KEY = 'dashSbCacheInteracoesV2';
 const CACHE_SESSAO_TTL_MS = 15 * 60 * 1000;
 
+
+const AUTH_USER_SESSION_KEY = 'dashSbUsuarioSessao';
+const AUTH_TOKEN_SESSION_KEY = 'dashSbTokenSessao';
+
+const lerUsuarioPersistido = () => {
+  try {
+    const sessao = sessionStorage.getItem(AUTH_USER_SESSION_KEY);
+    if (sessao) return JSON.parse(sessao);
+    const legado = localStorage.getItem('usuarioLogado');
+    if (!legado) return null;
+    const usuario = JSON.parse(legado);
+    sessionStorage.setItem(AUTH_USER_SESSION_KEY, JSON.stringify(usuario));
+    localStorage.removeItem('usuarioLogado');
+    return usuario;
+  } catch {
+    return null;
+  }
+};
+
+const lerTokenPersistido = () => {
+  const sessao = sessionStorage.getItem(AUTH_TOKEN_SESSION_KEY);
+  if (sessao) return sessao;
+
+  // Migração segura da versão antiga. A versão anterior chamava a própria
+  // função novamente neste ponto, causando recursão infinita e tela branca
+  // antes mesmo de o React conseguir renderizar o login ou o Dashboard.
+  const legado = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+  if (legado) {
+    sessionStorage.setItem(AUTH_TOKEN_SESSION_KEY, legado);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+  }
+  return legado;
+};
+
+const salvarSessaoAutenticada = (usuario, token) => {
+  sessionStorage.setItem(AUTH_USER_SESSION_KEY, JSON.stringify(usuario || null));
+  sessionStorage.setItem(AUTH_TOKEN_SESSION_KEY, String(token || ''));
+  localStorage.removeItem('usuarioLogado');
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+};
+
+const salvarUsuarioSessao = (usuario) => {
+  sessionStorage.setItem(AUTH_USER_SESSION_KEY, JSON.stringify(usuario || null));
+  localStorage.removeItem('usuarioLogado');
+};
+
+const limparSessaoAutenticada = () => {
+  sessionStorage.removeItem(AUTH_USER_SESSION_KEY);
+  sessionStorage.removeItem(AUTH_TOKEN_SESSION_KEY);
+  localStorage.removeItem('usuarioLogado');
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+};
+
+const identificarUsuarioStorage = () => {
+  const usuario = lerUsuarioPersistido();
+  return String(usuario?.email || usuario?.id || '').trim().toLowerCase();
+};
+
+const chaveStorageUsuario = (chaveBase) => {
+  const usuario = identificarUsuarioStorage();
+  return usuario ? `${chaveBase}:${usuario}` : `${chaveBase}:sem_usuario`;
+};
+
+const lerStorageUsuario = (chaveBase) => localStorage.getItem(chaveStorageUsuario(chaveBase));
+const gravarStorageUsuario = (chaveBase, valor) => localStorage.setItem(chaveStorageUsuario(chaveBase), valor);
+const removerStorageUsuario = (chaveBase) => localStorage.removeItem(chaveStorageUsuario(chaveBase));
+const chaveCacheSessaoDashUsuario = () => chaveStorageUsuario(CACHE_SESSAO_DASH_KEY);
+
 const carregarCacheSessaoDash = () => {
   try {
-    const bruto = sessionStorage.getItem(CACHE_SESSAO_DASH_KEY);
+    const bruto = sessionStorage.getItem(chaveCacheSessaoDashUsuario());
     if (!bruto) return {};
     const payload = JSON.parse(bruto);
     if (!payload?.salvoEm || Date.now() - Number(payload.salvoEm) > CACHE_SESSAO_TTL_MS) {
-      sessionStorage.removeItem(CACHE_SESSAO_DASH_KEY);
+      sessionStorage.removeItem(chaveCacheSessaoDashUsuario());
       return {};
     }
     return payload?.dados && typeof payload.dados === 'object' ? payload.dados : {};
@@ -39,7 +108,7 @@ const carregarCacheSessaoDash = () => {
 const salvarCacheSessaoDash = (cache) => {
   try {
     const entradas = Object.entries(cache || {}).slice(-16);
-    sessionStorage.setItem(CACHE_SESSAO_DASH_KEY, JSON.stringify({
+    sessionStorage.setItem(chaveCacheSessaoDashUsuario(), JSON.stringify({
       salvoEm: Date.now(),
       dados: Object.fromEntries(entradas),
     }));
@@ -65,11 +134,8 @@ const normalizarAreaGestao = (valor, perfil = '') => {
     : 'AMBOS';
 };
 
-const ABAS_VISIVEIS_GERENTE_ESTRUTURA = {
-  VD: ['AcompanhamentoVD', 'Perfil'],
-  LOJA: ['LojaVisaoGeral', 'Perfil'],
-  AMBOS: ['AcompanhamentoVD', 'LojaVisaoGeral', 'Perfil'],
-};
+
+
 
 const normalizarEstruturasPermitidasUsuario = (valor) => {
   let dados = valor;
@@ -97,119 +163,16 @@ const normalizarEstruturasPermitidasUsuario = (valor) => {
     const chave = `${area}|${codigo}|${estrutura.toLowerCase()}`;
     if (vistos.has(chave)) return acc;
     vistos.add(chave);
-    const codigosVinculados = Array.isArray(base.codigos_vinculados)
-      ? base.codigos_vinculados.map((v) => String(v || '').trim()).filter(Boolean)
-      : [];
-    acc.push({
-      area,
-      codigo,
-      estrutura: estrutura || codigo,
-      nucleo,
-      vinculadas,
-      meta_id: String(base.meta_id || '').trim(),
-      codigos_vinculados: codigosVinculados,
-      qtd_consultores_ativos: Number(base.qtd_consultores_ativos || 0),
-      rotulo: String(base.rotulo || base.label_exibicao || '').trim(),
-    });
+    acc.push({ area, codigo, estrutura: estrutura || codigo, nucleo, vinculadas });
     return acc;
   }, []);
 };
 
-const chaveEscopoUsuario = (item) => `${String(item?.area || '')}|${String(item?.codigo || '')}|${String(item?.estrutura || '').toLowerCase()}`;
-
-const SeletorEscopoUsuario = ({ area, opcoes = [], selecionadas = [], onChange, carregando = false }) => {
-  const [busca, setBusca] = useState('');
-  const areaNormalizada = String(area || 'AMBOS').toUpperCase();
-  const areasPermitidas = areaNormalizada === 'AMBOS' ? ['VD', 'LOJA'] : [areaNormalizada];
-  const selecionadasNorm = normalizarEstruturasPermitidasUsuario(selecionadas);
-  const chavesSelecionadas = new Set(selecionadasNorm.map(chaveEscopoUsuario));
-  const termo = busca.trim().toLowerCase();
-  const filtradas = normalizarEstruturasPermitidasUsuario(opcoes).filter((item) => {
-    if (!areasPermitidas.includes(item.area)) return false;
-    const alvo = `${item.codigo} ${item.estrutura} ${item.nucleo} ${item.rotulo || ''}`.toLowerCase();
-    return !termo || alvo.includes(termo);
-  });
-
-  const alternar = (item) => {
-    const chave = chaveEscopoUsuario(item);
-    onChange(
-      chavesSelecionadas.has(chave)
-        ? selecionadasNorm.filter((atual) => chaveEscopoUsuario(atual) !== chave)
-        : [...selecionadasNorm, item]
-    );
-  };
-
-  return (
-    <div className="rounded-2xl border border-[#cde9ea] bg-[#f7fbfb] p-4 sm:p-5">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div>
-          <p className="text-sm font-black text-gray-700">Estruturas permitidas</p>
-          <p className="text-xs text-gray-400 mt-1">O usuário verá somente os resultados selecionados.</p>
-        </div>
-        <span className="w-fit rounded-full bg-[#048187] px-3 py-1 text-xs font-black text-white">
-          {selecionadasNorm.length} selecionada(s)
-        </span>
-      </div>
-
-      <div className="relative mb-3">
-        <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar estrutura, equipe ou PDV..."
-          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm outline-none focus:border-[#048187]"
-        />
-      </div>
-
-      {carregando ? (
-        <div className="py-8 text-center text-sm font-bold text-[#048187]">Carregando estruturas...</div>
-      ) : (
-        <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
-          {filtradas.map((item) => {
-            const selecionada = chavesSelecionadas.has(chaveEscopoUsuario(item));
-            return (
-              <button
-                key={chaveEscopoUsuario(item)}
-                type="button"
-                onClick={() => alternar(item)}
-                className={`w-full rounded-xl border p-3 text-left transition-all ${selecionada ? 'border-[#048187] bg-[#e6f6f7] shadow-sm' : 'border-gray-100 bg-white hover:border-[#9bd4d6]'}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.area === 'LOJA' ? 'bg-orange-50 text-orange-600' : 'bg-[#dff5f6] text-[#048187]'}`}>{item.area}</span>
-                      {item.nucleo && <span className="text-[10px] font-black text-gray-400">{item.nucleo}</span>}
-                    </div>
-                    <p className="mt-1 text-sm font-black text-gray-700 break-words">
-                      {item.rotulo || item.estrutura}
-                    </p>
-                    {!item.rotulo && item.codigo && (
-                      <p className="mt-0.5 text-[10px] font-bold text-gray-400 break-all">Código: {item.codigo}</p>
-                    )}
-                    {item.area === 'VD' && (
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-gray-400">
-                        {!!item.vinculadas?.length && <span>{item.vinculadas.length} estrutura(s) vinculada(s)</span>}
-                        <span className="rounded-full bg-white px-2 py-0.5 text-[#048187] border border-[#cde9ea]">
-                          {Number(item.qtd_consultores_ativos || 0)} consultor(es) ativo(s)
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <span className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${selecionada ? 'border-[#048187] bg-[#048187] text-white' : 'border-gray-200 text-transparent'}`}>✓</span>
-                </div>
-              </button>
-            );
-          })}
-          {!filtradas.length && (
-            <div className="py-8 text-center text-sm font-bold text-gray-400">Nenhuma estrutura encontrada.</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-
+const normalizarChaveAcompanhamento = (valor) => String(valor || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLowerCase();
 
 const iniciaisNomeColaborador = (nome) => {
   const partes = String(nome || '')
@@ -535,7 +498,7 @@ const aplicarTokenAxios = (token) => {
   else delete axios.defaults.headers.common.Authorization;
 };
 
-const tokenInicial = localStorage.getItem(TOKEN_STORAGE_KEY);
+const tokenInicial = lerTokenPersistido();
 aplicarTokenAxios(tokenInicial);
 const CORES_GRAFICO = ['#048187', '#712231', '#F97316', '#FACC15', '#A3E635', '#257B9C'];
 const CORES_ESTRUTURA = ['#048187', '#15956B', '#5BB2B4', '#257B9C', '#56549E', '#712231', '#F97316'];
@@ -586,9 +549,9 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'],
-  gestor: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
-  visualizador: ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
+  admin: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'],
+  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil'],
+  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil']
 };
 
 const obterNomeAba = (nome) => ({
@@ -607,7 +570,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'];
+const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -626,7 +589,7 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
 
   PERFIS_SISTEMA.forEach((perfil) => {
     const listaSalva = Array.isArray(permissoes?.[perfil]) ? permissoes[perfil] : [];
-    const listaMigrada = listaSalva.map((aba) => aba === 'Consultores' ? 'Cadastro' : aba);
+    const listaMigrada = listaSalva.map((aba) => aba === 'Consultores' ? 'Cadastro' : (aba === 'Acompanhamento' || aba === 'Acompanhamento VD' ? 'AcompanhamentoVD' : aba));
     normalizadas[perfil] = Array.from(new Set(listaMigrada.filter((aba) => ABAS_SISTEMA.includes(aba))));
   });
 
@@ -664,7 +627,7 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
 
 const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') => {
   const listaBase = Array.isArray(abas) ? abas : (permissoesPadrao[perfil] || permissoesPadrao.visualizador || []);
-  const migradas = listaBase.map((aba) => aba === 'Consultores' ? 'Cadastro' : aba);
+  const migradas = listaBase.map((aba) => aba === 'Consultores' ? 'Cadastro' : (aba === 'Acompanhamento' || aba === 'Acompanhamento VD' ? 'AcompanhamentoVD' : aba));
   const normalizadas = Array.from(new Set(migradas.filter((aba) => ABAS_SISTEMA.includes(aba))));
 
   if (!normalizadas.includes('Perfil')) normalizadas.push('Perfil');
@@ -1148,25 +1111,6 @@ const criarImagemRelatorioMetas = async ({
     detalhe?.meta?.cabelo
   );
 
-  const metaEudoraPercentual = obterNumero(
-    resumo.meta_eudora,
-    detalhe?.meta?.eudora
-  );
-  const metaEudoraValor = obterNumero(
-    resumo.meta_eudora_valor,
-    detalhe.meta_eudora_valor,
-    metaReceita > 0 ? (metaReceita * metaEudoraPercentual) / 100 : 0
-  );
-  const eudoraRealizado = obterNumero(
-    resumo.eudora_realizado,
-    detalhe.eudora_realizado
-  );
-  const percentualEudora = obterNumero(
-    resumo.percentual_eudora,
-    detalhe.percentual_eudora,
-    calcularPercentualRelatorioMetas(eudoraRealizado, metaEudoraValor)
-  );
-
   const corEstrutura = corDesempenhoRelatorioMetas(percentualReceita);
   const nucleosItem = obterNucleosDoItemRelatorioMetas(resumo);
 
@@ -1245,13 +1189,6 @@ const criarImagemRelatorioMetas = async ({
       meta: '100,0%',
       realizado: `${formatarNumeroBR(percentualReceita, 1)}%`,
       percentual: percentualReceita,
-    },
-    {
-      titulo: 'Eudora',
-      meta: formatarMoeda(metaEudoraValor),
-      realizado: formatarMoeda(eudoraRealizado),
-      percentual: calcularPercentualRelatorioMetas(eudoraRealizado, metaEudoraValor),
-      moeda: true,
     },
     {
       titulo: 'Atividade',
@@ -1463,24 +1400,6 @@ const criarImagemRelatorioMetas = async ({
           atividadeConsultor
         )
       );
-      const metaEudoraConsultorPercentual = obterNumero(
-        consultor.meta_eudora,
-        metaEudoraPercentual
-      );
-      const metaEudoraConsultorValor = obterNumero(
-        consultor.meta_eudora_valor,
-        metaConsultor > 0 ? (metaConsultor * metaEudoraConsultorPercentual) / 100 : 0
-      );
-      const eudoraRealizadoConsultor = obterNumero(
-        consultor.eudora_realizado
-      );
-      const percentualEudoraConsultor = obterNumero(
-        consultor.percentual_eudora,
-        calcularPercentualRelatorioMetas(
-          eudoraRealizadoConsultor,
-          metaEudoraConsultorValor
-        )
-      );
       const nomeConsultor = String(
         consultor.nome_exibicao
         || consultor.nome_social
@@ -1541,13 +1460,6 @@ const criarImagemRelatorioMetas = async ({
           meta: formatarMoeda(metaConsultor),
           realizado: formatarMoeda(realizadoConsultor),
           percentual: percentualConsultor,
-          moeda: true,
-        },
-        {
-          titulo: 'Eudora',
-          meta: formatarMoeda(metaEudoraConsultorValor),
-          realizado: formatarMoeda(eudoraRealizadoConsultor),
-          percentual: percentualEudoraConsultor,
           moeda: true,
         },
         {
@@ -3719,7 +3631,7 @@ const CampoMetaIndicador = ({ label, value, onChange, placeholder = '0,00', casa
   </div>
 );
 
-function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao, modoInline = false, nucleosPermitidos = [] }) {
+function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao, modoInline = false }) {
   const [metas, setMetas] = useState([]);
   const [estruturas, setEstruturas] = useState([]);
   const [estruturasConfigMeta, setEstruturasConfigMeta] = useState([]);
@@ -3743,19 +3655,10 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const [salvandoLinhaMeta, setSalvandoLinhaMeta] = useState(false);
   const [filtroNucleoMetas, setFiltroNucleoMetas] = useState('Todos');
   const [cadastroMetasVdExpandido, setCadastroMetasVdExpandido] = useState(false);
-  const [modoAssistente, setModoAssistente] = useState(true);
-  const [passoAssistente, setPassoAssistente] = useState(1);
-  const [nucleoAssistente, setNucleoAssistente] = useState('');
-  const [cicloAssistente, setCicloAssistente] = useState('');
-  const [contextoAssistente, setContextoAssistente] = useState({ ciclos: [], equipes: [] });
-  const [equipesAssistente, setEquipesAssistente] = useState([]);
-  const [carregandoAssistente, setCarregandoAssistente] = useState(false);
-  const [salvandoAssistente, setSalvandoAssistente] = useState(false);
-  const [buscaEquipeAssistente, setBuscaEquipeAssistente] = useState('');
-  const [filtroStatusAssistente, setFiltroStatusAssistente] = useState('TODOS');
-  const [resumoAssistente, setResumoAssistente] = useState({ grupos: {} });
 
-  const cicloConsulta = form.ciclo || cicloPadrao || '';
+  const cicloConsulta = modoInline
+    ? String(cicloPadrao || form.ciclo || '').trim()
+    : String(form.ciclo || cicloPadrao || '').trim();
 
   const carregarMetas = async (cicloForcado = null) => {
     setCarregando(true);
@@ -3771,9 +3674,10 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     }
   };
 
-  const carregarEstruturas = async () => {
+  const carregarEstruturas = async (cicloForcado = null) => {
     try {
-      const { data } = await axios.get(`${apiUrl}/metas-reais/estruturas-opcoes`, { params: cicloConsulta ? { ciclo: cicloConsulta } : {} });
+      const cicloUsado = cicloForcado ?? cicloConsulta;
+      const { data } = await axios.get(`${apiUrl}/metas-reais/estruturas-opcoes`, { params: cicloUsado ? { ciclo: cicloUsado } : {} });
       setEstruturas(data.estruturas || []);
     } catch (e) {
       setEstruturas([]);
@@ -3789,197 +3693,20 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     }
   };
 
-
-  const numeroAssistente = (valor) => {
-    if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
-    const texto = String(valor ?? '').trim();
-    if (!texto) return 0;
-    const limpo = texto.replace(/R\$/gi, '').replace(/\s/g, '');
-    const normalizado = limpo.includes(',')
-      ? limpo.replace(/\./g, '').replace(',', '.')
-      : limpo;
-    const numero = Number(normalizado);
-    return Number.isFinite(numero) ? numero : 0;
-  };
-
-  const normalizarEquipeAssistente = (equipe) => {
-    const meta = equipe?.meta_existente || {};
-    const distMap = new Map((meta.consultores || []).map((d) => [String(d.id_colaborador || ''), d]));
-    const metaReal = numeroAssistente(meta.meta_real || 0);
-    return {
-      ...equipe,
-      aberta: true,
-      selecionada: metaReal > 0,
-      meta_real: metaReal || '',
-      meta_atividade: numeroAssistente(meta.meta_atividade || 45),
-      meta_make: numeroAssistente(meta.meta_make || 40),
-      meta_cabelo: numeroAssistente(meta.meta_cabelo || 40),
-      meta_multimarcas: numeroAssistente(meta.meta_multimarcas || 78),
-      meta_eudora: numeroAssistente(meta.meta_eudora || 20),
-      meta_rpa: numeroAssistente(meta.meta_rpa || 1500),
-      meta_tkt_medio: numeroAssistente(meta.meta_tkt_medio || 800),
-      meta_upa: numeroAssistente(meta.meta_upa || 15),
-      observacao: meta.observacao || '',
-      status_publicacao: meta.status_publicacao || 'rascunho',
-      consultores: (equipe.consultores || []).map((consultor) => {
-        const dist = distMap.get(String(consultor.id_colaborador || '')) || {};
-        const peso = numeroAssistente(dist.peso_meta ?? consultor.peso_meta ?? 0);
-        const valor = numeroAssistente(dist.meta_valor || (metaReal > 0 ? metaReal * peso / 100 : 0));
-        return {
-          ...consultor,
-          peso_meta: Number(peso.toFixed(4)),
-          meta_valor: Number(valor.toFixed(2)),
-          status_meta: dist.status || 'ativo',
-        };
-      }),
-    };
-  };
-
-  const carregarResumoAssistente = async (ciclo = cicloAssistente, nucleo = nucleoAssistente) => {
-    if (!ciclo) return;
-    try {
-      const { data } = await axios.get(`${apiUrl}/metas-assistente/resumo`, { params: { ciclo } });
-      setResumoAssistente(data || { grupos: {} });
-    } catch (_) {
-      setResumoAssistente({ grupos: {} });
-    }
-  };
-
-  const carregarContextoAssistente = async ({ ciclo = '', nucleo = '', prepararEquipes = false } = {}) => {
-    setCarregandoAssistente(true);
-    setErro('');
-    try {
-      const { data } = await axios.get(`${apiUrl}/metas-assistente/contexto`, { params: { ...(ciclo ? { ciclo } : {}), ...(nucleo ? { nucleo } : {}) } });
-      setContextoAssistente(data || { ciclos: [], equipes: [] });
-      if (prepararEquipes) {
-        setEquipesAssistente((data.equipes || []).map(normalizarEquipeAssistente));
-        await carregarResumoAssistente(ciclo, nucleo);
-      }
-      return data;
-    } catch (e) {
-      setErro(e.response?.data?.detail || 'Não foi possível carregar o assistente de metas.');
-      return null;
-    } finally {
-      setCarregandoAssistente(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!aberto || !modoAssistente) return;
-    carregarContextoAssistente();
-  }, [aberto, modoAssistente]);
-
-  const selecionarNucleoAssistente = async (nucleo) => {
-    setNucleoAssistente(nucleo);
-    setCicloAssistente('');
-    setEquipesAssistente([]);
-    setPassoAssistente(2);
-    await carregarContextoAssistente({ nucleo });
-  };
-
-  const selecionarCicloAssistente = async (ciclo) => {
-    setCicloAssistente(ciclo);
-    setPassoAssistente(3);
-    await carregarContextoAssistente({ ciclo, nucleo: nucleoAssistente, prepararEquipes: true });
-  };
-
-  const atualizarEquipeAssistente = (indice, campo, valor) => {
-    setEquipesAssistente((atuais) => atuais.map((equipe, idx) => {
-      if (idx !== indice) return equipe;
-      const nova = { ...equipe, [campo]: valor, selecionada: true };
-      if (campo === 'meta_real') {
-        const metaTotal = numeroAssistente(valor);
-        nova.consultores = (nova.consultores || []).map((c) => ({
-          ...c,
-          meta_valor: Number((metaTotal * numeroAssistente(c.peso_meta) / 100).toFixed(2)),
-        }));
-      }
-      return nova;
-    }));
-  };
-
-  const atualizarConsultorAssistente = (indiceEquipe, indiceConsultor, campo, valor) => {
-    setEquipesAssistente((atuais) => atuais.map((equipe, idxEquipe) => {
-      if (idxEquipe !== indiceEquipe) return equipe;
-      const metaTotal = numeroAssistente(equipe.meta_real);
-      const consultores = (equipe.consultores || []).map((consultor, idxConsultor) => {
-        if (idxConsultor !== indiceConsultor) return consultor;
-        const atualizado = { ...consultor, [campo]: valor };
-        if (campo === 'peso_meta') {
-          const peso = numeroAssistente(valor);
-          atualizado.peso_meta = peso;
-          atualizado.meta_valor = Number((metaTotal * peso / 100).toFixed(2));
-        }
-        if (campo === 'meta_valor') {
-          const metaValor = numeroAssistente(valor);
-          atualizado.meta_valor = metaValor;
-          atualizado.peso_meta = metaTotal > 0 ? Number(((metaValor / metaTotal) * 100).toFixed(4)) : 0;
-        }
-        return atualizado;
-      });
-      return { ...equipe, consultores, selecionada: true };
-    }));
-  };
-
-  const salvarAssistenteMetas = async (statusPublicacao) => {
-    const equipesValidas = equipesAssistente.filter((equipe) => numeroAssistente(equipe.meta_real) > 0);
-    if (!nucleoAssistente || !cicloAssistente) {
-      setErro('Selecione o núcleo e o ciclo.');
-      return;
-    }
-    if (!equipesValidas.length) {
-      setErro('Informe pelo menos uma meta de faturamento.');
-      return;
-    }
-    setSalvandoAssistente(true);
-    setErro('');
-    setMensagem('');
-    try {
-      const payload = {
-        ciclo: cicloAssistente,
-        nucleo: nucleoAssistente,
-        status_publicacao: statusPublicacao,
-        equipes: equipesValidas.map((equipe) => ({
-          equipe_id: equipe.id || null,
-          nome_meta: String(equipe.nome || '').replace(/^\d+\s*-\s*/i, '').trim() || equipe.nome,
-          estrutura_ids: equipe.estrutura_ids || [],
-          meta_real: numeroAssistente(equipe.meta_real),
-          meta_atividade: numeroAssistente(equipe.meta_atividade),
-          meta_make: numeroAssistente(equipe.meta_make),
-          meta_cabelo: numeroAssistente(equipe.meta_cabelo),
-          meta_multimarcas: numeroAssistente(equipe.meta_multimarcas),
-          meta_eudora: numeroAssistente(equipe.meta_eudora),
-          meta_rpa: numeroAssistente(equipe.meta_rpa),
-          meta_tkt_medio: numeroAssistente(equipe.meta_tkt_medio),
-          meta_upa: numeroAssistente(equipe.meta_upa),
-          observacao: equipe.observacao || '',
-          consultores: (equipe.consultores || []).map((consultor) => ({
-            id_colaborador: String(consultor.id_colaborador || ''),
-            peso_meta: numeroAssistente(consultor.peso_meta),
-            meta_valor: numeroAssistente(consultor.meta_valor),
-            status: consultor.status_meta || 'ativo',
-          })),
-        })),
-      };
-      const { data } = await axios.post(`${apiUrl}/metas-assistente/salvar`, payload);
-      setMensagem(data?.mensagem || 'Metas salvas com sucesso.');
-      await carregarContextoAssistente({ ciclo: cicloAssistente, nucleo: nucleoAssistente, prepararEquipes: true });
-      await carregarMetas(cicloAssistente);
-      onAtualizacao?.();
-    } catch (e) {
-      setErro(e.response?.data?.detail || 'Erro ao salvar as metas.');
-    } finally {
-      setSalvandoAssistente(false);
-    }
-  };
-
   useEffect(() => {
     if (!aberto) return;
-    setForm((atual) => ({ ...atual, ciclo: atual.ciclo || cicloPadrao || '' }));
-    carregarMetas();
-    carregarEstruturas();
+    const cicloExato = String(cicloPadrao || '').trim();
+    setForm((atual) => ({
+      ...atual,
+      ciclo: modoInline ? cicloExato : (atual.ciclo || cicloExato),
+    }));
+    setEditandoId(null);
+    setMetaLinhaEditandoId(null);
+    setLinhaEditandoMeta(null);
+    carregarMetas(cicloExato || null);
+    carregarEstruturas(cicloExato || null);
     carregarEstruturasConfigMeta();
-  }, [aberto]);
+  }, [aberto, cicloPadrao, modoInline]);
 
   useEffect(() => {
     if (!avisoEstrutura) return;
@@ -4073,7 +3800,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     e.preventDefault();
     setErro('');
     setMensagem('');
-    if (!form.ciclo.trim()) return setErro('Informe o ciclo.');
+    const cicloDestino = String((modoInline ? cicloPadrao : form.ciclo) || form.ciclo || '').trim();
+    if (!cicloDestino) return setErro('Selecione um ciclo no topo antes de cadastrar a meta.');
     if (!form.nome_meta.trim()) return setErro('Informe o nome da meta.');
     if (!form.estruturas.length) return setErro('Vincule pelo menos uma estrutura.');
     const metaRealNumero = converterMetaRealParaNumero(form.meta_real);
@@ -4081,7 +3809,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     setSalvando(true);
     const payload = {
       ...form,
-      ciclo: String(form.ciclo || '').trim(),
+      ciclo: String((modoInline ? cicloPadrao : form.ciclo) || form.ciclo || '').trim(),
       nome_meta: String(form.nome_meta || '').trim(),
       meta_real: metaRealNumero,
       meta_atividade: converterMetaRealParaNumero(form.meta_atividade),
@@ -4391,7 +4119,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     setMostrarFormularioMeta(false);
     setEditandoId(null);
 
-    const cicloInicial = '';
+    const cicloInicial = String(cicloPadrao || form.ciclo || '').trim();
     setCicloNovoEmMassa(cicloInicial);
 
     const fonte = opcoesEstruturasCadastro.length
@@ -4736,191 +4464,6 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
   if (!aberto) return null;
 
-  if (modoAssistente) {
-    const ciclosDisponiveis = contextoAssistente.ciclos || [];
-    const normalizarNucleoAssistente = (valor) => {
-      const numero = String(valor || '').match(/\d+/)?.[0];
-      return numero ? `NUCLEO ${numero}` : '';
-    };
-    const nucleosEtapaAssistente = Array.from(new Set((nucleosPermitidos || []).map(normalizarNucleoAssistente).filter(Boolean)));
-    const nucleosDisponiveisAssistente = nucleosEtapaAssistente.length ? nucleosEtapaAssistente : ['NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'];
-    const equipesFiltradasAssistente = equipesAssistente.filter((equipe) => {
-      const termo = buscaEquipeAssistente.trim().toLowerCase();
-      const okBusca = !termo || String(equipe.nome || '').toLowerCase().includes(termo)
-        || (equipe.estruturas || []).some((e) => String(e.estrutura || '').toLowerCase().includes(termo));
-      const meta = equipe.meta_existente || {};
-      const status = String(meta.status_publicacao || equipe.status_publicacao || 'rascunho').toUpperCase();
-      const okStatus = filtroStatusAssistente === 'TODOS' || status === filtroStatusAssistente;
-      return okBusca && okStatus;
-    });
-
-    const CartaoEtapa = ({ numero, titulo, ativo, concluido }) => (
-      <div className={`rounded-2xl border px-4 py-3 flex items-center gap-3 ${ativo ? 'border-[#048187] bg-[#eaf8f8]' : concluido ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-white'}`}>
-        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${ativo ? 'bg-[#048187] text-white' : concluido ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-400'}`}>{concluido ? '✓' : numero}</span>
-        <span className={`font-black text-sm ${ativo ? 'text-[#048187]' : concluido ? 'text-green-700' : 'text-gray-400'}`}>{titulo}</span>
-      </div>
-    );
-
-    return (
-      <div className={modoInline ? 'w-full' : 'fixed inset-0 bg-black/45 z-[9999] flex items-center justify-center p-2 md:p-4'}>
-        <div className={modoInline ? 'bg-[#f7fafb] w-full rounded-xl border border-gray-100 overflow-hidden' : 'bg-[#f7fafb] w-full max-w-[98vw] h-[95vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col'}>
-          <div className="bg-white border-b border-gray-100 p-5 md:p-7 flex items-start justify-between gap-4">
-            <div>
-              <span className="inline-flex rounded-full bg-[#e6f6f7] text-[#048187] px-3 py-1 text-[10px] font-black uppercase">Novo fluxo simplificado</span>
-              <h2 className="text-2xl md:text-3xl font-black text-gray-700 mt-2">Lançar metas</h2>
-              <p className="text-sm text-gray-400 font-semibold mt-1">Escolha o núcleo e o ciclo. Depois preencha as equipes e distribua a meta entre os consultores.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setModoAssistente(false)} className="bg-white border border-gray-200 text-gray-500 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 text-xs">Modo avançado</button>
-              {!modoInline && <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2"><X size={24} /></button>}
-            </div>
-          </div>
-
-          <div className={modoInline ? 'p-5 md:p-7 space-y-5' : 'p-5 md:p-7 overflow-y-auto flex-1 space-y-5'}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <CartaoEtapa numero="1" titulo="Escolha o núcleo" ativo={passoAssistente === 1} concluido={passoAssistente > 1} />
-              <CartaoEtapa numero="2" titulo="Selecione o ciclo" ativo={passoAssistente === 2} concluido={passoAssistente > 2} />
-              <CartaoEtapa numero="3" titulo="Preencha e distribua" ativo={passoAssistente === 3} concluido={false} />
-            </div>
-
-            {(mensagem || erro) && <div className={`rounded-2xl border px-4 py-3 text-sm font-black ${mensagem ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-600'}`}>{mensagem || erro}</div>}
-
-            {carregandoAssistente && <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center font-black text-[#048187]"><Loader2 size={24} className="animate-spin inline mr-2" />Carregando...</div>}
-
-            {!carregandoAssistente && passoAssistente === 1 && (
-              <div className="bg-white rounded-[24px] border border-gray-100 p-6 md:p-8">
-                <h3 className="text-xl font-black text-gray-700">Escolha seu núcleo</h3>
-                <p className="text-sm text-gray-400 font-semibold mt-1">Serão carregadas somente as equipes pertencentes ao núcleo selecionado.</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                  {nucleosDisponiveisAssistente.map((nucleo) => (
-                    <button key={nucleo} type="button" onClick={() => selecionarNucleoAssistente(nucleo)} className="rounded-[22px] border border-[#cde9ea] bg-gradient-to-br from-[#f7fbfb] to-[#e6f6f7] p-7 text-left hover:-translate-y-0.5 hover:shadow-md transition-all">
-                      <span className="w-12 h-12 rounded-2xl bg-[#048187] text-white flex items-center justify-center font-black">{nucleo.replace('NUCLEO ', 'N')}</span>
-                      <h4 className="mt-4 text-xl font-black text-gray-700">{nucleo.replace('NUCLEO', 'NÚCLEO')}</h4>
-                      <p className="text-sm text-gray-400 font-semibold mt-1">Clique para continuar</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {!carregandoAssistente && passoAssistente === 2 && (
-              <div className="bg-white rounded-[24px] border border-gray-100 p-6 md:p-8">
-                <div className="flex items-center justify-between gap-3">
-                  <div><h3 className="text-xl font-black text-gray-700">Selecione o ciclo</h3><p className="text-sm text-gray-400 font-semibold mt-1">Ciclos atuais e futuros disponíveis para lançamento antecipado.</p></div>
-                  <button type="button" onClick={() => setPassoAssistente(1)} className="bg-[#e6f6f7] text-[#048187] rounded-xl px-4 py-2 font-black text-sm"><ChevronLeft size={16} className="inline" /> Voltar</button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
-                  {ciclosDisponiveis.map((ciclo) => (
-                    <button key={ciclo.id || ciclo.ciclo} type="button" onClick={() => selecionarCicloAssistente(ciclo.ciclo)} className="rounded-2xl border border-gray-100 bg-white p-5 text-left hover:border-[#048187] hover:shadow-md transition-all">
-                      <div className="flex items-center justify-between"><span className="text-xl font-black text-gray-700">{ciclo.ciclo}</span>{ciclo.eh_atual && <span className="bg-green-50 text-green-700 rounded-full px-2 py-1 text-[10px] font-black">ATUAL</span>}</div>
-                      <p className="mt-2 text-xs font-bold text-gray-400">{formatarDataBR(ciclo.data_inicio)} até {formatarDataBR(ciclo.data_fim)}</p>
-                      <p className="mt-3 text-xs font-black text-[#048187]">{ciclo.eh_atual ? 'Lançar no ciclo atual' : 'Lançar antecipadamente'}</p>
-                    </button>
-                  ))}
-                  {!ciclosDisponiveis.length && <div className="col-span-full rounded-2xl bg-yellow-50 border border-yellow-100 p-5 text-sm font-bold text-yellow-700">Nenhum ciclo atual ou futuro foi encontrado. Cadastre o ciclo primeiro.</div>}
-                </div>
-              </div>
-            )}
-
-            {!carregandoAssistente && passoAssistente === 3 && (
-              <>
-                <div className="bg-white rounded-[24px] border border-gray-100 p-5">
-                  <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-                    <div>
-                      <p className="text-[10px] font-black uppercase text-[#048187]">{nucleoAssistente.replace('NUCLEO', 'NÚCLEO')} • {cicloAssistente}</p>
-                      <h3 className="text-xl font-black text-gray-700 mt-1">Metas das equipes</h3>
-                      <p className="text-sm font-semibold text-gray-400">A meta do consultor pode ser digitada em percentual ou em reais. O outro campo é calculado automaticamente.</p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={buscaEquipeAssistente} onChange={(e) => setBuscaEquipeAssistente(e.target.value)} placeholder="Buscar equipe..." className="border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#048187]" /></div>
-                      <select value={filtroStatusAssistente} onChange={(e) => setFiltroStatusAssistente(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os status</option><option value="PUBLICADO">Publicados</option><option value="RASCUNHO">Rascunhos</option></select>
-                      <button type="button" onClick={() => setPassoAssistente(2)} className="bg-[#e6f6f7] text-[#048187] rounded-xl px-4 py-2.5 font-black text-sm"><ChevronLeft size={16} className="inline" /> Ciclo</button>
-                    </div>
-                  </div>
-                </div>
-
-                {equipesFiltradasAssistente.map((equipe) => {
-                  const indiceEquipe = equipesAssistente.findIndex((item) => (item.chave || item.id || item.nome) === (equipe.chave || equipe.id || equipe.nome));
-                  const totalPeso = (equipe.consultores || []).reduce((soma, c) => soma + numeroAssistente(c.peso_meta), 0);
-                  const totalValor = (equipe.consultores || []).reduce((soma, c) => soma + numeroAssistente(c.meta_valor), 0);
-                  const metaTotal = numeroAssistente(equipe.meta_real);
-                  const saldoPeso = 100 - totalPeso;
-                  const saldoValor = metaTotal - totalValor;
-                  return (
-                    <div key={equipe.chave || equipe.id || equipe.nome} className="bg-white rounded-[24px] border border-gray-100 overflow-hidden shadow-sm">
-                      <button type="button" onClick={() => atualizarEquipeAssistente(indiceEquipe, 'aberta', !equipe.aberta)} className="w-full p-5 flex items-center justify-between gap-4 text-left bg-gradient-to-r from-[#f7fbfb] to-white">
-                        <div className="min-w-0"><div className="flex items-center gap-2 flex-wrap"><h4 className="text-lg font-black text-gray-700 truncate">{equipe.nome}</h4><span className="rounded-full bg-[#e6f6f7] text-[#048187] px-2 py-1 text-[10px] font-black">{(equipe.estruturas || []).length} estrutura(s)</span><span className="rounded-full bg-green-50 text-green-700 px-2 py-1 text-[10px] font-black">{equipe.consultores_ativos || 0} consultores ativos</span></div><p className="text-xs font-bold text-gray-400 mt-1 truncate">{(equipe.estruturas || []).map((e) => e.estrutura).join(' + ')}</p></div>
-                        <ChevronRight size={20} className={`text-[#048187] transition-transform ${equipe.aberta ? 'rotate-90' : ''}`} />
-                      </button>
-
-                      {equipe.aberta && (
-                        <div className="p-5 space-y-5">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-                            {[['meta_real', 'Faturamento (R$)'], ['meta_eudora', 'Eudora (%)'], ['meta_atividade', 'Atividade (%)'], ['meta_rpa', 'RPA (R$)'], ['meta_tkt_medio', 'Ticket Médio (R$)'], ['meta_upa', 'UPA'], ['meta_make', 'MAKE (%)'], ['meta_cabelo', 'Cabelo (%)'], ['meta_multimarcas', 'Multimarcas (%)']].map(([campo, label]) => (
-                              <label key={campo} className="rounded-2xl border border-gray-100 bg-[#fbfefe] p-3"><span className="block text-[10px] uppercase font-black text-gray-400 mb-1">{label}</span><input type="number" step="0.01" min="0" value={equipe[campo]} onChange={(e) => atualizarEquipeAssistente(indiceEquipe, campo, e.target.value)} className="w-full bg-transparent outline-none font-black text-gray-700" /></label>
-                            ))}
-                          </div>
-
-                          <div className="rounded-2xl border border-gray-100 overflow-hidden">
-                            <div className="bg-[#f2fafb] px-4 py-3 flex items-center justify-between"><div><h5 className="font-black text-gray-700">Distribuição por consultor</h5><p className="text-xs text-gray-400 font-semibold">Peso vale somente para a meta monetária de faturamento.</p></div><div className="text-right"><p className={`text-sm font-black ${Math.abs(saldoPeso) < 0.01 ? 'text-green-600' : saldoPeso < 0 ? 'text-red-600' : 'text-orange-500'}`}>{totalPeso.toFixed(2)}% distribuído</p><p className="text-xs font-bold text-gray-400">{formatarMoeda(totalValor)} de {formatarMoeda(metaTotal)}</p></div></div>
-                            <div className="divide-y divide-gray-100">
-                              {(equipe.consultores || []).map((consultor, indiceConsultor) => (
-                                <div key={consultor.id_colaborador || consultor.id} className="grid grid-cols-1 lg:grid-cols-[1.5fr_.55fr_.75fr_.55fr] gap-3 p-4 items-center">
-                                  <div><p className="font-black text-gray-700">{consultor.nome_exibicao || consultor.nome_social || consultor.nome}</p><p className="text-xs font-bold text-gray-400">ID {consultor.id_colaborador} • {consultor.status_consultor}</p></div>
-                                  <label><span className="text-[10px] uppercase font-black text-gray-400">Peso (%)</span><input type="number" min="0" step="0.01" value={consultor.peso_meta} onChange={(e) => atualizarConsultorAssistente(indiceEquipe, indiceConsultor, 'peso_meta', e.target.value)} className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 font-black text-[#048187] outline-none focus:border-[#048187]" /></label>
-                                  <label><span className="text-[10px] uppercase font-black text-gray-400">Meta em R$</span><input type="number" min="0" step="0.01" value={consultor.meta_valor} onChange={(e) => atualizarConsultorAssistente(indiceEquipe, indiceConsultor, 'meta_valor', e.target.value)} className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 font-black text-[#7c1f31] outline-none focus:border-[#048187]" /></label>
-                                  <div className="rounded-xl bg-gray-50 px-3 py-2.5"><p className="text-[10px] uppercase font-black text-gray-400">Representa</p><p className="font-black text-gray-700">{metaTotal > 0 ? ((numeroAssistente(consultor.meta_valor) / metaTotal) * 100).toFixed(2) : '0.00'}%</p></div>
-                                </div>
-                              ))}
-                              {!equipe.consultores?.length && <div className="p-5 text-sm font-bold text-gray-400">Esta equipe ainda não possui consultores cadastrados.</div>}
-                            </div>
-                          </div>
-
-                          <div className={`rounded-2xl border p-4 grid grid-cols-1 md:grid-cols-3 gap-3 ${Math.abs(saldoPeso) < 0.01 ? 'bg-green-50 border-green-100' : saldoPeso < 0 ? 'bg-red-50 border-red-100' : 'bg-yellow-50 border-yellow-100'}`}>
-                            <div><p className="text-[10px] uppercase font-black text-gray-400">Distribuído</p><p className="text-lg font-black text-gray-700">{totalPeso.toFixed(2)}%</p></div>
-                            <div><p className="text-[10px] uppercase font-black text-gray-400">{saldoPeso < 0 ? 'Excedente' : 'Falta distribuir'}</p><p className="text-lg font-black text-gray-700">{Math.abs(saldoPeso).toFixed(2)}%</p></div>
-                            <div><p className="text-[10px] uppercase font-black text-gray-400">Saldo em R$</p><p className="text-lg font-black text-gray-700">{formatarMoeda(Math.abs(saldoValor))}</p></div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {!equipesFiltradasAssistente.length && <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-400 font-black">Nenhuma equipe encontrada nesse núcleo.</div>}
-
-                <div className="sticky bottom-3 z-20 bg-white/95 backdrop-blur border border-gray-100 rounded-2xl shadow-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <div><p className="font-black text-gray-700">{equipesAssistente.filter((e) => numeroAssistente(e.meta_real) > 0).length} equipe(s) preenchida(s)</p><p className="text-xs font-semibold text-gray-400">Você pode salvar parcialmente e continuar depois.</p></div>
-                  <div className="flex flex-wrap gap-2"><button type="button" disabled={salvandoAssistente} onClick={() => salvarAssistenteMetas('rascunho')} className="border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-xl hover:bg-gray-50 disabled:opacity-60">Salvar rascunho</button><button type="button" disabled={salvandoAssistente} onClick={() => salvarAssistenteMetas('publicado')} className="bg-[#048187] text-white font-black px-6 py-3 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2"><Save size={17} />{salvandoAssistente ? 'Salvando...' : 'Salvar e publicar'}</button></div>
-                </div>
-
-                {Object.keys(resumoAssistente.grupos || {}).length > 0 && (
-                  <div className="bg-white rounded-[24px] border border-gray-100 p-5 md:p-6">
-                    <h3 className="text-xl font-black text-gray-700">Metas salvas do ciclo</h3>
-                    <p className="text-sm text-gray-400 font-semibold mt-1">Resumo separado por blocos de núcleo.</p>
-                    <div className="space-y-4 mt-5">
-                      {Object.entries(resumoAssistente.grupos || {}).filter(([nucleo]) => !nucleosEtapaAssistente.length || nucleosEtapaAssistente.includes(normalizarNucleoAssistente(nucleo))).map(([nucleo, itens]) => {
-                        const itensFiltrados = itens.filter((item) => {
-                          const termo = buscaEquipeAssistente.trim().toLowerCase();
-                          const okBusca = !termo || String(item.nome_meta || '').toLowerCase().includes(termo);
-                          const status = String(item.status_publicacao || 'rascunho').toUpperCase();
-                          const okStatus = filtroStatusAssistente === 'TODOS' || status === filtroStatusAssistente;
-                          return okBusca && okStatus;
-                        });
-                        if (!itensFiltrados.length) return null;
-                        return <div key={nucleo} className="rounded-2xl border border-gray-100 overflow-hidden"><div className="bg-[#dff5f6] px-4 py-3 flex items-center justify-between"><span className="font-black text-[#048187]">{nucleo.replace('NUCLEO', 'NÚCLEO')}</span><span className="text-xs font-black text-[#048187]">{itensFiltrados.length} equipe(s)</span></div><div className="divide-y divide-gray-100">{itensFiltrados.map((item) => <div key={item.id} className="grid grid-cols-1 md:grid-cols-[1.3fr_.7fr_.7fr_.5fr] gap-2 px-4 py-3 items-center"><span className="font-black text-gray-700">{item.nome_meta}</span><span className="font-black text-[#048187]">{formatarMoeda(item.meta_real)}</span><span className="text-xs font-bold text-gray-400">{item.total_consultores || 0} consultor(es)</span><span className={`w-fit rounded-full px-2 py-1 text-[10px] font-black uppercase ${String(item.status_publicacao).toLowerCase() === 'publicado' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>{item.status_publicacao}</span></div>)}</div></div>;
-                      })}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={modoInline ? "w-full" : "fixed inset-0 bg-black/45 z-[9999] flex items-center justify-center p-2 md:p-4"}>
       <div className={modoInline ? "bg-white w-full rounded-xl shadow-sm border border-gray-100 overflow-visible flex flex-col" : "bg-white w-full max-w-[98vw] h-[95vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col"}>
@@ -4947,7 +4490,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
 
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={() => { setModoAssistente(true); setPassoAssistente(1); }} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center gap-2 text-sm"><Plus size={18} /> Lançar meta</button><button type="button" onClick={abrirTabelaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><FileSpreadsheet size={16} /> Modo planilha</button>
+              <button type="button" onClick={abrirTabelaNovoCiclo} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center gap-2 text-sm"><Plus size={18} /> Novo ciclo</button>
               <button type="button" onClick={() => { setModoTabelaCiclo(false); setMostrarFormularioMeta(true); setEditandoId(null); setForm({ ...metaRealVazia, ciclo: form.ciclo || cicloPadrao || '' }); }} className="bg-white border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Pencil size={16} /> Cadastro simples</button>
               <button type="button" onClick={() => { carregarMetas(); carregarEstruturas(); carregarEstruturasConfigMeta(); }} className="bg-[#e6f6f7] text-[#048187] font-black px-5 py-3 rounded-xl hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button>
             </div>
@@ -5814,8 +5357,8 @@ function TelaExclusoesRevendedores({ apiUrl = API_URL, onAtualizacao }) {
 
 
 export default function App() {
-  const [usuarioLogado, setUsuarioLogado] = useState(() => { const s = localStorage.getItem('usuarioLogado'); return s ? JSON.parse(s) : null; });
-  const [tokenAuth, setTokenAuth] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || '');
+  const [usuarioLogado, setUsuarioLogado] = useState(() => lerUsuarioPersistido());
+  const [tokenAuth, setTokenAuth] = useState(() => lerTokenPersistido());
   const [emailLogin, setEmailLogin] = useState(''); const [senhaLogin, setSenhaLogin] = useState(''); const [mostrarSenha, setMostrarSenha] = useState(false); const [erroLogin, setErroLogin] = useState(''); const [carregandoLogin, setCarregandoLogin] = useState(false);
   const [modalRecuperacaoSenhaAberto, setModalRecuperacaoSenhaAberto] = useState(false);
   const [etapaRecuperacaoSenha, setEtapaRecuperacaoSenha] = useState('solicitar');
@@ -5826,26 +5369,26 @@ export default function App() {
   const [formRecuperacaoSenha, setFormRecuperacaoSenha] = useState({ email: '', codigo: '', nova_senha: '', confirmar_senha: '' });
   
   const [telaAtual, setTelaAtual] = useState(() => {
-    const telaSalva = localStorage.getItem(TELA_ATUAL_STORAGE_KEY);
+    const telaSalva = lerStorageUsuario(TELA_ATUAL_STORAGE_KEY);
     return telaSalva && ABAS_SISTEMA.includes(telaSalva) ? telaSalva : 'Dashboard';
   });
   const [canalAtual, setCanalAtual] = useState(() => {
-    const canalSalvo = localStorage.getItem(CANAL_ATUAL_STORAGE_KEY);
+    const canalSalvo = lerStorageUsuario(CANAL_ATUAL_STORAGE_KEY);
     return ['VD', 'LOJA'].includes(canalSalvo) ? canalSalvo : 'VD';
   });
   const [menuVDExpandido, setMenuVDExpandido] = useState(() => {
-    const canalSalvo = localStorage.getItem(CANAL_ATUAL_STORAGE_KEY);
+    const canalSalvo = lerStorageUsuario(CANAL_ATUAL_STORAGE_KEY);
     return canalSalvo !== 'LOJA';
   });
   const [menuLojaExpandido, setMenuLojaExpandido] = useState(() => {
-    const canalSalvo = localStorage.getItem(CANAL_ATUAL_STORAGE_KEY);
+    const canalSalvo = lerStorageUsuario(CANAL_ATUAL_STORAGE_KEY);
     return canalSalvo === 'LOJA';
   }); const [sidebarExpandida, setSidebarExpandida] = useState(true); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
-  const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => localStorage.getItem(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
+  const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   
   const [visaoRanking, setVisaoRanking] = useState('consultores');
   const [visaoMetas, setVisaoMetas] = useState(() => {
-    const visaoSalva = localStorage.getItem(VISAO_METAS_STORAGE_KEY);
+    const visaoSalva = lerStorageUsuario(VISAO_METAS_STORAGE_KEY);
     return ['estruturas', 'consultores'].includes(visaoSalva) ? visaoSalva : 'estruturas';
   });
   const [buscaEstruturaMeta, setBuscaEstruturaMeta] = useState(''); const [mostrarListaEstruturaMeta, setMostrarListaEstruturaMeta] = useState(false); 
@@ -5863,29 +5406,18 @@ export default function App() {
 
   const [cacheDashboard, setCacheDashboard] = useState(() => carregarCacheSessaoDash()); const [cacheDetalheMetas, setCacheDetalheMetas] = useState({}); const [cacheMetas, setCacheMetas] = useState(null); const [opcoesFiltrosCarregadas, setOpcoesFiltrosCarregadas] = useState(false);
   const [carregandoDashboard, setCarregandoDashboard] = useState(false); const [carregandoMetas, setCarregandoMetas] = useState(false); const [carregandoDetalheMeta, setCarregandoDetalheMeta] = useState(false); const [erroMetas, setErroMetas] = useState('');
-  const [consultoresGerenteVD, setConsultoresGerenteVD] = useState([]);
-  const [carregandoConsultoresGerenteVD, setCarregandoConsultoresGerenteVD] = useState(false);
+  const [atualizandoTelaAtual, setAtualizandoTelaAtual] = useState(false);
   
   const [modalDetalhes, setModalDetalhes] = useState(null);
-  const [abaRealizadoDiarioVD, setAbaRealizadoDiarioVD] = useState('estruturas');
   const [modalRealizadoDiarioVD, setModalRealizadoDiarioVD] = useState({
     aberto: false,
     carregando: false,
     erro: '',
     resumo: {
-      meta_total: 0,
-      realizado_total: 0,
-      gap_meta_total: 0,
-      pedidos_hoje: 0,
       realizado_hoje: 0,
-      vendido_hoje: 0,
       meta_diaria: 0,
-      meta_hoje: 0,
-      percentual_realizado: 0,
       percentual_atingimento: 0,
-      percentual_meta_diaria: 0,
       falta_meta_diaria: 0,
-      gap_meta_diaria: 0,
       data_referencia: '',
       ciclo: '',
       filtros_aplicados: {},
@@ -5905,6 +5437,18 @@ export default function App() {
   });
   const [modalValorExpandido, setModalValorExpandido] = useState({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null });
   const [modalDesempenhoDetalhado, setModalDesempenhoDetalhado] = useState({ aberto: false, indicador: 'RPA', visao: 'estruturas' });
+
+  const [acompanhamentoVD, setAcompanhamentoVD] = useState({
+    carregando: false,
+    carregandoConsultores: false,
+    carregandoDiario: false,
+    erro: '',
+    consultores: [],
+    meta_resolvida: null,
+    diario: null,
+    atualizado_em: '',
+  });
+
   useEffect(() => {
     salvarCacheSessaoDash(cacheDashboard);
   }, [cacheDashboard]);
@@ -6093,54 +5637,7 @@ export default function App() {
       appleIcon.rel = 'apple-touch-icon';
       document.head.appendChild(appleIcon);
     }
-    appleIcon.href = '/pwa-icon-192.png';
-
-    let manifest = document.querySelector("link[rel='manifest']");
-    if (!manifest) {
-      manifest = document.createElement('link');
-      manifest.rel = 'manifest';
-      document.head.appendChild(manifest);
-    }
-    manifest.href = '/manifest.webmanifest';
-
-    let themeColor = document.querySelector("meta[name='theme-color']");
-    if (!themeColor) {
-      themeColor = document.createElement('meta');
-      themeColor.name = 'theme-color';
-      document.head.appendChild(themeColor);
-    }
-    themeColor.content = '#048187';
-
-    const metasPwa = [
-      ['apple-mobile-web-app-capable', 'yes'],
-      ['apple-mobile-web-app-status-bar-style', 'default'],
-      ['apple-mobile-web-app-title', 'DASH SB'],
-      ['mobile-web-app-capable', 'yes'],
-    ];
-    metasPwa.forEach(([nome, conteudo]) => {
-      let meta = document.querySelector(`meta[name='${nome}']`);
-      if (!meta) {
-        meta = document.createElement('meta');
-        meta.name = nome;
-        document.head.appendChild(meta);
-      }
-      meta.content = conteudo;
-    });
-
-    const registrarServiceWorker = () => {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch((erro) => {
-          console.warn('Service Worker não registrado:', erro);
-        });
-      }
-    };
-
-    window.addEventListener('load', registrarServiceWorker);
-    if (document.readyState === 'complete') registrarServiceWorker();
-
-    return () => {
-      window.removeEventListener('load', registrarServiceWorker);
-    };
+    appleIcon.href = logoEmpresa;
   }, []);
 
   useEffect(() => {
@@ -6222,24 +5719,33 @@ export default function App() {
   useEffect(() => {
     if (!usuarioLogado) return;
 
+    if (modoGerenteVD && telaAtual !== 'AcompanhamentoVD' && telaAtual !== 'Perfil') {
+      setCanalAtual('VD');
+      setMenuLojaExpandido(false);
+      setMenuVDExpandido(true);
+      setTelaAtual('AcompanhamentoVD');
+      gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, 'AcompanhamentoVD');
+      return;
+    }
+
     if (telaEhLoja(telaAtual) && !usuarioPodeAcessarLoja()) {
       setCanalAtual('VD');
       setMenuLojaExpandido(false);
       setMenuVDExpandido(true);
-      setTelaAtual('Dashboard');
-      localStorage.setItem(TELA_ATUAL_STORAGE_KEY, 'Dashboard');
+      setTelaAtual(modoGerenteVD ? 'AcompanhamentoVD' : 'Dashboard');
+      gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, modoGerenteVD ? 'AcompanhamentoVD' : 'Dashboard');
       return;
     }
 
     if (ABAS_SISTEMA.includes(telaAtual)) {
-      localStorage.setItem(TELA_ATUAL_STORAGE_KEY, telaAtual);
+      gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, telaAtual);
       registrarUsoTela(telaAtual);
     }
   }, [usuarioLogado, telaAtual, permissoesAtivas]);
 
   useEffect(() => {
     if (!usuarioLogado) return;
-    localStorage.setItem(CANAL_ATUAL_STORAGE_KEY, canalAtual);
+    gravarStorageUsuario(CANAL_ATUAL_STORAGE_KEY, canalAtual);
   }, [usuarioLogado, canalAtual]);
 
   useEffect(() => {
@@ -6249,20 +5755,20 @@ export default function App() {
 
   useEffect(() => {
     if (!usuarioLogado) return;
-    localStorage.setItem(VISAO_METAS_STORAGE_KEY, visaoMetas);
+    gravarStorageUsuario(VISAO_METAS_STORAGE_KEY, visaoMetas);
   }, [usuarioLogado, visaoMetas]);
 
   useEffect(() => {
     if (!usuarioLogado) return;
     if (estruturaSelecionada) {
-      localStorage.setItem(ESTRUTURA_META_STORAGE_KEY, estruturaSelecionada);
+      gravarStorageUsuario(ESTRUTURA_META_STORAGE_KEY, estruturaSelecionada);
     } else {
-      localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
+      removerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
     }
   }, [usuarioLogado, estruturaSelecionada]);
 
 
-  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'VD', estruturas_permitidas: [] }); const [opcoesEscopoUsuarios, setOpcoesEscopoUsuarios] = useState([]); const [carregandoOpcoesEscopoUsuarios, setCarregandoOpcoesEscopoUsuarios] = useState(false); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
+  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'AMBOS' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
   const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' }); const [auditoriaDetalhe, setAuditoriaDetalhe] = useState(null);
   const [modalRelatorioAuditoriaAberto, setModalRelatorioAuditoriaAberto] = useState(false);
   const [gerandoRelatorioAuditoria, setGerandoRelatorioAuditoria] = useState(false);
@@ -6273,31 +5779,35 @@ export default function App() {
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloSelecionadoVD, setCicloSelecionadoVD] = useState(
-    () => localStorage.getItem(CICLO_VD_STORAGE_KEY) || ''
+    () => lerStorageUsuario(CICLO_VD_STORAGE_KEY) || ''
   );
   const [cicloSelecionadoLoja, setCicloSelecionadoLoja] = useState(
-    () => localStorage.getItem(CICLO_LOJA_STORAGE_KEY) || ''
+    () => lerStorageUsuario(CICLO_LOJA_STORAGE_KEY) || ''
   );
   const [cicloUploadVD, setCicloUploadVD] = useState(
-    () => localStorage.getItem(CICLO_UPLOAD_VD_STORAGE_KEY) || ''
+    () => lerStorageUsuario(CICLO_UPLOAD_VD_STORAGE_KEY) || ''
   );
   const [cicloUploadLoja, setCicloUploadLoja] = useState(
-    () => localStorage.getItem(CICLO_UPLOAD_LOJA_STORAGE_KEY) || ''
+    () => lerStorageUsuario(CICLO_UPLOAD_LOJA_STORAGE_KEY) || ''
   );
   const [alterandoStatusCiclo, setAlterandoStatusCiclo] = useState(false);
   const cicloVisualizacaoVDRef = useRef(cicloSelecionadoVD);
   const dashboardRequestSeqRef = useRef(0);
   const metasRequestSeqRef = useRef(0);
   const opcoesRequestSeqRef = useRef(0);
-  // Incrementado a cada login/logout para impedir que respostas iniciadas
-  // por outro usuário sobrescrevam a tela da sessão atual.
-  const sessaoDadosSeqRef = useRef(0);
+  const acompanhamentoRequestSeqRef = useRef(0);
+  const detalheDiarioCacheRef = useRef({});
+  const dadosAbortControllerRef = useRef(null);
+  const acompanhamentoAbortControllerRef = useRef(null);
+  const opcoesAbortControllerRef = useRef(null);
+  const comparativoAbortControllerRef = useRef(null);
+  const detalheMetaAbortControllerRef = useRef(null);
   const [modalEudoraAberto, setModalEudoraAberto] = useState(false);
   const [detalheEudora, setDetalheEudora] = useState(null);
   const [carregandoDetalheEudora, setCarregandoDetalheEudora] = useState(false);
   const [erroDetalheEudora, setErroDetalheEudora] = useState('');
 
-  const [listaConsultores, setListaConsultores] = useState([]); const [carregandoListaConsultores, setCarregandoListaConsultores] = useState(false); const [buscaConsultor, setBuscaConsultor] = useState(''); const [filtroNucleoConsultor, setFiltroNucleoConsultor] = useState('TODOS'); const [filtroEstruturaConsultor, setFiltroEstruturaConsultor] = useState('TODAS'); const [filtroStatusConsultor, setFiltroStatusConsultor] = useState('TODOS'); const [novoConsultor, setNovoConsultor] = useState(consultorVazio); const [modalCriarConsultorAberto, setModalCriarConsultorAberto] = useState(false); const [consultorEditando, setConsultorEditando] = useState(null); const [modalEditarConsultorAberto, setModalEditarConsultorAberto] = useState(false); const [consultorParaExcluir, setConsultorParaExcluir] = useState(null); const [modalExcluirConsultorAberto, setModalExcluirConsultorAberto] = useState(false); const [mensagemConsultor, setMensagemConsultor] = useState(''); const [erroGestaoConsultor, setErroGestaoConsultor] = useState('');
+  const [listaConsultores, setListaConsultores] = useState([]); const [carregandoListaConsultores, setCarregandoListaConsultores] = useState(false); const [buscaConsultor, setBuscaConsultor] = useState(''); const [novoConsultor, setNovoConsultor] = useState(consultorVazio); const [modalCriarConsultorAberto, setModalCriarConsultorAberto] = useState(false); const [consultorEditando, setConsultorEditando] = useState(null); const [modalEditarConsultorAberto, setModalEditarConsultorAberto] = useState(false); const [consultorParaExcluir, setConsultorParaExcluir] = useState(null); const [modalExcluirConsultorAberto, setModalExcluirConsultorAberto] = useState(false); const [mensagemConsultor, setMensagemConsultor] = useState(''); const [erroGestaoConsultor, setErroGestaoConsultor] = useState('');
   const [identidadesColaboradores, setIdentidadesColaboradores] = useState({ VD: {}, LOJA: {}, PERFIL: {} });
   const [modalIdentidadeColaborador, setModalIdentidadeColaborador] = useState({
     aberto: false,
@@ -6329,7 +5839,7 @@ export default function App() {
     deslocamentoInicialX: 0,
     deslocamentoInicialY: 0,
   });
-  const [listaEstruturasConfig, setListaEstruturasConfig] = useState([]); const [carregandoEstruturasConfig, setCarregandoEstruturasConfig] = useState(false); const [buscaEstruturaConfig, setBuscaEstruturaConfig] = useState(''); const [filtroNucleoEstrutura, setFiltroNucleoEstrutura] = useState('TODOS'); const [filtroTipoEstrutura, setFiltroTipoEstrutura] = useState('TODOS'); const [filtroStatusEstrutura, setFiltroStatusEstrutura] = useState('TODOS'); const [estruturaConfigForm, setEstruturaConfigForm] = useState(estruturaConfigVazia); const [estruturaConfigEditando, setEstruturaConfigEditando] = useState(null); const [mensagemEstruturaConfig, setMensagemEstruturaConfig] = useState(''); const [erroEstruturaConfig, setErroEstruturaConfig] = useState(''); const [equipesConsolidadas, setEquipesConsolidadas] = useState([]); const [modalEquipeConsolidadaAberto, setModalEquipeConsolidadaAberto] = useState(false); const [equipeConsolidadaEditando, setEquipeConsolidadaEditando] = useState(null); const [equipeConsolidadaForm, setEquipeConsolidadaForm] = useState({ nome: '', canal: 'VD', nucleo: 'NUCLEO 1', status: 'ativo', observacao: '', estrutura_ids: [] });
+  const [listaEstruturasConfig, setListaEstruturasConfig] = useState([]); const [carregandoEstruturasConfig, setCarregandoEstruturasConfig] = useState(false); const [buscaEstruturaConfig, setBuscaEstruturaConfig] = useState(''); const [estruturaConfigForm, setEstruturaConfigForm] = useState(estruturaConfigVazia); const [estruturaConfigEditando, setEstruturaConfigEditando] = useState(null); const [mensagemEstruturaConfig, setMensagemEstruturaConfig] = useState(''); const [erroEstruturaConfig, setErroEstruturaConfig] = useState('');
 
   const [dadosRevendedores, setDadosRevendedores] = useState(null); const [carregandoRevendedores, setCarregandoRevendedores] = useState(false); const [erroRevendedores, setErroRevendedores] = useState(''); const [buscaRevendedores, setBuscaRevendedores] = useState('');
   const [filtrosRevendedores, setFiltrosRevendedores] = useState({ estruturas: [], cidades: [], atividades: [], papeis: [], inadimplentes: [] }); const [buscaFiltrosRevendedores, setBuscaFiltrosRevendedores] = useState({ estruturas: '', cidades: '', atividades: '', papeis: '', inadimplentes: '' });
@@ -6340,7 +5850,7 @@ export default function App() {
 
   const [historicoCiclos, setHistoricoCiclos] = useState([]);
   const [cicloHistoricoSelecionado, setCicloHistoricoSelecionado] = useState('');
-  const [dadosHistorico, setDadosHistorico] = useState({ resumo: null, estruturas: [], consultores: [], consultoresAtivos: [], metas: [] });
+  const [dadosHistorico, setDadosHistorico] = useState({ resumo: null, estruturas: [], consultores: [], consultoresAtivos: [], metas: [], nucleos: [] });
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
   const [erroHistorico, setErroHistorico] = useState('');
   const [mensagemHistorico, setMensagemHistorico] = useState('');
@@ -6403,7 +5913,7 @@ export default function App() {
     const ciclo = cicloSelecionadoVD || '';
     if (ciclo) {
       axios.defaults.headers.common['X-Ciclo-VD'] = ciclo;
-      localStorage.setItem(CICLO_VD_STORAGE_KEY, ciclo);
+      gravarStorageUsuario(CICLO_VD_STORAGE_KEY, ciclo);
       setFiltrosAtivos((atual) => atual.ciclo === ciclo ? atual : ({ ...atual, ciclo }));
     } else {
       delete axios.defaults.headers.common['X-Ciclo-VD'];
@@ -6414,7 +5924,7 @@ export default function App() {
     const ciclo = cicloSelecionadoLoja || cicloLoja || '';
     if (ciclo) {
       axios.defaults.headers.common['X-Ciclo-LOJA'] = ciclo;
-      localStorage.setItem(CICLO_LOJA_STORAGE_KEY, ciclo);
+      gravarStorageUsuario(CICLO_LOJA_STORAGE_KEY, ciclo);
     } else {
       delete axios.defaults.headers.common['X-Ciclo-LOJA'];
     }
@@ -6468,6 +5978,13 @@ export default function App() {
   const ultimoCarregamentoTelaRef = useRef('');
   const debounceFiltroRapidoRef = useRef(null);
 
+  const estruturasPermitidasUsuarioLogado = normalizarEstruturasPermitidasUsuario(
+    usuarioLogado?.estruturas_permitidas
+  );
+  const escoposGerenteVD = estruturasPermitidasUsuarioLogado.filter((item) => item.area === 'VD');
+  const modoGerenteVD = String(usuarioLogado?.perfil || '').toLowerCase() === 'visualizador'
+    && escoposGerenteVD.length > 0;
+
   const itensMenuTopo = [
     { nome: 'Dashboard', icone: LayoutDashboard },
     { nome: 'Metas', icone: BarChart2 },
@@ -6480,10 +5997,9 @@ export default function App() {
     { nome: 'Base', icone: Database }
   ];
 
-  const itensMenuVD = itensMenuTopo;
-  const itensMenuVDGerente = [
-    { nome: 'AcompanhamentoVD', icone: LayoutDashboard },
-  ];
+  const itensMenuVD = modoGerenteVD
+    ? [{ nome: 'AcompanhamentoVD', icone: LayoutDashboard }]
+    : itensMenuTopo;
   const itensMenuLoja = [
     { nome: 'LojaVisaoGeral', icone: LayoutDashboard },
     { nome: 'LojaRanking', icone: Trophy },
@@ -6565,300 +6081,16 @@ export default function App() {
   const usuarioPodeAcessar = (tela) => {
     if (!usuarioLogado) return false;
     if (usuarioLogado.perfil === 'admin') return true;
-
-    // Acompanhamento é uma experiência exclusiva do gerente VD,
-    // construída sobre as mesmas APIs seguras da Visão Geral.
     if (tela === 'AcompanhamentoVD') {
-      const escopos = normalizarEstruturasPermitidasUsuario(
-        usuarioLogado?.estruturas_permitidas
-      );
-      const possuiEscopoVD = escopos.some((item) => item.area === 'VD');
-      return String(usuarioLogado?.perfil || '').toLowerCase() === 'visualizador'
-        && possuiEscopoVD
-        && permissoesDoUsuarioAtual().includes('Dashboard');
+      return modoGerenteVD && permissoesDoUsuarioAtual().includes('Dashboard');
     }
-
+    if (modoGerenteVD) {
+      return ['AcompanhamentoVD', 'Perfil'].includes(tela);
+    }
     return permissoesDoUsuarioAtual().includes(tela);
   };
 
   const usuarioPodeAcessarLoja = () => usuarioPodeAcessar('Loja') || usuarioPodeAcessar('LojaVisaoGeral') || usuarioPodeAcessar('LojaCadastro') || usuarioPodeAcessar('LojaUnidades') || usuarioPodeAcessar('LojaConsultoras') || usuarioPodeAcessar('LojaRanking');
-
-  const estruturasPermitidasUsuarioLogado = normalizarEstruturasPermitidasUsuario(
-    usuarioLogado?.estruturas_permitidas
-  );
-  const modoGerenteEstrutura = String(usuarioLogado?.perfil || '').toLowerCase() === 'visualizador'
-    && estruturasPermitidasUsuarioLogado.length > 0;
-  const areasEscopoGerente = Array.from(new Set(
-    estruturasPermitidasUsuarioLogado
-      .map((item) => String(item?.area || '').toUpperCase())
-      .filter((area) => area === 'VD' || area === 'LOJA')
-  ));
-  const areaGerenteEstrutura = areasEscopoGerente.length === 1
-    ? areasEscopoGerente[0]
-    : normalizarAreaGestao(
-        usuarioLogado?.area_gestao,
-        usuarioLogado?.perfil
-      );
-  const abasVisiveisGerenteEstrutura = ABAS_VISIVEIS_GERENTE_ESTRUTURA[areaGerenteEstrutura]
-    || ABAS_VISIVEIS_GERENTE_ESTRUTURA.AMBOS;
-  const usuarioPodeExibirAba = (tela) => !modoGerenteEstrutura
-    || abasVisiveisGerenteEstrutura.includes(tela);
-  const nomeEscopoUsuario = Array.from(new Set(
-    estruturasPermitidasUsuarioLogado
-      .map((item) => String(item?.estrutura || '').trim())
-      .filter(Boolean)
-  )).join(' • ');
-
-  // Segurança adicional do Acompanhamento VD no frontend.
-  // O backend continua sendo a fonte oficial da autorização, mas todo clique
-  // em cards/olhinhos também envia explicitamente apenas as estruturas do perfil.
-  const escoposVdUsuarioLogado = estruturasPermitidasUsuarioLogado
-    .filter((item) => String(item?.area || '').toUpperCase() === 'VD');
-
-  const normalizarEstruturaEscopoVD = (valor) => String(valor || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-
-  const aliasesEstruturaEscopoVD = (valor) => {
-    const original = String(valor || '').replace(/[–—]/g, '-').trim();
-    if (!original) return [];
-    const aliases = new Set();
-    const adicionar = (texto) => {
-      const normalizado = normalizarEstruturaEscopoVD(String(texto || '').replace(/^\s*-| -\s*$/g, ''));
-      if (normalizado) aliases.add(normalizado);
-    };
-    original.split(/[•|]/).map((parte) => parte.trim()).filter(Boolean).forEach((parte) => {
-      const semCodigo = parte.replace(/^\s*\d+\s*-\s*/, '').trim();
-      const semNucleo = semCodigo.replace(/^\s*(?:nucleo|n)\s*\d+\s*-\s*/i, '').trim();
-      [parte, semCodigo, semNucleo].forEach((candidato) => {
-        adicionar(candidato);
-        adicionar(String(candidato || '')
-          .replace(/^\s*equipe\s+er\s+/i, '')
-          .replace(/^\s*equipe\s+/i, '')
-          .replace(/^\s*er\s+/i, '')
-          .replace(/^\s*estrutura\s+/i, ''));
-      });
-    });
-    return Array.from(aliases);
-  };
-
-  const removerCodigoEstruturaEscopoVD = (valor) => {
-    const texto = String(valor || '').replace(/\s+/g, ' ').trim();
-    if (!texto) return '';
-    const partes = texto.split('-');
-    if (partes.length <= 1) return texto;
-    const primeiraParte = partes[0].trim();
-    return /^\d+$/.test(primeiraParte)
-      ? partes.slice(1).join('-').trim()
-      : texto;
-  };
-
-  const valoresEstruturasPermitidasVD = Array.from(new Set(
-    escoposVdUsuarioLogado.flatMap((item) => {
-      const vinculadas = Array.isArray(item?.vinculadas) ? item.vinculadas : [];
-      return [item?.estrutura, ...vinculadas]
-        .map((valor) => String(valor || '').trim())
-        .filter(Boolean);
-    })
-  ));
-
-  const chavesEstruturasPermitidasVD = new Set(
-    valoresEstruturasPermitidasVD.flatMap((valor) => [
-      ...aliasesEstruturaEscopoVD(valor),
-      ...aliasesEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
-    ]).filter(Boolean)
-  );
-
-  // O backend já retorna somente os blocos autorizados. Usamos os nomes dos
-  // blocos e suas estruturas vinculadas como aliases adicionais, porque a
-  // base de consultores pode registrar "EQUIPE PINHEIRO", enquanto o perfil
-  // foi cadastrado pelas quatro estruturas comerciais chamadas "PINHEIRO".
-  const valoresMetasAutorizadasVD = (dadosMetas?.estruturas || []).flatMap((item) => [
-    item?.estrutura,
-    item?.nome_meta,
-    ...(Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : []),
-  ]).map((valor) => String(valor || '').trim()).filter(Boolean);
-
-  const chavesDetalhesPermitidasVD = new Set([
-    ...chavesEstruturasPermitidasVD,
-    ...valoresMetasAutorizadasVD.flatMap((valor) => [
-      ...aliasesEstruturaEscopoVD(valor),
-      ...aliasesEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
-    ]).filter(Boolean),
-  ]);
-
-  const deveRestringirDetalhesVD = modoGerenteEstrutura
-    && areaGerenteEstrutura === 'VD'
-    && chavesEstruturasPermitidasVD.size > 0;
-
-  const estruturaPermitidaNoDetalheVD = (valor) => {
-    if (!deveRestringirDetalhesVD) return true;
-    const aliases = [
-      ...aliasesEstruturaEscopoVD(valor),
-      ...aliasesEstruturaEscopoVD(removerCodigoEstruturaEscopoVD(valor)),
-    ];
-    return aliases.some((alias) => chavesDetalhesPermitidasVD.has(alias));
-  };
-
-  const aplicarEscopoGerenteVdNosFiltros = (filtrosBase = {}) => {
-    const copia = {
-      ...(filtrosBase || {}),
-      nucleos: [...(filtrosBase?.nucleos || [])],
-      unidades: [...(filtrosBase?.unidades || [])],
-      estruturas: [...(filtrosBase?.estruturas || [])],
-      consultores: [...(filtrosBase?.consultores || [])],
-      situacoes: [...(filtrosBase?.situacoes || [])],
-      meios_captacao: [...(filtrosBase?.meios_captacao || [])],
-      modelos_comerciais: [...(filtrosBase?.modelos_comerciais || [])],
-      canais_venda: [...(filtrosBase?.canais_venda || [])],
-    };
-
-    if (!deveRestringirDetalhesVD) return copia;
-
-    const solicitadasPermitidas = (copia.estruturas || [])
-      .filter((estrutura) => estruturaPermitidaNoDetalheVD(estrutura));
-
-    copia.estruturas = solicitadasPermitidas.length
-      ? solicitadasPermitidas
-      : valoresEstruturasPermitidasVD;
-    return copia;
-  };
-
-  const filtrarListaDetalhePorEstruturaVD = (lista = []) => {
-    if (!Array.isArray(lista) || !deveRestringirDetalhesVD) return Array.isArray(lista) ? lista : [];
-    return lista.filter((item) => {
-      const aliases = [
-        item?.estrutura,
-        item?.Estrutura,
-        item?.nome_estrutura,
-        item?.estrutura_nome,
-        item?.meta_estrutura,
-        item?.nome_meta,
-        ...(Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : []),
-      ].filter((valor) => String(valor || '').trim());
-      return aliases.some((valor) => estruturaPermitidaNoDetalheVD(valor));
-    });
-  };
-
-  const filtrarPayloadDetalheVD = (payload) => {
-    if (!payload || typeof payload !== 'object' || !deveRestringirDetalhesVD) return payload;
-    const resultado = { ...payload };
-
-    ['estruturas', 'consultores', 'por_consultor'].forEach((chave) => {
-      if (Array.isArray(resultado[chave])) {
-        resultado[chave] = filtrarListaDetalhePorEstruturaVD(resultado[chave]);
-      }
-    });
-
-    if (Array.isArray(resultado.por_estrutura)) {
-      resultado.por_estrutura = resultado.por_estrutura
-        .map((grupo) => ({
-          ...grupo,
-          estruturas: filtrarListaDetalhePorEstruturaVD(grupo?.estruturas || []),
-        }))
-        .filter((grupo) => (grupo.estruturas || []).length > 0);
-    }
-
-    if (Array.isArray(resultado.nucleos)) {
-      resultado.nucleos = resultado.nucleos
-        .map((grupo) => ({
-          ...grupo,
-          estruturas: filtrarListaDetalhePorEstruturaVD(grupo?.estruturas || []),
-          consultores: filtrarListaDetalhePorEstruturaVD(grupo?.consultores || []),
-        }))
-        .filter((grupo) => (grupo.estruturas || []).length > 0 || (grupo.consultores || []).length > 0);
-    }
-
-    return resultado;
-  };
-
-  useEffect(() => {
-    let cancelado = false;
-
-    const carregarConsultoresDasEstruturasDoGerente = async () => {
-      if (!modoGerenteEstrutura || areaGerenteEstrutura !== 'VD' || telaAtual !== 'AcompanhamentoVD') {
-        if (!cancelado) {
-          setConsultoresGerenteVD([]);
-          setCarregandoConsultoresGerenteVD(false);
-        }
-        return;
-      }
-
-      const rankingSeguro = Array.isArray(dadosMetas?.ranking_consultores)
-        ? dadosMetas.ranking_consultores
-        : [];
-
-      if (!cancelado) {
-        // O resumo pode ainda não ter carregado. Mantemos qualquer ranking já
-        // autorizado enquanto o endpoint exclusivo do gerente busca o mesmo
-        // detalhe oficial usado pelo botão "Ver" do administrador.
-        setConsultoresGerenteVD(rankingSeguro);
-        setCarregandoConsultoresGerenteVD(true);
-      }
-
-      try {
-        const filtrosSeguros = aplicarEscopoGerenteVdNosFiltros({
-          ...filtrosAtivos,
-          ciclo: filtrosAtivos?.ciclo || cicloSelecionadoVD || '',
-          consultores: [],
-        });
-
-        const resposta = await axios.post(
-          `${API_URL}/gerente-vd/consultores`,
-          filtrosSeguros,
-          {
-            headers: {
-              'X-Ciclo-VD': filtrosSeguros.ciclo || cicloSelecionadoVD || '',
-            },
-          }
-        );
-
-        if (cancelado) return;
-
-        const consultores = Array.isArray(resposta?.data?.consultores)
-          ? resposta.data.consultores
-          : [];
-
-        setConsultoresGerenteVD(
-          consultores.length > 0 ? consultores : rankingSeguro
-        );
-      } catch (erro) {
-        console.error('Erro ao carregar consultores do gerente VD:', erro);
-        if (!cancelado) setConsultoresGerenteVD(rankingSeguro);
-      } finally {
-        if (!cancelado) setCarregandoConsultoresGerenteVD(false);
-      }
-    };
-
-    carregarConsultoresDasEstruturasDoGerente();
-    return () => { cancelado = true; };
-  }, [
-    modoGerenteEstrutura,
-    areaGerenteEstrutura,
-    telaAtual,
-    usuarioLogado?.id,
-    filtrosAtivos?.ciclo,
-    cicloSelecionadoVD,
-    dadosMetas?.ranking_consultores,
-  ]);
-
-  useEffect(() => {
-    if (!modoGerenteEstrutura || !usuarioLogado) return;
-    if (abasVisiveisGerenteEstrutura.includes(telaAtual)) return;
-
-    const telaInicial = areaGerenteEstrutura === 'LOJA'
-      ? 'LojaVisaoGeral'
-      : 'AcompanhamentoVD';
-    setCanalAtual(areaGerenteEstrutura === 'LOJA' ? 'LOJA' : 'VD');
-    setMenuLojaExpandido(areaGerenteEstrutura === 'LOJA');
-    setMenuVDExpandido(areaGerenteEstrutura !== 'LOJA');
-    setTelaAtual(telaInicial);
-    localStorage.setItem(TELA_ATUAL_STORAGE_KEY, telaInicial);
-    localStorage.setItem(CANAL_ATUAL_STORAGE_KEY, areaGerenteEstrutura === 'LOJA' ? 'LOJA' : 'VD');
-  }, [modoGerenteEstrutura, areaGerenteEstrutura, telaAtual, usuarioLogado?.id]);
 
   const podeGerarRelatorioMetas = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
   const podeGerarRelatorioLoja = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
@@ -6913,7 +6145,7 @@ export default function App() {
           permissoes: resposta.data?.usuario?.permissoes || permissoesNormalizadas
         };
         setUsuarioLogado(usuarioAtualizado);
-        localStorage.setItem('usuarioLogado', JSON.stringify(usuarioAtualizado));
+        salvarUsuarioSessao(usuarioAtualizado);
       }
 
       setModalPermissoesAberto(false);
@@ -6925,36 +6157,24 @@ export default function App() {
     }
   };
 
-  const gerarChaveFiltros = (filtros) => JSON.stringify({ us: usuarioLogado?.id || usuarioLogado?.email || 'anonimo', ci: filtros?.ciclo || '', nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
+  const gerarChaveFiltros = (filtros) => JSON.stringify({ ci: filtros?.ciclo || '', nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
 
   const limparCachesDados = () => {
+    [dadosAbortControllerRef, acompanhamentoAbortControllerRef, opcoesAbortControllerRef, comparativoAbortControllerRef, detalheMetaAbortControllerRef].forEach((ref) => {
+      try { ref.current?.abort(); } catch { /* sem ação */ }
+      ref.current = null;
+    });
+    dashboardRequestSeqRef.current += 1;
+    metasRequestSeqRef.current += 1;
+    opcoesRequestSeqRef.current += 1;
+    acompanhamentoRequestSeqRef.current += 1;
+    promessasEmAndamentoRef.current = {};
+    detalheDiarioCacheRef.current = {};
     setCacheDashboard({});
     setCacheMetas(null);
     setCacheDetalheMetas({});
     setOpcoesFiltrosCarregadas(false);
-    try { sessionStorage.removeItem(CACHE_SESSAO_DASH_KEY); } catch { /* sem ação */ }
-  };
-
-  const limparDadosVisuaisDaSessao = () => {
-    // Invalida todas as respostas que ainda estiverem em andamento.
-    sessaoDadosSeqRef.current += 1;
-    dashboardRequestSeqRef.current += 1;
-    metasRequestSeqRef.current += 1;
-    opcoesRequestSeqRef.current += 1;
-    promessasEmAndamentoRef.current = {};
-    ultimoCarregamentoTelaRef.current = '';
-
-    limparCachesDados();
-    setDados(null);
-    setDadosMetas(null);
-    setDetalheMeta(null);
-    setConsultoresGerenteVD([]);
-    setMetaFaturamentoDashboard(0);
-    setErroMetas('');
-    setCarregandoDashboard(false);
-    setCarregandoMetas(false);
-    setCarregandoDetalheMeta(false);
-    setCarregandoConsultoresGerenteVD(false);
+    try { sessionStorage.removeItem(chaveCacheSessaoDashUsuario()); } catch { /* sem ação */ }
   };
 
   const carregarOpcoesFiltros = async (forcarAtualizacao = false, cicloForcado = null) => {
@@ -6967,7 +6187,13 @@ export default function App() {
       return promessasEmAndamentoRef.current[chave];
     }
 
-    const promessa = axios.get(`${API_URL}/dashboard/opcoes-filtros`, { headers: { 'X-Ciclo-VD': cicloContexto } })
+    try { opcoesAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
+    const controller = new AbortController();
+    opcoesAbortControllerRef.current = controller;
+    const promessa = axios.get(`${API_URL}/dashboard/opcoes-filtros`, {
+      headers: { 'X-Ciclo-VD': cicloContexto },
+      signal: controller.signal,
+    })
       .then((resposta) => {
         if (requestSeq !== opcoesRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || cicloContexto) !== cicloContexto) return;
         setOpcFiltros(prev => ({
@@ -6984,7 +6210,7 @@ export default function App() {
         setOpcoesFiltrosCarregadas(true);
       })
       .catch((erro) => {
-        console.error('Erro filtros:', erro);
+        if (erro?.code !== 'ERR_CANCELED' && erro?.name !== 'CanceledError') console.error('Erro filtros:', erro);
       })
       .finally(() => {
         delete promessasEmAndamentoRef.current[chave];
@@ -7045,7 +6271,6 @@ export default function App() {
 
   const carregarDashboard = async (filtros, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
-    const sessaoSeq = sessaoDadosSeqRef.current;
     const chaveCache = gerarChaveFiltros(filtros);
     const chavePromessa = `dashboard_${chaveCache}_${forcarAtualizacao ? 'force' : 'cache'}`;
 
@@ -7058,7 +6283,6 @@ export default function App() {
       }
       setMetaFaturamentoDashboard(c.metaFaturamentoDashboard || 0);
       void carregarOpcoesFiltros(false);
-      setTimeout(() => carregarDashboard(filtros, true), 80);
       return c.dados;
     }
 
@@ -7068,21 +6292,20 @@ export default function App() {
 
     const cicloSolicitado = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
     const requestSeq = ++dashboardRequestSeqRef.current;
+    try { dadosAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
+    const controller = new AbortController();
+    dadosAbortControllerRef.current = controller;
     setCarregandoDashboard(true);
     const promessa = (async () => {
       try {
         void carregarOpcoesFiltros(false, cicloSolicitado);
-        const configCiclo = { headers: { 'X-Ciclo-VD': cicloSolicitado } };
+        const configCiclo = { headers: { 'X-Ciclo-VD': cicloSolicitado }, signal: controller.signal, timeout: 30000 };
         const [resMetas, resDados] = await Promise.allSettled([
           axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, configCiclo),
           axios.post(`${API_URL}/dashboard/dados`, { ...filtros, ciclo: cicloSolicitado }, configCiclo)
         ]);
 
-        if (
-          sessaoSeq !== sessaoDadosSeqRef.current
-          || requestSeq !== dashboardRequestSeqRef.current
-          || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado
-        ) return null;
+        if (requestSeq !== dashboardRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado) return null;
         if (resDados.status === 'fulfilled' && resDados.value.data?.ciclo_retorno && String(resDados.value.data.ciclo_retorno) !== cicloSolicitado) return null;
         const resumoMetas = resMetas.status === 'fulfilled'
           ? { ...resMetas.value.data, estruturas: [...(resMetas.value.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0)) }
@@ -7100,15 +6323,14 @@ export default function App() {
         setCacheDashboard((prev) => ({ ...prev, [chaveCache]: { dados: resDados.value.data, dadosMetas: resumoMetas, metaFaturamentoDashboard: metaCalculada } }));
         return resDados.value.data;
       } catch (erro) {
+        if (erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError') return null;
         console.error('Erro dashboard:', erro);
         if (requestSeq === dashboardRequestSeqRef.current) {
           setDados(null);
           setMetaFaturamentoDashboard(0);
         }
       } finally {
-        if (sessaoSeq === sessaoDadosSeqRef.current && requestSeq === dashboardRequestSeqRef.current) {
-          setCarregandoDashboard(false);
-        }
+        if (requestSeq === dashboardRequestSeqRef.current) setCarregandoDashboard(false);
         delete promessasEmAndamentoRef.current[chavePromessa];
       }
     })();
@@ -7118,7 +6340,6 @@ export default function App() {
   };
 
   const carregarMetas = async (filtros, forcarAtualizacao = false) => {
-    const sessaoSeq = sessaoDadosSeqRef.current;
     setErroMetas('');
     const chaveCache = 'metas_' + gerarChaveFiltros(filtros);
     const chavePromessa = `${chaveCache}_${forcarAtualizacao ? 'force' : 'cache'}`;
@@ -7129,7 +6350,6 @@ export default function App() {
       if (visaoMetas === 'consultores' && estruturaSelecionada) {
         await carregarDetalheMeta(estruturaSelecionada, filtros, false);
       }
-      setTimeout(() => carregarMetas(filtros, true), 80);
       return c.dados;
     }
 
@@ -7143,11 +6363,7 @@ export default function App() {
     const promessa = (async () => {
       try {
         const resposta = await axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, { headers: { 'X-Ciclo-VD': cicloSolicitado } });
-        if (
-          sessaoSeq !== sessaoDadosSeqRef.current
-          || requestSeq !== metasRequestSeqRef.current
-          || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado
-        ) return null;
+        if (requestSeq !== metasRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado) return null;
         const estruturasOrdenadas = [...(resposta.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
         const dadosOrdenados = { ...resposta.data, estruturas: estruturasOrdenadas };
         setDadosMetas(dadosOrdenados);
@@ -7163,9 +6379,7 @@ export default function App() {
         console.error('Erro metas:', erro);
         setErroMetas('Erro ao carregar metas.');
       } finally {
-        if (sessaoSeq === sessaoDadosSeqRef.current && requestSeq === metasRequestSeqRef.current) {
-          setCarregandoMetas(false);
-        }
+        if (requestSeq === metasRequestSeqRef.current) setCarregandoMetas(false);
         delete promessasEmAndamentoRef.current[chavePromessa];
       }
     })();
@@ -7176,10 +6390,13 @@ export default function App() {
 
   const carregarDashboardEMetas = async (filtros, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
-    const sessaoSeq = sessaoDadosSeqRef.current;
     setErroMetas('');
 
-    const chaveFiltro = gerarChaveFiltros(filtros);
+    const cicloSolicitado = String(
+      filtros?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || ''
+    ).trim();
+    const filtrosSolicitados = { ...filtros, ciclo: cicloSolicitado };
+    const chaveFiltro = gerarChaveFiltros(filtrosSolicitados);
     const chaveDashboard = chaveFiltro;
     const chaveMetas = 'metas_' + chaveFiltro;
     const chavePromessa = `dashboard_metas_${chaveFiltro}_${forcarAtualizacao ? 'force' : 'cache'}`;
@@ -7190,10 +6407,7 @@ export default function App() {
       setDados(cacheDash.dados);
       setMetaFaturamentoDashboard(cacheDash.metaFaturamentoDashboard || 0);
       setDadosMetas(cacheMeta.dados);
-      if (visaoMetas === 'consultores' && estruturaSelecionada) {
-        await carregarDetalheMeta(estruturaSelecionada, filtros, false);
-      }
-      setTimeout(() => carregarDashboardEMetas(filtros, true), 80);
+      setCacheMetas(cacheMeta.dados);
       return;
     }
 
@@ -7201,42 +6415,59 @@ export default function App() {
       return promessasEmAndamentoRef.current[chavePromessa];
     }
 
+    const seqDash = ++dashboardRequestSeqRef.current;
+    const seqMetas = ++metasRequestSeqRef.current;
+    try { dadosAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
+    const controller = new AbortController();
+    dadosAbortControllerRef.current = controller;
     setCarregandoDashboard(true);
     setCarregandoMetas(true);
 
     const promessa = (async () => {
       try {
-        void carregarOpcoesFiltros(false);
-        const cicloSolicitado = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
-        const configCiclo = { headers: { 'X-Ciclo-VD': cicloSolicitado } };
+        void carregarOpcoesFiltros(false, cicloSolicitado);
+        const configCiclo = { headers: { 'X-Ciclo-VD': cicloSolicitado }, signal: controller.signal, timeout: 30000 };
         const [resMetas, resDados] = await Promise.allSettled([
-          axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, configCiclo),
-          axios.post(`${API_URL}/dashboard/dados`, { ...filtros, ciclo: cicloSolicitado }, configCiclo)
+          axios.post(`${API_URL}/metas/resumo`, filtrosSolicitados, configCiclo),
+          axios.post(`${API_URL}/dashboard/dados`, filtrosSolicitados, configCiclo)
         ]);
 
-        // Uma resposta iniciada pelo administrador nunca pode aparecer após
-        // o login de um gerente (ou vice-versa).
-        if (sessaoSeq !== sessaoDadosSeqRef.current) return;
+        const respostaAindaValida = (
+          seqDash === dashboardRequestSeqRef.current
+          && seqMetas === metasRequestSeqRef.current
+          && String(cicloVisualizacaoVDRef.current || cicloSolicitado) === cicloSolicitado
+        );
+        if (!respostaAindaValida) return null;
 
         let dadosMetasAtualizados = null;
         if (resMetas.status === 'fulfilled') {
-          const estruturasOrdenadas = [...(resMetas.value.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
+          const estruturasOrdenadas = [...(resMetas.value.data.estruturas || [])]
+            .sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
           dadosMetasAtualizados = { ...resMetas.value.data, estruturas: estruturasOrdenadas };
           setDadosMetas(dadosMetasAtualizados);
           setCacheMetas(dadosMetasAtualizados);
           setCacheDashboard((prev) => ({ ...prev, [chaveMetas]: { dados: dadosMetasAtualizados } }));
         } else {
           console.error('Erro metas:', resMetas.reason);
-          setErroMetas('Erro ao carregar metas.');
-          setDadosMetas(null);
-          setDetalheMeta(null);
+          setErroMetas(resMetas.reason?.response?.data?.detail || 'Erro ao carregar metas.');
         }
 
         if (resDados.status === 'fulfilled') {
-          const metaCalculada = calcularMetaDashboardPelosFiltros(dadosMetasAtualizados || cacheMetas, filtros, resDados.value.data);
+          if (resDados.value.data?.ciclo_retorno && String(resDados.value.data.ciclo_retorno) !== cicloSolicitado) return null;
+          const metaCalculada = calcularMetaDashboardPelosFiltros(
+            dadosMetasAtualizados || cacheMetas,
+            filtrosSolicitados,
+            resDados.value.data
+          );
           setDados(resDados.value.data);
           setMetaFaturamentoDashboard(metaCalculada);
-          setCacheDashboard((prev) => ({ ...prev, [chaveDashboard]: { dados: resDados.value.data, metaFaturamentoDashboard: metaCalculada } }));
+          setCacheDashboard((prev) => ({
+            ...prev,
+            [chaveDashboard]: {
+              dados: resDados.value.data,
+              metaFaturamentoDashboard: metaCalculada
+            }
+          }));
         } else {
           console.error('Erro dashboard:', resDados.reason);
           setDados(null);
@@ -7244,13 +6475,15 @@ export default function App() {
         }
 
         if (visaoMetas === 'consultores' && estruturaSelecionada) {
-          await carregarDetalheMeta(estruturaSelecionada, filtros, forcarAtualizacao);
+          await carregarDetalheMeta(estruturaSelecionada, filtrosSolicitados, forcarAtualizacao);
+        }
+      } catch (erro) {
+        if (erro?.code !== 'ERR_CANCELED' && erro?.name !== 'CanceledError') {
+          console.error('Erro ao atualizar Dashboard e Metas:', erro);
         }
       } finally {
-        if (sessaoSeq === sessaoDadosSeqRef.current) {
-          setCarregandoDashboard(false);
-          setCarregandoMetas(false);
-        }
+        if (seqDash === dashboardRequestSeqRef.current) setCarregandoDashboard(false);
+        if (seqMetas === metasRequestSeqRef.current) setCarregandoMetas(false);
         delete promessasEmAndamentoRef.current[chavePromessa];
       }
     })();
@@ -7259,45 +6492,163 @@ export default function App() {
     return promessa;
   };
 
+  const montarFallbackDetalheMeta = (estrutura) => {
+    const limparNomeEstrutura = (valor) => String(valor || '')
+      .replace(/^\s*\d+\s*-\s*/, '')
+      .trim()
+      .toLocaleUpperCase('pt-BR');
+
+    const alvoCompleto = String(estrutura || '').trim().toLocaleUpperCase('pt-BR');
+    const alvoSemCodigo = limparNomeEstrutura(estrutura);
+    const estruturasResumo = Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : [];
+    const item = estruturasResumo.find((linha) => {
+      const nome = String(linha?.estrutura || linha?.nome_meta || '').trim();
+      return nome.toLocaleUpperCase('pt-BR') === alvoCompleto
+        || limparNomeEstrutura(nome) === alvoSemCodigo
+        || (linha?.estruturas_vinculadas || []).some((vinculo) => (
+          String(vinculo || '').trim().toLocaleUpperCase('pt-BR') === alvoCompleto
+          || limparNomeEstrutura(vinculo) === alvoSemCodigo
+        ));
+    });
+
+    if (!item) return null;
+
+    const ranking = Array.isArray(dadosMetas?.ranking_consultores) ? dadosMetas.ranking_consultores : [];
+    const consultores = ranking.filter((consultor) => {
+      const nomeEstrutura = String(consultor?.estrutura || '').trim();
+      return nomeEstrutura.toLocaleUpperCase('pt-BR') === alvoCompleto
+        || limparNomeEstrutura(nomeEstrutura) === alvoSemCodigo;
+    });
+
+    return {
+      estrutura: item.estrutura || estrutura,
+      nome_meta_real: item.estrutura || estrutura,
+      meta_origem: 'resumo_imediato',
+      sem_meta_cadastrada: Boolean(item.sem_meta_cadastrada),
+      estruturas_vinculadas: item.estruturas_vinculadas || [estrutura],
+      meta: {
+        receita: Number(item.receita || 0),
+        atividade: Number(item.meta_atividade || 0),
+        rpa: Number(item.meta_rpa || 0),
+        tkt_medio: Number(item.meta_tkt_medio || 0),
+        upa: Number(item.meta_upa || 0),
+        make: Number(item.meta_make || 0),
+        cabelo: Number(item.meta_cabelo || 0),
+        multimarcas: Number(item.meta_multimarcas || 0),
+        eudora: Number(item.meta_eudora || 0),
+        eudora_valor: Number(item.meta_eudora_valor || 0),
+      },
+      realizado: Number(item.realizado || 0),
+      percentual: Number(item.percentual || 0),
+      quantidade_pedidos: Number(item.quantidade_pedidos || 0),
+      atividade_realizada: Number(item.atividade_realizada || 0),
+      base_ativa: Number(item.base_ativa || 0),
+      percentual_atividade: Number(item.percentual_atividade || 0),
+      make_realizado: Number(item.make_realizado || 0),
+      atividade_make_base: Number(item.atividade_make_base || 0),
+      percentual_make: Number(item.percentual_make || 0),
+      cabelo_realizado: Number(item.cabelo_realizado || 0),
+      atividade_cabelo_base: Number(item.atividade_cabelo_base || 0),
+      percentual_cabelo: Number(item.percentual_cabelo || 0),
+      multimarcas_realizado: Number(item.multimarcas_realizado || 0),
+      percentual_multimarcas: Number(item.percentual_multimarcas || 0),
+      eudora_realizado: Number(item.eudora_realizado || 0),
+      meta_eudora_valor: Number(item.meta_eudora_valor || 0),
+      percentual_eudora: Number(item.percentual_eudora || 0),
+      total_itens: Number(item.total_itens || 0),
+      upa_realizada: Number(item.upa || 0),
+      consultores,
+      vendas_fora_estrutura: [],
+    };
+  };
+
   const carregarDetalheMeta = async (estrutura, filtros, forcarAtualizacao = false) => {
-    if (!estrutura) return;
+    if (!estrutura) return null;
     const chaveCache = String(estrutura) + '_' + gerarChaveFiltros(filtros);
     const chavePromessa = `detalhe_meta_${chaveCache}_${forcarAtualizacao ? 'force' : 'cache'}`;
+
     if (!forcarAtualizacao && cacheDetalheMetas[chaveCache]) {
       setDetalheMeta(cacheDetalheMetas[chaveCache]);
       setEstruturaSelecionada(estrutura);
       return cacheDetalheMetas[chaveCache];
     }
-    if (promessasEmAndamentoRef.current[chavePromessa]) return promessasEmAndamentoRef.current[chavePromessa];
+
+    const fallback = montarFallbackDetalheMeta(estrutura);
+    if (fallback) {
+      // A tela abre imediatamente com o mesmo resultado já exibido na lista.
+      // O backend apenas enriquece os consultores em segundo plano.
+      setDetalheMeta(fallback);
+      setEstruturaSelecionada(estrutura);
+    }
+
+    if (promessasEmAndamentoRef.current[chavePromessa]) {
+      return fallback || promessasEmAndamentoRef.current[chavePromessa];
+    }
 
     const cicloSolicitado = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
+    try { detalheMetaAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
+    const controller = new AbortController();
+    detalheMetaAbortControllerRef.current = controller;
     setCarregandoDetalheMeta(true);
     setErroMetas('');
+
     const promessa = axios.post(
       `${API_URL}/metas/estrutura/${encodeURIComponent(estrutura)}`,
       { ...filtros, ciclo: cicloSolicitado },
-      { headers: { 'X-Ciclo-VD': cicloSolicitado } }
+      { headers: { 'X-Ciclo-VD': cicloSolicitado }, signal: controller.signal, timeout: 45000 }
     ).then((resposta) => {
+      if (String(cicloVisualizacaoVDRef.current || cicloSolicitado) !== cicloSolicitado) return fallback;
       setDetalheMeta(resposta.data);
       setEstruturaSelecionada(estrutura);
       setCacheDetalheMetas((prev) => ({ ...prev, [chaveCache]: resposta.data }));
       return resposta.data;
     }).catch((erro) => {
+      if (erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError') return fallback;
       console.error('Erro detalhe estrutura:', erro);
-      setErroMetas('Erro detalhe estrutura.');
-      return null;
+      // O resumo já contém os valores oficiais. Uma falha no enriquecimento
+      // não deve fechar a tela nem apagar metas já carregadas.
+      if (!fallback) setErroMetas(erro?.response?.data?.detail || 'Erro ao carregar o detalhe da estrutura.');
+      return fallback;
     }).finally(() => {
       setCarregandoDetalheMeta(false);
       delete promessasEmAndamentoRef.current[chavePromessa];
     });
+
     promessasEmAndamentoRef.current[chavePromessa] = promessa;
-    return promessa;
+    return fallback || promessa;
+  };
+
+  const abrirDetalheEstruturaMetas = async (estrutura, forcarAtualizacao = false) => {
+    const nomeEstrutura = String(estrutura || '').trim();
+    if (!nomeEstrutura || carregandoDetalheMeta) return null;
+
+    setEstruturaSelecionada(nomeEstrutura);
+    setDetalheMeta(null);
+    setVisaoMetas('consultores');
+    setBuscaEstruturaMeta('');
+    setMostrarListaEstruturaMeta(false);
+    gravarStorageUsuario(VISAO_METAS_STORAGE_KEY, 'consultores');
+    gravarStorageUsuario(ESTRUTURA_META_STORAGE_KEY, nomeEstrutura);
+
+    const resultado = await carregarDetalheMeta(
+      nomeEstrutura,
+      filtrosAtivos,
+      forcarAtualizacao
+    );
+
+    if (!resultado) {
+      setVisaoMetas('estruturas');
+      setEstruturaSelecionada('');
+      gravarStorageUsuario(VISAO_METAS_STORAGE_KEY, 'estruturas');
+      removerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
+    }
+    return resultado;
   };
 
   const voltarParaListaMetas = () => {
     setVisaoMetas('estruturas');
-    localStorage.setItem(VISAO_METAS_STORAGE_KEY, 'estruturas');
-    localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
+    gravarStorageUsuario(VISAO_METAS_STORAGE_KEY, 'estruturas');
+    removerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
     setDetalheMeta(null);
     setEstruturaSelecionada('');
     setBuscaEstruturaMeta('');
@@ -7306,51 +6657,35 @@ export default function App() {
 
   const carregarComparativo = async (filtros) => {
     setLoadComp(true);
+    try { comparativoAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
+    const controller = new AbortController();
+    comparativoAbortControllerRef.current = controller;
+    const ciclo = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || '').trim();
+    const config = { headers: { 'X-Ciclo-VD': ciclo }, signal: controller.signal, timeout: 30000 };
 
     try {
-      const criarFiltroNucleo = (nucleo) => ({
-        ...filtros,
-        nucleos: [nucleo],
-      });
-
+      const criarFiltroNucleo = (nucleo) => ({ ...filtros, ciclo, nucleos: [nucleo] });
       const filtrosN1 = criarFiltroNucleo('NUCLEO 1');
       const filtrosN2 = criarFiltroNucleo('NUCLEO 2');
       const filtrosN3 = criarFiltroNucleo('NUCLEO 3');
-
-      const [
-        metasN1,
-        dashboardN1,
-        metasN2,
-        dashboardN2,
-        metasN3,
-        dashboardN3,
-      ] = await Promise.all([
-        axios.post(`${API_URL}/metas/resumo`, filtrosN1),
-        axios.post(`${API_URL}/dashboard/dados`, filtrosN1),
-        axios.post(`${API_URL}/metas/resumo`, filtrosN2),
-        axios.post(`${API_URL}/dashboard/dados`, filtrosN2),
-        axios.post(`${API_URL}/metas/resumo`, filtrosN3),
-        axios.post(`${API_URL}/dashboard/dados`, filtrosN3),
+      const [metasN1, dashboardN1, metasN2, dashboardN2, metasN3, dashboardN3] = await Promise.all([
+        axios.post(`${API_URL}/metas/resumo`, filtrosN1, config),
+        axios.post(`${API_URL}/dashboard/dados`, filtrosN1, config),
+        axios.post(`${API_URL}/metas/resumo`, filtrosN2, config),
+        axios.post(`${API_URL}/dashboard/dados`, filtrosN2, config),
+        axios.post(`${API_URL}/metas/resumo`, filtrosN3, config),
+        axios.post(`${API_URL}/dashboard/dados`, filtrosN3, config),
       ]);
-
+      if (String(cicloVisualizacaoVDRef.current || ciclo) !== ciclo) return;
       setDadosComp({
-        n1: {
-          metas: metasN1.data,
-          dash: dashboardN1.data,
-        },
-        n2: {
-          metas: metasN2.data,
-          dash: dashboardN2.data,
-        },
-        n3: {
-          metas: metasN3.data,
-          dash: dashboardN3.data,
-        },
+        n1: { metas: metasN1.data, dash: dashboardN1.data },
+        n2: { metas: metasN2.data, dash: dashboardN2.data },
+        n3: { metas: metasN3.data, dash: dashboardN3.data },
       });
     } catch (erro) {
-      console.error('Erro Comparativo:', erro);
+      if (erro?.code !== 'ERR_CANCELED' && erro?.name !== 'CanceledError') console.error('Erro Comparativo:', erro);
     } finally {
-      setLoadComp(false);
+      if (comparativoAbortControllerRef.current === controller) setLoadComp(false);
     }
   };
 
@@ -8324,28 +7659,11 @@ const mapearIdentidadesColaboradores = (lista = []) => {
 
   const carregarUsuarios = async () => {
     if (!usuarioPodeAcessar('Configurações')) return;
-    setCarregandoUsuarios(true);
-    setCarregandoOpcoesEscopoUsuarios(true);
-    setErroUsuarios('');
-    try {
-      const [resUsuarios, resEscopos] = await Promise.all([
-        axios.get(`${API_URL}/auth/usuarios`),
-        axios.get(`${API_URL}/auth/estruturas-disponiveis`),
-      ]);
-      setUsuariosSistema((resUsuarios.data.usuarios || []).map((usuario) => ({
-        ...usuario,
-        estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuario.estruturas_permitidas),
-      })));
-      setOpcoesEscopoUsuarios(normalizarEstruturasPermitidasUsuario(resEscopos.data.todas || []));
-    } catch (erro) {
-      setErroUsuarios(erro.response?.data?.detail || 'Erro ao carregar usuários e estruturas.');
-    } finally {
-      setCarregandoUsuarios(false);
-      setCarregandoOpcoesEscopoUsuarios(false);
-    }
+    setCarregandoUsuarios(true); setErroUsuarios('');
+    try { const resposta = await axios.get(`${API_URL}/auth/usuarios`); setUsuariosSistema(resposta.data.usuarios || []); } catch (erro) { setErroUsuarios('Erro usuários.'); } finally { setCarregandoUsuarios(false); }
   };
 
-  const carregarCiclos = async () => {
+  const carregarCiclos = async (priorizarAtual = false) => {
     setCarregandoCiclos(true);
     setErroCiclo('');
 
@@ -8377,10 +7695,18 @@ const mapearIdentidadesColaboradores = (lista = []) => {
         || ''
       );
 
-      const cicloAtualConhecido = localStorage.getItem(CICLO_ATUAL_CONHECIDO_STORAGE_KEY) || '';
-      const novoCicloDetectado = Boolean(cicloAtualApi && cicloAtualApi !== cicloAtualConhecido);
+      const cicloAtualConhecido = lerStorageUsuario(CICLO_ATUAL_CONHECIDO_STORAGE_KEY) || '';
+      const repararSeletorAposVersaoAntiga = lerStorageUsuario(CICLO_SELECTOR_REPAIR_KEY) !== 'ok';
+      const novoCicloDetectado = Boolean(
+        cicloAtualApi
+        && (
+          cicloAtualApi !== cicloAtualConhecido
+          || repararSeletorAposVersaoAntiga
+        )
+      );
       if (cicloAtualApi) {
-        localStorage.setItem(CICLO_ATUAL_CONHECIDO_STORAGE_KEY, cicloAtualApi);
+        gravarStorageUsuario(CICLO_ATUAL_CONHECIDO_STORAGE_KEY, cicloAtualApi);
+        gravarStorageUsuario(CICLO_SELECTOR_REPAIR_KEY, 'ok');
       }
 
       setCiclos(lista);
@@ -8390,7 +7716,7 @@ const mapearIdentidadesColaboradores = (lista = []) => {
         chaveStorage,
         priorizarCicloAtual = false
       ) => {
-        const salvo = localStorage.getItem(chaveStorage) || '';
+        const salvo = lerStorageUsuario(chaveStorage) || '';
         const candidato = priorizarCicloAtual ? cicloAtualApi : (valorAtual || salvo);
         const valor = lista.some(
           (item) => String(item.ciclo) === String(candidato)
@@ -8399,7 +7725,7 @@ const mapearIdentidadesColaboradores = (lista = []) => {
           : cicloAtualApi;
 
         if (valor) {
-          localStorage.setItem(chaveStorage, valor);
+          gravarStorageUsuario(chaveStorage, valor);
         }
         return valor;
       };
@@ -8408,38 +7734,60 @@ const mapearIdentidadesColaboradores = (lista = []) => {
         selecionarValorValido(
           atual,
           CICLO_VD_STORAGE_KEY,
-          novoCicloDetectado
+          novoCicloDetectado || priorizarAtual
         )
       ));
       setCicloSelecionadoLoja((atual) => (
         selecionarValorValido(
           atual,
           CICLO_LOJA_STORAGE_KEY,
-          novoCicloDetectado
+          novoCicloDetectado || priorizarAtual
         )
       ));
       setCicloUploadVD((atual) => (
         selecionarValorValido(
           atual,
           CICLO_UPLOAD_VD_STORAGE_KEY,
-          novoCicloDetectado
+          novoCicloDetectado || priorizarAtual
         )
       ));
       setCicloUploadLoja((atual) => (
         selecionarValorValido(
           atual,
           CICLO_UPLOAD_LOJA_STORAGE_KEY,
-          novoCicloDetectado
+          novoCicloDetectado || priorizarAtual
         )
       ));
 
-      if (!cicloLoja && cicloAtualApi) {
-        setCicloLoja(cicloAtualApi);
+      const cicloResolvidoVD = selecionarValorValido(
+        cicloSelecionadoVD,
+        CICLO_VD_STORAGE_KEY,
+        novoCicloDetectado || priorizarAtual
+      ) || cicloAtualApi || '';
+      const cicloResolvidoLoja = selecionarValorValido(
+        cicloSelecionadoLoja,
+        CICLO_LOJA_STORAGE_KEY,
+        novoCicloDetectado || priorizarAtual
+      ) || cicloAtualApi || '';
+
+      if (cicloResolvidoVD) {
+        cicloVisualizacaoVDRef.current = cicloResolvidoVD;
+        axios.defaults.headers.common['X-Ciclo-VD'] = cicloResolvidoVD;
+        setFiltrosAtivos((atuais) => ({ ...atuais, ciclo: cicloResolvidoVD }));
+      }
+      if (cicloResolvidoLoja) {
+        axios.defaults.headers.common['X-Ciclo-LOJA'] = cicloResolvidoLoja;
+      }
+
+      if (!cicloLoja && cicloResolvidoLoja) {
+        setCicloLoja(cicloResolvidoLoja);
       }
 
       return {
         lista,
         cicloAtual: cicloAtualApi,
+        cicloVD: cicloResolvidoVD,
+        cicloLoja: cicloResolvidoLoja,
       };
     } catch (erro) {
       // Contingência: um erro transitório em /ciclos não pode derrubar a
@@ -8447,8 +7795,8 @@ const mapearIdentidadesColaboradores = (lista = []) => {
       // ciclo salvo no navegador e deixamos Dashboard/Metas continuarem.
       const cicloFallback = String(
         cicloSelecionadoVD
-        || localStorage.getItem(CICLO_VD_STORAGE_KEY)
-        || localStorage.getItem(CICLO_ATUAL_CONHECIDO_STORAGE_KEY)
+        || lerStorageUsuario(CICLO_VD_STORAGE_KEY)
+        || lerStorageUsuario(CICLO_ATUAL_CONHECIDO_STORAGE_KEY)
         || cicloAtualPelaData()
         || ''
       ).trim();
@@ -8511,67 +7859,10 @@ const mapearIdentidadesColaboradores = (lista = []) => {
       const resposta = await axios.get(`${API_URL}/estruturas-config`);
       setListaEstruturasConfig(resposta.data.estruturas || []);
       if (resposta.data.nucleos?.length) setOpcFiltros((prev) => ({ ...prev, nucleos: resposta.data.nucleos }));
-      carregarEquipesConsolidadas();
     } catch (erro) {
       setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao carregar estruturas e núcleos.');
     } finally {
       setCarregandoEstruturasConfig(false);
-    }
-  };
-
-
-  const carregarEquipesConsolidadas = async () => {
-    try {
-      const resposta = await axios.get(`${API_URL}/equipes-consolidadas`);
-      setEquipesConsolidadas(resposta.data?.equipes || []);
-    } catch (_) {
-      setEquipesConsolidadas([]);
-    }
-  };
-
-  const abrirNovaEquipeConsolidada = () => {
-    setEquipeConsolidadaEditando(null);
-    setEquipeConsolidadaForm({ nome: '', canal: 'VD', nucleo: filtroNucleoEstrutura !== 'TODOS' ? filtroNucleoEstrutura : 'NUCLEO 1', status: 'ativo', observacao: '', estrutura_ids: [] });
-    setModalEquipeConsolidadaAberto(true);
-  };
-
-  const abrirEditarEquipeConsolidada = (equipe) => {
-    setEquipeConsolidadaEditando(equipe);
-    setEquipeConsolidadaForm({ nome: equipe.nome || '', canal: equipe.canal || 'VD', nucleo: equipe.nucleo || 'NUCLEO 1', status: equipe.status || 'ativo', observacao: equipe.observacao || '', estrutura_ids: equipe.estrutura_ids || [] });
-    setModalEquipeConsolidadaAberto(true);
-  };
-
-  const alternarEstruturaEquipeConsolidada = (estruturaId) => {
-    setEquipeConsolidadaForm((atual) => ({
-      ...atual,
-      estrutura_ids: atual.estrutura_ids.includes(estruturaId)
-        ? atual.estrutura_ids.filter((id) => id !== estruturaId)
-        : [...atual.estrutura_ids, estruturaId],
-    }));
-  };
-
-  const salvarEquipeConsolidada = async (e) => {
-    e.preventDefault();
-    setErroEstruturaConfig(''); setMensagemEstruturaConfig('');
-    try {
-      if (equipeConsolidadaEditando?.id) await axios.put(`${API_URL}/equipes-consolidadas/${equipeConsolidadaEditando.id}`, equipeConsolidadaForm);
-      else await axios.post(`${API_URL}/equipes-consolidadas`, equipeConsolidadaForm);
-      setMensagemEstruturaConfig(equipeConsolidadaEditando?.id ? 'Equipe consolidada atualizada.' : 'Equipe consolidada criada.');
-      setModalEquipeConsolidadaAberto(false);
-      await Promise.all([carregarEstruturasConfig(), carregarEquipesConsolidadas(), carregarListaConsultores()]);
-    } catch (erro) {
-      setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao salvar equipe consolidada.');
-    }
-  };
-
-  const excluirEquipeConsolidada = async (equipe) => {
-    if (!window.confirm(`Remover a equipe consolidada "${equipe.nome}"? As estruturas físicas serão preservadas.`)) return;
-    try {
-      await axios.delete(`${API_URL}/equipes-consolidadas/${equipe.id}`);
-      setMensagemEstruturaConfig('Equipe consolidada removida.');
-      await Promise.all([carregarEstruturasConfig(), carregarEquipesConsolidadas(), carregarListaConsultores()]);
-    } catch (erro) {
-      setErroEstruturaConfig(erro.response?.data?.detail || 'Erro ao remover equipe consolidada.');
     }
   };
 
@@ -8637,11 +7928,17 @@ const mapearIdentidadesColaboradores = (lista = []) => {
     }
   };
 
-const carregarRevendedores = async () => {
+const carregarRevendedores = async (cicloParam = '') => {
   setCarregandoRevendedores(true);
   setErroRevendedores('');
+  const ciclo = String(cicloParam || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || obterCicloReferenciaAtual() || '').trim();
   try {
-    const resposta = await axios.get(`${API_URL}/revendedores/resumo`, { params: { ciclo: cicloSelecionadoVD || obterCicloReferenciaAtual() } });
+    const resposta = await axios.get(`${API_URL}/revendedores/resumo`, {
+      params: { ciclo },
+      headers: { 'X-Ciclo-VD': ciclo },
+      timeout: 30000,
+    });
+    if (String(cicloVisualizacaoVDRef.current || ciclo) !== ciclo) return;
     setDadosRevendedores(resposta.data || null);
   } catch (erro) {
     console.error('Erro revendedores:', erro);
@@ -8663,12 +7960,11 @@ const carregarRevendedores = async () => {
       (response) => response,
       (erro) => {
         if (erro?.response?.status === 401) {
-          localStorage.removeItem('usuarioLogado');
-          localStorage.removeItem(TOKEN_STORAGE_KEY);
-          localStorage.removeItem(TELA_ATUAL_STORAGE_KEY);
-          localStorage.removeItem(VISAO_METAS_STORAGE_KEY);
-          localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
-          localStorage.removeItem(CANAL_ATUAL_STORAGE_KEY);
+          limparSessaoAutenticada();
+          removerStorageUsuario(TELA_ATUAL_STORAGE_KEY);
+          removerStorageUsuario(VISAO_METAS_STORAGE_KEY);
+          removerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
+          removerStorageUsuario(CANAL_ATUAL_STORAGE_KEY);
           aplicarTokenAxios(null);
           setUsuarioLogado(null);
           setTokenAuth('');
@@ -8824,32 +8120,44 @@ const carregarRevendedores = async () => {
   const selecionarCicloVisualizacao = async (ciclo, area = 'VD') => {
     const valor = String(ciclo || '').trim();
     if (!valor) return;
+
     limparCachesDados();
     ultimoCarregamentoTelaRef.current = '';
+
     if (String(area).toUpperCase() === 'LOJA') {
       setCicloSelecionadoLoja(valor);
       setCicloLoja(valor);
-      localStorage.setItem(CICLO_LOJA_STORAGE_KEY, valor);
+      gravarStorageUsuario(CICLO_LOJA_STORAGE_KEY, valor);
       axios.defaults.headers.common['X-Ciclo-LOJA'] = valor;
+      setFiltrosLoja({ unidade: '', consultora: '' });
       await carregarDadosLoja(valor);
-    } else {
-      cicloVisualizacaoVDRef.current = valor;
-      dashboardRequestSeqRef.current += 1;
-      metasRequestSeqRef.current += 1;
-      opcoesRequestSeqRef.current += 1;
-      setCicloSelecionadoVD(valor);
-      localStorage.setItem(CICLO_VD_STORAGE_KEY, valor);
-      axios.defaults.headers.common['X-Ciclo-VD'] = valor;
-      setDados(null);
-      setDadosMetas(null);
-      setDetalheMeta(null);
-      setMetaFaturamentoDashboard(0);
-      setErroMetas('');
-      const novosFiltros = { ...filtrosAtivos, ciclo: valor, data_inicio: '', data_fim: '' };
-      setFiltrosAtivos(novosFiltros);
-      await carregarOpcoesFiltros(true, valor);
-      await carregarTelaAtual(novosFiltros, true);
+      return;
     }
+
+    cicloVisualizacaoVDRef.current = valor;
+    setCicloSelecionadoVD(valor);
+    gravarStorageUsuario(CICLO_VD_STORAGE_KEY, valor);
+    axios.defaults.headers.common['X-Ciclo-VD'] = valor;
+
+    const novosFiltros = { ...filtroVazio, ciclo: valor };
+    setFiltrosAtivos(novosFiltros);
+    setBuscaFiltros(buscaFiltrosVazia);
+    setPainelFiltrosAberto(false);
+    setDados(null);
+    setDadosMetas(null);
+    setDetalheMeta(null);
+    setEstruturaSelecionada('');
+    setCicloHistoricoSelecionado(valor);
+    setMetaFaturamentoDashboard(0);
+    setErroMetas('');
+    removerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
+    gravarStorageUsuario(VISAO_METAS_STORAGE_KEY, 'estruturas');
+    setVisaoMetas('estruturas');
+
+    // Atualiza opções e a tela imediatamente com o ciclo escolhido.
+    // Respostas antigas são descartadas pelos controles de sequência.
+    void carregarOpcoesFiltros(true, valor);
+    await carregarTelaAtual(novosFiltros, true);
   };
 
   const atualizarStatusOperacionalCiclo = async (area, acao, cicloAlvo = '') => {
@@ -8937,7 +8245,7 @@ const carregarRevendedores = async () => {
     });
   };
 
-  const carregarAcoesCiclo = async () => {
+  const carregarAcoesCiclo = async (cicloParam = '') => {
     if (!usuarioLogado) return;
 
     setCarregandoAcoesCiclo(true);
@@ -8945,7 +8253,7 @@ const carregarRevendedores = async () => {
 
     try {
       await Promise.allSettled([carregarOpcoesFiltros(), carregarCiclos()]);
-      const ciclo = cicloUploadVD || obterCicloReferenciaAtual();
+      const ciclo = String(cicloParam || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || obterCicloReferenciaAtual() || '').trim();
       const params = ciclo ? { ciclo } : {};
       const { data } = await axios.get(`${API_URL}/acoes-ciclo`, { params });
       setAcoesCiclo(data?.acoes || []);
@@ -9345,7 +8653,7 @@ const carregarRevendedores = async () => {
 
     try {
       const cicloInfo = ciclos.find((c) => String(c.ciclo || '') === String(ciclo || '')) || {};
-      const token = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+      const token = lerTokenPersistido();
 
       const resposta = await enviarComandoExtensaoLojaSgi({
         apiUrl: API_URL,
@@ -9580,21 +8888,236 @@ const carregarRevendedores = async () => {
     }
   };
 
+
+  const carregarAcompanhamentoGerenteVD = async (_filtros = filtrosAtivos, forcarAtualizacao = false) => {
+    if (!usuarioLogado || !modoGerenteVD) return;
+
+    let ciclo = String(
+      cicloVisualizacaoVDRef.current || cicloSelecionadoVD || _filtros?.ciclo || ''
+    ).trim();
+
+    try {
+      if (!ciclo) {
+        const infoCiclos = await carregarCiclos(true);
+        ciclo = String(infoCiclos?.cicloVD || infoCiclos?.cicloAtual || '').trim();
+      }
+      if (!ciclo) throw new Error('Nenhum ciclo foi carregado. Atualize a página e tente novamente.');
+
+      cicloVisualizacaoVDRef.current = ciclo;
+      if (cicloSelecionadoVD !== ciclo) setCicloSelecionadoVD(ciclo);
+      axios.defaults.headers.common['X-Ciclo-VD'] = ciclo;
+
+      const payload = { ...filtroVazio, ciclo };
+      const chaveCache = `acomp_${gerarChaveFiltros(payload)}`;
+      const cacheAcompanhamento = cacheDashboard[chaveCache];
+      if (!forcarAtualizacao && cacheAcompanhamento?.dados && cacheAcompanhamento?.dadosMetas) {
+        setDados(cacheAcompanhamento.dados);
+        setDadosMetas(cacheAcompanhamento.dadosMetas);
+        setCacheMetas(cacheAcompanhamento.dadosMetas);
+        setAcompanhamentoVD({
+          carregando: false,
+          carregandoConsultores: false,
+          carregandoDiario: false,
+          erro: '',
+          consultores: cacheAcompanhamento.consultores || [],
+          meta_resolvida: cacheAcompanhamento.meta_resolvida || null,
+          diario: cacheAcompanhamento.diario || {
+            resumo: {
+              realizado_hoje: Number(cacheAcompanhamento.dados?.realizado_diario || 0),
+              meta_diaria: Number(cacheAcompanhamento.dados?.meta_diaria || 0),
+              dias_total: Number(cacheAcompanhamento.dados?.dias_total || 1),
+            },
+            consultores: [],
+          },
+          atualizado_em: cacheAcompanhamento.atualizado_em || new Date().toISOString(),
+        });
+        return;
+      }
+
+      const requestSeq = ++acompanhamentoRequestSeqRef.current;
+      try { acompanhamentoAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
+      const controller = new AbortController();
+      acompanhamentoAbortControllerRef.current = controller;
+      setAcompanhamentoVD((atual) => ({
+        ...atual,
+        carregando: true,
+        carregandoConsultores: true,
+        carregandoDiario: false,
+        erro: '',
+      }));
+
+      const config = {
+        headers: { 'X-Ciclo-VD': ciclo, ...(forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {}) },
+        timeout: 45000,
+        signal: controller.signal,
+      };
+
+      // O resultado principal e as metas carregam primeiro. A lista detalhada de
+      // consultores começa em paralelo, mas não bloqueia os cards e gráficos.
+      const promessaConsultores = axios
+        .post(`${API_URL}/gerente-vd/consultores`, payload, config)
+        .then((resposta) => ({ ok: true, data: resposta.data || {} }))
+        .catch((erro) => ({ ok: false, erro }));
+
+      const [resDash, resMetas] = await Promise.allSettled([
+        axios.post(`${API_URL}/dashboard/dados`, payload, config),
+        axios.post(`${API_URL}/metas/resumo`, payload, config),
+      ]);
+
+      if (
+        requestSeq !== acompanhamentoRequestSeqRef.current
+        || String(cicloVisualizacaoVDRef.current || ciclo) !== ciclo
+      ) return;
+
+      const dadosAtualizados = resDash.status === 'fulfilled' ? (resDash.value.data || null) : null;
+      const metasAtualizadas = resMetas.status === 'fulfilled' ? (resMetas.value.data || null) : null;
+      const consultoresResumo = Array.isArray(metasAtualizadas?.ranking_consultores)
+        ? metasAtualizadas.ranking_consultores
+        : [];
+
+      const erros = [];
+      if (!dadosAtualizados) erros.push(resDash.reason?.response?.data?.detail || 'Falha ao carregar o resultado da unidade.');
+      if (!metasAtualizadas) erros.push(resMetas.reason?.response?.data?.detail || 'Falha ao carregar as metas da unidade.');
+      if (metasAtualizadas && Number(metasAtualizadas?.meta_total_geral || 0) <= 0) erros.push('As metas oficiais do ciclo retornaram zeradas. Use Atualizar e avise o administrador.');
+
+      if (dadosAtualizados) {
+        setDados(dadosAtualizados);
+        setMetaFaturamentoDashboard(Number(
+          metasAtualizadas?.meta_total_geral
+          || dadosAtualizados?.meta_contextual
+          || dadosAtualizados?.meta_ciclo
+          || 0
+        ));
+      }
+      if (metasAtualizadas) {
+        setDadosMetas(metasAtualizadas);
+        setCacheMetas(metasAtualizadas);
+      }
+
+      const diarioAtualizado = {
+        resumo: {
+          realizado_hoje: Number(dadosAtualizados?.realizado_diario || 0),
+          meta_diaria: Number(dadosAtualizados?.meta_diaria || 0),
+          dias_total: Number(dadosAtualizados?.dias_total || 1),
+        },
+        consultores: [],
+      };
+
+      setAcompanhamentoVD({
+        carregando: false,
+        carregandoConsultores: true,
+        carregandoDiario: false,
+        erro: erros.join(' '),
+        consultores: consultoresResumo,
+        meta_resolvida: null,
+        diario: diarioAtualizado,
+        atualizado_em: new Date().toISOString(),
+      });
+
+      const resultadoConsultores = await promessaConsultores;
+      if (
+        requestSeq !== acompanhamentoRequestSeqRef.current
+        || String(cicloVisualizacaoVDRef.current || ciclo) !== ciclo
+      ) return;
+
+      let consultoresDetalhados = consultoresResumo;
+      let metaResolvida = null;
+      let erroConsultores = '';
+      if (resultadoConsultores.ok) {
+        const lista = Array.isArray(resultadoConsultores.data?.consultores)
+          ? resultadoConsultores.data.consultores
+          : [];
+        if (lista.length) consultoresDetalhados = lista;
+        metaResolvida = resultadoConsultores.data?.meta_resolvida || null;
+        if (!lista.length && Array.isArray(resultadoConsultores.data?.erros) && resultadoConsultores.data.erros.length) {
+          erroConsultores = resultadoConsultores.data.erros
+            .map((item) => item?.erro)
+            .filter(Boolean)
+            .join(' ');
+        }
+      } else if (resultadoConsultores.erro?.code !== 'ERR_CANCELED') {
+        erroConsultores = resultadoConsultores.erro?.response?.data?.detail
+          || 'Falha ao carregar os consultores da estrutura.';
+      }
+
+      const erroFinal = [erros.join(' '), erroConsultores].filter(Boolean).join(' ');
+      const atualizadoEm = new Date().toISOString();
+      setAcompanhamentoVD((atual) => ({
+        ...atual,
+        carregando: false,
+        carregandoConsultores: false,
+        erro: erroFinal,
+        consultores: consultoresDetalhados,
+        meta_resolvida: metaResolvida || atual.meta_resolvida || null,
+        atualizado_em: atualizadoEm,
+      }));
+
+      if (dadosAtualizados && metasAtualizadas) {
+        setCacheDashboard((prev) => ({
+          ...prev,
+          [chaveCache]: {
+            dados: dadosAtualizados,
+            dadosMetas: metasAtualizadas,
+            consultores: consultoresDetalhados,
+            meta_resolvida: metaResolvida,
+            diario: diarioAtualizado,
+            atualizado_em: atualizadoEm,
+          },
+        }));
+      }
+    } catch (erro) {
+      if (erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError') return;
+      console.error('Erro geral no Acompanhamento VD:', erro);
+      setAcompanhamentoVD((atual) => ({
+        ...atual,
+        carregando: false,
+        carregandoConsultores: false,
+        carregandoDiario: false,
+        erro: erro?.response?.data?.detail || erro?.message || 'Erro ao carregar o acompanhamento.',
+      }));
+    }
+  };
+
   const carregarTelaAtual = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
 
+    if (telaAtual === 'AcompanhamentoVD') return carregarAcompanhamentoGerenteVD(filtros, forcarAtualizacao);
     if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao);
-    if (telaAtual === 'AcompanhamentoVD') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
-    if (telaAtual === 'Ações') return carregarAcoesCiclo();
-    if (telaAtual === 'Histórico') return carregarHistoricoCiclos();
-    if (telaAtual === 'Revendedores') return carregarRevendedores();
+    if (telaAtual === 'Ações') return carregarAcoesCiclo(filtros?.ciclo);
+    if (telaAtual === 'Histórico') return carregarHistoricoCiclos(filtros?.ciclo);
+    if (telaAtual === 'Revendedores') return carregarRevendedores(filtros?.ciclo);
     if (telaAtual === 'Base') return carregarCiclos();
     if (telaAtual === 'Cadastro') return Promise.allSettled([carregarCiclos(), carregarListaConsultores(), carregarEstruturasConfig()]);
     if (telaEhLoja(telaAtual)) return carregarDadosLoja();
     if (telaAtual === 'ADM') return carregarAuditoria();
     if (telaAtual === 'Configurações') return carregarUsuarios();
+  };
+
+  const atualizarTelaAtualAgora = async () => {
+    if (atualizandoTelaAtual || !usuarioLogado) return;
+    setAtualizandoTelaAtual(true);
+    try {
+      detalheDiarioCacheRef.current = {};
+      if (telaAtual === 'AcompanhamentoVD') {
+        await carregarAcompanhamentoGerenteVD(
+          { ...filtroVazio, ciclo: cicloVisualizacaoVDRef.current || cicloSelecionadoVD },
+          true
+        );
+      } else if (telaEhLoja(telaAtual)) {
+        await carregarDadosLoja(cicloSelecionadoLoja || cicloLojaSelecionado());
+      } else {
+        await carregarTelaAtual(
+          { ...filtrosAtivos, ciclo: cicloVisualizacaoVDRef.current || cicloSelecionadoVD || filtrosAtivos?.ciclo || '' },
+          true
+        );
+      }
+    } catch (erro) {
+      console.error('Erro ao atualizar a tela atual:', erro);
+    } finally {
+      setAtualizandoTelaAtual(false);
+    }
   };
 
   const carregarHistoricoCiclo = async (
@@ -9634,6 +9157,10 @@ const carregarRevendedores = async () => {
         consultoresAtivos:
           data?.consultores_ativos || [],
         metas: data?.metas || [],
+        nucleos:
+          data?.nucleos
+          || data?.resumo_nucleos
+          || [],
       });
     } catch (erro) {
       setErroHistorico(
@@ -9653,7 +9180,7 @@ const carregarRevendedores = async () => {
   };
 
 
-  const carregarHistoricoCiclos = async () => {
+  const carregarHistoricoCiclos = async (cicloPreferido = '') => {
     if (!usuarioLogado) return;
 
     setCarregandoHistorico(true);
@@ -9675,10 +9202,13 @@ const carregarRevendedores = async () => {
         )
       );
 
+      const preferidoExiste = ciclosLista.some((item) => String(item.ciclo) === String(cicloPreferido || ''));
       const cicloParaAbrir = (
-        selecionadoAindaExiste
-          ? cicloHistoricoSelecionado
-          : ciclosLista?.[0]?.ciclo
+        preferidoExiste
+          ? cicloPreferido
+          : selecionadoAindaExiste
+            ? cicloHistoricoSelecionado
+            : ciclosLista?.[0]?.ciclo
       ) || '';
 
       if (cicloParaAbrir) {
@@ -9865,6 +9395,7 @@ const carregarRevendedores = async () => {
     const cicloTela = telaEhLoja(telaAtual)
       ? (cicloSelecionadoLoja || cicloLoja || '')
       : (cicloSelecionadoVD || filtrosAtivos?.ciclo || '');
+    if (!telaEhLoja(telaAtual) && !cicloTela) return;
     const chave = `${telaAtual}_${cicloTela}_${gerarChaveFiltros(filtrosAtivos)}`;
     if (ultimoCarregamentoTelaRef.current === chave) return;
     ultimoCarregamentoTelaRef.current = chave;
@@ -9884,7 +9415,7 @@ const carregarRevendedores = async () => {
 
   useEffect(() => {
     if (!usuarioLogado || telaAtual !== 'Metas' || visaoMetas !== 'consultores' || detalheMeta) return;
-    const estruturaSalva = localStorage.getItem(ESTRUTURA_META_STORAGE_KEY);
+    const estruturaSalva = lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
     if (!estruturaSalva) {
       setVisaoMetas('estruturas');
       return;
@@ -9901,35 +9432,36 @@ const carregarRevendedores = async () => {
       const usuario = resposta.data.usuario;
       const token = resposta.data.access_token;
       if (!token) throw new Error('Token não retornado pelo backend.');
-
-      // Remove qualquer resultado/carga/cache pertencente ao usuário anterior
-      // antes de renderizar a nova sessão.
-      limparDadosVisuaisDaSessao();
       aplicarTokenAxios(token);
       setTokenAuth(token);
+      salvarSessaoAutenticada(usuario, token);
       setUsuarioLogado(usuario);
-      localStorage.setItem('usuarioLogado', JSON.stringify(usuario));
-      localStorage.setItem(TOKEN_STORAGE_KEY, token);
-      const escoposUsuario = normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas);
-      const gerenteRestrito = String(usuario?.perfil || '').toLowerCase() === 'visualizador' && escoposUsuario.length > 0;
-      const areasEscopoUsuario = Array.from(new Set(
-        escoposUsuario.map((item) => String(item?.area || '').toUpperCase())
-      ));
-      const areaUsuario = areasEscopoUsuario.length === 1
-        ? areasEscopoUsuario[0]
-        : normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil);
-      const telaInicial = gerenteRestrito
-        ? (areaUsuario === 'LOJA' ? 'LojaVisaoGeral' : 'AcompanhamentoVD')
-        : 'Dashboard';
-      const canalInicial = gerenteRestrito && areaUsuario === 'LOJA' ? 'LOJA' : 'VD';
-
-      localStorage.setItem(TELA_ATUAL_STORAGE_KEY, telaInicial);
-      localStorage.setItem(CANAL_ATUAL_STORAGE_KEY, canalInicial);
-      localStorage.setItem(VISAO_METAS_STORAGE_KEY, 'estruturas');
-      localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
+      limparCachesDados();
+      setFiltrosAtivos({ ...filtroVazio });
+      setBuscaFiltros(buscaFiltrosVazia);
+      setDados(null);
+      setDadosMetas(null);
+      setDetalheMeta(null);
+      setAcompanhamentoVD({ carregando: false, carregandoConsultores: false, carregandoDiario: false, erro: '', consultores: [], meta_resolvida: null, diario: null, atualizado_em: '' });
+      const escoposLogin = normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas);
+      const gerenteVDLogin = String(usuario?.perfil || '').toLowerCase() === 'visualizador'
+        && escoposLogin.some((item) => item.area === 'VD');
+      const telaInicialLogin = gerenteVDLogin ? 'AcompanhamentoVD' : 'Dashboard';
+      gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, telaInicialLogin);
+      gravarStorageUsuario(CANAL_ATUAL_STORAGE_KEY, 'VD');
+      gravarStorageUsuario(VISAO_METAS_STORAGE_KEY, 'estruturas');
+      removerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
       await carregarPermissoesDoBanco();
-      setCanalAtual(canalInicial);
-      setTelaAtual(telaInicial);
+      const infoCiclosLogin = await carregarCiclos(true);
+      const cicloLogin = String(infoCiclosLogin?.cicloVD || infoCiclosLogin?.cicloAtual || '').trim();
+      if (cicloLogin) {
+        cicloVisualizacaoVDRef.current = cicloLogin;
+        setCicloSelecionadoVD(cicloLogin);
+        setFiltrosAtivos({ ...filtroVazio, ciclo: cicloLogin });
+        axios.defaults.headers.common['X-Ciclo-VD'] = cicloLogin;
+      }
+      setCanalAtual('VD');
+      setTelaAtual(telaInicialLogin);
       setVisaoMetas('estruturas');
       setEstruturaSelecionada('');
     } catch (erro) {
@@ -10035,20 +9567,37 @@ const carregarRevendedores = async () => {
   };
 
   const handleLogout = () => {
-    limparDadosVisuaisDaSessao();
-    localStorage.removeItem('usuarioLogado');
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    localStorage.removeItem(TELA_ATUAL_STORAGE_KEY);
-    localStorage.removeItem(VISAO_METAS_STORAGE_KEY);
-    localStorage.removeItem(ESTRUTURA_META_STORAGE_KEY);
-    localStorage.removeItem(CANAL_ATUAL_STORAGE_KEY);
+    try {
+      [
+        TELA_ATUAL_STORAGE_KEY,
+        VISAO_METAS_STORAGE_KEY,
+        ESTRUTURA_META_STORAGE_KEY,
+        CANAL_ATUAL_STORAGE_KEY,
+        CICLO_VD_STORAGE_KEY,
+        CICLO_LOJA_STORAGE_KEY,
+        CICLO_UPLOAD_VD_STORAGE_KEY,
+        CICLO_UPLOAD_LOJA_STORAGE_KEY,
+      ].forEach(removerStorageUsuario);
+      sessionStorage.removeItem(chaveCacheSessaoDashUsuario());
+    } catch { /* sem ação */ }
+
+    limparSessaoAutenticada();
     aplicarTokenAxios(null);
+    delete axios.defaults.headers.common['X-Ciclo-VD'];
+    delete axios.defaults.headers.common['X-Ciclo-LOJA'];
     setTokenAuth('');
     setUsuarioLogado(null);
     setCanalAtual('VD');
     setTelaAtual('Dashboard');
     setVisaoMetas('estruturas');
     setEstruturaSelecionada('');
+    setCicloSelecionadoVD('');
+    setCicloSelecionadoLoja('');
+    setCicloLoja('');
+    setFiltrosAtivos({ ...filtroVazio });
+    setBuscaFiltros(buscaFiltrosVazia);
+    setAcompanhamentoVD({ carregando: false, carregandoConsultores: false, carregandoDiario: false, erro: '', consultores: [], meta_resolvida: null, diario: null, atualizado_em: '' });
+    limparCachesDados();
   };
 
   const toggleFiltroArray = (categoria, valor) => {
@@ -10090,13 +9639,16 @@ const carregarRevendedores = async () => {
   };
   
   const handleRemoverFiltros = () => { 
+    const cicloLimpo = String(cicloVisualizacaoVDRef.current || cicloSelecionadoVD || obterCicloReferenciaAtual() || '').trim();
+    const filtrosLimpos = { ...filtroVazio, ciclo: cicloLimpo };
     setPainelFiltrosAberto(false);
-    setFiltrosAtivos({ ...filtroVazio, ciclo: cicloSelecionadoVD || obterCicloReferenciaAtual() });
+    setFiltrosAtivos(filtrosLimpos);
     setBuscaFiltros(buscaFiltrosVazia); 
+    limparCachesDados();
     ultimoCarregamentoTelaRef.current = '';
 
     setTimeout(() => {
-      carregarTelaAtual(filtroVazio, false);
+      carregarTelaAtual(filtrosLimpos, true);
     }, 0);
   };
 
@@ -10275,7 +9827,7 @@ const carregarRevendedores = async () => {
         senha,
         ciclo,
         apiUrl: API_URL,
-        token: localStorage.getItem(TOKEN_STORAGE_KEY) || '',
+        token: lerTokenPersistido(),
         importadoPor: usuarioLogado?.nome || usuarioLogado?.email || '',
       }
     }, window.location.origin);
@@ -10287,8 +9839,8 @@ const carregarRevendedores = async () => {
     await carregarOpcoesFiltros(true);
 
     const tarefas = [];
-    if (telaAtual === 'Dashboard') tarefas.push(carregarDashboard(filtrosAtivos, true));
-    else if (telaAtual === 'AcompanhamentoVD') tarefas.push(carregarDashboardEMetas(filtrosAtivos, true));
+    if (telaAtual === 'AcompanhamentoVD') tarefas.push(carregarAcompanhamentoGerenteVD(filtrosAtivos, true));
+    else if (telaAtual === 'Dashboard') tarefas.push(carregarDashboard(filtrosAtivos, true));
     else if (telaAtual === 'Metas' || telaAtual === 'Ranking') tarefas.push(carregarDashboardEMetas(filtrosAtivos, true));
     else if (telaAtual === 'Comparativo') tarefas.push(carregarComparativo(filtrosAtivos));
     else tarefas.push(carregarDashboard(filtrosAtivos, true));
@@ -10333,62 +9885,9 @@ const enviarArquivo = async (tipo) => {
     } catch (erro) { setErroUpload(erro.response?.data?.detail || 'Erro.'); } finally { setCarregandoUpload(false); }
   };
 
-  const criarUsuario = async (e) => {
-    e.preventDefault();
-    setMensagemUsuarios('');
-    setErroUsuarios('');
-    const area = normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil);
-    const estruturas = normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas);
-    if (novoUsuario.perfil === 'visualizador' && !estruturas.length) {
-      setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
-      return;
-    }
-    try {
-      await axios.post(`${API_URL}/auth/criar-usuario`, {
-        ...novoUsuario,
-        area_gestao: area,
-        estruturas_permitidas: estruturas,
-      });
-      setMensagemUsuarios('Usuário criado com acesso restrito à estrutura selecionada.');
-      setNovoUsuario({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'VD', estruturas_permitidas: [] });
-      await carregarUsuarios();
-    } catch (erro) {
-      setErroUsuarios(erro.response?.data?.detail || 'Erro ao criar usuário.');
-    }
-  };
-
-  const abrirEditarUsuario = (usuario) => {
-    setUsuarioEditando({
-      ...usuario,
-      area_gestao: normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil),
-      estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas),
-    });
-    setModalEditarUsuarioAberto(true);
-  };
-
-  const salvarEdicaoUsuario = async (e) => {
-    e.preventDefault();
-    const estruturas = normalizarEstruturasPermitidasUsuario(usuarioEditando.estruturas_permitidas);
-    if (usuarioEditando.perfil === 'visualizador' && !estruturas.length) {
-      setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
-      return;
-    }
-    try {
-      await axios.put(`${API_URL}/auth/atualizar-usuario`, {
-        id: usuarioEditando.id,
-        nome: usuarioEditando.nome,
-        perfil: usuarioEditando.perfil,
-        status_usuario: usuarioEditando.status_usuario,
-        area_gestao: normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil),
-        estruturas_permitidas: estruturas,
-      });
-      setModalEditarUsuarioAberto(false);
-      setMensagemUsuarios('Usuário e estruturas atualizados com sucesso.');
-      await carregarUsuarios();
-    } catch (erro) {
-      setErroUsuarios(erro.response?.data?.detail || 'Erro ao atualizar usuário.');
-    }
-  };
+  const criarUsuario = async (e) => { e.preventDefault(); setMensagemUsuarios(''); setErroUsuarios(''); try { await axios.post(`${API_URL}/auth/criar-usuario`, { ...novoUsuario, area_gestao: normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil), estruturas_permitidas: novoUsuario.estruturas_permitidas || [] }); setMensagemUsuarios('Criado com sucesso.'); setNovoUsuario({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'AMBOS' }); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
+  const abrirEditarUsuario = (usuario) => { setUsuarioEditando({ ...usuario, area_gestao: normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil) }); setModalEditarUsuarioAberto(true); };
+  const salvarEdicaoUsuario = async (e) => { e.preventDefault(); try { await axios.put(`${API_URL}/auth/atualizar-usuario`, { id: usuarioEditando.id, nome: usuarioEditando.nome, perfil: usuarioEditando.perfil, status_usuario: usuarioEditando.status_usuario, area_gestao: normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil), estruturas_permitidas: usuarioEditando.estruturas_permitidas || [] }); setModalEditarUsuarioAberto(false); setMensagemUsuarios('Atualizado com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
   const abrirExcluirUsuario = (usuario) => { setUsuarioParaExcluir(usuario); setModalExcluirUsuarioAberto(true); };
   const confirmarExclusaoUsuario = async () => { if (!usuarioParaExcluir) return; try { await axios.delete(`${API_URL}/auth/deletar-usuario/${usuarioParaExcluir.id}`); setModalExcluirUsuarioAberto(false); setUsuarioParaExcluir(null); setMensagemUsuarios('Excluído com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
   const gerarSenhaTemporariaAdmin = () => {
@@ -10451,9 +9950,9 @@ const enviarArquivo = async (tipo) => {
     const percentual = calcPerc(realizado, meta);
     const falta = Math.max(meta - realizado, 0);
 
-    const estruturasAcumuladas = filtrarListaDetalhePorEstruturaVD([
+    const estruturasAcumuladas = [
       ...(dados?.realizado_por_estrutura || [])
-    ])
+    ]
       .sort((a, b) => Number(b?.ValorPraticado || 0) - Number(a?.ValorPraticado || 0))
       .map((item, indice) => ({
         posicao: indice + 1,
@@ -10462,9 +9961,9 @@ const enviarArquivo = async (tipo) => {
         percentual: realizado > 0 ? (Number(item?.ValorPraticado || 0) / realizado) * 100 : 0,
       }));
 
-    const consultoresAcumulados = filtrarListaDetalhePorEstruturaVD([
+    const consultoresAcumulados = [
       ...(dados?.realizado_por_consultor || [])
-    ])
+    ]
       .sort((a, b) => Number(b?.ValorPraticado || 0) - Number(a?.ValorPraticado || 0))
       .map((item, indice) => ({
         posicao: indice + 1,
@@ -10499,72 +9998,326 @@ const enviarArquivo = async (tipo) => {
       ]
     });
   };
-  const abrirDetRealizadoDiario = async () => {
-    const cicloDetalhe = String(
-      cicloSelecionadoVD
-      || cicloVisualizacaoVDRef.current
-      || filtrosAtivos?.ciclo
-      || dados?.ciclo_retorno
-      || dados?.ciclo_atual
-      || ''
-    ).trim();
-
-    const filtrosDetalhe = aplicarEscopoGerenteVdNosFiltros({
-      ...filtrosAtivos,
-      ciclo: cicloDetalhe,
-    });
-
-    const filtrosMetas = aplicarEscopoGerenteVdNosFiltros({
-      ...filtrosAtivos,
-      ciclo: cicloDetalhe,
-      data_inicio: null,
-      data_fim: null,
-      // O detalhamento diário deve listar todos os consultores autorizados
-      // da estrutura, mesmo quando a tela recebeu um filtro transitório.
-      consultores: modoGerenteEstrutura ? [] : [...(filtrosAtivos?.consultores || [])],
-    });
-
-    const metaTotalInicial = Number(
-      dadosMetas?.meta_total_geral
+  const enriquecerDetalheDiario = (respostaRapida, metasApi = dadosMetas, consultoresMetaExtra = [], metaResolvidaExtra = null) => {
+    const diasTotal = Math.max(
+      Number(dados?.dias_total || respostaRapida?.resumo?.dias_total || 1),
+      1
+    );
+    let estruturasMeta = Array.isArray(metasApi?.estruturas) ? metasApi.estruturas : [];
+    const metaResolvidaGerente = metaResolvidaExtra || acompanhamentoVD.meta_resolvida || {};
+    const metaTotalEscopoGerente = Number(
+      metaResolvidaGerente?.receita
+      || metaResolvidaGerente?.meta_real
+      || metaResolvidaGerente?.meta_faturamento
+      || dados?.meta_contextual
       || dados?.meta_ciclo
       || metaFaturamentoDashboard
       || 0
     );
-    const realizadoTotalInicial = Number(
-      dadosMetas?.realizado_total_geral
-      || dados?.realizado_ciclo
-      || dados?.valor_total
-      || 0
-    );
-    const realizadoHojeInicial = Number(dados?.realizado_diario || 0);
-    const metaHojeInicial = Number(dados?.meta_diaria || 0);
+    const rankingConsultores = [
+      ...(Array.isArray(metasApi?.ranking_consultores) ? metasApi.ranking_consultores : []),
+      ...(Array.isArray(consultoresMetaExtra) ? consultoresMetaExtra : []),
+    ];
 
-    const resumoInicial = {
-      meta_total: metaTotalInicial,
-      realizado_total: realizadoTotalInicial,
-      gap_meta_total: Math.max(metaTotalInicial - realizadoTotalInicial, 0),
-      pedidos_hoje: 0,
-      realizado_hoje: realizadoHojeInicial,
-      vendido_hoje: realizadoHojeInicial,
-      meta_diaria: metaHojeInicial,
-      meta_hoje: metaHojeInicial,
-      percentual_realizado: calcPerc(realizadoTotalInicial, metaTotalInicial),
-      percentual_atingimento: calcPerc(realizadoHojeInicial, metaHojeInicial),
-      percentual_meta_diaria: calcPerc(realizadoHojeInicial, metaHojeInicial),
-      falta_meta_diaria: Math.max(metaHojeInicial - realizadoHojeInicial, 0),
-      gap_meta_diaria: Math.max(metaHojeInicial - realizadoHojeInicial, 0),
-      data_referencia: (
-        filtrosAtivos?.data_fim
-        || filtrosAtivos?.data_inicio
-        || new Date().toISOString().slice(0, 10)
-      ),
-      ciclo: cicloDetalhe,
-      filtros_aplicados: {},
-      versao_detalhamento: 'executivo-v2',
+    const aliasesEstrutura = (item) => {
+      const valores = [
+        item?.estrutura,
+        ...(Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : []),
+      ];
+      const aliases = new Set();
+      valores.forEach((valor) => {
+        const texto = String(valor || '').trim();
+        if (!texto) return;
+        aliases.add(normalizarChaveAcompanhamento(texto));
+        if (texto.includes('-')) {
+          aliases.add(normalizarChaveAcompanhamento(texto.split('-').slice(1).join('-')));
+        }
+      });
+      return [...aliases].filter(Boolean);
     };
 
-    setAbaRealizadoDiarioVD('estruturas');
-    setModalRealizadoDiarioVD({
+    const vendasEstruturas = Array.isArray(respostaRapida?.estruturas)
+      ? respostaRapida.estruturas
+      : [];
+
+    // Em perfil restrito, o resumo pode não devolver a coleção completa de
+    // estruturas. Usa a meta oficial resolvida do perfil para não zerar a
+    // divisão diária da unidade, do núcleo e dos consultores.
+    if (modoGerenteVD && !estruturasMeta.length && vendasEstruturas.length) {
+      const primeiraVenda = vendasEstruturas[0] || {};
+      estruturasMeta = [{
+        estrutura: primeiraVenda?.estrutura || metaResolvidaGerente?.estrutura || 'Estrutura vinculada',
+        nucleo: primeiraVenda?.nucleo || metaResolvidaGerente?.nucleo || 'A DEFINIR',
+        receita: metaTotalEscopoGerente,
+        estruturas_vinculadas: [primeiraVenda?.estrutura || metaResolvidaGerente?.estrutura].filter(Boolean),
+      }];
+    }
+    const estruturasConsumidas = new Set();
+    const estruturas = [];
+
+    estruturasMeta.forEach((metaItem, indiceMeta) => {
+      const aliasesMeta = aliasesEstrutura(metaItem);
+      const vendasCorrespondentes = vendasEstruturas.filter((vendaItem, indiceVenda) => {
+        const aliasesVenda = aliasesEstrutura(vendaItem);
+        const corresponde = aliasesVenda.some((alias) => aliasesMeta.includes(alias));
+        if (corresponde) estruturasConsumidas.add(indiceVenda);
+        return corresponde;
+      });
+
+      const vendidoHoje = vendasCorrespondentes.reduce(
+        (soma, item) => soma + Number(item?.realizado || item?.vendido_hoje || 0),
+        0
+      );
+      const pedidosHoje = vendasCorrespondentes.reduce(
+        (soma, item) => soma + Number(item?.pedidos || 0),
+        0
+      );
+      let metaTotal = Number(
+        metaItem?.receita
+        || metaItem?.meta_real
+        || metaItem?.meta_faturamento
+        || metaItem?.meta_total
+        || 0
+      );
+      if (metaTotal <= 0 && modoGerenteVD && vendasEstruturas.length === 1) {
+        metaTotal = metaTotalEscopoGerente;
+      }
+      const metaHoje = metaTotal > 0 ? metaTotal / diasTotal : 0;
+      const nomeEstrutura = String(
+        metaItem?.estrutura
+        || metaItem?.estruturas_vinculadas?.[0]
+        || `Estrutura ${indiceMeta + 1}`
+      ).trim();
+
+      estruturas.push({
+        ...metaItem,
+        estrutura: nomeEstrutura,
+        nucleo: metaItem?.nucleo || vendasCorrespondentes[0]?.nucleo || 'A DEFINIR',
+        pedidos: pedidosHoje,
+        meta_total: metaTotal,
+        meta_hoje: metaHoje,
+        vendido_hoje: vendidoHoje,
+        realizado: vendidoHoje,
+        percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
+        gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
+      });
+    });
+
+    vendasEstruturas.forEach((item, indice) => {
+      if (estruturasConsumidas.has(indice)) return;
+      const vendidoHoje = Number(item?.realizado || item?.vendido_hoje || 0);
+      const metaTotalFallback = modoGerenteVD && vendasEstruturas.length === 1
+        ? metaTotalEscopoGerente
+        : 0;
+      const metaHojeFallback = metaTotalFallback > 0 ? metaTotalFallback / diasTotal : 0;
+      estruturas.push({
+        ...item,
+        meta_total: metaTotalFallback,
+        meta_hoje: metaHojeFallback,
+        vendido_hoje: vendidoHoje,
+        realizado: vendidoHoje,
+        percentual_meta_diaria: calcPerc(vendidoHoje, metaHojeFallback),
+        gap_meta_diaria: Math.max(metaHojeFallback - vendidoHoje, 0),
+        nucleo: item?.nucleo || metaResolvidaGerente?.nucleo || 'A DEFINIR',
+      });
+    });
+
+    const vendasConsultores = Array.isArray(respostaRapida?.consultores)
+      ? respostaRapida.consultores
+      : [];
+    const consultoresConsumidos = new Set();
+    const consultores = [];
+    const consultoresMetaUnicos = [];
+    const chavesConsultoresMeta = new Set();
+
+    rankingConsultores.forEach((item) => {
+      const id = String(item?.id_colaborador || item?.id_consultor || '').trim();
+      const nome = normalizarChaveAcompanhamento(
+        item?.nome_exibicao || item?.nome || item?.consultor
+      );
+      const chave = id ? `id:${id}` : `nome:${nome}`;
+      if (!id && !nome) return;
+      if (chavesConsultoresMeta.has(chave)) return;
+      chavesConsultoresMeta.add(chave);
+      consultoresMetaUnicos.push(item);
+    });
+
+    consultoresMetaUnicos.forEach((metaItem) => {
+      const idMeta = String(metaItem?.id_colaborador || metaItem?.id_consultor || '').trim();
+      const nomeMeta = normalizarChaveAcompanhamento(
+        metaItem?.nome_exibicao || metaItem?.nome || metaItem?.consultor
+      );
+      const venda = vendasConsultores.find((item, indice) => {
+        const idVenda = String(item?.id_consultor || item?.id_colaborador || '').trim();
+        const nomeVenda = normalizarChaveAcompanhamento(item?.consultor || item?.nome);
+        const corresponde = (idMeta && idVenda && idMeta === idVenda)
+          || (nomeMeta && nomeVenda && nomeMeta === nomeVenda);
+        if (corresponde) consultoresConsumidos.add(indice);
+        return corresponde;
+      }) || {};
+
+      const metaTotal = Number(
+        metaItem?.meta_individual
+        || metaItem?.meta_faturamento
+        || metaItem?.meta_ciclo
+        || metaItem?.meta_total
+        || metaItem?.meta
+        || 0
+      );
+      const metaHoje = metaTotal > 0 ? metaTotal / diasTotal : 0;
+      const vendidoHoje = Number(venda?.realizado || venda?.vendido_hoje || 0);
+
+      consultores.push({
+        ...metaItem,
+        ...venda,
+        id_colaborador: idMeta || venda?.id_colaborador || venda?.id_consultor || '',
+        consultor: metaItem?.nome_exibicao || metaItem?.nome || metaItem?.consultor || venda?.consultor || '',
+        nucleo: metaItem?.nucleo || venda?.nucleo || 'A DEFINIR',
+        meta_total: metaTotal,
+        meta_hoje: metaHoje,
+        meta_diaria: metaHoje,
+        vendido_hoje: vendidoHoje,
+        realizado: vendidoHoje,
+        percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
+        gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
+      });
+    });
+
+    vendasConsultores.forEach((item, indice) => {
+      if (consultoresConsumidos.has(indice)) return;
+      const vendidoHoje = Number(item?.realizado || item?.vendido_hoje || 0);
+      consultores.push({
+        ...item,
+        meta_total: 0,
+        meta_hoje: 0,
+        meta_diaria: 0,
+        vendido_hoje: vendidoHoje,
+        realizado: vendidoHoje,
+        percentual_meta_diaria: 0,
+        gap_meta_diaria: 0,
+        nucleo: item?.nucleo || 'A DEFINIR',
+      });
+    });
+
+    const mapaNucleos = new Map();
+    estruturas.forEach((item) => {
+      const nucleo = String(item?.nucleo || 'A DEFINIR').trim() || 'A DEFINIR';
+      const atual = mapaNucleos.get(nucleo) || {
+        nucleo,
+        meta_hoje: 0,
+        vendido_hoje: 0,
+        estruturas: [],
+      };
+      atual.meta_hoje += Number(item?.meta_hoje || 0);
+      atual.vendido_hoje += Number(item?.vendido_hoje || 0);
+      atual.estruturas.push(item);
+      mapaNucleos.set(nucleo, atual);
+    });
+
+    const nucleos = [...mapaNucleos.values()].map((item) => ({
+      ...item,
+      percentual_meta_diaria: calcPerc(item.vendido_hoje, item.meta_hoje),
+      gap_meta_diaria: Math.max(item.meta_hoje - item.vendido_hoje, 0),
+    }));
+
+    return { estruturas, consultores, nucleos };
+  };
+
+  const obterDetalheDiarioComCache = async (
+    filtrosDetalhe,
+    metasApi = dadosMetas,
+    consultoresMeta = acompanhamentoVD.consultores,
+    forcar = false
+  ) => {
+    const chave = `${String(usuarioLogado?.email || usuarioLogado?.id || '')}|${gerarChaveFiltros(filtrosDetalhe)}`;
+    if (!forcar && detalheDiarioCacheRef.current[chave]) {
+      return detalheDiarioCacheRef.current[chave];
+    }
+    const ciclo = String(filtrosDetalhe?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
+    let consultoresParaEnriquecer = Array.isArray(consultoresMeta) ? consultoresMeta : [];
+    let metaResolvidaParaEnriquecer = acompanhamentoVD.meta_resolvida || null;
+
+    // Garante a divisão diária individual mesmo quando o usuário abre o olho
+    // antes de o ranking terminar de carregar. A resposta fica em cache.
+    if (modoGerenteVD && !consultoresParaEnriquecer.length) {
+      try {
+        const respostaConsultores = await axios.post(
+          `${API_URL}/gerente-vd/consultores`,
+          filtrosDetalhe,
+          { headers: { 'X-Ciclo-VD': ciclo }, timeout: 45000 }
+        );
+        consultoresParaEnriquecer = Array.isArray(respostaConsultores.data?.consultores)
+          ? respostaConsultores.data.consultores
+          : [];
+        metaResolvidaParaEnriquecer = respostaConsultores.data?.meta_resolvida || metaResolvidaParaEnriquecer;
+      } catch (erroConsultores) {
+        console.warn('Não foi possível enriquecer a meta diária dos consultores:', erroConsultores);
+      }
+    }
+
+    const resposta = await axios.post(
+      `${API_URL}/dashboard/realizado-diario-rapido`,
+      filtrosDetalhe,
+      { headers: { 'X-Ciclo-VD': ciclo }, timeout: 30000 }
+    );
+    const rapido = resposta.data || {};
+    const enriquecido = enriquecerDetalheDiario(
+      rapido,
+      metasApi,
+      consultoresParaEnriquecer,
+      metaResolvidaParaEnriquecer
+    );
+    const completo = { ...rapido, ...enriquecido };
+    detalheDiarioCacheRef.current[chave] = completo;
+    return completo;
+  };
+
+  const abrirDetRealizadoDiario = async () => {
+    const cicloDetalhe = String(
+      cicloVisualizacaoVDRef.current || cicloSelecionadoVD || filtrosAtivos?.ciclo
+      || dados?.ciclo_retorno || dados?.ciclo_atual || ''
+    ).trim();
+    const filtrosDetalhe = { ...filtrosAtivos, ciclo: cicloDetalhe };
+    const realizadoInicial = Number(dados?.realizado_diario || 0);
+    const metaInicial = Number(dados?.meta_diaria || 0);
+    const resumoInicial = {
+      realizado_hoje: realizadoInicial,
+      meta_diaria: metaInicial,
+      percentual_atingimento: calcPerc(realizadoInicial, metaInicial),
+      falta_meta_diaria: Math.max(metaInicial - realizadoInicial, 0),
+      data_referencia: filtrosAtivos?.data_fim || filtrosAtivos?.data_inicio || new Date().toISOString().slice(0, 10),
+      ciclo: cicloDetalhe,
+      filtros_aplicados: {},
+      dias_total: Number(dados?.dias_total || 0),
+    };
+
+    const chave = `${String(usuarioLogado?.email || usuarioLogado?.id || '')}|${gerarChaveFiltros(filtrosDetalhe)}`;
+    const cache = detalheDiarioCacheRef.current[chave];
+    if (cache) {
+      const realizadoCache = Number(cache?.resumo?.realizado_hoje ?? realizadoInicial);
+      setModalRealizadoDiarioVD({
+        aberto: true,
+        carregando: false,
+        erro: '',
+        resumo: {
+          ...resumoInicial,
+          ...(cache.resumo || {}),
+          realizado_hoje: realizadoCache,
+          meta_diaria: metaInicial,
+          percentual_atingimento: calcPerc(realizadoCache, metaInicial),
+          falta_meta_diaria: Math.max(metaInicial - realizadoCache, 0),
+        },
+        meios_captacao: cache.meios_captacao || [],
+        estruturas: cache.estruturas || [],
+        consultores: cache.consultores || [],
+        nucleos: cache.nucleos || [],
+        conferencia: cache.conferencia || {},
+      });
+      return;
+    }
+
+    setModalRealizadoDiarioVD((atual) => ({
+      ...atual,
       aberto: true,
       carregando: true,
       erro: '',
@@ -10573,479 +10326,41 @@ const enviarArquivo = async (tipo) => {
       estruturas: [],
       consultores: [],
       nucleos: [],
-      conferencia: {
-        total_meios: 0,
-        total_estruturas: 0,
-        total_consultores: 0,
-        meios_ok: false,
-        estruturas_ok: false,
-        consultores_ok: false,
-      },
-    });
-
-    const normalizarChaveDiaria = (valor) => String(valor || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-
-    const aliasesEstruturaDiaria = (valor) => {
-      const bruto = String(valor || '').trim();
-      if (!bruto) return new Set();
-
-      const partes = bruto
-        .split(/[•|;,]/)
-        .map((parte) => parte.trim())
-        .filter(Boolean);
-
-      const aliases = new Set();
-      partes.forEach((parte) => {
-        const completo = normalizarChaveDiaria(parte);
-        const semCodigo = normalizarChaveDiaria(
-          parte.replace(/^\s*\d+\s*-\s*/, '')
-        );
-        const semNucleo = normalizarChaveDiaria(
-          parte
-            .replace(/^\s*\d+\s*-\s*/, '')
-            .replace(/^\s*n[123]\s*-\s*/, '')
-        );
-
-        [completo, semCodigo, semNucleo].filter(Boolean).forEach((alias) => {
-          aliases.add(alias);
-          aliases.add(alias.replace(/^equipe\s+/, '').trim());
-          aliases.add(alias.replace(/^er\s+/, '').trim());
-          aliases.add(alias.replace(/^equipe\s+er\s+/, '').trim());
-        });
-      });
-
-      return new Set([...aliases].filter(Boolean));
-    };
-
-    const estruturasCorrespondem = (valorA, valorB) => {
-      const aliasesA = aliasesEstruturaDiaria(valorA);
-      const aliasesB = aliasesEstruturaDiaria(valorB);
-      if (!aliasesA.size || !aliasesB.size) return false;
-      return [...aliasesA].some((alias) => aliasesB.has(alias));
-    };
-
-    const parseDataSemFuso = (valor) => {
-      if (!valor) return null;
-      const texto = String(valor).slice(0, 10);
-      const partes = texto.split('-').map(Number);
-      if (partes.length !== 3 || partes.some((parte) => !Number.isFinite(parte))) return null;
-      const data = new Date(partes[0], partes[1] - 1, partes[2], 12, 0, 0, 0);
-      return Number.isNaN(data.getTime()) ? null : data;
-    };
-
-    const calcularDiasPonderadosCiclo = (inicio, fim) => {
-      const dataInicio = parseDataSemFuso(inicio);
-      const dataFim = parseDataSemFuso(fim);
-      if (!dataInicio || !dataFim || dataFim < dataInicio) return 0;
-      let total = 0;
-      const cursor = new Date(dataInicio);
-      while (cursor <= dataFim) {
-        const diaSemana = cursor.getDay();
-        if (diaSemana >= 1 && diaSemana <= 5) total += 1;
-        else if (diaSemana === 6) total += 0.5;
-        cursor.setDate(cursor.getDate() + 1);
-      }
-      return total;
-    };
-
-    const resumirLinhasDiarias = (linhas = []) => {
-      const metaTotal = linhas.reduce((soma, item) => soma + Number(item?.meta_total || 0), 0);
-      const realizadoTotal = linhas.reduce((soma, item) => soma + Number(item?.realizado_total || 0), 0);
-      const metaHoje = linhas.reduce((soma, item) => soma + Number(item?.meta_hoje || 0), 0);
-      const vendidoHoje = linhas.reduce((soma, item) => soma + Number(item?.vendido_hoje || 0), 0);
-      const pedidosHoje = linhas.reduce((soma, item) => soma + Number(item?.pedidos_hoje || 0), 0);
-      return {
-        meta_total: metaTotal,
-        realizado_total: realizadoTotal,
-        gap_meta_total: Math.max(metaTotal - realizadoTotal, 0),
-        pedidos_hoje: pedidosHoje,
-        meta_hoje: metaHoje,
-        vendido_hoje: vendidoHoje,
-        percentual_realizado: calcPerc(realizadoTotal, metaTotal),
-        percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
-        gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
-      };
-    };
+    }));
 
     try {
-      const requisicoes = [
-        axios.post(
-          `${API_URL}/dashboard/realizado-diario-executivo`,
-          filtrosDetalhe,
-          { headers: { 'X-Ciclo-VD': cicloDetalhe } }
-        ),
-        axios.post(
-          `${API_URL}/metas/resumo`,
-          filtrosMetas,
-          { headers: { 'X-Ciclo-VD': cicloDetalhe } }
-        ),
-      ];
-
-      if (modoGerenteEstrutura && areaGerenteEstrutura === 'VD') {
-        requisicoes.push(
-          axios.post(
-            `${API_URL}/gerente-vd/consultores`,
-            filtrosMetas,
-            { headers: { 'X-Ciclo-VD': cicloDetalhe } }
-          )
-        );
-      }
-
-      const resultados = await Promise.allSettled(requisicoes);
-      const respostaDetalhe = resultados[0]?.status === 'fulfilled'
-        ? (resultados[0].value?.data || {})
-        : {};
-      const resumoMetasAtualizado = resultados[1]?.status === 'fulfilled'
-        ? (resultados[1].value?.data || {})
-        : (dadosMetas || {});
-      const respostaConsultoresGerente = resultados[2]?.status === 'fulfilled'
-        ? (resultados[2].value?.data || {})
-        : {};
-
-      if (resultados[0]?.status !== 'fulfilled') {
-        throw resultados[0]?.reason || new Error('O endpoint executivo do Realizado Diário não respondeu.');
-      }
-
-      const resumoApi = respostaDetalhe?.resumo || {};
-      const estruturasDia = Array.isArray(respostaDetalhe?.estruturas)
-        ? respostaDetalhe.estruturas
-        : [];
-      const consultoresDia = Array.isArray(respostaDetalhe?.consultores)
-        ? respostaDetalhe.consultores
-        : [];
-      const estruturasOficiais = Array.isArray(resumoMetasAtualizado?.estruturas)
-        ? resumoMetasAtualizado.estruturas
-        : [];
-
-      const consultoresOficiais = (
-        modoGerenteEstrutura && areaGerenteEstrutura === 'VD'
-          ? (
-            Array.isArray(respostaConsultoresGerente?.consultores)
-              ? respostaConsultoresGerente.consultores
-              : consultoresGerenteVD
-          )
-          : (
-            Array.isArray(resumoMetasAtualizado?.ranking_consultores)
-              ? resumoMetasAtualizado.ranking_consultores
-              : []
-          )
+      const completo = await obterDetalheDiarioComCache(
+        filtrosDetalhe,
+        dadosMetas,
+        acompanhamentoVD.consultores,
+        false
       );
-
-      let diasPonderados = Number(resumoApi?.dias_ponderados_total || 0);
-      if (!(diasPonderados > 0)) {
-        diasPonderados = calcularDiasPonderadosCiclo(
-          resumoApi?.inicio_ciclo || dados?.inicio_ciclo,
-          resumoApi?.fim_ciclo || dados?.fim_ciclo
-        );
-      }
-      if (!(diasPonderados > 0)) {
-        const metaGeralReferencia = Number(
-          resumoMetasAtualizado?.meta_total_geral
-          || resumoInicial.meta_total
-          || 0
-        );
-        const metaDiariaReferencia = Number(
-          resumoApi?.meta_hoje
-          || resumoApi?.meta_diaria
-          || dados?.meta_diaria
-          || 0
-        );
-        diasPonderados = metaDiariaReferencia > 0
-          ? metaGeralReferencia / metaDiariaReferencia
-          : 0;
-      }
-
-      const encontrarLinhasEstrutura = (estruturaOficial) => {
-        const nomesOficiais = [
-          estruturaOficial?.estrutura,
-          ...(Array.isArray(estruturaOficial?.estruturas_vinculadas)
-            ? estruturaOficial.estruturas_vinculadas
-            : []),
-        ].filter(Boolean);
-        return estruturasDia.filter((linhaDia) => nomesOficiais.some(
-          (nome) => estruturasCorrespondem(nome, linhaDia?.estrutura)
-        ));
-      };
-
-      const estruturasExecutivas = estruturasOficiais.map((estruturaOficial) => {
-        const linhasDia = encontrarLinhasEstrutura(estruturaOficial);
-        const metaTotal = Number(estruturaOficial?.receita || estruturaOficial?.meta_total || 0);
-        const realizadoTotal = Number(estruturaOficial?.realizado || estruturaOficial?.realizado_total || 0);
-        const metaHoje = diasPonderados > 0 ? metaTotal / diasPonderados : 0;
-        const vendidoHoje = linhasDia.reduce(
-          (soma, linha) => soma + Number(linha?.vendido_hoje ?? linha?.realizado ?? 0),
-          0
-        );
-        const pedidosHoje = linhasDia.reduce(
-          (soma, linha) => soma + Number(linha?.pedidos_hoje ?? linha?.pedidos ?? 0),
-          0
-        );
-        return {
-          estrutura: estruturaOficial?.estrutura || 'Não informada',
-          estruturas_vinculadas: estruturaOficial?.estruturas_vinculadas || [],
-          nucleo: estruturaOficial?.nucleo || 'A DEFINIR',
-          meta_total: metaTotal,
-          realizado_total: realizadoTotal,
-          gap_meta_total: Math.max(metaTotal - realizadoTotal, 0),
-          saldo_meta_total: realizadoTotal - metaTotal,
-          pedidos_hoje: pedidosHoje,
-          pedidos: pedidosHoje,
-          meta_hoje: metaHoje,
-          vendido_hoje: vendidoHoje,
-          realizado: vendidoHoje,
-          percentual_realizado: calcPerc(realizadoTotal, metaTotal),
-          percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
-          gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
-          saldo_meta_diaria: vendidoHoje - metaHoje,
-        };
-      });
-
-      const idsLinhaConsultor = (item) => String(
-        item?.id_colaborador
-        || item?.id_consultor
-        || item?.id
-        || ''
-      ).replace(/\.0$/, '').trim();
-      const nomeLinhaConsultor = (item) => normalizarChaveDiaria(
-        item?.nome_exibicao
-        || item?.nome
-        || item?.consultor
-        || item?.nome_consultor
-        || ''
-      );
-
-      const encontrarLinhasConsultor = (consultorOficial) => {
-        const idOficial = idsLinhaConsultor(consultorOficial);
-        const nomeOficial = nomeLinhaConsultor(consultorOficial);
-        return consultoresDia.filter((linhaDia) => {
-          const idDia = idsLinhaConsultor(linhaDia);
-          const nomeDia = nomeLinhaConsultor(linhaDia);
-          const identidadeConfere = (
-            (idOficial && idDia && idOficial === idDia)
-            || (nomeOficial && nomeDia && nomeOficial === nomeDia)
-          );
-          if (!identidadeConfere) return false;
-          if (!consultorOficial?.estrutura || !linhaDia?.estrutura) return true;
-          return estruturasCorrespondem(
-            consultorOficial.estrutura,
-            linhaDia.estrutura
-          );
-        });
-      };
-
-      const consultoresExecutivos = (consultoresOficiais || []).map((consultorOficial) => {
-        const linhasDia = encontrarLinhasConsultor(consultorOficial);
-        const metaTotal = Number(
-          consultorOficial?.meta_individual
-          || consultorOficial?.meta_total
-          || consultorOficial?.meta_faturamento
-          || 0
-        );
-        const realizadoTotal = Number(
-          consultorOficial?.realizado
-          || consultorOficial?.realizado_total
-          || 0
-        );
-        const metaHoje = diasPonderados > 0 ? metaTotal / diasPonderados : 0;
-        const vendidoHoje = linhasDia.reduce(
-          (soma, linha) => soma + Number(linha?.vendido_hoje ?? linha?.realizado ?? 0),
-          0
-        );
-        const pedidosHoje = linhasDia.reduce(
-          (soma, linha) => soma + Number(linha?.pedidos_hoje ?? linha?.pedidos ?? 0),
-          0
-        );
-        return {
-          id_consultor: idsLinhaConsultor(consultorOficial) || '-',
-          id_colaborador: idsLinhaConsultor(consultorOficial) || '-',
-          consultor: (
-            consultorOficial?.nome_exibicao
-            || consultorOficial?.nome
-            || consultorOficial?.consultor
-            || 'Não identificado'
-          ),
-          estrutura: consultorOficial?.estrutura || 'Não informada',
-          nucleo: consultorOficial?.nucleo || 'A DEFINIR',
-          meta_total: metaTotal,
-          realizado_total: realizadoTotal,
-          gap_meta_total: Math.max(metaTotal - realizadoTotal, 0),
-          saldo_meta_total: realizadoTotal - metaTotal,
-          pedidos_hoje: pedidosHoje,
-          pedidos: pedidosHoje,
-          meta_hoje: metaHoje,
-          vendido_hoje: vendidoHoje,
-          realizado: vendidoHoje,
-          percentual_realizado: calcPerc(realizadoTotal, metaTotal),
-          percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
-          gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
-          saldo_meta_diaria: vendidoHoje - metaHoje,
-        };
-      });
-
-      // Quando a API de metas ainda não tiver estruturas carregadas, preserva
-      // as linhas enriquecidas entregues pelo endpoint executivo.
-      const estruturasFinais = estruturasExecutivas.length
-        ? estruturasExecutivas
-        : estruturasDia;
-      const consultoresFinais = consultoresExecutivos.length
-        ? consultoresExecutivos
-        : consultoresDia;
-
-      estruturasFinais.sort((a, b) => Number(b?.vendido_hoje ?? b?.realizado ?? 0) - Number(a?.vendido_hoje ?? a?.realizado ?? 0));
-      consultoresFinais.sort((a, b) => Number(b?.vendido_hoje ?? b?.realizado ?? 0) - Number(a?.vendido_hoje ?? a?.realizado ?? 0));
-      estruturasFinais.forEach((item, indice) => { item.posicao = indice + 1; });
-      consultoresFinais.forEach((item, indice) => { item.posicao = indice + 1; });
-
-      const nucleosMap = new Map();
-      const garantirNucleo = (valor) => {
-        const nucleo = String(valor || 'A DEFINIR').split(',')[0].trim() || 'A DEFINIR';
-        if (!nucleosMap.has(nucleo)) {
-          nucleosMap.set(nucleo, { nucleo, estruturas: [], consultores: [] });
-        }
-        return nucleosMap.get(nucleo);
-      };
-      estruturasFinais.forEach((item) => garantirNucleo(item?.nucleo).estruturas.push(item));
-      consultoresFinais.forEach((item) => garantirNucleo(item?.nucleo).consultores.push(item));
-      const nucleosFinais = [...nucleosMap.values()]
-        .map((grupo) => ({
-          ...grupo,
-          resumo_estruturas: resumirLinhasDiarias(grupo.estruturas),
-          resumo_consultores: resumirLinhasDiarias(grupo.consultores),
-        }))
-        .sort((a, b) => String(a.nucleo).localeCompare(String(b.nucleo), 'pt-BR'));
-
-      const metaTotalGeral = Number(
-        resumoMetasAtualizado?.meta_total_geral
-        || resumoApi?.meta_total
-        || resumoInicial.meta_total
-        || 0
-      );
-      const realizadoTotalGeral = Number(
-        resumoMetasAtualizado?.realizado_total_geral
-        || resumoApi?.realizado_total
-        || resumoInicial.realizado_total
-        || 0
-      );
-      const vendidoHojeGeral = Number(
-        resumoApi?.vendido_hoje
-        ?? resumoApi?.realizado_hoje
-        ?? resumoInicial.vendido_hoje
-        ?? 0
-      );
-      const metaHojeGeral = estruturasFinais.length
-        ? estruturasFinais.reduce((soma, item) => soma + Number(item?.meta_hoje || 0), 0)
-        : Number(resumoApi?.meta_hoje || resumoApi?.meta_diaria || resumoInicial.meta_hoje || 0);
-
+      const realizadoDetalhe = Number(completo?.resumo?.realizado_hoje ?? realizadoInicial);
       setModalRealizadoDiarioVD({
         aberto: true,
         carregando: false,
         erro: '',
         resumo: {
           ...resumoInicial,
-          ...resumoApi,
-          meta_total: metaTotalGeral,
-          realizado_total: realizadoTotalGeral,
-          gap_meta_total: Math.max(metaTotalGeral - realizadoTotalGeral, 0),
-          saldo_meta_total: realizadoTotalGeral - metaTotalGeral,
-          pedidos_hoje: Number(resumoApi?.pedidos_hoje || 0),
-          realizado_hoje: vendidoHojeGeral,
-          vendido_hoje: vendidoHojeGeral,
-          meta_diaria: metaHojeGeral,
-          meta_hoje: metaHojeGeral,
-          percentual_realizado: calcPerc(realizadoTotalGeral, metaTotalGeral),
-          percentual_atingimento: calcPerc(vendidoHojeGeral, metaHojeGeral),
-          percentual_meta_diaria: calcPerc(vendidoHojeGeral, metaHojeGeral),
-          falta_meta_diaria: Math.max(metaHojeGeral - vendidoHojeGeral, 0),
-          gap_meta_diaria: Math.max(metaHojeGeral - vendidoHojeGeral, 0),
-          ciclo: resumoApi?.ciclo || cicloDetalhe,
-          dias_ponderados_total: diasPonderados,
-          versao_detalhamento: 'executivo-v2',
+          ...(completo.resumo || {}),
+          realizado_hoje: realizadoDetalhe,
+          meta_diaria: metaInicial,
+          percentual_atingimento: calcPerc(realizadoDetalhe, metaInicial),
+          falta_meta_diaria: Math.max(metaInicial - realizadoDetalhe, 0),
         },
-        meios_captacao: Array.isArray(respostaDetalhe?.meios_captacao)
-          ? respostaDetalhe.meios_captacao
-          : [],
-        estruturas: estruturasFinais,
-        consultores: consultoresFinais,
-        nucleos: nucleosFinais,
-        conferencia: {
-          total_meios: 0,
-          total_estruturas: 0,
-          total_consultores: 0,
-          meios_ok: false,
-          estruturas_ok: false,
-          consultores_ok: false,
-          ...(respostaDetalhe?.conferencia || {}),
-        },
+        meios_captacao: completo.meios_captacao || [],
+        estruturas: completo.estruturas || [],
+        consultores: completo.consultores || [],
+        nucleos: completo.nucleos || [],
+        conferencia: completo.conferencia || {},
       });
     } catch (erro) {
       setModalRealizadoDiarioVD((atual) => ({
         ...atual,
         carregando: false,
-        erro: (
-          erro.response?.data?.detail
-          || erro.message
-          || 'Não foi possível carregar o detalhamento executivo do Realizado Diário.'
-        ),
+        erro: erro.response?.data?.detail || 'Não foi possível carregar o detalhamento diário.',
       }));
     }
-  };
-  const obterGruposRealizadoDiarioVD = (tipo = 'estruturas') => {
-    const chaveResumo = tipo === 'consultores'
-      ? 'resumo_consultores'
-      : 'resumo_estruturas';
-
-    if (Array.isArray(modalRealizadoDiarioVD.nucleos) && modalRealizadoDiarioVD.nucleos.length) {
-      return modalRealizadoDiarioVD.nucleos
-        .map((grupo) => ({
-          nucleo: grupo?.nucleo || 'A DEFINIR',
-          linhas: Array.isArray(grupo?.[tipo]) ? grupo[tipo] : [],
-          resumo: grupo?.[chaveResumo] || {},
-        }))
-        .filter((grupo) => grupo.linhas.length > 0);
-    }
-
-    const linhas = Array.isArray(modalRealizadoDiarioVD?.[tipo])
-      ? modalRealizadoDiarioVD[tipo]
-      : [];
-    const mapa = new Map();
-    linhas.forEach((item) => {
-      const nucleo = String(item?.nucleo || 'A DEFINIR').trim() || 'A DEFINIR';
-      if (!mapa.has(nucleo)) mapa.set(nucleo, []);
-      mapa.get(nucleo).push(item);
-    });
-
-    return Array.from(mapa.entries()).map(([nucleo, itens]) => {
-      const metaTotal = itens.reduce((soma, item) => soma + Number(item?.meta_total || 0), 0);
-      const realizadoTotal = itens.reduce((soma, item) => soma + Number(item?.realizado_total || 0), 0);
-      const metaHoje = itens.reduce((soma, item) => soma + Number(item?.meta_hoje || 0), 0);
-      const vendidoHoje = itens.reduce((soma, item) => soma + Number(item?.vendido_hoje || item?.realizado || 0), 0);
-      return {
-        nucleo,
-        linhas: itens,
-        resumo: {
-          meta_total: metaTotal,
-          realizado_total: realizadoTotal,
-          gap_meta_total: Math.max(metaTotal - realizadoTotal, 0),
-          pedidos_hoje: itens.reduce((soma, item) => soma + Number(item?.pedidos_hoje || item?.pedidos || 0), 0),
-          meta_hoje: metaHoje,
-          vendido_hoje: vendidoHoje,
-          percentual_realizado: calcPerc(realizadoTotal, metaTotal),
-          percentual_meta_diaria: calcPerc(vendidoHoje, metaHoje),
-          gap_meta_diaria: Math.max(metaHoje - vendidoHoje, 0),
-        },
-      };
-    });
-  };
-
-  const textoGapRealizadoDiarioVD = (valor, meta = 0) => {
-    const gap = Number(valor || 0);
-    if (Number(meta || 0) <= 0) return 'Sem meta';
-    return gap > 0 ? formatarMoeda(gap) : 'Meta batida';
   };
 
   const calcularPlanoInteligenteTendencia = () => {
@@ -11151,103 +10466,72 @@ const enviarArquivo = async (tipo) => {
   };
   const obterResumoMetasAtual = () => dadosMetas || cacheMetas || {};
 
-  const abrirDetAtiv = () => {
-    const resumoMetas = obterResumoMetasAtual();
-    const estruturas = Array.isArray(resumoMetas?.estruturas) ? resumoMetas.estruturas : [];
-    const ativados = Number(dados?.revendedores_ativados || resumoMetas?.atividade_total_geral || 0);
-    const percentualAtual = Number(dados?.percentual_atividade_geral || resumoMetas?.percentual_atividade_total_geral || 0);
-    const baseAtivaCalculada = percentualAtual > 0 && ativados > 0 ? Math.round(ativados / (percentualAtual / 100)) : 0;
-    const baseAtiva = Number(resumoMetas?.base_ativa_total_geral || baseAtivaCalculada || 0);
-    const metaAtividade = Number(resumoMetas?.meta_atividade_geral || 0);
-    const metaEmRevendedores = calcularQtdMetaAtividade(baseAtiva, metaAtividade);
-    const saldoGeral = ativados - metaEmRevendedores;
-    const percentualDaMeta = calcPerc(percentualAtual, metaAtividade);
-
-    const gruposMap = new Map();
-    estruturas.forEach((item) => {
-      const nucleo = String(item?.nucleo || 'A DEFINIR').split(',')[0].trim() || 'A DEFINIR';
-      const ativosEstrutura = Number(item?.atividade_realizada || 0);
-      const baseEstrutura = Number(item?.base_ativa || 0);
-      const metaEstrutura = Number(item?.meta_atividade || metaAtividade || 0);
-      const percentualEstrutura = Number(
-        item?.percentual_atividade
-        || (baseEstrutura > 0 ? (ativosEstrutura / baseEstrutura) * 100 : 0)
-      );
-      const idealEstrutura = Math.ceil((baseEstrutura * metaEstrutura) / 100);
-      const linha = {
-        estrutura: item?.estrutura || 'A DEFINIR',
-        com_indicador: ativosEstrutura,
-        ativos: baseEstrutura,
-        percentual_ativacao: percentualEstrutura,
-        meta_percentual: metaEstrutura,
-        percentual_meta: calcPerc(percentualEstrutura, metaEstrutura),
-        ativacao_ideal: idealEstrutura,
-        saldo_meta: ativosEstrutura - idealEstrutura,
-      };
-      if (!gruposMap.has(nucleo)) gruposMap.set(nucleo, []);
-      gruposMap.get(nucleo).push(linha);
-    });
-
-    const porEstrutura = Array.from(gruposMap.entries())
-      .map(([nucleo, linhas]) => {
-        const comIndicador = linhas.reduce((soma, item) => soma + Number(item.com_indicador || 0), 0);
-        const base = linhas.reduce((soma, item) => soma + Number(item.ativos || 0), 0);
-        const ideal = linhas.reduce((soma, item) => soma + Number(item.ativacao_ideal || 0), 0);
-        const percentual = base > 0 ? (comIndicador / base) * 100 : 0;
-        const metaPonderada = base > 0 ? (ideal / base) * 100 : metaAtividade;
-        return {
-          nucleo,
-          estruturas: linhas.sort((a, b) => Number(b.percentual_ativacao || 0) - Number(a.percentual_ativacao || 0)),
-          resumo: {
-            com_indicador: comIndicador,
-            ativos: base,
-            percentual_ativacao: percentual,
-            meta_percentual: metaPonderada,
-            percentual_meta: calcPerc(percentual, metaPonderada),
-            ativacao_ideal: ideal,
-            saldo_meta: comIndicador - ideal,
-          },
-        };
-      })
-      .sort((a, b) => String(a.nucleo).localeCompare(String(b.nucleo), 'pt-BR'));
-
+  const abrirDetAtiv = async () => {
     setModalValorExpandido({
       aberto: true,
       titulo: 'Atividade Geral',
-      valorTexto: `${formatarNumeroBR(percentualAtual, 1)}%`,
-      descricao: 'Atividade = revendedores ativados no ciclo dividido pela base ativa.',
-      detalhes: [
-        { label: 'Revendedores ativados', valor: formatarNumeroBR(ativados, 0) },
-        { label: 'Base ativa', valor: formatarNumeroBR(baseAtiva, 0) },
-        { label: '% atividade', valor: `${formatarNumeroBR(percentualAtual, 1)}%` },
-        { label: 'Meta', valor: `${formatarNumeroBR(metaAtividade, 1)}%` },
-        { label: '% da meta', valor: `${formatarNumeroBR(percentualDaMeta, 1)}%` },
-        { label: 'Ativação ideal', valor: formatarNumeroBR(metaEmRevendedores, 0) },
-        { label: 'Saldo', valor: saldoGeral >= 0 ? `+${formatarNumeroBR(saldoGeral, 0)}` : formatarNumeroBR(saldoGeral, 0) },
-      ],
-      formula: `${formatarNumeroBR(baseAtiva, 0)} × ${formatarNumeroBR(metaAtividade, 1)}% = ${formatarNumeroBR(metaEmRevendedores, 0)} revendedores necessários`,
-      carregando: false,
+      valorTexto: 'Carregando...',
+      descricao: 'Atividade = revendedores ativados dividido pela base ativa.',
+      detalhes: [],
+      formula: '',
+      carregando: true,
       erro: '',
-      indicadorIaf: {
-        indicador: 'ATIVIDADE',
-        ciclo: filtrosAtivos?.ciclo || cicloSelecionadoVD || '',
-        resumo: {
-          com_indicador: ativados,
-          ativos: baseAtiva,
-          percentual_ativacao: percentualAtual,
-          meta_percentual: metaAtividade,
-          percentual_meta: percentualDaMeta,
-          ativacao_ideal: metaEmRevendedores,
-          saldo_meta: saldoGeral,
-        },
-        por_estrutura: porEstrutura,
-        por_consultor: [],
-        permite_consultor: false,
-        rotulo_percentual: '% atividade',
-        rotulo_coluna_realizado: 'Ativos no ciclo',
-        rotulo_coluna_base: 'Base ativa',
-      },
+      indicadorIaf: null,
     });
+
+    try {
+      const cicloSolicitado = String(
+        filtrosAtivos?.ciclo
+        || cicloVisualizacaoVDRef.current
+        || cicloSelecionadoVD
+        || ''
+      ).trim();
+      const { data } = await axios.post(
+        `${API_URL}/indicadores-iaf/atividade-detalhe`,
+        { ...filtrosAtivos, ciclo: cicloSolicitado },
+        { headers: { 'X-Ciclo-VD': cicloSolicitado } }
+      );
+
+      const resumo = data?.resumo || {};
+      const saldo = Number(resumo?.saldo_meta || 0);
+      const saldoTexto = saldo < 0
+        ? `Faltam ${formatarNumeroBR(Math.abs(saldo), 0)}`
+        : saldo > 0
+          ? `${formatarNumeroBR(saldo, 0)} acima da meta`
+          : 'Meta exata';
+
+      setModalValorExpandido({
+        aberto: true,
+        titulo: 'Atividade Geral',
+        valorTexto: `${formatarNumeroBR(resumo?.percentual_ativacao || 0, 1)}%`,
+        descricao: 'Atividade = revendedores ativados dividido pela base ativa.',
+        detalhes: [
+          { label: 'Ativos', valor: formatarNumeroBR(resumo?.com_indicador || 0, 0) },
+          { label: 'Base Ativa Total', valor: formatarNumeroBR(resumo?.ativos || 0, 0) },
+          { label: '% ativação', valor: `${formatarNumeroBR(resumo?.percentual_ativacao || 0, 1)}%` },
+          { label: 'Meta', valor: `${formatarNumeroBR(resumo?.meta_percentual || 0, 1)}%` },
+          { label: '% da meta', valor: `${formatarNumeroBR(resumo?.percentual_meta || 0, 1)}%` },
+          { label: 'Ativação ideal', valor: formatarNumeroBR(resumo?.ativacao_ideal || 0, 0) },
+          { label: 'Saldo', valor: saldoTexto },
+        ],
+        formula: '',
+        carregando: false,
+        erro: '',
+        indicadorIaf: data,
+      });
+    } catch (erro) {
+      setModalValorExpandido({
+        aberto: true,
+        titulo: 'Atividade Geral',
+        valorTexto: 'Não foi possível carregar',
+        descricao: '',
+        detalhes: [],
+        formula: '',
+        carregando: false,
+        erro: erro.response?.data?.detail || 'Erro ao carregar o acompanhamento de atividade.',
+        indicadorIaf: null,
+      });
+    }
   };
 
   const abrirDetIndicadorDashboard = async (tipo) => {
@@ -11269,14 +10553,12 @@ const enviarArquivo = async (tipo) => {
       const endpoint = indicador === 'MULTIMARCAS'
         ? '/indicadores-iaf/multimarcas-detalhe'
         : '/indicadores-iaf/detalhe';
-      const filtrosDetalheSeguros = aplicarEscopoGerenteVdNosFiltros(filtrosAtivos);
       const payload = indicador === 'MULTIMARCAS'
-        ? { filtros: filtrosDetalheSeguros }
-        : { indicador, filtros: filtrosDetalheSeguros };
+        ? { filtros: filtrosAtivos }
+        : { indicador, filtros: filtrosAtivos };
       const { data } = await axios.post(`${API_URL}${endpoint}`, payload);
-      const dataSegura = filtrarPayloadDetalheVD(data || {});
 
-      const resumo = dataSegura?.resumo || {};
+      const resumo = data?.resumo || {};
       const saldo = Number(resumo?.saldo_meta || 0);
       const saldoTexto = saldo < 0
         ? `Faltam ${formatarNumeroBR(Math.abs(saldo), 0)}`
@@ -11301,7 +10583,7 @@ const enviarArquivo = async (tipo) => {
         formula: '',
         carregando: false,
         erro: '',
-        indicadorIaf: dataSegura,
+        indicadorIaf: data,
       });
     } catch (erro) {
       setModalValorExpandido({
@@ -11335,23 +10617,383 @@ const enviarArquivo = async (tipo) => {
     setErroDetalheEudora('');
     setDetalheEudora(null);
     try {
-      const filtrosEudoraSeguros = aplicarEscopoGerenteVdNosFiltros({
-        ...filtrosAtivos,
-        ciclo,
-      });
       const { data } = await axios.post(
         `${API_URL}/eudora/detalhe`,
-        filtrosEudoraSeguros,
+        { ...filtrosAtivos, ciclo },
         { headers: { 'X-Ciclo-VD': ciclo } }
       );
       if (String(cicloVisualizacaoVDRef.current || '') !== ciclo) return;
-      setDetalheEudora(filtrarPayloadDetalheVD(data || null));
+      setDetalheEudora(data || null);
     } catch (erro) {
       setErroDetalheEudora(erro.response?.data?.detail || 'Erro ao carregar o resultado Eudora.');
     } finally {
       setCarregandoDetalheEudora(false);
     }
   };
+
+
+  const renderTelaAcompanhamentoVD = () => {
+    if (acompanhamentoVD.carregando && !dados) return <DashboardSkeletons />;
+    if (!dados) {
+      return (
+        <div className="bg-white rounded-2xl border border-red-100 p-8 text-center">
+          <AlertCircle className="mx-auto text-red-500" size={34} />
+          <h2 className="mt-3 text-xl font-black text-gray-700">Não foi possível carregar o acompanhamento</h2>
+          <p className="mt-2 text-sm font-semibold text-red-500">{acompanhamentoVD.erro || 'Nenhum dado foi retornado para a estrutura vinculada.'}</p>
+          <button
+            type="button"
+            onClick={() => carregarAcompanhamentoGerenteVD({ ...filtroVazio, ciclo: cicloSelecionadoVD }, true)}
+            className="mt-5 rounded-xl bg-[#048187] px-5 py-3 text-white font-black inline-flex items-center gap-2"
+          >
+            <RefreshCcw size={17} /> Tentar novamente
+          </button>
+        </div>
+      );
+    }
+
+    const escopoTexto = escoposGerenteVD.map((item) => item.estrutura).filter(Boolean).join(' • ') || 'Minha estrutura';
+    const metaResolvida = acompanhamentoVD.meta_resolvida || {};
+    const diarioResumo = acompanhamentoVD.diario?.resumo || {};
+    const consultores = Array.isArray(acompanhamentoVD.consultores) ? acompanhamentoVD.consultores : [];
+    const diarioConsultores = Array.isArray(acompanhamentoVD.diario?.consultores) ? acompanhamentoVD.diario.consultores : [];
+
+    const metaTotal = Number(
+      dadosMetas?.meta_total_geral
+      || metaResolvida?.receita
+      || metaFaturamentoDashboard
+      || dados?.meta_contextual
+      || dados?.meta_ciclo
+      || 0
+    );
+    const realizadoTotal = Number(dados?.valor_total || 0);
+    const realizadoHoje = Number(diarioResumo?.realizado_hoje ?? dados?.realizado_diario ?? 0);
+    const diasTotal = Math.max(Number(dados?.dias_total || diarioResumo?.dias_total || 1), 1);
+    const metaHoje = Number(
+      diarioResumo?.meta_diaria
+      || dados?.meta_diaria
+      || (metaTotal > 0 ? metaTotal / diasTotal : 0)
+    );
+    const pTotal = calcPerc(realizadoTotal, metaTotal);
+    const pDia = calcPerc(realizadoHoje, metaHoje);
+    const pEudora = calcPerc(dados?.realizado_eudora || 0, dados?.meta_eudora || 0);
+    const pMake = Number(dados?.percentual_make || 0);
+    const pCabelo = Number(dados?.percentual_cabelo || 0);
+    const pMulti = Number(dados?.percentual_multimarcas || 0);
+    const pAtividade = Number(dados?.percentual_atividade_geral || 0);
+    const totalPedidos = Number(dados?.total_pedidos || 0);
+    const ativados = Number(dados?.revendedores_ativados || 0);
+    const totalItens = Number(dados?.total_itens || 0);
+    const rpa = Number(dados?.rpa || (ativados > 0 ? realizadoTotal / ativados : 0));
+    const ticket = Number(dados?.ticket_medio || dados?.tkt_medio || (totalPedidos > 0 ? realizadoTotal / totalPedidos : 0));
+    const upa = Number(dados?.upa || (ativados > 0 ? totalItens / ativados : 0));
+    const metaAtividade = Number(dadosMetas?.meta_atividade_geral || metaResolvida?.atividade || 0);
+    const metaMake = Number(dadosMetas?.meta_make_geral || metaResolvida?.make || 0);
+    const metaCabelo = Number(dadosMetas?.meta_cabelo_geral || metaResolvida?.cabelo || 0);
+    const metaMulti = Number(dadosMetas?.meta_multimarcas_geral || metaResolvida?.multimarcas || dados?.meta_multimarcas || 76);
+    const metaRpa = Number(dadosMetas?.meta_rpa_geral || metaResolvida?.rpa || 0);
+    const metaTicket = Number(dadosMetas?.meta_tkt_medio_geral || metaResolvida?.tkt_medio || 0);
+    const metaUpa = Number(dadosMetas?.meta_upa_geral || metaResolvida?.upa || 0);
+    const tendenciaPositiva = Number(dados?.gap_tendencia || 0) >= 0;
+
+    const meiosCaptacao = [...(dados?.meios_captacao || [])]
+      .sort((a, b) => Number(b?.value || 0) - Number(a?.value || 0));
+    const modelosVenda = [...(dados?.realizado_por_marca || [])]
+      .sort((a, b) => Number(b?.value || 0) - Number(a?.value || 0));
+    const totalMeios = meiosCaptacao.reduce((soma, item) => soma + Number(item?.value || 0), 0);
+
+    const localizarDiarioConsultor = (consultor) => {
+      const id = String(consultor?.id_colaborador || consultor?.id_consultor || '').trim();
+      const nome = normalizarChaveAcompanhamento(consultor?.nome_exibicao || consultor?.nome || consultor?.consultor);
+      return diarioConsultores.find((item) => {
+        const idItem = String(item?.id_consultor || item?.id_colaborador || '').trim();
+        const nomeItem = normalizarChaveAcompanhamento(item?.consultor || item?.nome);
+        return (id && idItem && id === idItem) || (nome && nomeItem && nome === nomeItem);
+      }) || {};
+    };
+
+    const IndicadorConsultor = ({ titulo, meta, realizado, percentual, moeda = false, decimal = 1 }) => (
+      <div className="rounded-xl border border-gray-100 bg-white p-3 min-w-0">
+        <p className="text-[9px] font-black uppercase tracking-wide text-gray-500 truncate">{titulo}</p>
+        <div className="mt-2">
+          <p className="text-[8px] font-black uppercase text-gray-400">Meta</p>
+          <p className="text-[12px] font-black text-[#7c1f31] truncate" title={String(meta)}>
+            {moeda ? formatarMoeda(meta) : typeof meta === 'number' ? formatarNumeroBR(meta, decimal) : meta}
+          </p>
+        </div>
+        <div className="mt-2 border-t border-gray-100 pt-2">
+          <p className="text-[8px] font-black uppercase text-gray-400">Realizado</p>
+          <p className="text-[12px] font-black truncate" style={{ color: corPorFaixaMeta(percentual) }} title={String(realizado)}>
+            {moeda ? formatarMoeda(realizado) : typeof realizado === 'number' ? formatarNumeroBR(realizado, decimal) : realizado}
+          </p>
+        </div>
+        <div className="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${Math.min(Math.max(Number(percentual || 0), 0), 100)}%`,
+              backgroundColor: corPorFaixaMeta(percentual),
+            }}
+          />
+        </div>
+        <p className="mt-1 text-[8px] font-black text-right" style={{ color: corPorFaixaMeta(percentual) }}>
+          {formatarNumeroBR(percentual, 1)}% da meta
+        </p>
+      </div>
+    );
+
+    return (
+      <div className="space-y-5 animate-fade-in">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-xs font-semibold text-gray-400">
+            {dados?.ultima_atualizacao_pedidos
+              ? `Última atualização (Base Pedidos): ${dados.ultima_atualizacao_pedidos}`
+              : `Ciclo ${cicloSelecionadoVD || dados?.ciclo_atual || '-'}`}
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-[#e6f6f7] px-4 py-2 text-xs font-black text-[#048187]">
+              {escopoTexto}
+            </span>
+            <button
+              type="button"
+              onClick={() => carregarAcompanhamentoGerenteVD({ ...filtroVazio, ciclo: cicloSelecionadoVD }, true)}
+              className="w-10 h-10 rounded-full bg-[#e6f6f7] text-[#048187] inline-flex items-center justify-center hover:bg-[#d0f0f1]"
+              title="Atualizar acompanhamento"
+            >
+              <RefreshCcw size={17} className={acompanhamentoVD.carregando ? 'animate-spin' : ''} />
+            </button>
+          </div>
+        </div>
+
+        {acompanhamentoVD.erro && (
+          <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm font-bold text-amber-700">
+            {acompanhamentoVD.erro}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+          <CardMini
+            titulo="Realizado Total"
+            valor={formatarAbrev(realizadoTotal)}
+            percentual={pTotal}
+            labelMeta="Meta Faturamento:"
+            valorMeta={formatarAbrev(metaTotal)}
+            onClickExpandir={abrirDetRealizadoTotal}
+          />
+          <CardMini
+            titulo="Realizado Diário"
+            valor={formatarAbrev(realizadoHoje)}
+            percentual={pDia}
+            labelMeta="Meta Diária da Estrutura:"
+            valorMeta={formatarAbrev(metaHoje)}
+            onClickExpandir={abrirDetRealizadoDiario}
+          />
+          <CardMini
+            titulo="Realizado Eudora"
+            valor={formatarAbrev(dados?.realizado_eudora || 0)}
+            percentual={pEudora}
+            labelMeta={`Meta Eudora (${Number(dados?.meta_eudora_percentual || 20).toFixed(1)}%):`}
+            valorMeta={formatarAbrev(dados?.meta_eudora || 0)}
+            onClickExpandir={abrirDetalheEudora}
+          />
+          <CardMini
+            titulo="Tendência"
+            valor={formatarAbrev(dados?.tendencia_ciclo || 0)}
+            percentual={calcPerc(dados?.tendencia_ciclo || 0, dados?.meta_ciclo || metaTotal)}
+            labelMeta="Gap Tendência:"
+            valorMeta={formatarAbrev(dados?.gap_tendencia || 0)}
+            onClickExpandir={abrirDetTendencia}
+            isTendencia
+            tendenciaIcon={tendenciaPositiva ? TrendingUp : TrendingDown}
+            tendenciaStatus={dados?.status_tendencia || 'Sem tendência'}
+          />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0">
+            <div className="grid grid-cols-2 flex-1">
+              <div className="p-3 border-r border-gray-100 flex flex-col justify-center">
+                <p className="text-[10px] font-bold uppercase text-gray-500">Total pedidos</p>
+                <p className="mt-1 text-2xl font-black text-[#048187]">{formatarNumeroBR(totalPedidos, 0)}</p>
+              </div>
+              <div className="p-3 flex flex-col justify-center">
+                <p className="text-[10px] font-bold uppercase text-gray-500">Ativados</p>
+                <p className="mt-1 text-2xl font-black text-[#048187]">{formatarNumeroBR(ativados, 0)}</p>
+              </div>
+            </div>
+            <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+              <span className="text-[9px] font-black uppercase text-gray-400">Cancelados</span>
+              <span className="text-sm font-black text-[#7c1f31]">{formatarNumeroBR(dados?.total_cancelados || 0, 0)}</span>
+            </div>
+          </div>
+          <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+            <p className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-100 pb-1">Indicadores</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                ['MAKE', pMake, calcPerc(pMake, metaMake)],
+                ['CABELO', pCabelo, calcPerc(pCabelo, metaCabelo)],
+                ['MULTI.', pMulti, calcPerc(pMulti, metaMulti)],
+                ['ATIV.', pAtividade, calcPerc(pAtividade, metaAtividade)],
+              ].map(([nome, valor, atingimento]) => (
+                <div key={nome} className="rounded px-2 py-1.5 flex items-center justify-between text-white" style={{ backgroundColor: corPorFaixaMeta(atingimento) }}>
+                  <span className="text-[9px] font-black">{nome}</span>
+                  <span className="text-[9px] font-black">{formatarNumeroBR(valor, 1)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+            <p className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-100 pb-1">Desempenho</p>
+            <div className="space-y-1.5">
+              {[
+                ['RPA', formatarMoeda(rpa), calcPerc(rpa, metaRpa)],
+                ['TKT MÉD.', formatarMoeda(ticket), calcPerc(ticket, metaTicket)],
+                ['UPA', formatarNumeroBR(upa, 1), calcPerc(upa, metaUpa)],
+              ].map(([nome, valor, atingimento]) => (
+                <div key={nome} className="rounded border border-gray-100 bg-[#fcfbf7] px-2 py-1 flex items-center justify-between">
+                  <span className="text-[9px] font-black text-gray-600">{nome}</span>
+                  <span className="text-[9px] font-black" style={{ color: corPorFaixaMeta(atingimento) }}>{valor}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <h3 className="text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2">Vendas por dia de Captação</h3>
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={dados?.vendas_por_dia || []} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorVendasGerente" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#048187" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#048187" stopOpacity={0.03} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="Data Captação" tick={{ fontSize: 10, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={formatarTickMoeda} width={48} />
+                  <Tooltip formatter={(value) => formatarMoeda(value)} />
+                  <Area type="monotone" dataKey="ValorPraticado" stroke="#048187" strokeWidth={3} fill="url(#colorVendasGerente)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <h3 className="text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2">Modelo de venda</h3>
+            <div className="h-[280px]">
+              {modelosVenda.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={modelosVenda} dataKey="value" nameKey="name" cx="50%" cy="45%" innerRadius="42%" outerRadius="72%">
+                      {modelosVenda.map((item, indice) => (
+                        <Cell key={`${item?.name || indice}`} fill={CORES_GRAFICO[indice % CORES_GRAFICO.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatarMoeda(value)} />
+                    <Legend verticalAlign="bottom" wrapperStyle={{ fontSize: '10px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : <div className="h-full flex items-center justify-center text-sm text-gray-400">Sem dados</div>}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <h3 className="text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2">Meios de captação</h3>
+            <div className="h-[280px]">
+              {meiosCaptacao.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={meiosCaptacao} layout="vertical" margin={{ top: 20, right: 45, left: 35, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="MeioCaptacao" type="category" width={85} tick={{ fontSize: 10, fill: '#334155' }} />
+                    <Tooltip formatter={(value) => `${value} pedidos`} />
+                    <Bar dataKey="value" fill="#048187" radius={[0, 4, 4, 0]}>
+                      <LabelList content={({ x, y, width, height, value }) => {
+                        const percentual = totalMeios > 0 ? ((Number(value || 0) / totalMeios) * 100).toFixed(1) : '0.0';
+                        return <text x={x + width + 8} y={y + height / 2 + 4} fill="#475569" fontSize={10} fontWeight="bold">{percentual}%</text>;
+                      }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <div className="h-full flex items-center justify-center text-sm text-gray-400">Sem dados</div>}
+            </div>
+          </div>
+        </div>
+
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <h2 className="text-lg font-black text-gray-700 text-center border-b border-gray-100 pb-3">Ranking individual</h2>
+          {(acompanhamentoVD.carregando || acompanhamentoVD.carregandoConsultores) ? (
+            <div className="py-12 flex items-center justify-center gap-3 text-[#048187] font-black">
+              <Loader2 size={20} className="animate-spin" /> Atualizando acompanhamento...
+            </div>
+          ) : !consultores.length ? (
+            <div className="py-12 text-center text-sm font-bold text-gray-400">Nenhum consultor encontrado para esta estrutura.</div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {consultores.map((consultor, indice) => {
+                const dia = localizarDiarioConsultor(consultor);
+                const metaCiclo = Number(consultor?.meta_individual || consultor?.meta_faturamento || consultor?.meta_ciclo || consultor?.meta || 0);
+                const realizadoCiclo = Number(consultor?.realizado || consultor?.faturamento_realizado || 0);
+                const metaDiaria = Number(dia?.meta_diaria || dia?.meta_hoje || consultor?.meta_diaria || (metaCiclo > 0 ? metaCiclo / diasTotal : 0));
+                const vendidoHoje = Number(dia?.vendido_hoje || dia?.realizado || consultor?.vendido_hoje || 0);
+                const atividadeRealizada = Number(consultor?.atividade_realizada || consultor?.ativos || 0);
+                const atividadePct = Number(consultor?.percentual_atividade || 0);
+                const makeRealizado = Number(consultor?.make_realizado || 0);
+                const makePct = Number(consultor?.percentual_make || 0);
+                const cabeloRealizado = Number(consultor?.cabelo_realizado || 0);
+                const cabeloPct = Number(consultor?.percentual_cabelo || 0);
+                const eudoraReal = Number(consultor?.eudora_realizado || 0);
+                const rpaConsultor = Number(consultor?.rpa || 0);
+                const ticketConsultor = Number(consultor?.tkt_medio || consultor?.ticket_medio || 0);
+                const upaConsultor = Number(consultor?.upa || 0);
+
+                return (
+                  <article key={`${consultor?.id_colaborador || consultor?.nome || indice}`} className="rounded-2xl border border-gray-100 bg-[#fffefa] p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-7 h-7 rounded-full bg-[#048187] text-white inline-flex items-center justify-center text-xs font-black">{indice + 1}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-gray-800 truncate">{consultor?.nome_exibicao || consultor?.nome || consultor?.consultor || 'Consultor'}</p>
+                          <p className="text-[10px] font-bold text-gray-400 truncate">ID {consultor?.id_colaborador || consultor?.id_consultor || '-'} • Meta diária {formatarAbrev(metaDiaria)} • Hoje {formatarAbrev(vendidoHoje)}</p>
+                        </div>
+                      </div>
+                      <span className="text-lg font-black text-[#048187]">{formatarNumeroBR(calcPerc(realizadoCiclo, metaCiclo), 2)}%</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
+                      <IndicadorConsultor titulo="Faturamento" meta={metaCiclo} realizado={realizadoCiclo} percentual={calcPerc(realizadoCiclo, metaCiclo)} moeda />
+                      <IndicadorConsultor titulo="Eudora" meta={Number(consultor?.meta_eudora_valor || 0)} realizado={eudoraReal} percentual={calcPerc(eudoraReal, Number(consultor?.meta_eudora_valor || 0))} moeda />
+                      <IndicadorConsultor titulo="Atividade" meta={`${formatarNumeroBR(metaAtividade, 1)}%`} realizado={`${formatarNumeroBR(atividadeRealizada, 0)} rev. • ${formatarNumeroBR(atividadePct, 1)}%`} percentual={calcPerc(atividadePct, metaAtividade)} />
+                      <IndicadorConsultor titulo="MAKE" meta={`${formatarNumeroBR(metaMake, 1)}%`} realizado={`${formatarNumeroBR(makeRealizado, 0)} rev. • ${formatarNumeroBR(makePct, 1)}%`} percentual={calcPerc(makePct, metaMake)} />
+                      <IndicadorConsultor titulo="CABELO" meta={`${formatarNumeroBR(metaCabelo, 1)}%`} realizado={`${formatarNumeroBR(cabeloRealizado, 0)} rev. • ${formatarNumeroBR(cabeloPct, 1)}%`} percentual={calcPerc(cabeloPct, metaCabelo)} />
+                      <IndicadorConsultor titulo="RPA" meta={metaRpa} realizado={rpaConsultor} percentual={calcPerc(rpaConsultor, metaRpa)} moeda />
+                      <IndicadorConsultor titulo="Ticket médio" meta={metaTicket} realizado={ticketConsultor} percentual={calcPerc(ticketConsultor, metaTicket)} moeda />
+                      <IndicadorConsultor titulo="UPA" meta={metaUpa} realizado={upaConsultor} percentual={calcPerc(upaConsultor, metaUpa)} />
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-start gap-2">
+            <AlertCircle size={20} className="text-orange-500 shrink-0" />
+            <div>
+              <h2 className="text-base font-black text-gray-700">Vendas fora da estrutura</h2>
+              <p className="text-xs font-semibold text-gray-400">Pedidos finalizados por consultores fora da unidade vinculada.</p>
+            </div>
+          </div>
+          <div className="mt-4 rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm font-bold text-green-700">
+            {Array.isArray(dados?.vendas_fora_estrutura) && dados.vendas_fora_estrutura.length
+              ? `${dados.vendas_fora_estrutura.length} ocorrência(s) identificada(s).`
+              : 'Nenhuma venda fora da estrutura.'}
+          </div>
+        </section>
+      </div>
+    );
+  };
+
 
   const renderTelaDashboard = () => {
     if (carregandoDashboard && !dados) return <DashboardSkeletons />;
@@ -11406,20 +11048,22 @@ const enviarArquivo = async (tipo) => {
       const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
 
       const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const atividadeMakeBase = obterNumeroLinhaMeta(item?.atividade_make_base, atividadeRealizada);
       const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
-      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeMakeBase > 0 ? Math.ceil((atividadeMakeBase * metaMakePercentual) / 100) : 0;
       const percentualMakeApi = obterNumeroLinhaMeta(item?.percentual_make, 0);
       const percentualMake = percentualMakeApi > 0
         ? percentualMakeApi
-        : calcularPercentualSeguro(makeRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(makeRealizado, atividadeMakeBase);
 
       const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const atividadeCabeloBase = obterNumeroLinhaMeta(item?.atividade_cabelo_base, atividadeRealizada);
       const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
-      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeCabeloBase > 0 ? Math.ceil((atividadeCabeloBase * metaCabeloPercentual) / 100) : 0;
       const percentualCabeloApi = obterNumeroLinhaMeta(item?.percentual_cabelo, 0);
       const percentualCabelo = percentualCabeloApi > 0
         ? percentualCabeloApi
-        : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(cabeloRealizado, atividadeCabeloBase);
 
       const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
       const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
@@ -11454,10 +11098,12 @@ const enviarArquivo = async (tipo) => {
         upaMeta,
         upaRealizada,
         metaMakePercentual,
+        atividadeMakeBase,
         makeMetaQtd,
         makeRealizado,
         percentualMake,
         metaCabeloPercentual,
+        atividadeCabeloBase,
         cabeloMetaQtd,
         cabeloRealizado,
         percentualCabelo,
@@ -11550,491 +11196,12 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
-    const acompanhamentoGerenteVD = telaAtual === 'AcompanhamentoVD'
-      && modoGerenteEstrutura
-      && areaGerenteEstrutura === 'VD';
-
-    // O backend já entrega o ranking limitado aos blocos/estruturas do gerente.
-    // Não aplicamos um segundo filtro por texto aqui, pois equipes com vários
-    // códigos e o mesmo nome (ex.: PINHEIRO) poderiam ter consultores válidos
-    // removidos pelo navegador.
-    const consultoresAcompanhamentoVD = [
-      ...(consultoresGerenteVD.length > 0
-        ? consultoresGerenteVD
-        : (dadosMetas?.ranking_consultores || []))
-    ].sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
-
-    const normalizarEstruturaAcompanhamento = (valor) => String(valor || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/^\s*\d+\s*-\s*/, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-
-    const obterMetaEstruturaConsultorAcompanhamento = (consultor) => {
-      const chaveConsultor = normalizarEstruturaAcompanhamento(consultor?.estrutura);
-      return (dadosMetas?.estruturas || []).find((estrutura) => {
-        const nomes = [
-          estrutura?.estrutura,
-          ...(Array.isArray(estrutura?.estruturas_vinculadas)
-            ? estrutura.estruturas_vinculadas
-            : []),
-        ];
-        return nomes.some((nome) => normalizarEstruturaAcompanhamento(nome) === chaveConsultor);
-      }) || {};
-    };
-
-    const montarIndicadoresConsultorAcompanhamento = (consultor) => {
-      const metaEstrutura = obterMetaEstruturaConsultorAcompanhamento(consultor);
-      const metaFaturamento = Number(consultor?.meta_individual || 0);
-      const realizadoFaturamento = Number(consultor?.realizado || 0);
-      const percentualFaturamento = Number(
-        consultor?.percentual
-        || calcPerc(realizadoFaturamento, metaFaturamento)
-      );
-      const pesoMeta = Number(consultor?.peso_meta || 0);
-      const pedidos = Number(consultor?.quantidade_pedidos || 0);
-      const ativados = Number(consultor?.atividade_realizada || 0);
-      const baseAtivaIndividual = Number(consultor?.base_ativa_individual || 0);
-      const totalItens = Number(consultor?.total_itens || 0);
-
-      const metaAtividadePercentual = Number(
-        consultor?.meta_atividade
-        ?? metaEstrutura?.meta_atividade
-        ?? dadosMetas?.meta_atividade_geral
-        ?? 0
-      );
-      const metaAtividadeQuantidade = baseAtivaIndividual > 0
-        ? Math.ceil((baseAtivaIndividual * metaAtividadePercentual) / 100)
-        : 0;
-      // Na tela oficial do administrador, o card de Atividade exibe a base
-      // ativa individual ao lado da meta percentual. Mantemos o mesmo padrão
-      // no Acompanhamento do gerente.
-      const baseAtivaExibidaAtividade = baseAtivaIndividual;
-      const percentualAtividade = Number(
-        consultor?.percentual_atividade
-        || calcPerc(ativados, baseAtivaIndividual)
-      );
-      const atingimentoAtividade = calcPerc(
-        percentualAtividade,
-        metaAtividadePercentual
-      );
-
-      const metaMakePercentual = Number(
-        consultor?.meta_make
-        ?? metaEstrutura?.meta_make
-        ?? dadosMetas?.meta_make_geral
-        ?? 0
-      );
-      const makeRealizado = Number(consultor?.make_realizado || 0);
-      const percentualMake = Number(
-        consultor?.percentual_make
-        || calcPerc(makeRealizado, ativados)
-      );
-      const metaMakeQuantidade = ativados > 0
-        ? Math.ceil((ativados * metaMakePercentual) / 100)
-        : 0;
-
-      const metaCabeloPercentual = Number(
-        consultor?.meta_cabelo
-        ?? metaEstrutura?.meta_cabelo
-        ?? dadosMetas?.meta_cabelo_geral
-        ?? 0
-      );
-      const cabeloRealizado = Number(consultor?.cabelo_realizado || 0);
-      const percentualCabelo = Number(
-        consultor?.percentual_cabelo
-        || calcPerc(cabeloRealizado, ativados)
-      );
-      const metaCabeloQuantidade = ativados > 0
-        ? Math.ceil((ativados * metaCabeloPercentual) / 100)
-        : 0;
-
-      const metaEudoraPercentual = Number(
-        consultor?.meta_eudora
-        || metaEstrutura?.meta_eudora
-        || dadosMetas?.meta_eudora_geral
-        || 20
-      );
-      const metaEudoraValor = Number(
-        consultor?.meta_eudora_valor
-        || ((metaFaturamento * metaEudoraPercentual) / 100)
-      );
-      const eudoraRealizado = Number(consultor?.eudora_realizado || 0);
-      const percentualEudora = Number(
-        consultor?.percentual_eudora
-        || calcPerc(eudoraRealizado, metaEudoraValor)
-      );
-      const pedidosEudora = Number(consultor?.pedidos_eudora || 0);
-
-      const metaRpa = Number(
-        consultor?.meta_rpa
-        ?? metaEstrutura?.meta_rpa
-        ?? dadosMetas?.meta_rpa_geral
-        ?? 0
-      );
-      const rpa = Number(
-        consultor?.rpa
-        || (ativados > 0 ? realizadoFaturamento / ativados : 0)
-      );
-
-      const metaTicket = Number(
-        consultor?.meta_tkt_medio
-        ?? metaEstrutura?.meta_tkt_medio
-        ?? dadosMetas?.meta_tkt_medio_geral
-        ?? 0
-      );
-      const ticket = Number(
-        consultor?.tkt_medio
-        || (pedidos > 0 ? realizadoFaturamento / pedidos : 0)
-      );
-
-      const metaUpa = Number(
-        consultor?.meta_upa
-        ?? metaEstrutura?.meta_upa
-        ?? dadosMetas?.meta_upa_geral
-        ?? 0
-      );
-      const upa = Number(
-        consultor?.upa
-        || (ativados > 0 ? totalItens / ativados : 0)
-      );
-
-      return {
-        metaFaturamento,
-        realizadoFaturamento,
-        percentualFaturamento,
-        pesoMeta,
-        pedidos,
-        ativados,
-        baseAtivaIndividual,
-        totalItens,
-        metaAtividadePercentual,
-        metaAtividadeQuantidade,
-        baseAtivaExibidaAtividade,
-        percentualAtividade,
-        atingimentoAtividade,
-        metaMakePercentual,
-        metaMakeQuantidade,
-        makeRealizado,
-        percentualMake,
-        metaCabeloPercentual,
-        metaCabeloQuantidade,
-        cabeloRealizado,
-        percentualCabelo,
-        metaEudoraPercentual,
-        metaEudoraValor,
-        eudoraRealizado,
-        percentualEudora,
-        pedidosEudora,
-        metaRpa,
-        rpa,
-        metaTicket,
-        ticket,
-        metaUpa,
-        upa,
-      };
-    };
-
-    const abrirDetalheIndicadorConsultorAcompanhamento = (
-      consultor,
-      indicador,
-      valores
-    ) => {
-      const nome = obterNomeExibicaoConsultor(consultor);
-      const tipo = String(indicador || '').toUpperCase();
-
-      if (tipo === 'FATURAMENTO') {
-        const falta = Math.max(
-          valores.metaFaturamento - valores.realizadoFaturamento,
-          0
-        );
-        abrirModalValExp(
-          `Faturamento • ${nome}`,
-          formatarMoeda(valores.realizadoFaturamento),
-          'Resultado acumulado do consultor na estrutura vinculada ao gerente.',
-          [
-            { label: 'Meta individual', valor: formatarMoeda(valores.metaFaturamento) },
-            { label: 'Realizado', valor: formatarMoeda(valores.realizadoFaturamento) },
-            { label: '% da meta', valor: `${formatarNumeroBR(valores.percentualFaturamento, 1)}%` },
-            { label: 'Quantidade de pedidos', valor: formatarNumeroBR(valores.pedidos, 0) },
-            { label: 'Falta para a meta', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' },
-          ],
-          `${formatarMoeda(valores.realizadoFaturamento)} ÷ ${formatarMoeda(valores.metaFaturamento)} = ${formatarNumeroBR(valores.percentualFaturamento, 1)}% da meta`
-        );
-        return;
-      }
-
-      if (tipo === 'EUDORA') {
-        abrirModalValExp(
-          `Eudora • ${nome}`,
-          formatarMoeda(valores.eudoraRealizado),
-          '',
-          [
-            { label: 'Meta Eudora (% do faturamento)', valor: `${formatarNumeroBR(valores.metaEudoraPercentual, 1)}%` },
-            { label: 'Meta Eudora', valor: formatarMoeda(valores.metaEudoraValor) },
-            { label: 'Realizado Eudora', valor: formatarMoeda(valores.eudoraRealizado) },
-            { label: '% da meta', valor: `${formatarNumeroBR(valores.percentualEudora, 1)}%` },
-            { label: 'Pedidos Eudora', valor: formatarNumeroBR(valores.pedidosEudora, 0) },
-          ]
-        );
-        return;
-      }
-
-      if (tipo === 'ATIVIDADE') {
-        abrirModalValExp(
-          `Atividade • ${nome}`,
-          `${formatarNumeroBR(valores.percentualAtividade, 1)}%`,
-          'Atividade individual calculada sobre a base ativa distribuída ao consultor.',
-          [
-            { label: 'Base ativa individual', valor: formatarNumeroBR(valores.baseAtivaIndividual, 0) },
-            { label: 'Meta atividade', valor: `${formatarNumeroBR(valores.metaAtividadePercentual, 1)}%` },
-            { label: 'Meta em revendedores', valor: formatarNumeroBR(valores.metaAtividadeQuantidade, 0) },
-            { label: 'Revendedores ativados', valor: formatarNumeroBR(valores.ativados, 0) },
-            { label: '% da meta', valor: `${formatarNumeroBR(valores.atingimentoAtividade, 1)}%` },
-          ]
-        );
-        return;
-      }
-
-      if (tipo === 'MAKE' || tipo === 'CABELO') {
-        const cabelo = tipo === 'CABELO';
-        const realizadoQtd = cabelo ? valores.cabeloRealizado : valores.makeRealizado;
-        const realizadoPct = cabelo ? valores.percentualCabelo : valores.percentualMake;
-        const metaPct = cabelo ? valores.metaCabeloPercentual : valores.metaMakePercentual;
-        const metaQtd = cabelo ? valores.metaCabeloQuantidade : valores.metaMakeQuantidade;
-        abrirModalValExp(
-          `${tipo} • ${nome}`,
-          `${formatarNumeroBR(realizadoPct, 1)}%`,
-          `${tipo} calculado sobre os revendedores ativados pelo consultor.`,
-          [
-            { label: 'Revendedores ativados', valor: formatarNumeroBR(valores.ativados, 0) },
-            { label: `Meta ${tipo}`, valor: `${formatarNumeroBR(metaPct, 1)}%` },
-            { label: 'Meta em revendedores', valor: formatarNumeroBR(metaQtd, 0) },
-            { label: 'Realizado em revendedores', valor: formatarNumeroBR(realizadoQtd, 0) },
-            { label: `% ${tipo} realizado`, valor: `${formatarNumeroBR(realizadoPct, 1)}%` },
-            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(realizadoPct, metaPct), 1)}%` },
-          ]
-        );
-        return;
-      }
-
-      if (tipo === 'RPA') {
-        abrirModalValExp(
-          `RPA • ${nome}`,
-          formatarMoeda(valores.rpa),
-          'RPA = faturamento realizado dividido pelos revendedores ativados.',
-          [
-            { label: 'Meta RPA', valor: formatarMoeda(valores.metaRpa) },
-            { label: 'RPA realizado', valor: formatarMoeda(valores.rpa) },
-            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(valores.rpa, valores.metaRpa), 1)}%` },
-            { label: 'Faturamento realizado', valor: formatarMoeda(valores.realizadoFaturamento) },
-            { label: 'Revendedores ativados', valor: formatarNumeroBR(valores.ativados, 0) },
-          ]
-        );
-        return;
-      }
-
-      if (tipo === 'TICKET') {
-        abrirModalValExp(
-          `Ticket Médio • ${nome}`,
-          formatarMoeda(valores.ticket),
-          'Ticket médio = faturamento realizado dividido pela quantidade de pedidos.',
-          [
-            { label: 'Meta ticket médio', valor: formatarMoeda(valores.metaTicket) },
-            { label: 'Ticket médio realizado', valor: formatarMoeda(valores.ticket) },
-            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(valores.ticket, valores.metaTicket), 1)}%` },
-            { label: 'Faturamento realizado', valor: formatarMoeda(valores.realizadoFaturamento) },
-            { label: 'Quantidade de pedidos', valor: formatarNumeroBR(valores.pedidos, 0) },
-          ]
-        );
-        return;
-      }
-
-      abrirModalValExp(
-        `UPA • ${nome}`,
-        formatarNumeroBR(valores.upa, 1),
-        'UPA = total de itens vendidos dividido pelos revendedores ativados.',
-        [
-          { label: 'Meta UPA', valor: formatarNumeroBR(valores.metaUpa, 1) },
-          { label: 'UPA realizado', valor: formatarNumeroBR(valores.upa, 1) },
-          { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(valores.upa, valores.metaUpa), 1)}%` },
-          { label: 'Itens vendidos', valor: formatarNumeroBR(valores.totalItens, 0) },
-          { label: 'Revendedores ativados', valor: formatarNumeroBR(valores.ativados, 0) },
-        ]
-      );
-    };
-
-    const CardConsultorAcompanhamento = ({
-      titulo,
-      meta,
-      realizado,
-      percentual,
-      onClick,
-    }) => {
-      const percentualSeguro = Number(percentual || 0);
-      const cor = corPorFaixaMeta(percentualSeguro);
-      return (
-        <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[10px] font-black uppercase tracking-wide text-gray-500 truncate">{titulo}</p>
-            <button
-              type="button"
-              onClick={onClick}
-              className="w-7 h-7 shrink-0 rounded-full bg-[#e6f6f7] text-[#048187] inline-flex items-center justify-center hover:bg-[#d0f0f1]"
-              title={`Ver detalhes de ${titulo}`}
-            >
-              <Eye size={13} />
-            </button>
-          </div>
-          <div className="mt-2">
-            <p className="text-[9px] font-black uppercase text-gray-400">Meta</p>
-            <p className="text-[12px] font-black text-[#7c1f31] truncate" title={String(meta)}>{meta}</p>
-          </div>
-          <div className="mt-2 pt-2 border-t border-gray-100">
-            <p className="text-[9px] font-black uppercase text-gray-400">Realizado</p>
-            <p className="text-[13px] font-black truncate" style={{ color: cor }} title={String(realizado)}>{realizado}</p>
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2 text-[9px] font-black">
-            <span style={{ color: cor }}>{formatarNumeroBR(percentualSeguro, 1)}% da meta</span>
-            <span style={{ color: cor }}>{percentualSeguro >= 100 ? 'Meta batida' : `Falta ${formatarNumeroBR(Math.max(100 - percentualSeguro, 0), 1)}%`}</span>
-          </div>
-          <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${Math.max(0, Math.min(percentualSeguro, 100))}%`,
-                backgroundColor: cor,
-              }}
-            />
-          </div>
-        </div>
-      );
-    };
-
-    const RankingConsultoresAcompanhamento = () => (
-      <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 min-w-0">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-gray-100 pb-4 mb-4">
-          <div>
-            <h2 className="text-lg sm:text-xl font-black text-gray-700">Resultado dos consultores</h2>
-            <p className="text-xs sm:text-sm font-semibold text-gray-400">Quanto cada consultor vendeu e o desempenho individual em todos os indicadores.</p>
-          </div>
-          <span className="inline-flex w-fit rounded-full bg-[#e6f6f7] px-3 py-1.5 text-xs font-black text-[#048187]">
-            {consultoresAcompanhamentoVD.length} consultor(es)
-          </span>
-        </div>
-
-        {(carregandoMetas && !dadosMetas) || carregandoConsultoresGerenteVD ? (
-          <div className="py-12 flex items-center justify-center gap-3 text-[#048187] font-black">
-            <Loader2 size={20} className="animate-spin" /> Carregando consultores...
-          </div>
-        ) : consultoresAcompanhamentoVD.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-sm font-bold text-gray-400">
-            Nenhum consultor foi encontrado para a estrutura vinculada ao perfil.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {consultoresAcompanhamentoVD.map((consultor, indice) => {
-              const valores = montarIndicadoresConsultorAcompanhamento(consultor);
-              const nome = obterNomeExibicaoConsultor(consultor);
-              return (
-                <article
-                  key={`${consultor?.id_colaborador || nome}-${indice}`}
-                  className="rounded-2xl border border-gray-100 bg-[#fcfbf7] p-3 sm:p-4 min-w-0"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <span className="w-8 h-8 shrink-0 rounded-full bg-[#048187] text-white text-xs font-black inline-flex items-center justify-center">
-                        {indice + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <h3 className="text-sm sm:text-base font-black text-gray-700 break-words">{nome}</h3>
-                        <p className="mt-1 text-[10px] sm:text-xs font-semibold text-gray-400 break-words">
-                          ID: {consultor?.id_colaborador || '-'} • Peso: {formatarNumeroBR(valores.pesoMeta, 2)}% • Pedidos: {formatarNumeroBR(valores.pedidos, 0)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-left sm:text-right shrink-0">
-                      <p className="text-[10px] font-black uppercase text-gray-400">Atingimento</p>
-                      <p className="text-xl font-black" style={{ color: corPorFaixaMeta(valores.percentualFaturamento) }}>
-                        {formatarNumeroBR(valores.percentualFaturamento, 2)}%
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 gap-3">
-                    <CardConsultorAcompanhamento
-                      titulo="Faturamento"
-                      meta={formatarMoeda(valores.metaFaturamento)}
-                      realizado={formatarMoeda(valores.realizadoFaturamento)}
-                      percentual={valores.percentualFaturamento}
-                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'FATURAMENTO', valores)}
-                    />
-                    <CardConsultorAcompanhamento
-                      titulo="Eudora"
-                      meta={formatarMoeda(valores.metaEudoraValor)}
-                      realizado={formatarMoeda(valores.eudoraRealizado)}
-                      percentual={valores.percentualEudora}
-                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'EUDORA', valores)}
-                    />
-                    <CardConsultorAcompanhamento
-                      titulo="Atividade"
-                      meta={`${formatarNumeroBR(valores.baseAtivaExibidaAtividade, 0)} rev. • ${formatarNumeroBR(valores.metaAtividadePercentual, 1)}%`}
-                      realizado={`${formatarNumeroBR(valores.ativados, 0)} rev. • ${formatarNumeroBR(valores.percentualAtividade, 1)}%`}
-                      percentual={valores.atingimentoAtividade}
-                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'ATIVIDADE', valores)}
-                    />
-                    <CardConsultorAcompanhamento
-                      titulo="MAKE"
-                      meta={`${formatarNumeroBR(valores.metaMakeQuantidade, 0)} rev. • ${formatarNumeroBR(valores.metaMakePercentual, 1)}%`}
-                      realizado={`${formatarNumeroBR(valores.makeRealizado, 0)} rev. • ${formatarNumeroBR(valores.percentualMake, 1)}%`}
-                      percentual={calcPerc(valores.percentualMake, valores.metaMakePercentual)}
-                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'MAKE', valores)}
-                    />
-                    <CardConsultorAcompanhamento
-                      titulo="Cabelo"
-                      meta={`${formatarNumeroBR(valores.metaCabeloQuantidade, 0)} rev. • ${formatarNumeroBR(valores.metaCabeloPercentual, 1)}%`}
-                      realizado={`${formatarNumeroBR(valores.cabeloRealizado, 0)} rev. • ${formatarNumeroBR(valores.percentualCabelo, 1)}%`}
-                      percentual={calcPerc(valores.percentualCabelo, valores.metaCabeloPercentual)}
-                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'CABELO', valores)}
-                    />
-                    <CardConsultorAcompanhamento
-                      titulo="RPA"
-                      meta={formatarMoeda(valores.metaRpa)}
-                      realizado={formatarMoeda(valores.rpa)}
-                      percentual={calcPerc(valores.rpa, valores.metaRpa)}
-                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'RPA', valores)}
-                    />
-                    <CardConsultorAcompanhamento
-                      titulo="Ticket Médio"
-                      meta={formatarMoeda(valores.metaTicket)}
-                      realizado={formatarMoeda(valores.ticket)}
-                      percentual={calcPerc(valores.ticket, valores.metaTicket)}
-                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'TICKET', valores)}
-                    />
-                    <CardConsultorAcompanhamento
-                      titulo="UPA"
-                      meta={formatarNumeroBR(valores.metaUpa, 1)}
-                      realizado={formatarNumeroBR(valores.upa, 1)}
-                      percentual={calcPerc(valores.upa, valores.metaUpa)}
-                      onClick={() => abrirDetalheIndicadorConsultorAcompanhamento(consultor, 'UPA', valores)}
-                    />
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    );
-
     return (
       <>
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-2 min-w-0">
-            {!modoGerenteEstrutura && (<FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />)}
+            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
             {filtrosAtivosResumo.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {filtrosAtivosResumo.map((filtro) => (
@@ -12125,56 +11292,52 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
 
-        {acompanhamentoGerenteVD ? (
-          <RankingConsultoresAcompanhamento />
-        ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 xl:gap-6 mt-6">
-            <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
-              <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Vendas por canal</h3>
-              <div className="overflow-x-auto h-[360px]" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-                {vCan.length > 0 ? (
-                  <table className="w-full text-[11px] min-w-[800px] border-collapse">
-                    <thead className="bg-[#048187] text-white sticky top-0 z-10">
-                      <tr><th className="px-3 py-2 text-left font-bold border border-white/30">Estrutura</th><th className="px-3 py-2 text-right font-bold border border-white/30">App Rev.</th><th className="px-3 py-2 text-right font-bold border border-white/30">Omni</th><th className="px-3 py-2 text-right font-bold border border-white/30">Portal Rev.</th><th className="px-3 py-2 text-right font-bold border border-white/30">VD+</th><th className="px-3 py-2 text-right font-bold border border-white/30">Cancelado</th><th className="px-3 py-2 text-right font-bold border border-white/30">Receita Total</th></tr>
-                    </thead>
-                    <tbody>
-                      {vCan.map((i, idx) => (
-                        <tr key={`${i.estrutura}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="px-3 py-2 font-bold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('estruturas', i.estrutura)} className="hover:text-[#048187] hover:underline font-black text-left">{i.estrutura}</button></td>
-                          <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'app_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.app_revendedor)}</button></td>
-                          <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'omni')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.omni)}</button></td>
-                          <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'portal_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.portal_revendedor)}</button></td>
-                          <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'vd_mais')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.vd_mais)}</button></td>
-                          <td className="px-3 py-2 text-right font-semibold text-[#712231] border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('situacoes', 'Cancelado')} className="hover:underline">{formatarMoeda(i.cancelado)}</button></td>
-                          <td className="px-3 py-2 text-right font-extrabold text-green-600 border border-gray-200 whitespace-nowrap">{formatarMoeda(i.receita_total)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (<div className="p-10 flex items-center justify-center text-gray-400 text-sm">Sem dados</div>)}
-              </div>
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 xl:gap-6 mt-6">
+          <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+            <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Vendas por canal</h3>
+            <div className="overflow-x-auto h-[360px]" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
+              {vCan.length > 0 ? (
+                <table className="w-full text-[11px] min-w-[800px] border-collapse">
+                  <thead className="bg-[#048187] text-white sticky top-0 z-10">
+                    <tr><th className="px-3 py-2 text-left font-bold border border-white/30">Estrutura</th><th className="px-3 py-2 text-right font-bold border border-white/30">App Rev.</th><th className="px-3 py-2 text-right font-bold border border-white/30">Omni</th><th className="px-3 py-2 text-right font-bold border border-white/30">Portal Rev.</th><th className="px-3 py-2 text-right font-bold border border-white/30">VD+</th><th className="px-3 py-2 text-right font-bold border border-white/30">Cancelado</th><th className="px-3 py-2 text-right font-bold border border-white/30">Receita Total</th></tr>
+                  </thead>
+                  <tbody>
+                    {vCan.map((i, idx) => (
+                      <tr key={`${i.estrutura}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-3 py-2 font-bold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('estruturas', i.estrutura)} className="hover:text-[#048187] hover:underline font-black text-left">{i.estrutura}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'app_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.app_revendedor)}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'omni')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.omni)}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'portal_revendedor')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.portal_revendedor)}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-700 border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('canais_venda', 'vd_mais')} className="hover:text-[#048187] hover:underline">{formatarMoeda(i.vd_mais)}</button></td>
+                        <td className="px-3 py-2 text-right font-semibold text-[#712231] border border-gray-200 whitespace-nowrap"><button type="button" onClick={() => aplicarFiltroInterativo('situacoes', 'Cancelado')} className="hover:underline">{formatarMoeda(i.cancelado)}</button></td>
+                        <td className="px-3 py-2 text-right font-extrabold text-green-600 border border-gray-200 whitespace-nowrap">{formatarMoeda(i.receita_total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (<div className="p-10 flex items-center justify-center text-gray-400 text-sm">Sem dados</div>)}
             </div>
-            
-            <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
-              <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Realizado por Estrutura</h3>
-              <div className="h-[360px] overflow-y-auto pr-2">
-                <div style={{ height: altEst }}>
-                  {rEst.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={rEst} layout="vertical" margin={{ top: 10, right: 45, left: 95, bottom: 10 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
-                        <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => formatarAbrev(v)} />
-                        <YAxis dataKey="Estrutura" type="category" width={95} tick={{ fontSize: 9, fill: '#334155' }} />
-                        <Tooltip content={<TooltipEstrutura />} />
-                        <Bar dataKey="ValorPraticado" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(item) => aplicarFiltroInterativo('estruturas', item?.Estrutura || item?.payload?.Estrutura)}>{rEst.map((e, i) => (<Cell key={e.Estrutura} fill={CORES_ESTRUTURA[i % CORES_ESTRUTURA.length]} />))}<LabelList dataKey="ValorPraticado" position="right" formatter={(v) => formatarAbrev(v)} style={{ fontSize: 10, fill: '#334155', fontWeight: 700 }} /></Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm">Sem dados</div>)}
-                </div>
+          </div>
+          
+          <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+            <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Realizado por Estrutura</h3>
+            <div className="h-[360px] overflow-y-auto pr-2">
+              <div style={{ height: altEst }}>
+                {rEst.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={rEst} layout="vertical" margin={{ top: 10, right: 45, left: 95, bottom: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => formatarAbrev(v)} />
+                      <YAxis dataKey="Estrutura" type="category" width={95} tick={{ fontSize: 9, fill: '#334155' }} />
+                      <Tooltip content={<TooltipEstrutura />} />
+                      <Bar dataKey="ValorPraticado" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(item) => aplicarFiltroInterativo('estruturas', item?.Estrutura || item?.payload?.Estrutura)}>{rEst.map((e, i) => (<Cell key={e.Estrutura} fill={CORES_ESTRUTURA[i % CORES_ESTRUTURA.length]} />))}<LabelList dataKey="ValorPraticado" position="right" formatter={(v) => formatarAbrev(v)} style={{ fontSize: 10, fill: '#334155', fontWeight: 700 }} /></Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm">Sem dados</div>)}
               </div>
             </div>
           </div>
-        )}
+        </div>
 
       </div>
 
@@ -12256,12 +11419,8 @@ const enviarArquivo = async (tipo) => {
 
   const montarDesempenhoDetalhado = (indicadorSelecionado) => {
     const indicador = String(indicadorSelecionado || 'RPA').toUpperCase();
-    const estruturas = filtrarListaDetalhePorEstruturaVD(
-      Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : []
-    );
-    const consultores = filtrarListaDetalhePorEstruturaVD(
-      Array.isArray(dadosMetas?.ranking_consultores) ? dadosMetas.ranking_consultores : []
-    );
+    const estruturas = Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : [];
+    const consultores = Array.isArray(dadosMetas?.ranking_consultores) ? dadosMetas.ranking_consultores : [];
 
     const normalizar = (valor) => String(valor || '')
       .normalize('NFD')
@@ -12406,20 +11565,22 @@ const enviarArquivo = async (tipo) => {
     const qtdMetaAtividadeDetalhe = calcularQtdMetaAtividade(baseAtivaDetalhe, metaAtividadeDetalhePercentual);
     const faltamAtivarDetalhe = calcularFaltamAtivar(atividadeDetalhe, baseAtivaDetalhe, metaAtividadeDetalhePercentual);
     const makeGeral = Number(dadosMetas?.make_total_geral || 0);
+    const atividadeMakeGeral = Number(dadosMetas?.atividade_make_total_geral || atividadeGeral);
     const percentualMakeGeralApi = Number(dadosMetas?.percentual_make_total_geral || 0);
     const percentualMakeGeral = percentualMakeGeralApi > 0
       ? percentualMakeGeralApi
-      : calcPerc(makeGeral, atividadeGeral);
+      : calcPerc(makeGeral, atividadeMakeGeral);
     const metaMakeGeralPercentual = Number(dadosMetas?.meta_make_geral || 0);
-    const qtdMetaMakeGeral = calcularQtdMetaAtividade(atividadeGeral, metaMakeGeralPercentual);
+    const qtdMetaMakeGeral = calcularQtdMetaAtividade(atividadeMakeGeral, metaMakeGeralPercentual);
     const faltamMakeGeral = Math.max(qtdMetaMakeGeral - makeGeral, 0);
     const cabeloGeral = Number(dadosMetas?.cabelo_total_geral || 0);
+    const atividadeCabeloGeral = Number(dadosMetas?.atividade_cabelo_total_geral || atividadeGeral);
     const percentualCabeloGeralApi = Number(dadosMetas?.percentual_cabelo_total_geral || 0);
     const percentualCabeloGeral = percentualCabeloGeralApi > 0
       ? percentualCabeloGeralApi
-      : calcPerc(cabeloGeral, atividadeGeral);
+      : calcPerc(cabeloGeral, atividadeCabeloGeral);
     const metaCabeloGeralPercentual = Number(dadosMetas?.meta_cabelo_geral || 0);
-    const qtdMetaCabeloGeral = calcularQtdMetaAtividade(atividadeGeral, metaCabeloGeralPercentual);
+    const qtdMetaCabeloGeral = calcularQtdMetaAtividade(atividadeCabeloGeral, metaCabeloGeralPercentual);
     const faltamCabeloGeral = Math.max(qtdMetaCabeloGeral - cabeloGeral, 0);
     const multimarcasGeral = Number(dadosMetas?.multimarcas_total_geral || 0);
     const percentualMultimarcasGeralApi = Number(dadosMetas?.percentual_multimarcas_total_geral || 0);
@@ -12437,16 +11598,18 @@ const enviarArquivo = async (tipo) => {
     const pedidosEudoraGeral = Number(dadosMetas?.pedidos_eudora_total_geral || 0);
     const faltamEudoraGeral = Math.max(metaEudoraGeralValor - eudoraGeral, 0);
     const makeDetalhe = Number(detalheMeta?.make_realizado || 0);
+    const atividadeMakeDetalhe = Number(detalheMeta?.atividade_make_base || atividadeDetalhe);
     const percentualMakeDetalheApi = Number(detalheMeta?.percentual_make || 0);
-    const percentualMakeDetalhe = percentualMakeDetalheApi > 0 ? percentualMakeDetalheApi : calcPerc(makeDetalhe, atividadeDetalhe);
+    const percentualMakeDetalhe = percentualMakeDetalheApi > 0 ? percentualMakeDetalheApi : calcPerc(makeDetalhe, atividadeMakeDetalhe);
     const metaMakeDetalhePercentual = Number(detalheMeta?.meta?.make || 0);
-    const qtdMetaMakeDetalhe = calcularQtdMetaAtividade(atividadeDetalhe, metaMakeDetalhePercentual);
+    const qtdMetaMakeDetalhe = calcularQtdMetaAtividade(atividadeMakeDetalhe, metaMakeDetalhePercentual);
     const faltamMakeDetalhe = Math.max(qtdMetaMakeDetalhe - makeDetalhe, 0);
     const cabeloDetalhe = Number(detalheMeta?.cabelo_realizado || 0);
+    const atividadeCabeloDetalhe = Number(detalheMeta?.atividade_cabelo_base || atividadeDetalhe);
     const percentualCabeloDetalheApi = Number(detalheMeta?.percentual_cabelo || 0);
-    const percentualCabeloDetalhe = percentualCabeloDetalheApi > 0 ? percentualCabeloDetalheApi : calcPerc(cabeloDetalhe, atividadeDetalhe);
+    const percentualCabeloDetalhe = percentualCabeloDetalheApi > 0 ? percentualCabeloDetalheApi : calcPerc(cabeloDetalhe, atividadeCabeloDetalhe);
     const metaCabeloDetalhePercentual = Number(detalheMeta?.meta?.cabelo || 0);
-    const qtdMetaCabeloDetalhe = calcularQtdMetaAtividade(atividadeDetalhe, metaCabeloDetalhePercentual);
+    const qtdMetaCabeloDetalhe = calcularQtdMetaAtividade(atividadeCabeloDetalhe, metaCabeloDetalhePercentual);
     const faltamCabeloDetalhe = Math.max(qtdMetaCabeloDetalhe - cabeloDetalhe, 0);
     const multimarcasDetalhe = Number(detalheMeta?.multimarcas_realizado || 0);
     const percentualMultimarcasDetalheApi = Number(detalheMeta?.percentual_multimarcas || 0);
@@ -12576,7 +11739,22 @@ const enviarArquivo = async (tipo) => {
     };
 
     const abrirDetalheRealizadoDiarioMetas = () => {
-      abrirDetRealizadoDiario();
+      const realizado = Number(dados?.realizado_diario || 0);
+      const meta = Number(dados?.meta_diaria || 0);
+      const percentual = calcPerc(realizado, meta);
+      const faltam = Math.max(meta - realizado, 0);
+      abrirModalValExp(
+        'Realizado Diário',
+        formatarMoeda(realizado),
+        'Receita total do dia atual.',
+        [
+          { label: 'Realizado hoje', valor: formatarMoeda(realizado) },
+          { label: 'Meta diária', valor: formatarMoeda(meta) },
+          { label: '% da meta diária', valor: `${formatarNumeroBR(percentual, 1)}%` },
+          { label: 'Falta para a meta diária', valor: textoFaltaMoeda(faltam) }
+        ],
+        meta > 0 ? `${formatarMoeda(realizado)} ÷ ${formatarMoeda(meta)} = ${formatarNumeroBR(percentual, 1)}% da meta diária` : 'Meta diária não cadastrada.'
+      );
     };
 
     const abrirDetalheEudoraGeralMetas = () => abrirModalValExp(
@@ -12799,20 +11977,22 @@ const enviarArquivo = async (tipo) => {
       const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
 
       const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const atividadeMakeBase = obterNumeroLinhaMeta(item?.atividade_make_base, atividadeRealizada);
       const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
-      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeMakeBase > 0 ? Math.ceil((atividadeMakeBase * metaMakePercentual) / 100) : 0;
       const percentualMakeApi = obterNumeroLinhaMeta(item?.percentual_make, 0);
       const percentualMake = percentualMakeApi > 0
         ? percentualMakeApi
-        : calcularPercentualSeguro(makeRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(makeRealizado, atividadeMakeBase);
 
       const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const atividadeCabeloBase = obterNumeroLinhaMeta(item?.atividade_cabelo_base, atividadeRealizada);
       const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
-      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeCabeloBase > 0 ? Math.ceil((atividadeCabeloBase * metaCabeloPercentual) / 100) : 0;
       const percentualCabeloApi = obterNumeroLinhaMeta(item?.percentual_cabelo, 0);
       const percentualCabelo = percentualCabeloApi > 0
         ? percentualCabeloApi
-        : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(cabeloRealizado, atividadeCabeloBase);
 
       const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
       const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
@@ -12882,10 +12062,12 @@ const enviarArquivo = async (tipo) => {
         upaMeta,
         upaRealizada,
         metaMakePercentual,
+        atividadeMakeBase,
         makeMetaQtd,
         makeRealizado,
         percentualMake,
         metaCabeloPercentual,
+        atividadeCabeloBase,
         cabeloMetaQtd,
         cabeloRealizado,
         percentualCabelo,
@@ -12922,24 +12104,43 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
-    const CelulaFaturamentoMetaRealizado = ({ meta, realizado, percentualReceita = 0 }) => {
+    const CelulaFaturamentoMetaRealizado = ({ meta, realizado, percentualReceita = 0, onClickDetalhe = null }) => {
       const cor = corPorFaixaMeta(percentualReceita);
       return (
-        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
+        <div className="h-full min-h-[104px] bg-white px-4 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
           <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
           <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">Faturamento</p>
 
           <div className="mt-2 pl-2">
-            <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
-            <p className="text-[15px] font-black text-[#7c1f31] whitespace-nowrap">{meta}</p>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              {onClickDetalhe && (
+                <button
+                  type="button"
+                  onClick={(event) => { event.stopPropagation(); onClickDetalhe(); }}
+                  className="w-7 h-7 rounded-full bg-[#e6f6f7] text-[#048187] hover:bg-[#d7eff0] inline-flex items-center justify-center transition-colors"
+                  title="Exibir faturamento em tamanho maior"
+                >
+                  <Eye size={15} />
+                </button>
+              )}
+            </div>
+            <p className="text-[17px] font-black text-[#7c1f31] whitespace-nowrap">{meta}</p>
           </div>
 
           <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
-              <span className="text-[10px] font-black" style={{ color: cor }}>{formatarNumeroBR(percentualReceita, 1)}%</span>
+            <div className="flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
+                <p className="text-[17px] font-black text-[#048187] whitespace-nowrap">{realizado}</p>
+              </div>
+              <span
+                className="shrink-0 rounded-lg px-2.5 py-1 text-[13px] font-black"
+                style={{ color: cor, backgroundColor: `${cor}14` }}
+              >
+                {formatarNumeroBR(percentualReceita, 1)}%
+              </span>
             </div>
-            <p className="text-[15px] font-black text-[#048187] whitespace-nowrap">{realizado}</p>
           </div>
         </div>
       );
@@ -13030,7 +12231,6 @@ const enviarArquivo = async (tipo) => {
 
     return (
       <div className="space-y-6 animate-fade-in">
-        {!modoGerenteEstrutura && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
             <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -13057,11 +12257,10 @@ const enviarArquivo = async (tipo) => {
                   <FileSpreadsheet size={17} /> Gerar relatório em imagem
                 </button>
               )}
-              {!modoGerenteEstrutura && (<FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />)}
+              <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
             </div>
           </div>
         </div>
-        )}
         {erroMetas && (<div className="rounded-xl p-4 font-bold text-sm bg-red-50 border border-red-100 text-red-600">{erroMetas}</div>)}
         {visaoMetas === 'estruturas' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
@@ -13130,21 +12329,7 @@ const enviarArquivo = async (tipo) => {
 
                 <button
                   type="button"
-                  onClick={() => abrirModalValExp(
-                    'Atividade Geral',
-                    `${formatarNumeroBR(percentualAtividadeGeral, 1)}%`,
-                    'Atividade = revendedores ativados dividido pela base ativa.',
-                    [
-                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeGeral, 0) },
-                      { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeGeral, 1)}%` },
-                      { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual), 1)}%` },
-                      { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaGeral, 0) },
-                      { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%` },
-                      { label: 'Meta em revendedores', valor: formatarNumeroBR(qtdMetaAtividadeGeral, 0) },
-                      { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarGeral) },
-                    ],
-                    `${formatarNumeroBR(baseAtivaGeral, 0)} × ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeGeral, 0)} revendedores necessários`
-                  )}
+                  onClick={abrirDetAtiv}
                   className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
                   style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)) }}
                   title={`ATIVIDADE: ${formatarNumeroBR(percentualAtividadeGeral, 1)}% | Meta: ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%`}
@@ -13210,79 +12395,14 @@ const enviarArquivo = async (tipo) => {
         {visaoMetas === 'estruturas' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
-
-          <div className="md:hidden space-y-4">
-            {ests.map((i) => {
-              const ind = calcularIndicadoresLinhaEstrutura(i);
-              const metricasMobile = [
-                { label: 'Faturamento', valor: formatarAbrev(ind.receitaRealizada), meta: `Meta ${formatarAbrev(ind.receitaMeta)}`, atingimento: ind.percentualReceita },
-                { label: 'Eudora', valor: formatarAbrev(ind.eudoraRealizado), meta: `Meta ${formatarAbrev(ind.metaEudoraValor)}`, atingimento: ind.percentualEudora },
-                { label: 'Atividade', valor: `${formatarNumeroBR(ind.percentualAtividade, 1)}%`, meta: `${formatarNumeroBR(ind.atividadeRealizada, 0)} de ${formatarNumeroBR(ind.metaAtividadeQtd, 0)} rev.`, atingimento: calcPerc(ind.percentualAtividade, ind.metaAtividadePercentual) },
-                { label: 'RPA', valor: formatarMoeda(ind.rpaRealizado), meta: `Meta ${formatarMoeda(ind.rpaMeta)}`, atingimento: calcPerc(ind.rpaRealizado, ind.rpaMeta) },
-                { label: 'Ticket médio', valor: formatarMoeda(ind.ticketRealizado), meta: `Meta ${formatarMoeda(ind.ticketMeta)}`, atingimento: calcPerc(ind.ticketRealizado, ind.ticketMeta) },
-                { label: 'UPA', valor: formatarNumeroBR(ind.upaRealizada, 1), meta: `Meta ${formatarNumeroBR(ind.upaMeta, 1)}`, atingimento: calcPerc(ind.upaRealizada, ind.upaMeta) },
-                { label: 'MAKE', valor: `${formatarNumeroBR(ind.percentualMake, 1)}%`, meta: `Meta ${formatarNumeroBR(ind.metaMakePercentual, 1)}%`, atingimento: calcPerc(ind.percentualMake, ind.metaMakePercentual) },
-                { label: 'Cabelo', valor: `${formatarNumeroBR(ind.percentualCabelo, 1)}%`, meta: `Meta ${formatarNumeroBR(ind.metaCabeloPercentual, 1)}%`, atingimento: calcPerc(ind.percentualCabelo, ind.metaCabeloPercentual) },
-                { label: 'Multimarcas', valor: `${formatarNumeroBR(ind.percentualMultimarcas, 1)}%`, meta: `Meta ${formatarNumeroBR(ind.metaMultimarcasPercentual, 1)}%`, atingimento: calcPerc(ind.percentualMultimarcas, ind.metaMultimarcasPercentual) },
-              ];
-
-              return (
-                <article key={`mobile-${i.estrutura}`} className="overflow-hidden rounded-[24px] border border-gray-100 bg-white shadow-sm">
-                  <div className="bg-gradient-to-r from-[#048187] to-[#0b9a9f] p-4 text-white">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/70">Minha estrutura</p>
-                        <h3 className="mt-1 text-lg font-black leading-tight break-words">{i.estrutura}</h3>
-                        <p className="mt-1 text-xs font-bold text-white/75">{i.nucleo || 'Núcleo não informado'}</p>
-                      </div>
-                      <span className="shrink-0 rounded-2xl bg-white/15 px-3 py-2 text-right backdrop-blur">
-                        <strong className="block text-xl font-black">{formatarNumeroBR(ind.percentualReceita, 1)}%</strong>
-                        <span className="text-[9px] font-black uppercase">da meta</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 p-3">
-                    {metricasMobile.map((metrica) => {
-                      const cor = corPorFaixaMeta(Number(metrica.atingimento || 0));
-                      return (
-                        <div key={metrica.label} className="relative min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-[#f8fbfc] p-3">
-                          <span className="absolute inset-y-3 left-0 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
-                          <p className="pl-1 text-[9px] font-black uppercase tracking-wide text-gray-400 truncate">{metrica.label}</p>
-                          <p className="mt-1 pl-1 text-sm font-black text-gray-800 truncate">{metrica.valor}</p>
-                          <p className="mt-1 pl-1 text-[9px] font-bold text-gray-400 truncate">{metrica.meta}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="px-3 pb-3">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setEstruturaSelecionada(i.estrutura);
-                        await carregarDetalheMeta(i.estrutura, filtrosAtivos, false);
-                        setVisaoMetas('consultores');
-                      }}
-                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#048187] px-4 py-3 text-sm font-black text-white shadow-lg shadow-[#048187]/20 active:scale-[0.99]"
-                    >
-                      <Eye size={17} /> Ver consultores e detalhes
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="hidden md:block overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-            <div className="min-w-[1780px] space-y-2">
+          <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
+            <div className="min-w-[1700px] space-y-2">
               <div
                 className="grid gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400"
-                style={{ gridTemplateColumns: '280px 170px 105px 155px 120px 105px 135px 135px 90px 120px 120px 120px 90px' }}
+                style={{ gridTemplateColumns: '280px 245px 155px 120px 105px 135px 135px 90px 120px 120px 120px 72px' }}
               >
                 <div className="px-2 py-2">Estrutura</div>
-                <div className="px-2 py-2">Faturamento</div>
-                <div className="px-2 py-2">% Rec.</div>
+                <div className="px-2 py-2">Faturamento e % Receita</div>
                 <div className="px-2 py-2">Eudora</div>
                 <div className="px-2 py-2">Ativ.</div>
                 <div className="px-2 py-2">% Ativ.</div>
@@ -13305,15 +12425,29 @@ const enviarArquivo = async (tipo) => {
                     <div
                       key={i.estrutura}
                       className={`grid rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}
-                      style={{ gridTemplateColumns: '280px 170px 105px 155px 120px 105px 135px 135px 90px 120px 120px 120px 90px' }}
+                      style={{ gridTemplateColumns: '280px 245px 155px 120px 105px 135px 135px 90px 120px 120px 120px 72px' }}
                     >
                       <ColunaEstruturaMetaRealizado item={i} />
                       <CelulaFaturamentoMetaRealizado
                         meta={formatarMoeda(ind.receitaMeta)}
                         realizado={formatarMoeda(ind.receitaRealizada)}
                         percentualReceita={ind.percentualReceita}
+                        onClickDetalhe={() => {
+                          const faltaFaturamento = Math.max(Number(ind.receitaMeta || 0) - Number(ind.receitaRealizada || 0), 0);
+                          abrirModalValExp(
+                            `${i.estrutura} • FATURAMENTO`,
+                            formatarMoeda(ind.receitaRealizada),
+                            'Faturamento consolidado da estrutura no ciclo selecionado.',
+                            [
+                              { label: 'Meta de faturamento', valor: formatarMoeda(ind.receitaMeta) },
+                              { label: 'Realizado', valor: formatarMoeda(ind.receitaRealizada) },
+                              { label: '% Receita', valor: `${formatarNumeroBR(ind.percentualReceita, 2)}%` },
+                              { label: '% da meta', valor: `${formatarNumeroBR(ind.percentualReceita, 1)}%` },
+                              { label: 'Falta para a meta', valor: faltaFaturamento > 0 ? formatarMoeda(faltaFaturamento) : 'Meta batida' },
+                            ]
+                          );
+                        }}
                       />
-                      <CelulaIndicadorMetaRealizado titulo="% Receita" meta="100%" realizado={`${formatarNumeroBR(ind.percentualReceita, 2)}%`} percentualAtingimento={ind.percentualReceita} compacto />
                       <CelulaIndicadorMetaRealizado
                         titulo="Eudora"
                         meta={formatarMoeda(ind.metaEudoraValor)}
@@ -13336,7 +12470,32 @@ const enviarArquivo = async (tipo) => {
                           ]
                         )}
                       />
-                      <CelulaIndicadorMetaRealizado titulo="Atividade" meta={formatarNumeroBR(ind.metaAtividadeQtd, 0)} realizado={formatarNumeroBR(ind.atividadeRealizada, 0)} percentualMeta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} percentualRealizado={`${formatarNumeroBR(calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd), 1)}%`} percentualAtingimento={calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd)} compacto />
+                      <CelulaIndicadorMetaRealizado
+                        titulo="Atividade"
+                        meta={formatarNumeroBR(ind.metaAtividadeQtd, 0)}
+                        realizado={formatarNumeroBR(ind.atividadeRealizada, 0)}
+                        percentualMeta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`}
+                        percentualRealizado={`${formatarNumeroBR(calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd), 1)}%`}
+                        percentualAtingimento={calcPerc(ind.atividadeRealizada, ind.metaAtividadeQtd)}
+                        compacto
+                        onClickDetalhe={() => {
+                          const saldoAtividade = Number(ind.atividadeRealizada || 0) - Number(ind.metaAtividadeQtd || 0);
+                          abrirModalValExp(
+                            `${i.estrutura} • ATIVIDADE`,
+                            `${formatarNumeroBR(ind.percentualAtividade, 2)}%`,
+                            'Atividade = revendedores ativados dividido pela base ativa total da estrutura.',
+                            [
+                              { label: 'Ativos', valor: formatarNumeroBR(ind.atividadeRealizada, 0) },
+                              { label: 'Base Ativa Total', valor: formatarNumeroBR(ind.baseAtiva, 0) },
+                              { label: '% ativação', valor: `${formatarNumeroBR(ind.percentualAtividade, 2)}%` },
+                              { label: 'Meta', valor: `${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%` },
+                              { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(ind.percentualAtividade, ind.metaAtividadePercentual), 1)}%` },
+                              { label: 'Ativação ideal', valor: formatarNumeroBR(ind.metaAtividadeQtd, 0) },
+                              { label: 'Saldo', valor: saldoAtividade < 0 ? `Faltam ${formatarNumeroBR(Math.abs(saldoAtividade), 0)}` : saldoAtividade > 0 ? `+${formatarNumeroBR(saldoAtividade, 0)}` : 'Meta exata' },
+                            ]
+                          );
+                        }}
+                      />
                       <CelulaIndicadorMetaRealizado titulo="% Ativ." meta={`${formatarNumeroBR(ind.metaAtividadePercentual, 1)}%`} realizado={`${formatarNumeroBR(ind.percentualAtividade, 2)}%`} percentualAtingimento={calcPerc(ind.percentualAtividade, ind.metaAtividadePercentual)} compacto />
                       <CelulaIndicadorMetaRealizado titulo="RPA" meta={formatarMoeda(ind.rpaMeta)} realizado={formatarMoeda(ind.rpaRealizado)} percentualAtingimento={calcPerc(ind.rpaRealizado, ind.rpaMeta)} />
                       <CelulaIndicadorMetaRealizado titulo="Tkt Médio" meta={formatarMoeda(ind.ticketMeta)} realizado={formatarMoeda(ind.ticketRealizado)} percentualAtingimento={calcPerc(ind.ticketRealizado, ind.ticketMeta)} />
@@ -13403,9 +12562,18 @@ const enviarArquivo = async (tipo) => {
                           ]
                         )}
                       />
-                      <div className="h-full min-h-[84px] bg-white px-2 py-2 border-l border-gray-100 rounded-r-2xl flex items-center justify-center">
-                        <button onClick={async () => { await carregarDetalheMeta(i.estrutura, filtrosAtivos, false); setVisaoMetas('consultores'); }} className="bg-[#048187] text-white px-2.5 py-2 rounded-xl hover:bg-[#036b70] inline-flex items-center gap-1 font-black text-[11px] shadow-sm">
-                          <Search size={14} /> Ver
+                      <div className="h-full min-h-[104px] bg-white border-l border-gray-100 flex items-center justify-center px-2 rounded-r-2xl">
+                        <button
+                          type="button"
+                          onClick={() => abrirDetalheEstruturaMetas(i.estrutura, false)}
+                          disabled={carregandoDetalheMeta && estruturaSelecionada === i.estrutura}
+                          className="w-11 h-11 rounded-full bg-[#048187] hover:bg-[#036b70] disabled:opacity-70 text-white flex items-center justify-center shadow-md transition-transform hover:scale-105 active:scale-95"
+                          title={`Abrir detalhes de ${i.estrutura}`}
+                          aria-label={`Abrir detalhes de ${i.estrutura}`}
+                        >
+                          {carregandoDetalheMeta && estruturaSelecionada === i.estrutura
+                            ? <Loader2 size={20} className="animate-spin" />
+                            : <Plus size={24} />}
                         </button>
                       </div>
                     </div>
@@ -13415,6 +12583,14 @@ const enviarArquivo = async (tipo) => {
             </div>
           </div>
         </div>
+        )}
+
+        {visaoMetas === 'consultores' && carregandoDetalheMeta && !detalheMeta && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 min-h-[360px] flex flex-col items-center justify-center text-center">
+            <Loader2 size={42} className="animate-spin text-[#048187]" />
+            <h2 className="mt-5 text-xl font-black text-gray-700">Carregando detalhes da estrutura</h2>
+            <p className="mt-2 text-sm font-semibold text-gray-400">{estruturaSelecionada || 'Aguarde um instante...'}</p>
+          </div>
         )}
 
         {visaoMetas === 'consultores' && detalheMeta && (
@@ -13457,7 +12633,7 @@ const enviarArquivo = async (tipo) => {
                       <button
                         key={item.estrutura}
                         type="button"
-                        onClick={async () => { await carregarDetalheMeta(item.estrutura, filtrosAtivos, false); setBuscaEstruturaMeta(''); setVisaoMetas('consultores'); }}
+                        onClick={() => abrirDetalheEstruturaMetas(item.estrutura, false)}
                         className={`w-full text-left px-4 py-3 text-sm border-b border-gray-50 last:border-b-0 hover:bg-[#e6f6f7] transition-colors ${detalheMeta?.estrutura === item.estrutura ? 'bg-[#f4fbfb] text-[#048187] font-bold' : 'text-gray-600 font-medium'}`}
                       >
                         <div className="flex items-center justify-between gap-3 min-w-0">
@@ -13479,8 +12655,8 @@ const enviarArquivo = async (tipo) => {
                 <CardMetaNova titulo="Faturamento Estrutura" valor={formatarAbrev(detalheMeta.realizado)} percentual={calcPerc(detalheMeta.realizado, detalheMeta.meta?.receita)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(detalheMeta.meta?.receita)} onClickExpandir={abrirDetalheFaturamentoEstruturaMetas} />
                 <CardMetaNova titulo="EUDORA" valor={formatarAbrev(eudoraDetalhe)} percentual={percentualEudoraDetalhe} labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraDetalhePercentual, 1)}%):`} valorMeta={formatarAbrev(metaEudoraDetalheValor)} onClickExpandir={abrirDetalheEudoraEstruturaMetas} />
                 <CardMetaNova titulo="Atividade" valor={`${percentualAtividadeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade', `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%`, 'Atividade = revendedoras ativadas dividido pela base ativa da estrutura.', [{ label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) }, { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedoras necessárias`)} />
-                <CardMetaNova titulo="MAKE" valor={`${percentualMakeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE', `${formatarNumeroBR(percentualMakeDetalhe, 1)}%`, 'MAKE = revendedoras ativadas da estrutura que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeDetalhe, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) }, { label: 'Falta para a meta MAKE', valor: formatarFaltamAtivar(faltamMakeDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedoras necessárias com MAKE`)} />
-                <CardMetaNova titulo="CABELO" valor={`${percentualCabeloDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO', `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%`, 'CABELO = revendedoras ativadas da estrutura que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloDetalhe, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual), 1)}%` }, { label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) }, { label: 'Falta para a meta CABELO', valor: formatarFaltamAtivar(faltamCabeloDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedoras necessárias com CABELO`)} />
+                <CardMetaNova titulo="MAKE" valor={`${percentualMakeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE', `${formatarNumeroBR(percentualMakeDetalhe, 1)}%`, 'MAKE = revendedoras ativadas da estrutura que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeDetalhe, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual), 1)}%` }, { label: 'Ativas no corte de MAKE', valor: formatarNumeroBR(atividadeMakeDetalhe, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) }, { label: 'Falta para a meta MAKE', valor: formatarFaltamAtivar(faltamMakeDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedoras necessárias com MAKE`)} />
+                <CardMetaNova titulo="CABELO" valor={`${percentualCabeloDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO', `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%`, 'CABELO = revendedoras ativadas da estrutura que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloDetalhe, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual), 1)}%` }, { label: 'Ativas no corte de CABELO', valor: formatarNumeroBR(atividadeCabeloDetalhe, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) }, { label: 'Falta para a meta CABELO', valor: formatarFaltamAtivar(faltamCabeloDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedoras necessárias com CABELO`)} />
                 <CardMetaNova titulo="MULTIMARCAS" valor={`${percentualMultimarcasDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMultimarcasDetalhe, metaMultimarcasDetalhePercentual)} labelMeta="Meta MULTI.:" valorMeta={`${metaMultimarcasDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirDetIndicadorDashboard('MULTIMARCAS')} />
                 <CardMetaNova titulo="RPA" valor={formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0)} percentual={calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.rpa)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(detalheMeta.meta?.rpa)} onClickExpandir={abrirDetalheRpaEstruturaMetas} />
                 <CardMetaNova titulo="Ticket Médio" valor={formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0)} percentual={calcPerc(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0, detalheMeta.meta?.tkt_medio)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(detalheMeta.meta?.tkt_medio)} onClickExpandir={abrirDetalheTicketEstruturaMetas} />
@@ -13504,11 +12680,13 @@ const enviarArquivo = async (tipo) => {
                   const makeRealizadoItem = Number(c.make_realizado || 0);
                   const percentualMakeItem = Number(c.percentual_make || 0);
                   const percentualMetaMakeItem = metaMakeDetalhePercentual;
-                  const metaMakeItem = Math.ceil((atividadeRealizadaItem * percentualMetaMakeItem) / 100);
+                  const atividadeMakeBaseItem = Number(c.atividade_make_base || atividadeRealizadaItem);
+                  const metaMakeItem = Math.ceil((atividadeMakeBaseItem * percentualMetaMakeItem) / 100);
                   const cabeloRealizadoItem = Number(c.cabelo_realizado || 0);
                   const percentualCabeloItem = Number(c.percentual_cabelo || 0);
                   const percentualMetaCabeloItem = metaCabeloDetalhePercentual;
-                  const metaCabeloItem = Math.ceil((atividadeRealizadaItem * percentualMetaCabeloItem) / 100);
+                  const atividadeCabeloBaseItem = Number(c.atividade_cabelo_base || atividadeRealizadaItem);
+                  const metaCabeloItem = Math.ceil((atividadeCabeloBaseItem * percentualMetaCabeloItem) / 100);
                   const rpaRealizadoItem = atividadeRealizadaItem > 0 ? faturamentoRealizado / atividadeRealizadaItem : 0;
                   const ticketRealizadoItem = Number(c.quantidade_pedidos || 0) > 0 ? faturamentoRealizado / Number(c.quantidade_pedidos || 0) : 0;
                   const upaRealizadoItem = calcularUpa(Number(c.total_itens || 0), atividadeRealizadaItem);
@@ -13863,20 +13041,22 @@ const enviarArquivo = async (tipo) => {
       const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
 
       const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const atividadeMakeBase = obterNumeroLinhaMeta(item?.atividade_make_base, atividadeRealizada);
       const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
-      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeMakeBase > 0 ? Math.ceil((atividadeMakeBase * metaMakePercentual) / 100) : 0;
       const percentualMakeApi = obterNumeroLinhaMeta(item?.percentual_make, 0);
       const percentualMake = percentualMakeApi > 0
         ? percentualMakeApi
-        : calcularPercentualSeguro(makeRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(makeRealizado, atividadeMakeBase);
 
       const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const atividadeCabeloBase = obterNumeroLinhaMeta(item?.atividade_cabelo_base, atividadeRealizada);
       const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
-      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeCabeloBase > 0 ? Math.ceil((atividadeCabeloBase * metaCabeloPercentual) / 100) : 0;
       const percentualCabeloApi = obterNumeroLinhaMeta(item?.percentual_cabelo, 0);
       const percentualCabelo = percentualCabeloApi > 0
         ? percentualCabeloApi
-        : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(cabeloRealizado, atividadeCabeloBase);
 
       const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
       const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
@@ -13902,10 +13082,12 @@ const enviarArquivo = async (tipo) => {
         upaMeta,
         upaRealizada,
         metaMakePercentual,
+        atividadeMakeBase,
         makeMetaQtd,
         makeRealizado,
         percentualMake,
         metaCabeloPercentual,
+        atividadeCabeloBase,
         cabeloMetaQtd,
         cabeloRealizado,
         percentualCabelo,
@@ -13989,7 +13171,7 @@ const enviarArquivo = async (tipo) => {
             <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 truncate">Ranking e Gamificação</h1><p className="text-sm text-gray-400 truncate">Top 5 de alta performance da equipe</p></div>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-            {!modoGerenteEstrutura && (<FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />)}
+            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
             <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
               <button onClick={() => setVisaoRanking('consultores')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'consultores' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Consultores"><User size={18} /></button>
               <button onClick={() => setVisaoRanking('estruturas')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'estruturas' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Estruturas"><Users size={18} /></button>
@@ -14549,20 +13731,22 @@ const enviarArquivo = async (tipo) => {
       const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
 
       const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const atividadeMakeBase = obterNumeroLinhaMeta(item?.atividade_make_base, atividadeRealizada);
       const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
-      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeMakeBase > 0 ? Math.ceil((atividadeMakeBase * metaMakePercentual) / 100) : 0;
       const percentualMakeApi = obterNumeroLinhaMeta(item?.percentual_make, 0);
       const percentualMake = percentualMakeApi > 0
         ? percentualMakeApi
-        : calcularPercentualSeguro(makeRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(makeRealizado, atividadeMakeBase);
 
       const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const atividadeCabeloBase = obterNumeroLinhaMeta(item?.atividade_cabelo_base, atividadeRealizada);
       const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
-      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeCabeloBase > 0 ? Math.ceil((atividadeCabeloBase * metaCabeloPercentual) / 100) : 0;
       const percentualCabeloApi = obterNumeroLinhaMeta(item?.percentual_cabelo, 0);
       const percentualCabelo = percentualCabeloApi > 0
         ? percentualCabeloApi
-        : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(cabeloRealizado, atividadeCabeloBase);
 
       const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
       const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
@@ -14588,10 +13772,12 @@ const enviarArquivo = async (tipo) => {
         upaMeta,
         upaRealizada,
         metaMakePercentual,
+        atividadeMakeBase,
         makeMetaQtd,
         makeRealizado,
         percentualMake,
         metaCabeloPercentual,
+        atividadeCabeloBase,
         cabeloMetaQtd,
         cabeloRealizado,
         percentualCabelo,
@@ -14769,43 +13955,7 @@ const enviarArquivo = async (tipo) => {
                     <input value={buscaRevendedores} onChange={(e) => setBuscaRevendedores(e.target.value)} placeholder="Buscar revendedor, estrutura, cidade..." className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#048187]" />
                   </div>
                 </div>
-                <div className="md:hidden space-y-3 max-h-[34rem] overflow-y-auto pr-1">
-                  {listaFiltrada.slice(0, 300).map((r, idx) => (
-                    <article key={`mobile-${r.cod_revendedor}-${idx}`} className="rounded-2xl border border-gray-100 bg-[#fbfefe] p-4 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-wide text-[#048187]">#{r.cod_revendedor || '-'}</p>
-                          <h3 className="mt-1 text-sm font-black leading-tight text-gray-800 break-words">{r.nome_revendedor || '-'}</h3>
-                          <p className="mt-1 text-xs font-bold text-gray-400 break-words">{r.nome_estrutura || '-'}</p>
-                        </div>
-                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${ehInadimplente(r.inadimplente) ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-                          {ehInadimplente(r.inadimplente) ? 'Inadimplente' : 'Adimplente'}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <div className="rounded-xl bg-white p-3 border border-gray-100">
-                          <p className="text-[9px] font-black uppercase text-gray-400">Receita</p>
-                          <p className="mt-1 text-sm font-black text-[#048187] truncate">{formatarMoeda(Number(r.receita_praticada_pedidos || 0) > 0 ? r.receita_praticada_pedidos : r.vlr_receita_liquida || 0)}</p>
-                        </div>
-                        <div className="rounded-xl bg-white p-3 border border-gray-100">
-                          <p className="text-[9px] font-black uppercase text-gray-400">Crédito</p>
-                          <p className="mt-1 text-sm font-black text-gray-700 truncate">{formatarMoeda(r.credito_disponivel || 0)}</p>
-                        </div>
-                        <div className="rounded-xl bg-white p-3 border border-gray-100">
-                          <p className="text-[9px] font-black uppercase text-gray-400">Cidade</p>
-                          <p className="mt-1 text-xs font-black text-gray-700 truncate">{r.cidade || '-'}</p>
-                        </div>
-                        <div className="rounded-xl bg-white p-3 border border-gray-100">
-                          <p className="text-[9px] font-black uppercase text-gray-400">Atividade / Papel</p>
-                          <p className="mt-1 text-xs font-black text-gray-700 truncate">{r.atividade || '-'} • {r.papel || '-'}</p>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-
-                <div className="hidden md:block overflow-x-auto max-h-[390px]">
+                <div className="overflow-x-auto max-h-[390px]">
                   <table className="w-full text-sm min-w-[1150px]">
                     <thead className="sticky top-0 bg-white z-10">
                       <tr className="text-left text-gray-500 border-b border-gray-100">
@@ -14856,7 +14006,7 @@ const enviarArquivo = async (tipo) => {
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div>
               <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Ciclo de destino</label>
-              <select value={cicloUploadVD || obterCicloReferenciaAtual()} onChange={(e) => { setCicloUploadVD(e.target.value); localStorage.setItem(CICLO_UPLOAD_VD_STORAGE_KEY, e.target.value); }} className="border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187] min-w-[190px]">
+              <select value={cicloUploadVD || obterCicloReferenciaAtual()} onChange={(e) => { setCicloUploadVD(e.target.value); gravarStorageUsuario(CICLO_UPLOAD_VD_STORAGE_KEY, e.target.value); }} className="border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187] min-w-[190px]">
                 {ciclos.map((item) => <option key={item.id || item.ciclo} value={item.ciclo}>{item.ciclo}{item.eh_atual ? ' • atual' : ''}{obterStatusCicloArea(item.ciclo, 'VD') === 'fechado' ? ' • fechado' : ' • aberto'}</option>)}
               </select>
             </div>
@@ -14922,12 +14072,8 @@ const enviarArquivo = async (tipo) => {
   const renderTelaEstruturasConfig = () => {
     const lista = listaEstruturasConfig.filter((item) => {
       const termo = buscaEstruturaConfig.toLowerCase().trim();
-      const okBusca = !termo || String(item.estrutura || '').toLowerCase().includes(termo) || String(item.cod_estrutura || '').toLowerCase().includes(termo) || String(item.nucleo || '').toLowerCase().includes(termo) || String(item.equipe_consolidada_nome || '').toLowerCase().includes(termo);
-      const okNucleo = filtroNucleoEstrutura === 'TODOS' || String(item.nucleo || '') === filtroNucleoEstrutura;
-      const tipoTela = item.equipe_consolidada_id ? 'CONSOLIDADA' : String(item.tipo_estrutura || 'estrutura').toUpperCase();
-      const okTipo = filtroTipoEstrutura === 'TODOS' || tipoTela === filtroTipoEstrutura;
-      const okStatus = filtroStatusEstrutura === 'TODOS' || String(item.status || '').toUpperCase() === filtroStatusEstrutura;
-      return okBusca && okNucleo && okTipo && okStatus;
+      if (!termo) return true;
+      return String(item.estrutura || '').toLowerCase().includes(termo) || String(item.cod_estrutura || '').toLowerCase().includes(termo) || String(item.nucleo || '').toLowerCase().includes(termo);
     });
     const resumo = listaEstruturasConfig.reduce((acc, item) => {
       const nucleo = item.nucleo || 'SEM NÚCLEO';
@@ -14947,7 +14093,6 @@ const enviarArquivo = async (tipo) => {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
-            <button onClick={abrirNovaEquipeConsolidada} className="bg-[#048187] text-white font-black px-4 py-3 rounded-lg hover:brightness-110 inline-flex items-center justify-center gap-2 text-sm"><Plus size={16} /> Nova equipe consolidada</button>
             <button onClick={sincronizarEstruturasConfig} className="bg-[#e6f6f7] text-[#048187] font-black px-4 py-3 rounded-lg hover:bg-[#d0f0f1] inline-flex items-center justify-center gap-2 text-sm"><RefreshCcw size={16} /> Sincronizar bases</button>
             <button onClick={carregarEstruturasConfig} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-3 rounded-lg hover:bg-gray-50 inline-flex items-center justify-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button>
           </div>
@@ -14979,19 +14124,12 @@ const enviarArquivo = async (tipo) => {
           </div>
         </form>
 
-        {equipesConsolidadas.length > 0 && (
-          <div className="mb-6 rounded-[22px] border border-[#cde9ea] overflow-hidden">
-            <div className="bg-[#dff5f6] px-4 py-3 flex items-center justify-between"><div><h3 className="font-black text-[#048187]">Equipes consolidadas</h3><p className="text-xs font-semibold text-[#048187]/70">Uma única equipe pode somar duas ou mais estruturas físicas.</p></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#048187]">{equipesConsolidadas.length}</span></div>
-            <div className="divide-y divide-gray-100 bg-white">{equipesConsolidadas.map((equipe) => <div key={equipe.id} className="grid grid-cols-1 lg:grid-cols-[1fr_.5fr_1.4fr_.5fr_auto] gap-3 px-4 py-4 items-center"><div><p className="font-black text-gray-700">{equipe.nome}</p><p className="text-xs font-bold text-gray-400">{equipe.consultores_ativos || 0} consultores ativos</p></div><span className="w-fit rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">{String(equipe.nucleo || '').replace('NUCLEO', 'NÚCLEO')}</span><div className="text-xs font-bold text-gray-500">{(equipe.estruturas || []).map((e) => e.estrutura).join(' + ')}</div><span className="text-xs font-black text-gray-500">{(equipe.estruturas || []).length} estrutura(s)</span><div className="flex justify-end gap-2"><button type="button" onClick={() => abrirEditarEquipeConsolidada(equipe)} className="text-[#048187] p-2 hover:bg-[#e6f6f7] rounded-lg"><Pencil size={17} /></button><button type="button" onClick={() => excluirEquipeConsolidada(equipe)} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={17} /></button></div></div>)}</div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div className="relative w-full sm:w-96">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={buscaEstruturaConfig} onChange={(e) => setBuscaEstruturaConfig(e.target.value)} placeholder="Buscar estrutura, código ou núcleo..." className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" />
           </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.4fr_.7fr_.8fr_.7fr_auto] gap-3 mb-4 bg-[#f7fafb] border border-gray-100 rounded-2xl p-4">
-          <div className="relative"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={buscaEstruturaConfig} onChange={(e) => setBuscaEstruturaConfig(e.target.value)} placeholder="Buscar estrutura, código, núcleo ou equipe..." className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div>
-          <select value={filtroNucleoEstrutura} onChange={(e) => setFiltroNucleoEstrutura(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os núcleos</option><option value="NUCLEO 1">N1</option><option value="NUCLEO 2">N2</option><option value="NUCLEO 3">N3</option></select>
-          <select value={filtroTipoEstrutura} onChange={(e) => setFiltroTipoEstrutura(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os tipos</option><option value="ESTRUTURA">Individual</option><option value="CONSOLIDADA">Consolidada</option><option value="LOJA">Loja</option></select>
-          <select value={filtroStatusEstrutura} onChange={(e) => setFiltroStatusEstrutura(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os status</option><option value="ATIVO">Ativos</option><option value="INATIVO">Inativos</option></select>
-          <div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-2.5 rounded-lg text-center whitespace-nowrap">{lista.length} Estruturas</div>
+          <div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{lista.length} Estruturas</div>
         </div>
 
         {carregandoEstruturasConfig ? <div className="py-10 text-center text-[#048187] font-bold">Carregando estruturas...</div> : (
@@ -14999,7 +14137,7 @@ const enviarArquivo = async (tipo) => {
             <div className="overflow-visible pr-2">
               <table className="w-full text-sm min-w-[900px]">
                 <thead className="sticky top-0 bg-white z-10">
-                  <tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">Código</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Núcleo</th><th className="py-3 px-2">Tipo</th><th className="py-3 px-2">Equipe consolidada</th><th className="py-3 px-2">Consultores</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr>
+                  <tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">Código</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Núcleo</th><th className="py-3 px-2">Tipo</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Ações</th></tr>
                 </thead>
                 <tbody>
                   {lista.map((item) => (
@@ -15008,8 +14146,6 @@ const enviarArquivo = async (tipo) => {
                       <td className="py-3 px-2 font-bold text-gray-700">{item.estrutura}</td>
                       <td className="py-3 px-2"><span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-xs font-black">{String(item.nucleo || '').replace('NUCLEO', 'NÚCLEO')}</span></td>
                       <td className="py-3 px-2 text-gray-500 font-bold uppercase text-xs">{item.tipo_estrutura || '-'}</td>
-                      <td className="py-3 px-2 text-xs font-bold text-gray-500">{item.equipe_consolidada_nome || 'Individual'}</td>
-                      <td className="py-3 px-2 text-center font-black text-[#048187]">{item.consultores_ativos || 0}</td>
                       <td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${item.status === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{item.status}</span></td>
                       <td className="py-3 px-2 text-right whitespace-nowrap"><button onClick={() => editarEstruturaConfig(item)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => excluirEstruturaConfig(item)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td>
                     </tr>
@@ -15018,20 +14154,6 @@ const enviarArquivo = async (tipo) => {
               </table>
               {!lista.length && <div className="py-10 text-center text-gray-400 font-bold">Nenhuma estrutura encontrada. Clique em Sincronizar bases para carregar todas as equipes das bases. Agora estruturas com o mesmo código também aparecem separadas.</div>}
             </div>
-          </div>
-        )}
-
-        {modalEquipeConsolidadaAberto && (
-          <div className="fixed inset-0 z-[9999] bg-black/45 flex items-center justify-center p-4">
-            <form onSubmit={salvarEquipeConsolidada} className="bg-white rounded-[24px] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4"><div><h3 className="text-xl font-black text-gray-700">{equipeConsolidadaEditando ? 'Editar equipe consolidada' : 'Nova equipe consolidada'}</h3><p className="text-sm font-semibold text-gray-400 mt-1">Agrupe estruturas físicas que devem funcionar como uma única equipe para metas, permissões e resultados.</p></div><button type="button" onClick={() => setModalEquipeConsolidadaAberto(false)} className="p-2 rounded-full text-gray-400 hover:bg-gray-50"><X size={20} /></button></div>
-              <div className="p-5 overflow-y-auto space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3"><input value={equipeConsolidadaForm.nome} onChange={(e) => setEquipeConsolidadaForm({ ...equipeConsolidadaForm, nome: e.target.value })} placeholder="Nome da equipe. Ex.: EQUIPE GRAZIELLE" className="md:col-span-2 border border-gray-200 rounded-xl px-4 py-3 font-bold outline-none focus:border-[#048187]" required /><select value={equipeConsolidadaForm.nucleo} onChange={(e) => setEquipeConsolidadaForm({ ...equipeConsolidadaForm, nucleo: e.target.value, estrutura_ids: [] })} className="border border-gray-200 rounded-xl px-4 py-3 font-bold outline-none"><option value="NUCLEO 1">N1</option><option value="NUCLEO 2">N2</option><option value="NUCLEO 3">N3</option></select><select value={equipeConsolidadaForm.status} onChange={(e) => setEquipeConsolidadaForm({ ...equipeConsolidadaForm, status: e.target.value })} className="border border-gray-200 rounded-xl px-4 py-3 font-bold outline-none"><option value="ativo">Ativa</option><option value="inativo">Inativa</option></select></div>
-                <div><p className="text-xs font-black uppercase text-gray-400 mb-2">Estruturas vinculadas</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[360px] overflow-y-auto pr-2">{listaEstruturasConfig.filter((item) => item.nucleo === equipeConsolidadaForm.nucleo && String(item.canal || 'VD').toUpperCase() === String(equipeConsolidadaForm.canal || 'VD').toUpperCase()).map((item) => { const marcada = equipeConsolidadaForm.estrutura_ids.includes(item.id); const ocupada = item.equipe_consolidada_id && Number(item.equipe_consolidada_id) !== Number(equipeConsolidadaEditando?.id); return <label key={item.id} className={`rounded-2xl border p-4 flex items-start gap-3 ${ocupada ? 'opacity-50 cursor-not-allowed bg-gray-50' : marcada ? 'border-[#048187] bg-[#eaf8f8]' : 'border-gray-100 hover:border-[#048187]/40'}`}><input type="checkbox" disabled={ocupada} checked={marcada} onChange={() => alternarEstruturaEquipeConsolidada(item.id)} className="mt-1 accent-[#048187]" /><div><p className="font-black text-gray-700">{item.estrutura}</p><p className="text-xs font-bold text-gray-400">{item.consultores_ativos || 0} consultores ativos{ocupada ? ` • já vinculada a ${item.equipe_consolidada_nome}` : ''}</p></div></label>; })}</div></div>
-                <textarea value={equipeConsolidadaForm.observacao} onChange={(e) => setEquipeConsolidadaForm({ ...equipeConsolidadaForm, observacao: e.target.value })} placeholder="Observação opcional" rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-[#048187]" />
-              </div>
-              <div className="p-5 border-t border-gray-100 flex justify-end gap-2"><button type="button" onClick={() => setModalEquipeConsolidadaAberto(false)} className="border border-gray-200 text-gray-500 font-black px-5 py-3 rounded-xl">Cancelar</button><button type="submit" className="bg-[#048187] text-white font-black px-6 py-3 rounded-xl"><Save size={17} className="inline mr-2" />Salvar equipe</button></div>
-            </form>
           </div>
         )}
       </div>
@@ -15145,9 +14267,8 @@ const enviarArquivo = async (tipo) => {
             aberto={true}
             onClose={() => {}}
             apiUrl={API_URL}
-            cicloPadrao={dados?.ciclo_atual || ciclos.find((c) => c.status_ciclo === 'ativo')?.ciclo || ''}
+            cicloPadrao={cicloSelecionadoVD || filtrosAtivos?.ciclo || dados?.ciclo_atual || cicloAtualPelaData() || ''}
             onAtualizacao={atualizarTelasAposMudancaBanco}
-            nucleosPermitidos={usuarioLogado?.perfil === 'admin' ? [] : normalizarEstruturasPermitidasUsuario(usuarioLogado?.estruturas_permitidas).map((item) => item.nucleo).filter(Boolean)}
             modoInline
           />
         </div>
@@ -15201,20 +14322,22 @@ const enviarArquivo = async (tipo) => {
       const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
 
       const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const atividadeMakeBase = obterNumeroLinhaMeta(item?.atividade_make_base, atividadeRealizada);
       const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
-      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeMakeBase > 0 ? Math.ceil((atividadeMakeBase * metaMakePercentual) / 100) : 0;
       const percentualMakeApi = obterNumeroLinhaMeta(item?.percentual_make, 0);
       const percentualMake = percentualMakeApi > 0
         ? percentualMakeApi
-        : calcularPercentualSeguro(makeRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(makeRealizado, atividadeMakeBase);
 
       const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const atividadeCabeloBase = obterNumeroLinhaMeta(item?.atividade_cabelo_base, atividadeRealizada);
       const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
-      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeCabeloBase > 0 ? Math.ceil((atividadeCabeloBase * metaCabeloPercentual) / 100) : 0;
       const percentualCabeloApi = obterNumeroLinhaMeta(item?.percentual_cabelo, 0);
       const percentualCabelo = percentualCabeloApi > 0
         ? percentualCabeloApi
-        : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(cabeloRealizado, atividadeCabeloBase);
 
       const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
       const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
@@ -15240,10 +14363,12 @@ const enviarArquivo = async (tipo) => {
         upaMeta,
         upaRealizada,
         metaMakePercentual,
+        atividadeMakeBase,
         makeMetaQtd,
         makeRealizado,
         percentualMake,
         metaCabeloPercentual,
+        atividadeCabeloBase,
         cabeloMetaQtd,
         cabeloRealizado,
         percentualCabelo,
@@ -15368,17 +14493,7 @@ const enviarArquivo = async (tipo) => {
   };
 
   const renderTelaConsultores = () => {
-    const nucleosConsultores = Array.from(new Set(listaConsultores.map((c) => c.nucleo).filter(Boolean))).sort();
-    const estruturasConsultores = Array.from(new Set(listaConsultores.map((c) => c.equipe_consolidada_nome || c.estrutura).filter(Boolean))).sort();
-    const cFilt = listaConsultores.filter((c) => {
-      const termo = buscaConsultor.toLowerCase().trim();
-      const okBusca = !termo || String(c.nome || '').toLowerCase().includes(termo) || String(c.nome_social || '').toLowerCase().includes(termo) || String(c.id_colaborador).includes(termo);
-      const okNucleo = filtroNucleoConsultor === 'TODOS' || String(c.nucleo || '') === filtroNucleoConsultor;
-      const nomeEstruturaFiltro = c.equipe_consolidada_nome || c.estrutura || '';
-      const okEstrutura = filtroEstruturaConsultor === 'TODAS' || nomeEstruturaFiltro === filtroEstruturaConsultor;
-      const okStatus = filtroStatusConsultor === 'TODOS' || String(c.status_consultor || '').toUpperCase() === filtroStatusConsultor;
-      return okBusca && okNucleo && okEstrutura && okStatus;
-    });
+    const cFilt = listaConsultores.filter(c => String(c.nome || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.nome_social || '').toLowerCase().includes(buscaConsultor.toLowerCase()) || String(c.id_colaborador).includes(buscaConsultor));
 
     const obterNumeroLinhaMeta = (valor, fallback = 0) => {
       const numero = Number(valor);
@@ -15413,20 +14528,22 @@ const enviarArquivo = async (tipo) => {
       const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
 
       const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const atividadeMakeBase = obterNumeroLinhaMeta(item?.atividade_make_base, atividadeRealizada);
       const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
-      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeMakeBase > 0 ? Math.ceil((atividadeMakeBase * metaMakePercentual) / 100) : 0;
       const percentualMakeApi = obterNumeroLinhaMeta(item?.percentual_make, 0);
       const percentualMake = percentualMakeApi > 0
         ? percentualMakeApi
-        : calcularPercentualSeguro(makeRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(makeRealizado, atividadeMakeBase);
 
       const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const atividadeCabeloBase = obterNumeroLinhaMeta(item?.atividade_cabelo_base, atividadeRealizada);
       const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
-      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeCabeloBase > 0 ? Math.ceil((atividadeCabeloBase * metaCabeloPercentual) / 100) : 0;
       const percentualCabeloApi = obterNumeroLinhaMeta(item?.percentual_cabelo, 0);
       const percentualCabelo = percentualCabeloApi > 0
         ? percentualCabeloApi
-        : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(cabeloRealizado, atividadeCabeloBase);
 
       const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
       const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
@@ -15452,10 +14569,12 @@ const enviarArquivo = async (tipo) => {
         upaMeta,
         upaRealizada,
         metaMakePercentual,
+        atividadeMakeBase,
         makeMetaQtd,
         makeRealizado,
         percentualMake,
         metaCabeloPercentual,
+        atividadeCabeloBase,
         cabeloMetaQtd,
         cabeloRealizado,
         percentualCabelo,
@@ -15536,13 +14655,7 @@ const enviarArquivo = async (tipo) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2"><h1 className="text-xl sm:text-2xl font-bold text-gray-700">Gestão de Consultores</h1><div className="flex gap-2"><button onClick={() => setModalCriarConsultorAberto(true)} className="bg-[#048187] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#036b70] flex items-center gap-2 text-sm"><Plus size={16} /> Novo consultor</button><button onClick={carregarListaConsultores} className="bg-[#e6f6f7] text-[#048187] font-bold px-4 py-2 rounded-lg hover:bg-[#d0f0f1] flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button></div></div></div>
         {(mensagemConsultor || erroGestaoConsultor) && (<div className={`rounded-xl p-4 font-bold text-sm ${mensagemConsultor ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemConsultor || erroGestaoConsultor}</div>)}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.4fr_.7fr_1fr_.7fr_auto] gap-3 mb-6 bg-[#f7fafb] border border-gray-100 rounded-2xl p-4">
-            <div className="relative"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Buscar por nome ou ID..." value={buscaConsultor} onChange={(e) => setBuscaConsultor(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div>
-            <select value={filtroNucleoConsultor} onChange={(e) => setFiltroNucleoConsultor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os núcleos</option>{nucleosConsultores.map((n) => <option key={n} value={n}>{String(n).replace('NUCLEO', 'NÚCLEO')}</option>)}</select>
-            <select value={filtroEstruturaConsultor} onChange={(e) => setFiltroEstruturaConsultor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODAS">Todas as equipes</option>{estruturasConsultores.map((n) => <option key={n} value={n}>{n}</option>)}</select>
-            <select value={filtroStatusConsultor} onChange={(e) => setFiltroStatusConsultor(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 outline-none"><option value="TODOS">Todos os status</option><option value="ATIVO">Ativos</option><option value="INATIVO">Inativos</option><option value="FERIAS">Férias</option></select>
-            <div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-2.5 rounded-lg text-center whitespace-nowrap">{cFilt.length} Registros</div>
-          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"><div className="relative w-full sm:w-96"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Buscar por nome ou ID..." value={buscaConsultor} onChange={(e) => setBuscaConsultor(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#048187]" /></div><div className="text-sm font-bold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{cFilt.length} Registros</div></div>
           {carregandoListaConsultores ? (<div className="py-10 text-center text-[#048187] font-bold">Carregando...</div>) : (
             <div className="overflow-x-auto"><div className="max-h-[600px] overflow-y-auto pr-2"><table className="w-full text-sm min-w-[980px]"><thead className="sticky top-0 bg-white z-10"><tr className="text-left text-gray-500 border-b border-gray-200"><th className="py-3 px-2">Foto</th><th className="py-3 px-2">ID</th><th className="py-3 px-2">Nome</th><th className="py-3 px-2">Nome Social</th><th className="py-3 px-2">Estrutura</th><th className="py-3 px-2">Canal</th><th className="py-3 px-2">Status</th><th className="py-3 px-2 text-right">Peso Meta</th><th className="py-3 px-2 text-right">Ações</th></tr></thead><tbody>
               {cFilt.map((c) => (<tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50"><td className="py-3 px-2"><button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'VD', id_colaborador: c.id_colaborador, nome_oficial: c.nome_exibicao || c.nome, codigo_contexto: c.estrutura || '', foto_data_url: c.foto_data_url, aliases: c.aliases })} title="Foto e nomes alternativos"><AvatarColaborador src={obterFotoColaborador('VD', c.id_colaborador, c.foto_data_url)} nome={c.nome_exibicao || c.nome} tamanho={40} /></button></td><td className="py-3 px-2 font-medium text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2 font-bold text-gray-700">{c.nome}</td><td className="py-3 px-2 font-bold text-[#048187]">{c.nome_social || '-'}</td><td className="py-3 px-2 text-gray-600">{c.estrutura}</td><td className="py-3 px-2 text-gray-600">{c.canal}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${c.status_consultor === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right font-bold text-[#048187]">{Number(c.peso_meta || 0).toFixed(2)}%</td><td className="py-3 px-2 text-right whitespace-nowrap">{podeGerenciarIdentidadeColaborador('VD') && <button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'VD', id_colaborador: c.id_colaborador, nome_oficial: c.nome_exibicao || c.nome, codigo_contexto: c.estrutura || '', foto_data_url: c.foto_data_url, aliases: c.aliases })} className="text-[#257B9C] hover:text-[#1f6884] mr-3" title="Foto e nomes alternativos"><ImagePlus size={17} /></button>}<button onClick={() => abrirEditarConsultor(c)} className="text-[#048187] hover:text-[#036b70] mr-3"><Pencil size={17} /></button><button onClick={() => abrirExcluirConsultor(c)} className="text-red-500 hover:text-red-600"><Trash2 size={17} /></button></td></tr>))}
@@ -15556,29 +14669,6 @@ const enviarArquivo = async (tipo) => {
   const renderTelaPerfil = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center gap-4 border-b border-gray-100 pb-6 mb-6"><button type="button" onClick={() => abrirModalIdentidadeColaborador({ area: 'PERFIL', id_colaborador: String(usuarioLogado.id || ''), nome_oficial: usuarioLogado.nome, foto_data_url: obterFotoColaborador('PERFIL', String(usuarioLogado.id || '')) })} className="relative group shrink-0" title="Alterar foto do perfil"><AvatarColaborador src={obterFotoColaborador('PERFIL', String(usuarioLogado.id || ''))} nome={usuarioLogado.nome} tamanho={72} borda="#048187" /><span className="absolute -right-1 -bottom-1 w-7 h-7 rounded-full bg-[#048187] text-white flex items-center justify-center border-2 border-white"><Camera size={14} /></span></button><div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.nome}</h1><p className="text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.email}</p></div></div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Nome</p><p className="text-lg font-bold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.nome}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Perfil</p><p className="text-lg font-bold text-[#048187] uppercase whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.perfil}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Área</p><p className="text-lg font-bold text-[#712231] uppercase whitespace-nowrap overflow-hidden text-ellipsis">{normalizarAreaGestao(usuarioLogado.area_gestao, usuarioLogado.perfil) === 'AMBOS' ? 'VD + LOJA' : normalizarAreaGestao(usuarioLogado.area_gestao, usuarioLogado.perfil)}</p></div><div className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Status</p><p className="text-lg font-bold text-green-600 whitespace-nowrap overflow-hidden text-ellipsis">{usuarioLogado.status_usuario}</p></div></div></div>
-      {normalizarEstruturasPermitidasUsuario(usuarioLogado?.estruturas_permitidas).length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><Target size={21} /></div>
-            <div>
-              <h2 className="text-lg font-black text-gray-700">Minhas estruturas</h2>
-              <p className="text-sm text-gray-400 font-semibold">Seu acesso aos resultados está limitado aos itens abaixo.</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {normalizarEstruturasPermitidasUsuario(usuarioLogado?.estruturas_permitidas).map((item) => (
-              <div key={chaveEscopoUsuario(item)} className="rounded-2xl border border-[#cde9ea] bg-[#f7fbfb] p-4">
-                <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.area === 'LOJA' ? 'bg-orange-50 text-orange-600' : 'bg-[#dff5f6] text-[#048187]'}`}>{item.area}</span>
-                  {item.nucleo && <span className="text-[10px] font-black text-gray-400">{item.nucleo}</span>}
-                </div>
-                <p className="mt-2 text-sm font-black text-gray-700 break-words">{item.estrutura}</p>
-                {!!item.vinculadas?.length && <p className="mt-1 text-xs font-semibold text-gray-400">{item.vinculadas.length} vínculo(s) comercial(is)</p>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6"><div className="flex items-center gap-2"><KeyRound size={22} className="text-[#048187]" /><h2 className="text-xl font-bold text-gray-700">Trocar senha</h2></div><button type="button" onClick={() => setMostrarSenhasPerfil(!mostrarSenhasPerfil)} className="flex items-center gap-2 text-sm font-bold text-[#048187]">{mostrarSenhasPerfil ? <EyeOff size={18} /> : <Eye size={18} />}{mostrarSenhasPerfil ? 'Ocultar senhas' : 'Mostrar senhas'}</button></div>{(mensagemSenha || erroSenha) && (<div className={`rounded-xl p-4 font-bold text-sm mb-4 ${mensagemSenha ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemSenha || erroSenha}</div>)}<form onSubmit={alterarSenha} className="grid grid-cols-1 md:grid-cols-3 gap-4"><input type={mostrarSenhasPerfil ? 'text' : 'password'} placeholder="Senha atual" value={senhaPerfil.senha_atual} onChange={(e) => setSenhaPerfil({ ...senhaPerfil, senha_atual: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><input type={mostrarSenhasPerfil ? 'text' : 'password'} placeholder="Nova senha" value={senhaPerfil.nova_senha} onChange={(e) => setSenhaPerfil({ ...senhaPerfil, nova_senha: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><input type={mostrarSenhasPerfil ? 'text' : 'password'} placeholder="Confirmar nova senha" value={senhaPerfil.confirmar_senha} onChange={(e) => setSenhaPerfil({ ...senhaPerfil, confirmar_senha: e.target.value })} className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]" required /><button type="submit" className="md:col-span-3 bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><Save size={18} /> Alterar senha</button></form></div>
     </div>
   );
@@ -16059,10 +15149,7 @@ const enviarArquivo = async (tipo) => {
                 perfil,
                 area_gestao: perfil === 'admin'
                   ? 'AMBOS'
-                  : (novoUsuario.area_gestao || 'VD'),
-                estruturas_permitidas: perfil === 'admin'
-                  ? []
-                  : novoUsuario.estruturas_permitidas,
+                  : novoUsuario.area_gestao,
               });
             }}
             className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"
@@ -16073,15 +15160,10 @@ const enviarArquivo = async (tipo) => {
           </select>
           <select
             value={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
-            onChange={(e) => {
-              const area = e.target.value;
-              setNovoUsuario({
-                ...novoUsuario,
-                area_gestao: area,
-                estruturas_permitidas: normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas)
-                  .filter((item) => area === 'AMBOS' || item.area === area),
-              });
-            }}
+            onChange={(e) => setNovoUsuario({
+              ...novoUsuario,
+              area_gestao: e.target.value,
+            })}
             disabled={novoUsuario.perfil === 'admin'}
             className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
             title="Define quais notificações de meta este usuário receberá."
@@ -16092,20 +15174,9 @@ const enviarArquivo = async (tipo) => {
               </option>
             ))}
           </select>
-          {novoUsuario.perfil !== 'admin' && (
-            <div className="md:col-span-2 xl:col-span-6">
-              <SeletorEscopoUsuario
-                area={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
-                opcoes={opcoesEscopoUsuarios}
-                selecionadas={novoUsuario.estruturas_permitidas}
-                onChange={(estruturas_permitidas) => setNovoUsuario({ ...novoUsuario, estruturas_permitidas })}
-                carregando={carregandoOpcoesEscopoUsuarios}
-              />
-            </div>
-          )}
           <button
             type="submit"
-            className="bg-[#048187] text-white font-bold rounded-lg py-3 hover:bg-[#036b70] inline-flex items-center justify-center gap-2 xl:col-start-6"
+            className="bg-[#048187] text-white font-bold rounded-lg py-3 hover:bg-[#036b70] inline-flex items-center justify-center gap-2"
           >
             <ShieldCheck size={18} />
             Criar
@@ -16123,7 +15194,6 @@ const enviarArquivo = async (tipo) => {
                   <th className="py-3 px-2">E-mail</th>
                   <th className="py-3 px-2">Perfil</th>
                   <th className="py-3 px-2">Área</th>
-                  <th className="py-3 px-2">Estruturas</th>
                   <th className="py-3 px-2">Permissões</th>
                   <th className="py-3 px-2">Status</th>
                   <th className="py-3 px-2 text-right">Ações</th>
@@ -16161,23 +15231,6 @@ const enviarArquivo = async (tipo) => {
                             ? 'VD + LOJA'
                             : areaUsuario}
                         </span>
-                      </td>
-                      <td className="py-4 px-2">
-                        <div className="flex flex-wrap gap-1.5 min-w-[230px] max-w-[360px]">
-                          {normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).slice(0, 3).map((item) => (
-                            <span key={chaveEscopoUsuario(item)} className="rounded-full bg-[#f1fbfb] border border-[#cde9ea] px-2.5 py-1 text-[10px] font-black text-[#048187] max-w-[220px] truncate" title={item.estrutura}>
-                              {item.estrutura}
-                            </span>
-                          ))}
-                          {normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).length > 3 && (
-                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-500">
-                              +{normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).length - 3}
-                            </span>
-                          )}
-                          {!normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).length && (
-                            <span className="text-xs font-bold text-gray-400">Sem restrição cadastrada</span>
-                          )}
-                        </div>
                       </td>
                       <td className="py-4 px-2">
                         <div className="flex flex-col gap-2 min-w-[220px]">
@@ -16695,6 +15748,9 @@ const enviarArquivo = async (tipo) => {
     const consultores = dadosHistorico?.consultores || [];
     const consultoresAtivos = dadosHistorico?.consultoresAtivos || [];
     const metas = dadosHistorico?.metas || [];
+    const nucleosApi = Array.isArray(dadosHistorico?.nucleos)
+      ? dadosHistorico.nucleos
+      : [];
     const fmtPerc = (v) => `${Number(v || 0).toFixed(1)}%`;
     const fmtDataHora = (v) => {
       if (!v) return '-';
@@ -16718,14 +15774,44 @@ const enviarArquivo = async (tipo) => {
 
     const dadosResumoHistorico = lerJsonHistorico(resumo?.dados_json);
 
+    const normalizarNucleoHistorico = (valor) => {
+      const texto = String(valor || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toUpperCase();
+      if (!texto) return '';
+      if (/(^|\D)3(\D|$)/.test(texto)) return 'N3';
+      if (/(^|\D)2(\D|$)/.test(texto)) return 'N2';
+      if (/(^|\D)1(\D|$)/.test(texto)) return 'N1';
+      return '';
+    };
+
     const estruturasComDetalhes = estruturas.map((item) => {
       const detalhes = lerJsonHistorico(item?.dados_json);
       return {
         ...item,
-        nucleo: String(detalhes?.nucleo || 'SEM NÚCLEO').toUpperCase(),
-        valor_liquido: Number(detalhes?.valor_liquido || 0),
-        base_ativa: Number(detalhes?.base_ativa || 0),
-        total_itens: Number(detalhes?.total_itens || 0),
+        nucleo: normalizarNucleoHistorico(
+          item?.nucleo
+          || detalhes?.nucleo
+          || detalhes?.nucleo_curto
+          || detalhes?.nucleo_completo
+        ),
+        valor_liquido: Number(
+          item?.valor_liquido
+          ?? detalhes?.valor_liquido
+          ?? 0
+        ),
+        base_ativa: Number(
+          item?.base_ativa
+          ?? detalhes?.base_ativa
+          ?? 0
+        ),
+        total_itens: Number(
+          item?.total_itens
+          ?? detalhes?.total_itens
+          ?? 0
+        ),
       };
     });
 
@@ -16779,9 +15865,75 @@ const enviarArquivo = async (tipo) => {
       };
     };
 
-    const nucleosHistorico = ['N1', 'N2', 'N3']
+    const nucleosHistoricoCalculados = ['N1', 'N2', 'N3']
       .map(consolidarNucleoHistorico)
       .filter((item) => item.estruturas.length > 0);
+
+    const nucleosHistoricoApi = nucleosApi
+      .map((item) => {
+        const nucleo = normalizarNucleoHistorico(item?.nucleo);
+        const estruturasNucleo = Array.isArray(item?.estruturas)
+          ? item.estruturas.map((estrutura) => {
+              const detalhes = lerJsonHistorico(estrutura?.dados_json);
+              return {
+                ...estrutura,
+                nucleo,
+                valor_liquido: Number(
+                  estrutura?.valor_liquido
+                  ?? detalhes?.valor_liquido
+                  ?? 0
+                ),
+                base_ativa: Number(
+                  estrutura?.base_ativa
+                  ?? detalhes?.base_ativa
+                  ?? 0
+                ),
+                total_itens: Number(
+                  estrutura?.total_itens
+                  ?? detalhes?.total_itens
+                  ?? 0
+                ),
+              };
+            })
+          : [];
+
+        return {
+          nucleo,
+          estruturas: estruturasNucleo,
+          valorPraticado: Number(
+            item?.valor_praticado
+            ?? item?.realizado
+            ?? 0
+          ),
+          valorLiquido: Number(item?.valor_liquido || 0),
+          meta: Number(
+            item?.meta
+            ?? item?.meta_faturamento
+            ?? 0
+          ),
+          percentualMeta: Number(
+            item?.percentual_meta
+            ?? item?.percentual_realizado
+            ?? 0
+          ),
+          pedidos: Number(item?.pedidos || 0),
+          atividade: Number(item?.atividade || 0),
+          baseAtiva: Number(item?.base_ativa || 0),
+          percentualAtividade: Number(
+            item?.percentual_atividade || 0
+          ),
+          rpa: Number(item?.rpa || 0),
+          ticketMedio: Number(
+            item?.ticket_medio || 0
+          ),
+          upa: Number(item?.upa || 0),
+        };
+      })
+      .filter((item) => item.nucleo);
+
+    const nucleosHistorico = nucleosHistoricoCalculados.length
+      ? nucleosHistoricoCalculados
+      : nucleosHistoricoApi;
 
     const valorLiquidoTotalHistorico = Number(
       dadosResumoHistorico?.valor_liquido_total
@@ -16850,20 +16002,22 @@ const enviarArquivo = async (tipo) => {
       const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
 
       const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
+      const atividadeMakeBase = obterNumeroLinhaMeta(item?.atividade_make_base, atividadeRealizada);
       const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
-      const makeMetaQtd = metaMakePercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMakePercentual) / 100) : 0;
+      const makeMetaQtd = metaMakePercentual > 0 && atividadeMakeBase > 0 ? Math.ceil((atividadeMakeBase * metaMakePercentual) / 100) : 0;
       const percentualMakeApi = obterNumeroLinhaMeta(item?.percentual_make, 0);
       const percentualMake = percentualMakeApi > 0
         ? percentualMakeApi
-        : calcularPercentualSeguro(makeRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(makeRealizado, atividadeMakeBase);
 
       const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
+      const atividadeCabeloBase = obterNumeroLinhaMeta(item?.atividade_cabelo_base, atividadeRealizada);
       const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
-      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaCabeloPercentual) / 100) : 0;
+      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeCabeloBase > 0 ? Math.ceil((atividadeCabeloBase * metaCabeloPercentual) / 100) : 0;
       const percentualCabeloApi = obterNumeroLinhaMeta(item?.percentual_cabelo, 0);
       const percentualCabelo = percentualCabeloApi > 0
         ? percentualCabeloApi
-        : calcularPercentualSeguro(cabeloRealizado, atividadeRealizada);
+        : calcularPercentualSeguro(cabeloRealizado, atividadeCabeloBase);
 
       const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
       const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
@@ -16889,10 +16043,12 @@ const enviarArquivo = async (tipo) => {
         upaMeta,
         upaRealizada,
         metaMakePercentual,
+        atividadeMakeBase,
         makeMetaQtd,
         makeRealizado,
         percentualMake,
         metaCabeloPercentual,
+        atividadeCabeloBase,
         cabeloMetaQtd,
         cabeloRealizado,
         percentualCabelo,
@@ -17143,6 +16299,12 @@ const enviarArquivo = async (tipo) => {
 
               {visaoHistorico === 'resumo' && (
                 <div className="p-5 space-y-5 bg-[#f7fafb]">
+                  {!nucleosHistorico.length && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
+                      O ciclo está fechado, mas ainda não possui a consolidação por núcleo. Use Reprocessar ou execute a reparação dos ciclos fechados.
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                     {nucleosHistorico.map((nucleo) => (
                       <div key={nucleo.nucleo} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -18123,7 +17285,7 @@ const enviarArquivo = async (tipo) => {
               <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
                 <div className="w-full xl:max-w-sm">
                   <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Ciclo de destino da LOJA</label>
-                  <select value={cicloUploadLoja || cicloAtualLoja} onChange={(e) => { setCicloUploadLoja(e.target.value); localStorage.setItem(CICLO_UPLOAD_LOJA_STORAGE_KEY, e.target.value); }} className="w-full border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187]">
+                  <select value={cicloUploadLoja || cicloAtualLoja} onChange={(e) => { setCicloUploadLoja(e.target.value); gravarStorageUsuario(CICLO_UPLOAD_LOJA_STORAGE_KEY, e.target.value); }} className="w-full border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187]">
                     {ciclos.map((item) => <option key={item.id || item.ciclo} value={item.ciclo}>{item.ciclo}{item.eh_atual ? ' • atual' : ''}{obterStatusCicloArea(item.ciclo, 'LOJA') === 'fechado' ? ' • fechado' : ' • aberto'}</option>)}
                   </select>
                 </div>
@@ -18987,7 +18149,8 @@ const enviarArquivo = async (tipo) => {
   };
 
   const renderContent = () => {
-    if (telaAtual === 'Dashboard' || telaAtual === 'AcompanhamentoVD') return renderTelaDashboard();
+    if (telaAtual === 'AcompanhamentoVD') return renderTelaAcompanhamentoVD();
+    if (telaAtual === 'Dashboard') return renderTelaDashboard();
     if (telaAtual === 'Metas') return renderTelaMetas();
     if (telaAtual === 'N1') return <TelaGestaoNucleo nucleo="N1" />;
     if (telaAtual === 'N2') return <TelaGestaoNucleo nucleo="N2" />;
@@ -19266,36 +18429,6 @@ const enviarArquivo = async (tipo) => {
     ? dadosModalDesempenho.gruposConsultores
     : dadosModalDesempenho.gruposEstruturas;
 
-  const itensMenuMobile = modoGerenteEstrutura
-    ? (areaGerenteEstrutura === 'LOJA'
-        ? [
-            { nome: 'LojaVisaoGeral', icone: LayoutDashboard },
-          ]
-        : [
-            { nome: 'AcompanhamentoVD', icone: LayoutDashboard },
-          ])
-    : [
-        ...itensMenuVD,
-        ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []),
-        { nome: 'ADM', icone: ShieldCheck },
-        { nome: 'Perfil', icone: User },
-      ];
-
-  const navegarMenuMobile = (nome) => {
-    if (nome === 'Perfil') {
-      setTelaAtual('Perfil');
-      return;
-    }
-    if (nome.startsWith('Loja')) {
-      setCanalAtual('LOJA');
-      setMenuLojaExpandido(true);
-      setMenuVDExpandido(false);
-      setTelaAtual(nome);
-      return;
-    }
-    navegarParaTelaVD(nome);
-  };
-
   return (
     <>
       <div className="h-[100dvh] bg-[#f7fafb] flex overflow-hidden">
@@ -19318,7 +18451,6 @@ const enviarArquivo = async (tipo) => {
             )}
           </div>
           <nav className={`${sidebarExpandida ? 'p-4 space-y-2' : 'p-3 space-y-2'} flex-1 overflow-y-auto`}>
-            {(!modoGerenteEstrutura || areaGerenteEstrutura !== 'LOJA') && (
             <div>
               <button
                 type="button"
@@ -19335,8 +18467,8 @@ const enviarArquivo = async (tipo) => {
 
               {menuVDExpandido && (
                 <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
-                  {(modoGerenteEstrutura ? itensMenuVDGerente : itensMenuVD).map((item) => {
-                    if (!usuarioPodeAcessar(item.nome) || !usuarioPodeExibirAba(item.nome)) return null;
+                  {itensMenuVD.map((item) => {
+                    if (!usuarioPodeAcessar(item.nome)) return null;
                     const Icone = item.icone;
                     const ativo = canalAtual === 'VD' && telaAtual === item.nome;
                     return (
@@ -19354,9 +18486,8 @@ const enviarArquivo = async (tipo) => {
                 </div>
               )}
             </div>
-            )}
 
-            {usuarioPodeAcessarLoja() && (!modoGerenteEstrutura || areaGerenteEstrutura !== 'VD') && (
+            {usuarioPodeAcessarLoja() && (
             <div>
               <button
                 type="button"
@@ -19374,7 +18505,7 @@ const enviarArquivo = async (tipo) => {
               {menuLojaExpandido && (
                 <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
                   {itensMenuLoja.length > 0 ? (
-                    itensMenuLoja.filter((item) => usuarioPodeAcessar(item.nome) && usuarioPodeExibirAba(item.nome)).map((item) => {
+                    itensMenuLoja.filter((item) => usuarioPodeAcessar(item.nome)).map((item) => {
                       const Icone = item.icone;
                       const ativo = canalAtual === 'LOJA' && telaAtual === item.nome;
                       return (
@@ -19402,16 +18533,14 @@ const enviarArquivo = async (tipo) => {
             )}
           </nav>
           <div className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} border-t border-white/10`}>
-            {!modoGerenteEstrutura && (
-              <button
-                onClick={() => setTelaAtual('Perfil')}
-                title="Perfil"
-                className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'Perfil' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
-              >
-                <User size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                {sidebarExpandida && <span>Perfil</span>}
-              </button>
-            )}
+            <button
+              onClick={() => setTelaAtual('Perfil')}
+              title="Perfil"
+              className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'Perfil' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+            >
+              <User size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+              {sidebarExpandida && <span>Perfil</span>}
+            </button>
             {usuarioPodeAcessar('ADM') && (
               <button
                 onClick={() => { setCanalAtual('VD'); setTelaAtual('ADM'); }}
@@ -19445,20 +18574,10 @@ const enviarArquivo = async (tipo) => {
 
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-white/10 z-40 px-2 py-2">
           <div className="flex items-center justify-around gap-1">
-            {itensMenuMobile.map((item) => {
-              if (!usuarioPodeAcessar(item.nome) || !usuarioPodeExibirAba(item.nome)) return null;
-              const Icone = item.icone;
-              const ativo = telaAtual === item.nome;
-              return (
-                <button
-                  key={item.nome}
-                  onClick={() => navegarMenuMobile(item.nome)}
-                  className={`flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-2.5 min-w-0 flex-1 transition-all ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-black/10' : 'text-gray-300'}`}
-                >
-                  <Icone size={19} />
-                  <span className="text-[10px] font-black truncate max-w-full">{obterNomeAba(item.nome)}</span>
-                </button>
-              );
+            {[...itensMenuVD, ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []), { nome: 'ADM', icone: ShieldCheck }, { nome: 'Perfil', icone: User }].map((item) => {
+              if (!usuarioPodeAcessar(item.nome)) return null;
+              const Icone = item.icone; const ativo = telaAtual === item.nome;
+              return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}>{item.nome === 'Loja' ? <IconeCanalLoja size={18} /> : <Icone size={18} />}<span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
             })}
           </div>
         </div>
@@ -19589,7 +18708,20 @@ const enviarArquivo = async (tipo) => {
                 <ChevronRight size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-[#048187]" />
               </div>
               <div className="flex items-center gap-3 sm:gap-5 min-w-0">
-                {(telaAtual === 'Dashboard' || telaAtual === 'AcompanhamentoVD' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
+                {telaAtual !== 'AcompanhamentoVD' && telaAtual !== 'Perfil' && (
+                  <button
+                    type="button"
+                    onClick={atualizarTelaAtualAgora}
+                    disabled={atualizandoTelaAtual}
+                    className="flex items-center gap-2 hover:bg-[#4a9394] disabled:opacity-60 px-3 py-1.5 rounded-full font-medium"
+                    title="Atualizar dados desta aba"
+                  >
+                    <RefreshCcw size={18} className={atualizandoTelaAtual ? 'animate-spin' : ''} />
+                    <span className="hidden sm:inline">Atualizar</span>
+                  </button>
+                )}
+
+                {(telaAtual === 'Dashboard' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
                   <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#4a9394] px-3 py-1.5 rounded-full font-medium">
                     <SlidersHorizontal size={18} /><span className="hidden sm:inline">Filtros</span>
                   </button>
@@ -19630,19 +18762,15 @@ const enviarArquivo = async (tipo) => {
                             </p>
                             <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">
                               Área: {
-                                (modoGerenteEstrutura
-                                  ? areaGerenteEstrutura
+                                normalizarAreaGestao(
+                                  usuarioLogado?.area_gestao,
+                                  usuarioLogado?.perfil
+                                ) === 'AMBOS'
+                                  ? 'VD + LOJA'
                                   : normalizarAreaGestao(
                                       usuarioLogado?.area_gestao,
                                       usuarioLogado?.perfil
-                                    )) === 'AMBOS'
-                                  ? 'VD + LOJA'
-                                  : (modoGerenteEstrutura
-                                      ? areaGerenteEstrutura
-                                      : normalizarAreaGestao(
-                                          usuarioLogado?.area_gestao,
-                                          usuarioLogado?.perfil
-                                        ))
+                                    )
                               }
                             </p>
                           </div>
@@ -19793,30 +18921,6 @@ const enviarArquivo = async (tipo) => {
                 </button>
               </div>
             </header>
-            {modoGerenteEstrutura && (
-              <div className="mb-4 rounded-2xl border border-[#b9dfe1] bg-gradient-to-r from-[#e6f6f7] to-white p-4 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-[#048187] text-white flex items-center justify-center shrink-0">
-                      {areaGerenteEstrutura === 'LOJA' ? <IconeCanalLoja size={22} /> : <IconeCanalVD size={22} />}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#048187]">{areaGerenteEstrutura === 'VD' ? 'Acompanhamento • VD' : 'Minha estrutura • LOJA'}</p>
-                      <h2 className="mt-1 text-base sm:text-lg font-black text-gray-700 break-words">{nomeEscopoUsuario || 'Estrutura vinculada'}</h2>
-                    </div>
-                  </div>
-                  {telaAtual === 'Metas' && visaoMetas === 'consultores' && (
-                    <button
-                      type="button"
-                      onClick={voltarParaListaMetas}
-                      className="shrink-0 bg-white border border-[#b9dfe1] text-[#048187] hover:bg-[#e6f6f7] px-3 sm:px-4 py-2 rounded-xl font-black text-xs inline-flex items-center gap-2 transition-colors"
-                    >
-                      <ChevronLeft size={17} /> <span className="hidden sm:inline">Voltar</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
             {renderContent()}
           </div>
         </main>
@@ -20106,24 +19210,16 @@ const enviarArquivo = async (tipo) => {
       )}
 
       {modalRealizadoDiarioVD.aberto && (
-        <div className="fixed inset-0 z-[10020] bg-black/55 backdrop-blur-sm flex items-center justify-center p-0 sm:p-3">
-          <div className="bg-white w-full h-full sm:w-[98vw] sm:h-[97vh] rounded-none sm:rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
-            <div className="px-4 sm:px-7 py-4 sm:py-5 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0 bg-white">
-              <div className="min-w-0">
+        <div className="fixed inset-0 z-[10020] bg-black/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white w-full max-w-7xl max-h-[95vh] rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+            <div className="px-5 sm:px-7 py-5 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0">
+              <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">
                   VD — Realizado Diário
                 </p>
                 <h2 className="text-xl sm:text-2xl font-black text-gray-700 mt-1">
-                  Detalhamento executivo das vendas do dia
+                  Detalhamento das vendas do dia
                 </h2>
-                <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <p className="text-xs sm:text-sm font-semibold text-gray-400">
-                    Meta e realizado do ciclo, resultado do dia e gaps por núcleo, estrutura e consultor.
-                  </p>
-                  <span className="inline-flex rounded-full bg-[#dff5f6] px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-[#048187]">
-                    Executivo V2
-                  </span>
-                </div>
               </div>
 
               <button
@@ -20138,384 +19234,388 @@ const enviarArquivo = async (tipo) => {
               </button>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto bg-[#f5f8f9]">
-              <div className="p-4 sm:p-6 space-y-5">
-                {modalRealizadoDiarioVD.erro && (
-                  <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
-                    {modalRealizadoDiarioVD.erro}
-                  </div>
-                )}
+            <div className="p-5 sm:p-7 overflow-y-auto space-y-6 bg-[#f7fafb]">
+              {modalRealizadoDiarioVD.erro && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  {modalRealizadoDiarioVD.erro}
+                </div>
+              )}
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-9 gap-2.5">
-                  {[
-                    {
-                      label: 'Meta total',
-                      valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.meta_total || 0),
-                      cor: '#374151',
-                    },
-                    {
-                      label: 'Realizado total',
-                      valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.realizado_total || 0),
-                      cor: '#048187',
-                    },
-                    {
-                      label: 'Gap meta total',
-                      valor: textoGapRealizadoDiarioVD(
-                        modalRealizadoDiarioVD.resumo?.gap_meta_total || 0,
-                        modalRealizadoDiarioVD.resumo?.meta_total || 0
-                      ),
-                      cor: '#7c1f31',
-                    },
-                    {
-                      label: 'Pedidos hoje',
-                      valor: Number(modalRealizadoDiarioVD.resumo?.pedidos_hoje || 0).toLocaleString('pt-BR'),
-                      cor: '#257B9C',
-                    },
-                    {
-                      label: 'Meta de hoje',
-                      valor: formatarMoeda(
-                        modalRealizadoDiarioVD.resumo?.meta_hoje
-                        || modalRealizadoDiarioVD.resumo?.meta_diaria
-                        || 0
-                      ),
-                      cor: '#374151',
-                    },
-                    {
-                      label: 'Vendido hoje',
-                      valor: formatarMoeda(
-                        modalRealizadoDiarioVD.resumo?.vendido_hoje
-                        || modalRealizadoDiarioVD.resumo?.realizado_hoje
-                        || 0
-                      ),
-                      cor: '#048187',
-                    },
-                    {
-                      label: '% realizado total',
-                      valor: `${formatarNumeroBR(modalRealizadoDiarioVD.resumo?.percentual_realizado || 0, 1)}%`,
-                      cor: '#5c4b8a',
-                    },
-                    {
-                      label: '% da meta diária',
-                      valor: `${formatarNumeroBR(
-                        modalRealizadoDiarioVD.resumo?.percentual_meta_diaria
-                        ?? modalRealizadoDiarioVD.resumo?.percentual_atingimento
-                        ?? 0,
-                        1
-                      )}%`,
-                      cor: '#7c1f31',
-                    },
-                    {
-                      label: 'Gap meta diária',
-                      valor: textoGapRealizadoDiarioVD(
-                        modalRealizadoDiarioVD.resumo?.gap_meta_diaria
-                        ?? modalRealizadoDiarioVD.resumo?.falta_meta_diaria
-                        ?? 0,
-                        modalRealizadoDiarioVD.resumo?.meta_hoje
-                        || modalRealizadoDiarioVD.resumo?.meta_diaria
-                        || 0
-                      ),
-                      cor: '#7c1f31',
-                    },
-                  ].map((card) => (
-                    <div
-                      key={card.label}
-                      className="bg-white rounded-xl border border-gray-100 p-3 sm:p-4 shadow-sm min-w-0"
-                    >
-                      <p className="text-[9px] sm:text-[10px] font-black uppercase text-gray-400 leading-tight min-h-[24px]">
-                        {card.label}
-                      </p>
-                      <p
-                        className="text-sm sm:text-base xl:text-lg font-black mt-2 break-words leading-tight"
-                        style={{ color: card.cor }}
-                      >
-                        {card.valor}
-                      </p>
-                    </div>
-                  ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Realizado hoje
+                  </p>
+                  <p className="text-2xl font-black text-[#048187] mt-2">
+                    {formatarMoeda(
+                      modalRealizadoDiarioVD.resumo?.realizado_hoje || 0
+                    )}
+                  </p>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-gray-500">
-                    <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
-                      Data: {formatarDataBR(
-                        modalRealizadoDiarioVD.resumo?.data_referencia
-                        || new Date().toISOString().slice(0, 10)
-                      )}
-                    </span>
-                    <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
-                      Ciclo: {modalRealizadoDiarioVD.resumo?.ciclo || '-'}
-                    </span>
-                    <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
-                      Escopo: {modoGerenteEstrutura ? 'Somente minha estrutura' : 'Conforme filtros aplicados'}
-                    </span>
-                  </div>
-
-                  <div className="inline-flex rounded-xl bg-white border border-gray-100 p-1 shadow-sm overflow-x-auto max-w-full">
-                    {[
-                      ['estruturas', 'Por estrutura'],
-                      ['consultores', 'Por consultor'],
-                      ['meios', 'Meios de captação'],
-                    ].map(([valor, rotulo]) => (
-                      <button
-                        key={valor}
-                        type="button"
-                        onClick={() => setAbaRealizadoDiarioVD(valor)}
-                        className={`px-3 sm:px-4 py-2 rounded-lg text-[11px] sm:text-xs font-black whitespace-nowrap transition-colors ${
-                          abaRealizadoDiarioVD === valor
-                            ? 'bg-[#048187] text-white'
-                            : 'text-gray-500 hover:bg-gray-50'
-                        }`}
-                      >
-                        {rotulo}
-                      </button>
-                    ))}
-                  </div>
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Meta diária
+                  </p>
+                  <p className="text-2xl font-black text-gray-700 mt-2">
+                    {formatarMoeda(
+                      modalRealizadoDiarioVD.resumo?.meta_diaria || 0
+                    )}
+                  </p>
                 </div>
 
-                {modalRealizadoDiarioVD.carregando ? (
-                  <div className="bg-white rounded-2xl border border-gray-100 min-h-[360px] flex flex-col items-center justify-center gap-3">
-                    <RefreshCcw size={30} className="animate-spin text-[#048187]" />
-                    <p className="font-black text-gray-500">
-                      Calculando metas, realizado e gaps...
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {abaRealizadoDiarioVD === 'estruturas' && (
-                      <div className="space-y-5">
-                        {obterGruposRealizadoDiarioVD('estruturas').map((grupo) => (
-                          <section
-                            key={`diario-estrutura-${grupo.nucleo}`}
-                            className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm"
-                          >
-                            <div className="px-4 sm:px-5 py-4 bg-[#dff5f6] flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <h3 className="font-black text-[#04777d] text-base">
-                                  {grupo.nucleo}
-                                </h3>
-                                <p className="text-xs text-gray-500 font-semibold mt-1">
-                                  Resultado diário e acumulado por estrutura.
-                                </p>
-                              </div>
-                              <div className="flex flex-wrap gap-2 text-[10px] font-black">
-                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-gray-600">
-                                  {grupo.linhas.length} estrutura(s)
-                                </span>
-                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-[#048187]">
-                                  Hoje: {formatarMoeda(grupo.resumo?.vendido_hoje || 0)}
-                                </span>
-                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-[#7c1f31]">
-                                  Meta dia: {formatarMoeda(grupo.resumo?.meta_hoje || 0)}
-                                </span>
-                              </div>
-                            </div>
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Atingimento
+                  </p>
+                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
+                    {formatarNumeroBR(
+                      modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
+                      1
+                    )}%
+                  </p>
+                </div>
 
-                            <div className="overflow-x-auto">
-                              <table className="w-full min-w-[1580px] text-xs sm:text-sm">
-                                <thead className="bg-gray-50 text-[9px] sm:text-[10px] uppercase text-gray-400 font-black">
-                                  <tr>
-                                    <th className="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 min-w-[260px]">Estrutura</th>
-                                    <th className="px-4 py-3 text-right">Meta total</th>
-                                    <th className="px-4 py-3 text-right">Realizado total</th>
-                                    <th className="px-4 py-3 text-right">Gap meta total</th>
-                                    <th className="px-4 py-3 text-right">Pedidos hoje</th>
-                                    <th className="px-4 py-3 text-right">Meta de hoje</th>
-                                    <th className="px-4 py-3 text-right">Vendido hoje</th>
-                                    <th className="px-4 py-3 text-right">% realizado</th>
-                                    <th className="px-4 py-3 text-right">% meta diária</th>
-                                    <th className="px-4 py-3 text-right">Gap meta diária</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                  {grupo.linhas.map((item, indice) => (
-                                    <tr key={`linha-diaria-estrutura-${grupo.nucleo}-${item.estrutura}-${indice}`} className="hover:bg-[#f8fcfc]">
-                                      <td className="px-4 py-3 font-black text-gray-700 sticky left-0 bg-white group-hover:bg-[#f8fcfc] z-10">
-                                        <span className="text-[#257B9C] mr-2">{item.posicao || indice + 1}º</span>
-                                        {item.estrutura || 'Não informada'}
-                                      </td>
-                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.meta_total || 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado_total || 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(item.gap_meta_total || 0, item.meta_total || 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#257B9C]">{Number(item.pedidos_hoje ?? item.pedidos ?? 0).toLocaleString('pt-BR')}</td>
-                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.meta_hoje || 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#257B9C]">{formatarMoeda(item.vendido_hoje ?? item.realizado ?? 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-gray-600">{formatarNumeroBR(item.percentual_realizado || 0, 1)}%</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(item.gap_meta_diaria || 0, item.meta_hoje || 0)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                                <tfoot className="bg-[#f3fbfb] border-t-2 border-[#bfe5e7]">
-                                  <tr>
-                                    <td className="px-4 py-4 font-black text-[#04777d] sticky left-0 bg-[#f3fbfb] z-10">TOTAL {grupo.nucleo}</td>
-                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarMoeda(grupo.resumo?.meta_total || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#048187]">{formatarMoeda(grupo.resumo?.realizado_total || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(grupo.resumo?.gap_meta_total || 0, grupo.resumo?.meta_total || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#257B9C]">{Number(grupo.resumo?.pedidos_hoje || 0).toLocaleString('pt-BR')}</td>
-                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarMoeda(grupo.resumo?.meta_hoje || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#257B9C]">{formatarMoeda(grupo.resumo?.vendido_hoje || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarNumeroBR(grupo.resumo?.percentual_realizado || 0, 1)}%</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{formatarNumeroBR(grupo.resumo?.percentual_meta_diaria || 0, 1)}%</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(grupo.resumo?.gap_meta_diaria || 0, grupo.resumo?.meta_hoje || 0)}</td>
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            </div>
-                          </section>
-                        ))}
-
-                        {!obterGruposRealizadoDiarioVD('estruturas').length && (
-                          <div className="bg-white rounded-2xl border border-dashed border-gray-200 py-16 text-center text-gray-400 font-bold">
-                            Nenhuma estrutura encontrada para os filtros aplicados.
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {abaRealizadoDiarioVD === 'consultores' && (
-                      <div className="space-y-5">
-                        {obterGruposRealizadoDiarioVD('consultores').map((grupo) => (
-                          <section
-                            key={`diario-consultor-${grupo.nucleo}`}
-                            className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm"
-                          >
-                            <div className="px-4 sm:px-5 py-4 bg-[#f1eef8] flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <h3 className="font-black text-[#5c4b8a] text-base">
-                                  {grupo.nucleo}
-                                </h3>
-                                <p className="text-xs text-gray-500 font-semibold mt-1">
-                                  Resultado diário e acumulado dos consultores do núcleo.
-                                </p>
-                              </div>
-                              <div className="flex flex-wrap gap-2 text-[10px] font-black">
-                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-gray-600">
-                                  {grupo.linhas.length} consultor(es)
-                                </span>
-                                <span className="rounded-full bg-white/90 px-3 py-1.5 text-[#5c4b8a]">
-                                  Hoje: {formatarMoeda(grupo.resumo?.vendido_hoje || 0)}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                              <table className="w-full min-w-[1780px] text-xs sm:text-sm">
-                                <thead className="bg-gray-50 text-[9px] sm:text-[10px] uppercase text-gray-400 font-black">
-                                  <tr>
-                                    <th className="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 min-w-[260px]">Consultor</th>
-                                    <th className="px-4 py-3 text-left min-w-[220px]">Estrutura</th>
-                                    <th className="px-4 py-3 text-right">Meta total</th>
-                                    <th className="px-4 py-3 text-right">Realizado total</th>
-                                    <th className="px-4 py-3 text-right">Gap meta total</th>
-                                    <th className="px-4 py-3 text-right">Pedidos hoje</th>
-                                    <th className="px-4 py-3 text-right">Meta de hoje</th>
-                                    <th className="px-4 py-3 text-right">Vendido hoje</th>
-                                    <th className="px-4 py-3 text-right">% realizado</th>
-                                    <th className="px-4 py-3 text-right">% meta diária</th>
-                                    <th className="px-4 py-3 text-right">Gap meta diária</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                  {grupo.linhas.map((item, indice) => (
-                                    <tr key={`linha-diaria-consultor-${grupo.nucleo}-${item.id_consultor}-${indice}`} className="hover:bg-[#fbfaff]">
-                                      <td className="px-4 py-3 sticky left-0 bg-white z-10">
-                                        <div className="font-black text-gray-700">
-                                          <span className="text-[#5c4b8a] mr-2">{item.posicao || indice + 1}º</span>
-                                          {item.consultor || 'Não identificado'}
-                                        </div>
-                                        <div className="text-[10px] text-gray-400 font-bold mt-1">ID: {item.id_consultor || '-'}</div>
-                                      </td>
-                                      <td className="px-4 py-3 font-bold text-gray-500">{item.estrutura || 'Não informada'}</td>
-                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.meta_total || 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#5c4b8a]">{formatarMoeda(item.realizado_total || 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(item.gap_meta_total || 0, item.meta_total || 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#257B9C]">{Number(item.pedidos_hoje ?? item.pedidos ?? 0).toLocaleString('pt-BR')}</td>
-                                      <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarMoeda(item.meta_hoje || 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#5c4b8a]">{formatarMoeda(item.vendido_hoje ?? item.realizado ?? 0)}</td>
-                                      <td className="px-4 py-3 text-right font-black text-gray-600">{formatarNumeroBR(item.percentual_realizado || 0, 1)}%</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
-                                      <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(item.gap_meta_diaria || 0, item.meta_hoje || 0)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                                <tfoot className="bg-[#faf8fd] border-t-2 border-[#ded7ee]">
-                                  <tr>
-                                    <td colSpan="2" className="px-4 py-4 font-black text-[#5c4b8a] sticky left-0 bg-[#faf8fd] z-10">TOTAL CONSULTORES — {grupo.nucleo}</td>
-                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarMoeda(grupo.resumo?.meta_total || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#5c4b8a]">{formatarMoeda(grupo.resumo?.realizado_total || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(grupo.resumo?.gap_meta_total || 0, grupo.resumo?.meta_total || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#257B9C]">{Number(grupo.resumo?.pedidos_hoje || 0).toLocaleString('pt-BR')}</td>
-                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarMoeda(grupo.resumo?.meta_hoje || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#5c4b8a]">{formatarMoeda(grupo.resumo?.vendido_hoje || 0)}</td>
-                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarNumeroBR(grupo.resumo?.percentual_realizado || 0, 1)}%</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{formatarNumeroBR(grupo.resumo?.percentual_meta_diaria || 0, 1)}%</td>
-                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{textoGapRealizadoDiarioVD(grupo.resumo?.gap_meta_diaria || 0, grupo.resumo?.meta_hoje || 0)}</td>
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            </div>
-                          </section>
-                        ))}
-
-                        {!obterGruposRealizadoDiarioVD('consultores').length && (
-                          <div className="bg-white rounded-2xl border border-dashed border-gray-200 py-16 text-center text-gray-400 font-bold">
-                            Nenhum consultor encontrado para as estruturas autorizadas.
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {abaRealizadoDiarioVD === 'meios' && (
-                      <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                        <div className="px-5 py-4 bg-[#eaf6fb] flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <h3 className="font-black text-[#257B9C]">Meios de captação</h3>
-                            <p className="text-xs text-gray-500 font-semibold mt-1">Composição do vendido na data de referência.</p>
-                          </div>
-                          <span className="text-xs font-black text-[#257B9C]">{modalRealizadoDiarioVD.meios_captacao.length} meio(s)</span>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full min-w-[760px] text-sm">
-                            <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                              <tr>
-                                <th className="px-5 py-3 text-left">Posição</th>
-                                <th className="px-5 py-3 text-left">Meio de captação</th>
-                                <th className="px-5 py-3 text-right">Pedidos hoje</th>
-                                <th className="px-5 py-3 text-right">Vendido hoje</th>
-                                <th className="px-5 py-3 text-right">Participação</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {modalRealizadoDiarioVD.meios_captacao.map((item, indice) => (
-                                <tr key={`meio-dia-${item.meio_captacao}-${indice}`} className="hover:bg-[#f8fcfc]">
-                                  <td className="px-5 py-3 font-black text-[#257B9C]">{item.posicao || indice + 1}º</td>
-                                  <td className="px-5 py-3 font-black text-gray-700">{item.meio_captacao || 'Não informado'}</td>
-                                  <td className="px-5 py-3 text-right font-bold text-gray-600">{Number(item.pedidos || 0).toLocaleString('pt-BR')}</td>
-                                  <td className="px-5 py-3 text-right font-black text-[#257B9C]">{formatarMoeda(item.realizado || 0)}</td>
-                                  <td className="px-5 py-3 text-right font-black text-gray-600">{formatarNumeroBR(item.participacao || 0, 1)}%</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </section>
-                    )}
-                  </>
-                )}
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="text-[10px] font-black uppercase text-gray-400">
+                    Falta para a meta diária
+                  </p>
+                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
+                    {
+                      Number(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) <= 0
+                        ? 'Sem meta cadastrada'
+                        : Number(
+                            modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0
+                          ) > 0
+                          ? formatarMoeda(
+                              modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0
+                            )
+                          : 'Meta batida'
+                    }
+                  </p>
+                </div>
               </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-500">
+                <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                  Data: {
+                    formatarDataBR(
+                      modalRealizadoDiarioVD.resumo?.data_referencia
+                      || new Date().toISOString().slice(0, 10)
+                    )
+                  }
+                </span>
+                <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                  Ciclo: {
+                    modalRealizadoDiarioVD.resumo?.ciclo || '-'
+                  }
+                </span>
+                <span className={`rounded-full border px-3 py-2 ${
+                  modalRealizadoDiarioVD.conferencia?.meios_ok
+                  && modalRealizadoDiarioVD.conferencia?.estruturas_ok
+                  && modalRealizadoDiarioVD.conferencia?.consultores_ok
+                    ? 'bg-green-50 border-green-100 text-green-700'
+                    : 'bg-orange-50 border-orange-100 text-orange-700'
+                }`}>
+                  {
+                    modalRealizadoDiarioVD.conferencia?.meios_ok
+                    && modalRealizadoDiarioVD.conferencia?.estruturas_ok
+                    && modalRealizadoDiarioVD.conferencia?.consultores_ok
+                      ? '✓ Todos os detalhamentos fecham com o total'
+                      : 'Conferindo composição do resultado'
+                  }
+                </span>
+              </div>
+
+              {modalRealizadoDiarioVD.carregando ? (
+                <div className="bg-white rounded-2xl border border-gray-100 min-h-[300px] flex flex-col items-center justify-center gap-3">
+                  <RefreshCcw
+                    size={28}
+                    className="animate-spin text-[#048187]"
+                  />
+                  <p className="font-black text-gray-500">
+                    Carregando o detalhamento do dia...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="px-5 py-4 bg-[#dff5f6] flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-black text-[#048187]">
+                          Vendas por meio de captação
+                        </h3>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">
+                          Valor monetário vendido hoje em cada origem de pedido.
+                        </p>
+                      </div>
+                      <span className="text-xs font-black text-[#048187]">
+                        {modalRealizadoDiarioVD.meios_captacao.length} meio(s)
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-sm">
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                          <tr>
+                            <th className="px-5 py-3 text-left">Posição</th>
+                            <th className="px-5 py-3 text-left">Meio de captação</th>
+                            <th className="px-5 py-3 text-right">Pedidos</th>
+                            <th className="px-5 py-3 text-right">Vendido hoje</th>
+                            <th className="px-5 py-3 text-right">Meta diária</th><th className="px-5 py-3 text-right">% da meta</th><th className="px-5 py-3 text-right">Falta</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {modalRealizadoDiarioVD.meios_captacao.map((item, indice) => (
+                            <tr
+                              key={`meio-dia-${item.meio_captacao}-${indice}`}
+                              className="hover:bg-[#f8fcfc]"
+                            >
+                              <td className="px-5 py-3 font-black text-[#048187]">
+                                {item.posicao || indice + 1}º
+                              </td>
+                              <td className="px-5 py-3 font-black text-gray-700">
+                                {item.meio_captacao || 'Não informado'}
+                              </td>
+                              <td className="px-5 py-3 text-right font-bold text-gray-600">
+                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#048187]">
+                                {formatarMoeda(item.realizado || 0)}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-gray-600">
+                                {formatarNumeroBR(item.participacao || 0, 1)}%
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
+                                {formatarNumeroBR(
+                                  modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
+                                  1
+                                )}%
+                              </td>
+                            </tr>
+                          ))}
+
+                          {!modalRealizadoDiarioVD.meios_captacao.length && (
+                            <tr>
+                              <td colSpan="6" className="px-5 py-10 text-center text-gray-400 font-semibold">
+                                Nenhuma venda encontrada por meio de captação.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-[#f2fbfb]">
+                          <tr>
+                            <td colSpan="3" className="px-5 py-4 font-black text-gray-600">
+                              TOTAL DOS MEIOS
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#048187]">
+                              {formatarMoeda(
+                                modalRealizadoDiarioVD.conferencia?.total_meios || 0
+                              )}
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#048187]">
+                              100,0%
+                            </td>
+                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
+                              {formatarNumeroBR(
+                                modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
+                                1
+                              )}%
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </section>
+
+                  {modalRealizadoDiarioVD.nucleos?.length > 0 && (
+                    <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                      <div className="px-5 py-4 bg-[#edf8f8]">
+                        <h3 className="font-black text-[#048187]">Meta diária por núcleo</h3>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">Meta, realizado e falta de cada núcleo no dia.</p>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[760px] text-sm">
+                          <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                            <tr><th className="px-5 py-3 text-left">Núcleo</th><th className="px-5 py-3 text-right">Meta diária</th><th className="px-5 py-3 text-right">Realizado hoje</th><th className="px-5 py-3 text-right">% da meta</th><th className="px-5 py-3 text-right">Falta</th></tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {modalRealizadoDiarioVD.nucleos.map((item, indice) => (
+                              <tr key={`nucleo-dia-${indice}`}>
+                                <td className="px-5 py-3 font-black text-gray-700">{item.nucleo}</td>
+                                <td className="px-5 py-3 text-right font-black">{formatarMoeda(item.meta_hoje || 0)}</td>
+                                <td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.vendido_hoje || 0)}</td>
+                                <td className="px-5 py-3 text-right font-black">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
+                                <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarMoeda(item.gap_meta_diaria || 0)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  )}
+
+                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="px-5 py-4 bg-[#e9f4f8] flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-black text-[#257B9C]">
+                          Vendas por estrutura
+                        </h3>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">
+                          Quanto cada estrutura vendeu na data de referência.
+                        </p>
+                      </div>
+                      <span className="text-xs font-black text-[#257B9C]">
+                        {modalRealizadoDiarioVD.estruturas.length} estrutura(s)
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-sm">
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                          <tr>
+                            <th className="px-5 py-3 text-left">Posição</th>
+                            <th className="px-5 py-3 text-left">Estrutura</th>
+                            <th className="px-5 py-3 text-right">Pedidos</th>
+                            <th className="px-5 py-3 text-right">Vendido hoje</th>
+                            <th className="px-5 py-3 text-right">Meta diária</th><th className="px-5 py-3 text-right">% da meta</th><th className="px-5 py-3 text-right">Falta</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {modalRealizadoDiarioVD.estruturas.map((item, indice) => (
+                            <tr
+                              key={`estrutura-dia-${item.estrutura}-${indice}`}
+                              className="hover:bg-[#f8fcfc]"
+                            >
+                              <td className="px-5 py-3 font-black text-[#257B9C]">
+                                {item.posicao || indice + 1}º
+                              </td>
+                              <td className="px-5 py-3 font-black text-gray-700">
+                                {item.estrutura || 'Não informada'}
+                              </td>
+                              <td className="px-5 py-3 text-right font-bold text-gray-600">
+                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#257B9C]">
+                                {formatarMoeda(item.realizado || 0)}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-gray-700">{formatarMoeda(item.meta_hoje || 0)}</td>
+                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
+                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarMoeda(item.gap_meta_diaria || 0)}</td>
+                            </tr>
+                          ))}
+
+                          {!modalRealizadoDiarioVD.estruturas.length && (
+                            <tr>
+                              <td colSpan="7" className="px-5 py-10 text-center text-gray-400 font-semibold">
+                                Nenhuma venda encontrada por estrutura.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-[#f5fafd]">
+                          <tr>
+                            <td colSpan="3" className="px-5 py-4 font-black text-gray-600">TOTAL DAS ESTRUTURAS</td>
+                            <td className="px-5 py-4 text-right font-black text-[#257B9C]">{formatarMoeda(modalRealizadoDiarioVD.conferencia?.total_estruturas || 0)}</td>
+                            <td className="px-5 py-4 text-right font-black text-gray-700">{formatarMoeda(modalRealizadoDiarioVD.estruturas.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0))}</td>
+                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">{formatarNumeroBR(calcPerc(modalRealizadoDiarioVD.conferencia?.total_estruturas || 0, modalRealizadoDiarioVD.estruturas.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0)), 1)}%</td>
+                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">{formatarMoeda(Math.max(modalRealizadoDiarioVD.estruturas.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0) - Number(modalRealizadoDiarioVD.conferencia?.total_estruturas || 0), 0))}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="px-5 py-4 bg-[#f1eef8] flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-black text-[#5c4b8a]">
+                          Vendas por consultor
+                        </h3>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">
+                          Resultado individual e estrutura onde o pedido foi finalizado.
+                        </p>
+                      </div>
+                      <span className="text-xs font-black text-[#5c4b8a]">
+                        {modalRealizadoDiarioVD.consultores.length} consultor(es)
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[980px] text-sm">
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                          <tr>
+                            <th className="px-5 py-3 text-left">Posição</th>
+                            <th className="px-5 py-3 text-left">ID</th>
+                            <th className="px-5 py-3 text-left">Consultor</th>
+                            <th className="px-5 py-3 text-left">Estrutura</th>
+                            <th className="px-5 py-3 text-right">Pedidos</th>
+                            <th className="px-5 py-3 text-right">Vendido hoje</th>
+                            <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {modalRealizadoDiarioVD.consultores.map((item, indice) => (
+                            <tr
+                              key={`consultor-vd-dia-${item.id_consultor}-${item.estrutura}-${indice}`}
+                              className="hover:bg-[#fbfaff]"
+                            >
+                              <td className="px-5 py-3 font-black text-[#5c4b8a]">
+                                {item.posicao || indice + 1}º
+                              </td>
+                              <td className="px-5 py-3 font-black text-[#048187]">
+                                {item.id_consultor || '-'}
+                              </td>
+                              <td className="px-5 py-3 font-black text-gray-700">
+                                {item.consultor || 'Não identificado'}
+                              </td>
+                              <td className="px-5 py-3 font-bold text-gray-500">
+                                {item.estrutura || 'Não informada'}
+                              </td>
+                              <td className="px-5 py-3 text-right font-bold text-gray-600">
+                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-[#5c4b8a]">
+                                {formatarMoeda(item.realizado || 0)}
+                              </td>
+                              <td className="px-5 py-3 text-right font-black text-gray-700">{formatarMoeda(item.meta_hoje || 0)}</td>
+                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
+                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarMoeda(item.gap_meta_diaria || 0)}</td>
+                            </tr>
+                          ))}
+
+                          {!modalRealizadoDiarioVD.consultores.length && (
+                            <tr>
+                              <td colSpan="9" className="px-5 py-10 text-center text-gray-400 font-semibold">
+                                Nenhuma venda encontrada por consultor.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-[#faf8fd]">
+                          <tr>
+                            <td colSpan="5" className="px-5 py-4 font-black text-gray-600">TOTAL DOS CONSULTORES</td>
+                            <td className="px-5 py-4 text-right font-black text-[#5c4b8a]">{formatarMoeda(modalRealizadoDiarioVD.conferencia?.total_consultores || 0)}</td>
+                            <td className="px-5 py-4 text-right font-black text-gray-700">{formatarMoeda(modalRealizadoDiarioVD.consultores.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0))}</td>
+                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">{formatarNumeroBR(calcPerc(modalRealizadoDiarioVD.conferencia?.total_consultores || 0, modalRealizadoDiarioVD.consultores.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0)), 1)}%</td>
+                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">{formatarMoeda(Math.max(modalRealizadoDiarioVD.consultores.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0) - Number(modalRealizadoDiarioVD.conferencia?.total_consultores || 0), 0))}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </section>
+                </>
+              )}
             </div>
 
-            <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 bg-white shrink-0 flex items-center justify-between gap-3">
-              <p className="hidden sm:block text-xs font-semibold text-gray-400">
-                Os valores respeitam o ciclo, os filtros e o escopo de acesso do usuário.
-              </p>
+            <div className="p-5 border-t border-gray-100 bg-white shrink-0">
               <button
                 type="button"
                 onClick={() => setModalRealizadoDiarioVD((atual) => ({
                   ...atual,
                   aberto: false,
                 }))}
-                className="w-full sm:w-auto sm:min-w-[220px] rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-black py-3 px-6"
+                className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-black py-3"
               >
                 Fechar
               </button>
@@ -20974,7 +20074,7 @@ const enviarArquivo = async (tipo) => {
                 <>
                   <div className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-6">
                     <p className="text-sm font-bold uppercase tracking-wide text-gray-400">
-                      {modalValorExpandido.indicadorIaf ? (modalValorExpandido.indicadorIaf.rotulo_percentual || '% ativação') : 'Valor completo'}
+                      {modalValorExpandido.indicadorIaf ? '% ativação' : 'Valor completo'}
                     </p>
                     <h4 className="mt-3 text-4xl font-extrabold text-[#048187] break-words">{modalValorExpandido.valorTexto}</h4>
                   </div>
@@ -21014,9 +20114,9 @@ const enviarArquivo = async (tipo) => {
                                 <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
                                   <tr>
                                     <th className="px-4 py-3 text-left">Estrutura</th>
-                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_coluna_realizado || `Ativos com ${modalValorExpandido.indicadorIaf.indicador}`}</th>
-                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_coluna_base || 'Ativos no ciclo'}</th>
-                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_percentual || '% ativação'}</th>
+                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.modo_atividade ? 'Ativos' : `Ativos com ${modalValorExpandido.indicadorIaf.indicador}`}</th>
+                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.modo_atividade ? 'Base Ativa Total' : 'Ativos no ciclo'}</th>
+                                    <th className="px-4 py-3 text-right">% ativação</th>
                                     <th className="px-4 py-3 text-right">Meta</th>
                                     <th className="px-4 py-3 text-right">% da meta</th>
                                     <th className="px-4 py-3 text-right">Ativação ideal</th>
@@ -21076,9 +20176,9 @@ const enviarArquivo = async (tipo) => {
                                   <tr>
                                     <th className="px-4 py-3 text-left">Consultor</th>
                                     <th className="px-4 py-3 text-left">Estrutura</th>
-                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_coluna_realizado || `Ativos com ${modalValorExpandido.indicadorIaf.indicador}`}</th>
-                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_coluna_base || 'Ativos no ciclo'}</th>
-                                    <th className="px-4 py-3 text-right">{modalValorExpandido.indicadorIaf.rotulo_percentual || '% ativação'}</th>
+                                    <th className="px-4 py-3 text-right">Ativos com {modalValorExpandido.indicadorIaf.indicador}</th>
+                                    <th className="px-4 py-3 text-right">Ativos no ciclo</th>
+                                    <th className="px-4 py-3 text-right">% ativação</th>
                                     <th className="px-4 py-3 text-right">Meta</th>
                                     <th className="px-4 py-3 text-right">% da meta</th>
                                     <th className="px-4 py-3 text-right">Ativação ideal</th>
@@ -21286,9 +20386,8 @@ const enviarArquivo = async (tipo) => {
           aberto={modalMetasReaisAberto}
           onClose={() => setModalMetasReaisAberto(false)}
           apiUrl={API_URL}
-          cicloPadrao={dados?.ciclo_atual || ciclos.find((c) => c.status_ciclo === 'ativo')?.ciclo || ''}
+          cicloPadrao={cicloSelecionadoVD || filtrosAtivos?.ciclo || dados?.ciclo_atual || cicloAtualPelaData() || ''}
           onAtualizacao={atualizarTelasAposMudancaBanco}
-          nucleosPermitidos={usuarioLogado?.perfil === 'admin' ? [] : normalizarEstruturasPermitidasUsuario(usuarioLogado?.estruturas_permitidas).map((item) => item.nucleo).filter(Boolean)}
         />
       )}
 
@@ -21912,7 +21011,7 @@ const enviarArquivo = async (tipo) => {
 
       {modalEditarUsuarioAberto && usuarioEditando && (
         <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4">
-          <div className="bg-white w-full max-w-3xl max-h-[92vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-start justify-between p-6 border-b border-gray-100">
               <div>
                 <h2 className="text-xl font-bold text-gray-700">
@@ -21930,7 +21029,7 @@ const enviarArquivo = async (tipo) => {
               </button>
             </div>
 
-            <form onSubmit={salvarEdicaoUsuario} className="p-6 space-y-4 overflow-y-auto">
+            <form onSubmit={salvarEdicaoUsuario} className="p-6 space-y-4">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
                   Nome
@@ -21961,10 +21060,7 @@ const enviarArquivo = async (tipo) => {
                         perfil,
                         area_gestao: perfil === 'admin'
                           ? 'AMBOS'
-                          : (usuarioEditando.area_gestao || 'VD'),
-                        estruturas_permitidas: perfil === 'admin'
-                          ? []
-                          : usuarioEditando.estruturas_permitidas,
+                          : usuarioEditando.area_gestao,
                       });
                     }}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
@@ -21984,15 +21080,10 @@ const enviarArquivo = async (tipo) => {
                       usuarioEditando.area_gestao,
                       usuarioEditando.perfil
                     )}
-                    onChange={(e) => {
-                      const area = e.target.value;
-                      setUsuarioEditando({
-                        ...usuarioEditando,
-                        area_gestao: area,
-                        estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuarioEditando.estruturas_permitidas)
-                          .filter((item) => area === 'AMBOS' || item.area === area),
-                      });
-                    }}
+                    onChange={(e) => setUsuarioEditando({
+                      ...usuarioEditando,
+                      area_gestao: e.target.value,
+                    })}
                     disabled={usuarioEditando.perfil === 'admin'}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
                   >
@@ -22022,18 +21113,8 @@ const enviarArquivo = async (tipo) => {
                 </div>
               </div>
 
-              {usuarioEditando.perfil !== 'admin' && (
-                <SeletorEscopoUsuario
-                  area={normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil)}
-                  opcoes={opcoesEscopoUsuarios}
-                  selecionadas={usuarioEditando.estruturas_permitidas}
-                  onChange={(estruturas_permitidas) => setUsuarioEditando({ ...usuarioEditando, estruturas_permitidas })}
-                  carregando={carregandoOpcoesEscopoUsuarios}
-                />
-              )}
-
               <div className="rounded-xl bg-[#f7fafb] border border-gray-100 px-4 py-3 text-xs text-gray-500 font-semibold">
-                Visualizador VD: acesso exclusivo à aba Acompanhamento. Visualizador LOJA: acesso exclusivo à Visão Geral nesta etapa. Os dados e as notificações ficam limitados às estruturas selecionadas.
+                Gestor VD recebe alertas somente de VD. Gestor LOJA recebe alertas somente de LOJA. Admin recebe os dois.
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
