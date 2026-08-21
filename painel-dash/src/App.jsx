@@ -19221,7 +19221,7 @@ const enviarArquivo = async (tipo) => {
 
               <ModuloUploadLoja
                 titulo="Base mensal de Serviços"
-                descricao="Importe o Excel com as abas PDV e CONSULTOR. A DATA REALIZACAO deve estar em AAAA-MM-DD, como 2026-07-11. O arquivo deve conter somente um mês."
+                descricao="Importe o relatório Serviços em loja com as abas FILTROS, PDV e CONSULTOR. A competência é lida automaticamente em FILTROS > PERÍODO ATUAL e o indicador usa QT. SERVICOS COMPLETOS."
                 tipo="servicos"
                 endpoint="/loja/upload-servicos"
                 substituir
