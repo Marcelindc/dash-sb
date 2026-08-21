@@ -22194,6 +22194,7 @@ const enviarArquivo = async (tipo) => {
 
                   {modalValorExpandido.indicadorIaf && (
                     <div className="space-y-7">
+                      {!modoGerenteVD && (
                       <section className="space-y-4">
                         <h4 className="text-lg font-black text-gray-700">Acompanhamento por estrutura</h4>
                         {(modalValorExpandido.indicadorIaf.por_estrutura || []).map((grupo) => (
@@ -22253,6 +22254,7 @@ const enviarArquivo = async (tipo) => {
                           </div>
                         ))}
                       </section>
+                      )}
 
                       {modalValorExpandido.indicadorIaf.permite_consultor !== false && (
                       <section className="space-y-4">
