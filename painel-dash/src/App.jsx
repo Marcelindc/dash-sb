@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoBrancaLogin from './assets/logo-branca.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 import TelaSolicitacoes from './telas/TelaSolicitacoes';
 
+import './dashboard-refinado.css';
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
 const TELA_ATUAL_STORAGE_KEY = 'dashSbTelaAtual';
@@ -20,7 +21,7 @@ const CICLO_UPLOAD_LOJA_STORAGE_KEY = 'dashSbCicloUploadLoja';
 const CICLO_ATUAL_CONHECIDO_STORAGE_KEY = 'dashSbCicloAtualConhecido';
 const CICLO_SELECTOR_REPAIR_KEY = 'dashSbCicloSelectorRepairV1';
 const APP_NAME = 'DASH COMERCIAL SB';
-const CACHE_SESSAO_DASH_KEY = 'dashSbCacheInteracoesV2';
+const CACHE_SESSAO_DASH_KEY = 'dashSbCacheInteracoesV3MetaNucleo';
 const CACHE_SESSAO_TTL_MS = 15 * 60 * 1000;
 
 
@@ -164,10 +165,119 @@ const normalizarEstruturasPermitidasUsuario = (valor) => {
     const chave = `${area}|${codigo}|${estrutura.toLowerCase()}`;
     if (vistos.has(chave)) return acc;
     vistos.add(chave);
-    acc.push({ area, codigo, estrutura: estrutura || codigo, nucleo, vinculadas });
+    const codigosVinculados = Array.isArray(base.codigos_vinculados)
+      ? base.codigos_vinculados.map((v) => String(v || '').trim()).filter(Boolean)
+      : [];
+    acc.push({
+      area,
+      codigo,
+      estrutura: estrutura || codigo,
+      nucleo,
+      vinculadas,
+      meta_id: String(base.meta_id || '').trim(),
+      codigos_vinculados: codigosVinculados,
+      qtd_consultores_ativos: Number(base.qtd_consultores_ativos || 0),
+      rotulo: String(base.rotulo || base.label_exibicao || '').trim(),
+    });
     return acc;
   }, []);
 };
+
+const chaveEscopoUsuario = (item) => `${String(item?.area || '')}|${String(item?.codigo || '')}|${String(item?.estrutura || '').toLowerCase()}`;
+
+const SeletorEscopoUsuario = ({ area, opcoes = [], selecionadas = [], onChange, carregando = false }) => {
+  const [busca, setBusca] = useState('');
+  const areaNormalizada = String(area || 'AMBOS').toUpperCase();
+  const areasPermitidas = areaNormalizada === 'AMBOS' ? ['VD', 'LOJA'] : [areaNormalizada];
+  const selecionadasNorm = normalizarEstruturasPermitidasUsuario(selecionadas);
+  const chavesSelecionadas = new Set(selecionadasNorm.map(chaveEscopoUsuario));
+  const termo = busca.trim().toLowerCase();
+  const filtradas = normalizarEstruturasPermitidasUsuario(opcoes).filter((item) => {
+    if (!areasPermitidas.includes(item.area)) return false;
+    const alvo = `${item.codigo} ${item.estrutura} ${item.nucleo} ${item.rotulo || ''}`.toLowerCase();
+    return !termo || alvo.includes(termo);
+  });
+
+  const alternar = (item) => {
+    const chave = chaveEscopoUsuario(item);
+    onChange(
+      chavesSelecionadas.has(chave)
+        ? selecionadasNorm.filter((atual) => chaveEscopoUsuario(atual) !== chave)
+        : [...selecionadasNorm, item]
+    );
+  };
+
+  return (
+    <div className="rounded-2xl border border-[#cde9ea] bg-[#f7fbfb] p-4 sm:p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div>
+          <p className="text-sm font-black text-gray-700">Estruturas permitidas</p>
+          <p className="text-xs text-gray-400 mt-1">O usuário verá somente os resultados selecionados.</p>
+        </div>
+        <span className="w-fit rounded-full bg-[#048187] px-3 py-1 text-xs font-black text-white">
+          {selecionadasNorm.length} selecionada(s)
+        </span>
+      </div>
+
+      <div className="relative mb-3">
+        <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar estrutura, equipe ou PDV..."
+          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm outline-none focus:border-[#048187]"
+        />
+      </div>
+
+      {carregando ? (
+        <div className="py-8 text-center text-sm font-bold text-[#048187]">Carregando estruturas...</div>
+      ) : (
+        <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+          {filtradas.map((item) => {
+            const selecionada = chavesSelecionadas.has(chaveEscopoUsuario(item));
+            return (
+              <button
+                key={chaveEscopoUsuario(item)}
+                type="button"
+                onClick={() => alternar(item)}
+                className={`w-full rounded-xl border p-3 text-left transition-all ${selecionada ? 'border-[#048187] bg-[#e6f6f7] shadow-sm' : 'border-gray-100 bg-white hover:border-[#9bd4d6]'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.area === 'LOJA' ? 'bg-orange-50 text-orange-600' : 'bg-[#dff5f6] text-[#048187]'}`}>{item.area}</span>
+                      {item.nucleo && <span className="text-[10px] font-black text-gray-400">{item.nucleo}</span>}
+                    </div>
+                    <p className="mt-1 text-sm font-black text-gray-700 break-words">
+                      {item.rotulo || item.estrutura}
+                    </p>
+                    {!item.rotulo && item.codigo && (
+                      <p className="mt-0.5 text-[10px] font-bold text-gray-400 break-all">Código: {item.codigo}</p>
+                    )}
+                    {item.area === 'VD' && (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-gray-400">
+                        {!!item.vinculadas?.length && <span>{item.vinculadas.length} estrutura(s) vinculada(s)</span>}
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[#048187] border border-[#cde9ea]">
+                          {Number(item.qtd_consultores_ativos || 0)} consultor(es) ativo(s)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <span className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${selecionada ? 'border-[#048187] bg-[#048187] text-white' : 'border-gray-200 text-transparent'}`}>✓</span>
+                </div>
+              </button>
+            );
+          })}
+          {!filtradas.length && (
+            <div className="py-8 text-center text-sm font-bold text-gray-400">Nenhuma estrutura encontrada.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 
 const normalizarChaveAcompanhamento = (valor) => String(valor || '')
   .normalize('NFD')
@@ -550,14 +660,16 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
-  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil', 'Solicitações'],
+  admin: ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
+  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil', 'Solicitações'],
   visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil', 'Solicitações']
 };
 
 const obterNomeAba = (nome) => ({
   Dashboard: 'Visão Geral',
   AcompanhamentoVD: 'Acompanhamento',
+  PrimeiroPedidoCaptacao: '1º Pedido',
+  Tutoriais: 'Tutoriais e Dúvidas',
   Metas: 'Metas Estruturas',
   N1: 'N1',
   N2: 'N2',
@@ -572,7 +684,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'];
+const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -604,6 +716,11 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   // Solicitações é uma aba geral e obrigatória para todos os usuários.
   PERFIS_SISTEMA.forEach((perfil) => {
     if (!normalizadas[perfil].includes('Solicitações')) normalizadas[perfil].push('Solicitações');
+  });
+
+  // Tutoriais e Dúvidas aparece para todos; o conteúdo é filtrado por destinatário no backend.
+  PERFIS_SISTEMA.forEach((perfil) => {
+    if (!normalizadas[perfil].includes('Tutoriais')) normalizadas[perfil].push('Tutoriais');
   });
 
   // Ações é uma aba de gestão operacional. Libera por padrão para admin e gestor.
@@ -640,6 +757,7 @@ const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') =>
 
   if (!normalizadas.includes('Perfil')) normalizadas.push('Perfil');
   if (!normalizadas.includes('Solicitações')) normalizadas.push('Solicitações');
+  if (!normalizadas.includes('Tutoriais')) normalizadas.push('Tutoriais');
 
   if (perfil === 'admin') {
     ['ADM', 'Configurações', 'Perfil'].forEach((abaObrigatoria) => {
@@ -653,8 +771,13 @@ const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') =>
 const filtroVazio = { ciclo: '', nucleos: [], unidades: [], estruturas: [], consultores: [], situacoes: [], meios_captacao: [], modelos_comerciais: [], canais_venda: [], data_inicio: '', data_fim: '' };
 const buscaFiltrosVazia = { nucleos: '', unidades: '', estruturas: '', consultores: '', situacoes: '', meios_captacao: '', modelos_comerciais: '', canais_venda: '' };
 const cicloFormVazio = { ciclo: '', data_inicio: '', data_fim: '', meta_ciclo: '', status_ciclo: 'ativo' };
-const consultorVazio = { id_colaborador: '', nome: '', nome_social: '', estrutura: '', canal: 'ESPAÇO DO REVENDEDOR', status_consultor: 'ativo', peso_meta: 0 };
-const estruturaConfigVazia = { cod_estrutura: '', estrutura: '', canal: 'VD', nucleo: 'NUCLEO 1', tipo_estrutura: 'estrutura', status: 'ativo' };
+const consultorVazio = { id_colaborador: '', nome: '', nome_social: '', estrutura_oficial_id: '', estrutura: '', canal: 'VD', status_consultor: 'ativo', peso_meta: 0 };
+const estruturaConfigVazia = { cod_estrutura: '', nome: '', estrutura: '', nucleo: 'NUCLEO 1', categoria_canal: 'FORÇA DE VENDAS', status: 'ativo', variacoes: [] };
+const tutorialFormVazio = {
+  tipo_publicacao: 'tutorial', titulo: '', descricao: '', conteudo: '', categoria: 'Geral', youtube_url: '',
+  status_publicacao: 'rascunho', destaque: false, permitir_feedback: true, publico_modo: 'todos',
+  perfis: [], usuarios_incluir: [], usuarios_excluir: [], incluir_novos_perfis: true,
+};
 
 const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(v || 0));
 const formatarNumeroBR = (v, casas = 0) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
@@ -3349,8 +3472,14 @@ const normalizarDadosLojaMetaSkinPercentual = (dadosLojaApi) => {
 };
 const corPorFaixaMeta = (percentual) => {
   const valor = Number(percentual || 0);
-  if (valor < 70) return '#7c1f31';
-  if (valor < 91) return '#ff6f03';
+
+  // REGRA_OFICIAL_CORES_ATINGIMENTO_V2
+  // A cor SEMPRE representa o percentual de atingimento da meta:
+  // 0 a 79,99%   = vermelho
+  // 80 a 95,99%  = laranja
+  // 96% ou mais  = verde
+  if (valor < 80) return '#7c1f31';
+  if (valor < 96) return '#ff6f03';
   return '#048187';
 };
 const calcularQtdMetaAtividade = (baseAtiva, metaPercentual) => {
@@ -3750,1316 +3879,390 @@ const CampoMetaIndicador = ({ label, value, onChange, placeholder = '0,00', casa
 );
 
 function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao, modoInline = false }) {
-  const [metas, setMetas] = useState([]);
+  const metaVazia = () => ({
+    ciclo: cicloPadrao || '', estrutura_oficial_id: '', variacao_ids: [],
+    meta_real: '', meta_atividade: '', meta_make: '', meta_cabelo: '', meta_multimarcas: '',
+    meta_eudora: '20,0', meta_rpa: '', meta_tkt_medio: '', meta_upa: '',
+    tem_consultores: '', consultores: []
+  });
+  const [form, setForm] = useState(metaVazia);
   const [estruturas, setEstruturas] = useState([]);
-  const [estruturasConfigMeta, setEstruturasConfigMeta] = useState([]);
-  const [busca, setBusca] = useState('');
-  const [form, setForm] = useState({ ...metaRealVazia, ciclo: cicloPadrao || '' });
+  const [metas, setMetas] = useState([]);
+  const [ciclosMeta, setCiclosMeta] = useState([]);
+  const [contexto, setContexto] = useState(null);
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [salvandoTabela, setSalvandoTabela] = useState(false);
-  const [mensagem, setMensagem] = useState('');
   const [erro, setErro] = useState('');
-  const [avisoEstrutura, setAvisoEstrutura] = useState(null);
-  const [mostrarListaEstruturasMeta, setMostrarListaEstruturasMeta] = useState(false);
-  const [mostrarFormularioMeta, setMostrarFormularioMeta] = useState(false);
-  const [modoTabelaCiclo, setModoTabelaCiclo] = useState(false);
-  const [linhasNovoCiclo, setLinhasNovoCiclo] = useState([]);
-  const [cicloNovoEmMassa, setCicloNovoEmMassa] = useState('');
-  const [metaExpandidaId, setMetaExpandidaId] = useState(null);
-  const [metaLinhaEditandoId, setMetaLinhaEditandoId] = useState(null);
-  const [linhaEditandoMeta, setLinhaEditandoMeta] = useState(null);
-  const [salvandoLinhaMeta, setSalvandoLinhaMeta] = useState(false);
-  const [filtroNucleoMetas, setFiltroNucleoMetas] = useState('Todos');
-  const [cadastroMetasVdExpandido, setCadastroMetasVdExpandido] = useState(false);
+  const [mensagem, setMensagem] = useState('');
+  const [mostrarEdicaoMassa, setMostrarEdicaoMassa] = useState(false);
+  const [metasSelecionadasMassa, setMetasSelecionadasMassa] = useState([]);
+  const [buscaMassa, setBuscaMassa] = useState('');
+  const [nucleoMassa, setNucleoMassa] = useState('TODOS');
+  const [salvandoMassa, setSalvandoMassa] = useState(false);
+  const valoresMassaVazios = () => ({
+    meta_atividade: '', meta_make: '', meta_cabelo: '', meta_multimarcas: '',
+    meta_rpa: '', meta_tkt_medio: '', meta_upa: ''
+  });
+  const [valoresMassa, setValoresMassa] = useState(valoresMassaVazios);
 
-  const cicloConsulta = modoInline
-    ? String(cicloPadrao || form.ciclo || '').trim()
-    : String(form.ciclo || cicloPadrao || '').trim();
+  const numero = (valor) => converterMetaRealParaNumero(valor);
+  const moedaInput = (valor) => formatarMetaRealInput(valor);
+  const pctInput = (valor) => formatarMetaIndicadorInput(valor, 1);
+  const cicloAtualForm = String(form.ciclo || cicloPadrao || '').trim();
 
-  const carregarMetas = async (cicloForcado = null) => {
-    setCarregando(true);
-    setErro('');
+  const carregarBase = async (cicloForcado = '') => {
+    const ciclo = String(cicloForcado || cicloAtualForm || cicloPadrao || '').trim();
+    setCarregando(true); setErro('');
     try {
-      const cicloUsado = cicloForcado ?? cicloConsulta;
-      const { data } = await axios.get(`${apiUrl}/metas-reais`, { params: cicloUsado ? { ciclo: cicloUsado } : {} });
-      setMetas(data.metas || []);
+      const [estResp, cicResp, metaResp] = await Promise.all([
+        axios.get(`${apiUrl}/cadastro-v2/estruturas`, { params: { incluir_inativas: false } }),
+        axios.get(`${apiUrl}/ciclos`),
+        ciclo ? axios.get(`${apiUrl}/cadastro-v2/metas`, { params: { ciclo } }) : Promise.resolve({ data: { metas: [] } })
+      ]);
+      setEstruturas(estResp.data?.estruturas || []);
+      setCiclosMeta(cicResp.data?.ciclos || []);
+      setMetas(metaResp.data?.metas || []);
     } catch (e) {
-      setErro(e.response?.data?.detail || 'Erro ao carregar metas reais.');
-    } finally {
-      setCarregando(false);
-    }
-  };
-
-  const carregarEstruturas = async (cicloForcado = null) => {
-    try {
-      const cicloUsado = cicloForcado ?? cicloConsulta;
-      const { data } = await axios.get(`${apiUrl}/metas-reais/estruturas-opcoes`, { params: cicloUsado ? { ciclo: cicloUsado } : {} });
-      setEstruturas(data.estruturas || []);
-    } catch (e) {
-      setEstruturas([]);
-    }
-  };
-
-  const carregarEstruturasConfigMeta = async () => {
-    try {
-      const { data } = await axios.get(`${apiUrl}/estruturas-config`);
-      setEstruturasConfigMeta(data.estruturas || []);
-    } catch (e) {
-      setEstruturasConfigMeta([]);
-    }
+      setErro(e.response?.data?.detail || 'Erro ao carregar o cadastro de metas.');
+    } finally { setCarregando(false); }
   };
 
   useEffect(() => {
     if (!aberto) return;
-    const cicloExato = String(cicloPadrao || '').trim();
-    setForm((atual) => ({
-      ...atual,
-      ciclo: modoInline ? cicloExato : (atual.ciclo || cicloExato),
-    }));
-    setEditandoId(null);
-    setMetaLinhaEditandoId(null);
-    setLinhaEditandoMeta(null);
-    carregarMetas(cicloExato || null);
-    carregarEstruturas(cicloExato || null);
-    carregarEstruturasConfigMeta();
-  }, [aberto, cicloPadrao, modoInline]);
+    const ciclo = String(cicloPadrao || '').trim();
+    setForm((atual) => ({ ...metaVazia(), ciclo: ciclo || atual.ciclo || '' }));
+    setEditandoId(null); setContexto(null); setMostrarFormulario(false);
+    setMostrarEdicaoMassa(false); setMetasSelecionadasMassa([]); setBuscaMassa(''); setNucleoMassa('TODOS');
+    setValoresMassa(valoresMassaVazios());
+    carregarBase(ciclo);
+  }, [aberto, cicloPadrao]);
 
-  useEffect(() => {
-    if (!avisoEstrutura) return;
-    const timer = setTimeout(() => setAvisoEstrutura(null), 3500);
-    return () => clearTimeout(timer);
-  }, [avisoEstrutura]);
-
-  const opcoesEstruturasCadastro = (estruturasConfigMeta.length ? estruturasConfigMeta : estruturas)
-    .map((item) => ({
-      cod_estrutura: String(item.cod_estrutura || String(item.estrutura || '').split('-')[0] || '').trim(),
-      estrutura: String(item.estrutura || '').trim(),
-      canal: item.canal || 'VD',
-      nucleo: item.nucleo || item.núcleo || 'NUCLEO 1',
-      tipo_estrutura: item.tipo_estrutura || 'estrutura',
-      status: item.status || 'ativo'
-    }))
-    .filter((item) => item.estrutura && !['excluido', 'excluído'].includes(String(item.status || '').toLowerCase()))
-    .sort((a, b) => `${a.nucleo}-${a.estrutura}`.localeCompare(`${b.nucleo}-${b.estrutura}`));
-
-  const limparForm = (cicloManter = null) => {
-    setEditandoId(null);
-    setForm({ ...metaRealVazia, ciclo: cicloManter || cicloPadrao || form.ciclo || '' });
-    setBusca('');
-    setAvisoEstrutura(null);
-    setMostrarListaEstruturasMeta(false);
-    setMostrarFormularioMeta(false);
-    setMetaLinhaEditandoId(null);
-    setLinhaEditandoMeta(null);
+  const trocarCiclo = async (ciclo) => {
+    setForm((atual) => ({ ...atual, ciclo }));
+    setMensagem(''); setErro('');
+    setMostrarEdicaoMassa(false); setMetasSelecionadasMassa([]); setBuscaMassa(''); setNucleoMassa('TODOS');
+    setValoresMassa(valoresMassaVazios());
+    try {
+      const { data } = await axios.get(`${apiUrl}/cadastro-v2/metas`, { params: { ciclo } });
+      setMetas(data?.metas || []);
+    } catch (e) { setErro(e.response?.data?.detail || 'Erro ao carregar metas do ciclo.'); }
   };
 
-  const normalizarEstruturaMeta = (valor) => String(valor || '').trim().toLowerCase();
-  const estruturaJaSelecionada = (estrutura) => form.estruturas.some((e) => normalizarEstruturaMeta(e.estrutura) === normalizarEstruturaMeta(estrutura));
-
-  const estruturaJaCadastradaEmMeta = (estrutura, codEstrutura = '') => {
-    const estruturaNormalizada = normalizarEstruturaMeta(estrutura);
-    const codNormalizado = normalizarEstruturaMeta(codEstrutura || String(estrutura || '').split('-')[0]);
-
-    return metas.some((meta) => {
-      if (editandoId && String(meta.id) === String(editandoId)) return false;
-
-      return (meta.estruturas || []).some((item) => {
-        const estruturaItem = normalizarEstruturaMeta(item.estrutura);
-        const codItem = normalizarEstruturaMeta(item.cod_estrutura || String(item.estrutura || '').split('-')[0]);
-
-        return estruturaItem === estruturaNormalizada || (!!codNormalizado && codItem === codNormalizado);
-      });
-    });
-  };
-
-  const notificarEstruturaDuplicada = (estrutura = '') => {
-    setAvisoEstrutura({
-      tipo: 'erro',
-      texto: 'Estrutura já está cadastrada!',
-      detalhe: estrutura ? `A estrutura ${estrutura} já está vinculada em uma meta real deste ciclo.` : ''
-    });
-  };
-
-  const notificarEstruturaAdicionada = (estrutura = '') => {
-    setAvisoEstrutura({
-      tipo: 'sucesso',
-      texto: 'Estrutura cadastrada!',
-      detalhe: estrutura ? `${estrutura} foi vinculada à nova meta.` : ''
-    });
-  };
-
-  const adicionarEstrutura = (item) => {
-    const estrutura = String(item.estrutura || '').trim();
-    const cod = String(item.cod_estrutura || estrutura.split('-')[0] || '').trim();
-
-    if (!estrutura) return;
-
-    if (estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod)) {
-      notificarEstruturaDuplicada(estrutura);
-      return;
-    }
-
-    setForm((atual) => ({
-      ...atual,
-      estruturas: [...atual.estruturas, { cod_estrutura: cod, estrutura }]
-    }));
-    setBusca('');
-    setMostrarListaEstruturasMeta(false);
-    notificarEstruturaAdicionada(estrutura);
-  };
-
-  const removerEstrutura = (estrutura) => {
-    setForm((atual) => ({ ...atual, estruturas: atual.estruturas.filter((e) => e.estrutura !== estrutura) }));
-  };
-
-  const salvarMeta = async (e) => {
-    e.preventDefault();
+  const selecionarEstrutura = async (id) => {
+    const estruturaId = Number(id || 0);
+    if (!estruturaId) { setContexto(null); setForm((a) => ({ ...a, estrutura_oficial_id: '', variacao_ids: [], consultores: [] })); return; }
     setErro('');
-    setMensagem('');
-    const cicloDestino = String((modoInline ? cicloPadrao : form.ciclo) || form.ciclo || '').trim();
-    if (!cicloDestino) return setErro('Selecione um ciclo no topo antes de cadastrar a meta.');
-    if (!form.nome_meta.trim()) return setErro('Informe o nome da meta.');
-    if (!form.estruturas.length) return setErro('Vincule pelo menos uma estrutura.');
-    const metaRealNumero = converterMetaRealParaNumero(form.meta_real);
-    if (metaRealNumero <= 0) return setErro('Informe uma meta real maior que zero.');
+    try {
+      const { data } = await axios.get(`${apiUrl}/cadastro-v2/metas/contexto`, { params: { ciclo: cicloAtualForm, estrutura_id: estruturaId } });
+      const est = data?.estrutura || null;
+      const consultores = (data?.consultores || []).map((c) => ({
+        id_colaborador: String(c.id_colaborador || ''), nome: c.nome_exibicao || c.nome || c.id_colaborador,
+        meta_receita: ''
+      }));
+      setContexto({ ...(data || {}), estrutura: est });
+      setForm((a) => ({ ...a, estrutura_oficial_id: estruturaId, variacao_ids: (est?.variacao_ids || []).map(Number), consultores }));
+      if (!editandoId && data?.meta_existente_id) setErro('Já existe uma meta para esta estrutura no ciclo. Use o lápis na lista para editar.');
+    } catch (e) { setErro(e.response?.data?.detail || 'Erro ao carregar a estrutura.'); }
+  };
+
+  const abrirNovaMeta = () => {
+    setForm({ ...metaVazia(), ciclo: cicloAtualForm || cicloPadrao || '' });
+    setContexto(null); setEditandoId(null); setErro(''); setMensagem(''); setMostrarFormulario(true);
+  };
+
+  const editarMeta = async (meta) => {
+    setErro(''); setMensagem(''); setEditandoId(meta.id); setMostrarFormulario(true);
+    try {
+      const { data } = await axios.get(`${apiUrl}/cadastro-v2/metas/contexto`, { params: { ciclo: meta.ciclo, estrutura_id: meta.estrutura_oficial_id } });
+      const dist = new Map((meta.consultores || []).map((c) => [String(c.id_colaborador || ''), Number(c.meta_receita || 0)]));
+      const consultores = (data?.consultores || []).map((c) => ({
+        id_colaborador: String(c.id_colaborador || ''), nome: c.nome_exibicao || c.nome || c.id_colaborador,
+        meta_receita: dist.has(String(c.id_colaborador || '')) ? moedaInput(dist.get(String(c.id_colaborador || ''))) : ''
+      }));
+      setContexto(data || null);
+      setForm({
+        ciclo: meta.ciclo || cicloAtualForm,
+        estrutura_oficial_id: Number(meta.estrutura_oficial_id || 0),
+        variacao_ids: (meta.variacao_ids || []).map(Number),
+        meta_real: moedaInput(meta.meta_real), meta_atividade: pctInput(meta.meta_atividade),
+        meta_make: pctInput(meta.meta_make), meta_cabelo: pctInput(meta.meta_cabelo),
+        meta_multimarcas: pctInput(meta.meta_multimarcas), meta_eudora: pctInput(meta.meta_eudora || 20),
+        meta_rpa: moedaInput(meta.meta_rpa), meta_tkt_medio: moedaInput(meta.meta_tkt_medio),
+        meta_upa: pctInput(meta.meta_upa), tem_consultores: Boolean(meta.tem_consultores), consultores
+      });
+    } catch (e) { setErro(e.response?.data?.detail || 'Erro ao abrir a meta.'); }
+  };
+
+  const cancelarFormulario = () => {
+    setMostrarFormulario(false); setEditandoId(null); setContexto(null);
+    setForm({ ...metaVazia(), ciclo: cicloAtualForm || cicloPadrao || '' }); setErro('');
+  };
+
+  const totalDistribuido = form.consultores.reduce((acc, c) => acc + numero(c.meta_receita), 0);
+  const metaReceita = numero(form.meta_real);
+  const saldoDistribuicao = metaReceita - totalDistribuido;
+  const eudoraPercent = numero(form.meta_eudora) || 20;
+
+  const salvar = async (e) => {
+    e.preventDefault(); setErro(''); setMensagem('');
+    if (!cicloAtualForm) return setErro('Selecione o ciclo.');
+    if (!Number(form.estrutura_oficial_id || 0)) return setErro('Selecione a estrutura.');
+    if (!form.variacao_ids.length) return setErro('Selecione pelo menos uma estrutura vinculada.');
+    if (metaReceita <= 0) return setErro('Informe a Meta Receita.');
+    if (form.tem_consultores === '') return setErro('Responda se a estrutura tem consultores.');
+    if (form.tem_consultores && Math.abs(saldoDistribuicao) > 0.01) return setErro('A soma das metas dos consultores precisa ser exatamente igual à Meta Receita da estrutura.');
     setSalvando(true);
     const payload = {
-      ...form,
-      ciclo: String((modoInline ? cicloPadrao : form.ciclo) || form.ciclo || '').trim(),
-      nome_meta: String(form.nome_meta || '').trim(),
-      meta_real: metaRealNumero,
-      meta_atividade: converterMetaRealParaNumero(form.meta_atividade),
-      meta_make: converterMetaRealParaNumero(form.meta_make),
-      meta_cabelo: converterMetaRealParaNumero(form.meta_cabelo),
-      meta_multimarcas: converterMetaRealParaNumero(form.meta_multimarcas) || 78,
-      meta_eudora: converterMetaRealParaNumero(form.meta_eudora) || 20,
-      meta_rpa: converterMetaRealParaNumero(form.meta_rpa),
-      meta_tkt_medio: converterMetaRealParaNumero(form.meta_tkt_medio),
-      meta_upa: converterMetaRealParaNumero(form.meta_upa),
-      estruturas: form.estruturas.map((e) => ({ cod_estrutura: e.cod_estrutura || '', estrutura: e.estrutura }))
+      ciclo: cicloAtualForm, estrutura_oficial_id: Number(form.estrutura_oficial_id),
+      variacao_ids: form.variacao_ids.map(Number), meta_real: metaReceita,
+      meta_atividade: numero(form.meta_atividade), meta_make: numero(form.meta_make), meta_cabelo: numero(form.meta_cabelo),
+      meta_multimarcas: numero(form.meta_multimarcas), meta_eudora: eudoraPercent,
+      meta_rpa: numero(form.meta_rpa), meta_tkt_medio: numero(form.meta_tkt_medio), meta_upa: numero(form.meta_upa),
+      tem_consultores: Boolean(form.tem_consultores),
+      consultores: form.tem_consultores ? form.consultores.map((c) => ({ id_colaborador: c.id_colaborador, meta_receita: numero(c.meta_receita) })) : []
     };
     try {
-      if (editandoId) await axios.put(`${apiUrl}/metas-reais/${editandoId}`, payload);
-      else await axios.post(`${apiUrl}/metas-reais`, payload);
-      setMensagem(editandoId ? 'Meta real atualizada.' : 'Meta real cadastrada.');
-      limparForm(payload.ciclo);
-      await carregarMetas(payload.ciclo);
+      if (editandoId) await axios.put(`${apiUrl}/cadastro-v2/metas/${editandoId}`, payload);
+      else await axios.post(`${apiUrl}/cadastro-v2/metas`, payload);
+      setMensagem(editandoId ? 'Meta atualizada com sucesso.' : 'Meta cadastrada com sucesso.');
+      setMostrarFormulario(false); setEditandoId(null); setContexto(null);
+      setForm({ ...metaVazia(), ciclo: cicloAtualForm });
+      await carregarBase(cicloAtualForm);
       if (onAtualizacao) onAtualizacao();
-    } catch (err) {
-      setErro(err.response?.data?.detail || 'Erro ao salvar meta real.');
-    } finally {
-      setSalvando(false);
-    }
-  };
-
-  const editarMeta = (meta) => {
-    setEditandoId(meta.id);
-    setModoTabelaCiclo(false);
-    setForm({
-      ciclo: meta.ciclo || '',
-      nome_meta: meta.nome_meta || '',
-      tipo_meta: meta.tipo_meta || 'grupo_estruturas',
-      meta_real: formatarMetaRealInput(meta.meta_real),
-      meta_atividade: formatarMetaIndicadorInput(meta.meta_atividade, 1),
-      meta_make: formatarMetaIndicadorInput(meta.meta_make, 1),
-      meta_cabelo: formatarMetaIndicadorInput(meta.meta_cabelo, 1),
-      meta_multimarcas: formatarMetaIndicadorInput(meta.meta_multimarcas || 78, 1),
-      meta_eudora: formatarMetaIndicadorInput(meta.meta_eudora || 20, 1),
-      meta_rpa: formatarMetaIndicadorInput(meta.meta_rpa, 2),
-      meta_tkt_medio: formatarMetaIndicadorInput(meta.meta_tkt_medio, 2),
-      meta_upa: formatarMetaIndicadorInput(meta.meta_upa, 1),
-      regra_calculo: meta.regra_calculo || 'somar_estruturas',
-      status: meta.status || 'ativo',
-      observacao: meta.observacao || '',
-      estruturas: meta.estruturas || []
-    });
-    setBusca('');
-    setMostrarFormularioMeta(true);
-  };
-
-  const formatarNucleoCurtoMeta = (valor = '') => {
-    const texto = String(valor || '').toUpperCase();
-    if (texto.includes('3')) return 'N3';
-    if (texto.includes('2')) return 'N2';
-    return 'N1';
-  };
-
-  const normalizarNucleoMeta = (valor = '') => {
-    const texto = String(valor || '').toUpperCase();
-    if (texto.includes('3')) return 'NUCLEO 3';
-    if (texto.includes('2')) return 'NUCLEO 2';
-    return 'NUCLEO 1';
-  };
-
-  const encontrarConfigDaMeta = (meta) => {
-    const primeira = (meta.estruturas || [])[0] || {};
-    const estruturaMeta = String(primeira.estrutura || '').trim();
-    const codMeta = String(primeira.cod_estrutura || estruturaMeta.split('-')[0] || '').trim();
-
-    return opcoesEstruturasCadastro.find((item) => {
-      const estruturaIgual = normalizarEstruturaMeta(item.estrutura) === normalizarEstruturaMeta(estruturaMeta);
-      const codIgual = String(item.cod_estrutura || '').trim() && String(item.cod_estrutura || '').trim() === codMeta;
-      return estruturaIgual || codIgual;
-    });
-  };
-
-  const iniciarEdicaoLinhaMeta = (meta) => {
-    if (!meta?.id) {
-      setErro('Não foi possível identificar a meta para edição.');
-      return;
-    }
-
-    const primeiraEstrutura = (meta.estruturas || [])[0] || {};
-    const estruturaConfig = encontrarConfigDaMeta(meta) || {};
-    const estruturaTexto = String(primeiraEstrutura.estrutura || '').trim();
-    const codEstrutura = String(primeiraEstrutura.cod_estrutura || estruturaConfig.cod_estrutura || estruturaTexto.split('-')[0] || '').trim();
-
-    setErro('');
-    setMensagem(`Editando ${meta.nome_meta || estruturaTexto || 'meta'}. Altere os campos na própria linha e clique em Salvar.`);
-    setMetaExpandidaId(null);
-    setMostrarFormularioMeta(false);
-    setModoTabelaCiclo(false);
-    setMetaLinhaEditandoId(meta.id);
-    setLinhaEditandoMeta({
-      id: meta.id,
-      nome_meta: meta.nome_meta || '',
-      estrutura: estruturaTexto,
-      cod_estrutura: codEstrutura,
-      canal: estruturaConfig.canal || 'VD',
-      nucleo: normalizarNucleoMeta(estruturaConfig.nucleo || 'NUCLEO 1'),
-      ciclo: meta.ciclo || form.ciclo || cicloPadrao || '',
-      meta_real: formatarMetaRealInput(meta.meta_real),
-      meta_atividade: formatarMetaIndicadorInput(meta.meta_atividade, 1),
-      meta_rpa: formatarMetaIndicadorInput(meta.meta_rpa, 2),
-      meta_tkt_medio: formatarMetaIndicadorInput(meta.meta_tkt_medio, 2),
-      meta_upa: formatarMetaIndicadorInput(meta.meta_upa, 1),
-      meta_make: formatarMetaIndicadorInput(meta.meta_make, 1),
-      meta_cabelo: formatarMetaIndicadorInput(meta.meta_cabelo, 1),
-      meta_multimarcas: formatarMetaIndicadorInput(meta.meta_multimarcas || 78, 1),
-      meta_eudora: formatarMetaIndicadorInput(meta.meta_eudora || 20, 1),
-      tipo_meta: meta.tipo_meta || 'estrutura',
-      status: meta.status || 'ativo',
-      observacao: meta.observacao || ''
-    });
-  };
-
-  const atualizarLinhaMetaEditando = (campo, valor) => {
-    setLinhaEditandoMeta((atual) => ({ ...(atual || {}), [campo]: valor }));
-  };
-
-  const cancelarEdicaoLinhaMeta = () => {
-    setMetaLinhaEditandoId(null);
-    setLinhaEditandoMeta(null);
-    setErro('');
-    setMensagem('');
-  };
-
-  const salvarEdicaoLinhaMeta = async (metaOriginal) => {
-    if (!linhaEditandoMeta || !metaOriginal?.id) return;
-
-    setErro('');
-    setMensagem('');
-    setSalvandoLinhaMeta(true);
-
-    const estruturaTexto = String(linhaEditandoMeta.estrutura || '').trim();
-    const codEstrutura = String(linhaEditandoMeta.cod_estrutura || estruturaTexto.split('-')[0] || '').trim();
-    const nomeMeta = String(linhaEditandoMeta.nome_meta || obterNomeLimpoEstrutura(estruturaTexto) || estruturaTexto || '').trim();
-
-    if (!nomeMeta) {
-      setErro('Informe o nome da meta.');
-      setSalvandoLinhaMeta(false);
-      return;
-    }
-    if (!estruturaTexto) {
-      setErro('A estrutura da meta não foi identificada.');
-      setSalvandoLinhaMeta(false);
-      return;
-    }
-
-    const estruturasOriginaisMeta = Array.isArray(metaOriginal.estruturas) ? metaOriginal.estruturas.filter((e) => String(e?.estrutura || '').trim()) : [];
-    const metaTemMultiplasEstruturas = estruturasOriginaisMeta.length > 1;
-    const estruturasPayloadEdicao = metaTemMultiplasEstruturas
-      ? estruturasOriginaisMeta.map((e) => ({
-          cod_estrutura: e.cod_estrutura || String(e.estrutura || '').split('-')[0] || '',
-          estrutura: e.estrutura
-        }))
-      : [{ cod_estrutura: codEstrutura, estrutura: estruturaTexto }];
-
-    const payload = {
-      ciclo: String(linhaEditandoMeta.ciclo || '').trim(),
-      nome_meta: nomeMeta,
-      tipo_meta: metaTemMultiplasEstruturas ? 'grupo_estruturas' : (linhaEditandoMeta.tipo_meta || metaOriginal.tipo_meta || 'estrutura'),
-      meta_real: converterMetaRealParaNumero(linhaEditandoMeta.meta_real),
-      meta_atividade: converterMetaRealParaNumero(linhaEditandoMeta.meta_atividade),
-      meta_make: converterMetaRealParaNumero(linhaEditandoMeta.meta_make),
-      meta_cabelo: converterMetaRealParaNumero(linhaEditandoMeta.meta_cabelo),
-      meta_multimarcas: converterMetaRealParaNumero(linhaEditandoMeta.meta_multimarcas) || 78,
-      meta_eudora: converterMetaRealParaNumero(linhaEditandoMeta.meta_eudora) || 20,
-      meta_rpa: converterMetaRealParaNumero(linhaEditandoMeta.meta_rpa),
-      meta_tkt_medio: converterMetaRealParaNumero(linhaEditandoMeta.meta_tkt_medio),
-      meta_upa: converterMetaRealParaNumero(linhaEditandoMeta.meta_upa),
-      regra_calculo: metaOriginal.regra_calculo || 'somar_estruturas',
-      status: linhaEditandoMeta.status || metaOriginal.status || 'ativo',
-      observacao: linhaEditandoMeta.observacao || metaOriginal.observacao || '',
-      estruturas: estruturasPayloadEdicao
-    };
-
-    if (!payload.ciclo) {
-      setErro('Informe o ciclo.');
-      setSalvandoLinhaMeta(false);
-      return;
-    }
-    if (payload.meta_real <= 0) {
-      setErro('Informe uma receita/meta maior que zero.');
-      setSalvandoLinhaMeta(false);
-      return;
-    }
-
-    try {
-      await axios.put(`${apiUrl}/metas-reais/${metaOriginal.id}`, payload);
-
-      if (!metaTemMultiplasEstruturas) {
-        await axios.post(`${apiUrl}/estruturas-config`, {
-          cod_estrutura: codEstrutura,
-          estrutura: estruturaTexto,
-          canal: linhaEditandoMeta.canal || 'VD',
-          nucleo: normalizarNucleoMeta(linhaEditandoMeta.nucleo),
-          tipo_estrutura: payload.tipo_meta || 'estrutura',
-          status: 'ativo'
-        });
-      }
-
-      setMensagem('Linha atualizada com sucesso.');
-      cancelarEdicaoLinhaMeta();
-      await carregarEstruturasConfigMeta();
-      await carregarMetas(payload.ciclo);
-      if (onAtualizacao) onAtualizacao();
-    } catch (err) {
-      const detalheErro = err.response?.data?.detail || 'Erro ao salvar a linha da meta.';
-      setErro(
-        String(detalheErro).toLowerCase().includes('acesso')
-          ? `${detalheErro} Verifique se este usuário tem permissão na aba Cadastro.`
-          : detalheErro
-      );
-    } finally {
-      setSalvandoLinhaMeta(false);
-    }
+    } catch (err) { setErro(err.response?.data?.detail || 'Erro ao salvar a meta.'); }
+    finally { setSalvando(false); }
   };
 
   const excluirMeta = async (meta) => {
-    const ok = window.confirm(`Excluir a meta real "${meta.nome_meta}"?`);
-    if (!ok) return;
-    setErro('');
+    if (!window.confirm(`Apagar a meta de ${meta.nome_estrutura || meta.nome_meta} no ciclo ${meta.ciclo}?`)) return;
+    setErro(''); setMensagem('');
     try {
-      if (meta?.id) await axios.delete(`${apiUrl}/metas-reais/${meta.id}`);
-      setMensagem('Meta real excluída.');
-      await carregarMetas();
-      if (onAtualizacao) onAtualizacao();
-    } catch (err) {
-      setErro(err.response?.data?.detail || 'Erro ao excluir meta real.');
-    }
+      await axios.delete(`${apiUrl}/cadastro-v2/metas/${meta.id}`);
+      setMensagem('Meta removida.'); await carregarBase(cicloAtualForm); if (onAtualizacao) onAtualizacao();
+    } catch (e) { setErro(e.response?.data?.detail || 'Erro ao remover meta.'); }
   };
 
-  const salvarConsultorNaMeta = async (consultor, atualizacoes = {}) => {
-    const idConsultor = consultor?.id;
-    if (!idConsultor) {
-      setErro('Não foi possível identificar o cadastro do consultor.');
-      return;
+  const abrirEdicaoMassa = () => {
+    setErro(''); setMensagem('');
+    setMostrarFormulario(false); setEditandoId(null); setContexto(null);
+    setMostrarEdicaoMassa(true);
+    setMetasSelecionadasMassa([]);
+    setBuscaMassa(''); setNucleoMassa('TODOS');
+    setValoresMassa(valoresMassaVazios());
+  };
+
+  const fecharEdicaoMassa = () => {
+    setMostrarEdicaoMassa(false);
+    setMetasSelecionadasMassa([]);
+    setBuscaMassa(''); setNucleoMassa('TODOS');
+    setValoresMassa(valoresMassaVazios());
+  };
+
+  const alternarMetaMassa = (id) => {
+    const metaId = Number(id);
+    setMetasSelecionadasMassa((atuais) => atuais.includes(metaId) ? atuais.filter((x) => x !== metaId) : [...atuais, metaId]);
+  };
+
+  const selecionarTodasMassa = () => setMetasSelecionadasMassa(metas.map((m) => Number(m.id)).filter(Boolean));
+  const limparSelecaoMassa = () => setMetasSelecionadasMassa([]);
+
+  const valorMassaPreenchido = (valor) => String(valor ?? '').trim() !== '';
+  const camposMassaConfigurados = [
+    ['meta_atividade', 'Atividade'], ['meta_make', 'MAKE'], ['meta_cabelo', 'Cabelo'],
+    ['meta_multimarcas', 'Multimarcas'], ['meta_rpa', 'RPA'], ['meta_tkt_medio', 'Ticket Médio'], ['meta_upa', 'UPA']
+  ].filter(([campo]) => valorMassaPreenchido(valoresMassa[campo]));
+
+  const aplicarEdicaoMassa = async () => {
+    setErro(''); setMensagem('');
+    const ids = metasSelecionadasMassa.map(Number).filter(Boolean);
+    if (!cicloAtualForm) return setErro('Selecione o ciclo antes de usar a edição em massa.');
+    if (!ids.length) return setErro('Selecione pelo menos uma estrutura para a edição em massa.');
+    if (!camposMassaConfigurados.length) return setErro('Informe pelo menos um indicador para alterar. Campos em branco são preservados.');
+
+    const valores = {};
+    camposMassaConfigurados.forEach(([campo]) => { valores[campo] = numero(valoresMassa[campo]); });
+    for (const campo of ['meta_atividade', 'meta_make', 'meta_cabelo', 'meta_multimarcas']) {
+      if (campo in valores && (valores[campo] < 0 || valores[campo] > 100)) return setErro('Metas percentuais devem ficar entre 0% e 100%.');
+    }
+    for (const campo of ['meta_rpa', 'meta_tkt_medio', 'meta_upa']) {
+      if (campo in valores && valores[campo] < 0) return setErro('RPA, Ticket Médio e UPA não podem ser negativos.');
     }
 
+    const nomes = camposMassaConfigurados.map(([, label]) => label).join(', ');
+    if (!window.confirm(`Aplicar ${nomes} em ${ids.length} estrutura(s) do ciclo ${cicloAtualForm}? Receita e Eudora não serão alteradas.`)) return;
+
+    setSalvandoMassa(true);
     try {
-      await axios.put(`${apiUrl}/consultores/${idConsultor}`, {
-        id_colaborador: consultor.id_colaborador || '',
-        nome: consultor.nome || consultor.nome_cadastral || consultor.nome_exibicao || '',
-        nome_social: consultor.nome_social || '',
-        estrutura: consultor.estrutura || '',
-        canal: consultor.canal || 'ESPAÇO DO REVENDEDOR',
-        status_consultor: atualizacoes.status_consultor ?? consultor.status_consultor ?? 'ativo',
-        peso_meta: atualizacoes.peso_meta ?? Number(consultor.peso_meta || 0)
+      const { data } = await axios.put(`${apiUrl}/cadastro-v2/metas/edicao-massa`, {
+        ciclo: cicloAtualForm,
+        meta_ids: ids,
+        valores
       });
-      setMensagem('Consultor atualizado.');
-      await carregarMetas(cicloConsulta);
+      setMensagem(data?.mensagem || `${ids.length} meta(s) atualizada(s) em massa.`);
+      fecharEdicaoMassa();
+      await carregarBase(cicloAtualForm);
       if (onAtualizacao) onAtualizacao();
-    } catch (err) {
-      setErro(err.response?.data?.detail || 'Erro ao atualizar consultor.');
-    }
+    } catch (e) {
+      setErro(e.response?.data?.detail || 'Erro ao aplicar a edição em massa.');
+    } finally { setSalvandoMassa(false); }
   };
 
-  const salvarPesoConsultorMeta = async (consultor, valorPeso) => {
-    const pesoNumero = Number(String(valorPeso ?? '0').replace(',', '.')) || 0;
-    await salvarConsultorNaMeta(consultor, { peso_meta: pesoNumero });
-  };
-
-  const estruturasFiltradas = opcoesEstruturasCadastro
-    .filter((e) => {
-      const termo = busca.toLowerCase().trim();
-      if (!termo) return true;
-      return String(e.estrutura || '').toLowerCase().includes(termo) || String(e.cod_estrutura || '').toLowerCase().includes(termo);
-    })
-    .slice(0, 60);
-
-  const obterNomeLimpoEstrutura = (estrutura = '') => String(estrutura || '').replace(/^\s*\d+\s*-\s*/g, '').trim();
-
-  const criarLinhaMeta = (estrutura, indice = 0) => {
-    const estruturaNome = String(estrutura?.estrutura || '').trim();
-    const codigo = String(estrutura?.cod_estrutura || estruturaNome.split('-')[0] || '').trim();
-    const nomeLimpo = obterNomeLimpoEstrutura(estruturaNome) || estruturaNome || `NOVA ESTRUTURA ${indice + 1}`;
-    const tipo = String(estrutura?.tipo_estrutura || '').toLowerCase().includes('er') ? 'er' : 'estrutura';
-
-    return {
-      uid: `${codigo || indice}-${Date.now()}-${indice}`,
-      ciclo: form.ciclo || cicloPadrao || '',
-      nome_meta: nomeLimpo,
-      cod_estrutura: codigo,
-      estrutura: estruturaNome,
-      canal: estrutura?.canal || 'VD',
-      nucleo: estrutura?.nucleo || 'NUCLEO 1',
-      tipo_meta: tipo,
-      status: 'ativo',
-      meta_real: '',
-      meta_atividade: '46,0',
-      meta_rpa: '1.350,00',
-      meta_tkt_medio: '600,00',
-      meta_upa: '12,0',
-      meta_make: '40,0',
-      meta_cabelo: '40,0',
-      meta_multimarcas: '78,0',
-      meta_eudora: '20,0',
-      observacao: ''
-    };
-  };
-
-  const abrirTabelaNovoCiclo = () => {
-    setErro('');
-    setMensagem('');
-    setMostrarFormularioMeta(false);
-    setEditandoId(null);
-
-    const cicloInicial = String(cicloPadrao || form.ciclo || '').trim();
-    setCicloNovoEmMassa(cicloInicial);
-
-    const fonte = opcoesEstruturasCadastro.length
-      ? opcoesEstruturasCadastro
-      : estruturas;
-
-    const linhas = fonte
-      .filter((item) => !['inativo', 'excluido', 'excluído'].includes(
-        String(item.status || '').toLowerCase()
-      ))
-      .map((item, indice) => ({
-        ...criarLinhaMeta(item, indice),
-        ciclo: cicloInicial,
-      }));
-
-    setLinhasNovoCiclo(
-      linhas.length
-        ? linhas
-        : [{ ...criarLinhaMeta({}, 0), ciclo: cicloInicial }]
-    );
-    setModoTabelaCiclo(true);
-  };
-
-  const atualizarCicloNovoEmMassa = (valor) => {
-    setCicloNovoEmMassa(valor);
-    setLinhasNovoCiclo((atuais) => atuais.map((linha) => ({
-      ...linha,
-      ciclo: valor,
-    })));
-  };
-
-  const fecharTabelaNovoCiclo = () => {
-    setModoTabelaCiclo(false);
-    setLinhasNovoCiclo([]);
-    setCicloNovoEmMassa('');
-  };
-
-  const atualizarLinhaNovoCiclo = (uid, campo, valor) => {
-    setLinhasNovoCiclo((atuais) => atuais.map((linha) => {
-      if (linha.uid !== uid) return linha;
-      const novaLinha = { ...linha, [campo]: valor };
-      if (campo === 'estrutura') {
-        const encontrada = opcoesEstruturasCadastro.find((item) => item.estrutura === valor);
-        if (encontrada) {
-          novaLinha.cod_estrutura = encontrada.cod_estrutura || String(encontrada.estrutura || '').split('-')[0] || '';
-          novaLinha.nome_meta = obterNomeLimpoEstrutura(encontrada.estrutura) || encontrada.estrutura;
-          novaLinha.canal = encontrada.canal || novaLinha.canal;
-          novaLinha.nucleo = encontrada.nucleo || novaLinha.nucleo;
-          novaLinha.tipo_meta = String(encontrada.tipo_estrutura || '').toLowerCase().includes('er') ? 'er' : 'estrutura';
-        }
-      }
-      return novaLinha;
-    }));
-  };
-
-  const adicionarLinhaNovoCiclo = () => {
-    setLinhasNovoCiclo((atuais) => [...atuais, criarLinhaMeta({}, atuais.length)]);
-  };
-
-  const removerLinhaNovoCiclo = (uid) => {
-    setLinhasNovoCiclo((atuais) => atuais.filter((linha) => linha.uid !== uid));
-  };
-
-  const localizarMetaExistenteDaLinha = (linha) => {
-    const estruturaNormalizada = normalizarEstruturaMeta(linha.estrutura);
-    const codNormalizado = normalizarEstruturaMeta(linha.cod_estrutura);
-    return metas.find((meta) => String(meta.ciclo || '') === String(linha.ciclo || '') && (meta.estruturas || []).some((estruturaMeta) => {
-      const eNorm = normalizarEstruturaMeta(estruturaMeta.estrutura);
-      const cNorm = normalizarEstruturaMeta(estruturaMeta.cod_estrutura || String(estruturaMeta.estrutura || '').split('-')[0]);
-      return eNorm === estruturaNormalizada || (!!codNormalizado && cNorm === codNormalizado);
-    }));
-  };
-
-  const agruparLinhasValidasNovoCiclo = (linhasComEstrutura = []) => {
-    /*
-      Regra segura do Cadastro de Metas VD:
-      - cada linha com Receita > 0 vira uma meta própria;
-      - linhas com Receita zerada só entram como estrutura vinculada quando existir exatamente
-        uma linha positiva com o mesmo nome limpo;
-      - nunca somar automaticamente duas linhas positivas com o mesmo nome, porque isso fazia
-        algumas metas dobrarem ou mudarem depois de salvar.
-    */
-    const positivas = linhasComEstrutura.filter((linha) => converterMetaRealParaNumero(linha.meta_real) > 0);
-    const zeradas = linhasComEstrutura.filter((linha) => converterMetaRealParaNumero(linha.meta_real) <= 0);
-    const grupos = positivas.map((linha, index) => {
-      const cicloLinha = String(linha.ciclo || form.ciclo || cicloPadrao || '').trim();
-      const nomeLinha = String(linha.nome_meta || obterNomeLimpoEstrutura(linha.estrutura) || linha.estrutura || '').trim();
-      return {
-        ciclo: cicloLinha,
-        nome_meta: nomeLinha,
-        chave_segura: `${cicloLinha}__${normalizarEstruturaMeta(linha.estrutura)}__${index}`,
-        linhas: [linha]
-      };
-    });
-
-    zeradas.forEach((linhaZerada) => {
-      const nomeZerado = normalizarEstruturaMeta(linhaZerada.nome_meta || obterNomeLimpoEstrutura(linhaZerada.estrutura) || linhaZerada.estrutura);
-      if (!nomeZerado) return;
-      const gruposMesmoNome = grupos.filter((grupo) => normalizarEstruturaMeta(grupo.nome_meta) === nomeZerado);
-      if (gruposMesmoNome.length === 1) {
-        const grupoDestino = gruposMesmoNome[0];
-        const estruturaJaExiste = grupoDestino.linhas.some((linha) => normalizarEstruturaMeta(linha.estrutura) === normalizarEstruturaMeta(linhaZerada.estrutura));
-        if (!estruturaJaExiste) grupoDestino.linhas.push(linhaZerada);
-      }
-    });
-
-    return grupos;
-  };
-
-  const localizarMetaExistenteDoGrupo = (grupo) => {
-    const nomeNormalizado = normalizarEstruturaMeta(grupo.nome_meta);
-    const cicloNormalizado = String(grupo.ciclo || '').trim();
-    const estruturasGrupo = new Set(
-      grupo.linhas
-        .map((linha) => normalizarEstruturaMeta(linha.estrutura))
-        .filter(Boolean)
-    );
-    const codigosGrupo = new Set(
-      grupo.linhas
-        .map((linha) => normalizarEstruturaMeta(linha.cod_estrutura))
-        .filter(Boolean)
-    );
-
-    return metas.find((meta) => {
-      const mesmoCiclo = String(meta.ciclo || '').trim() === cicloNormalizado;
-      if (!mesmoCiclo) return false;
-      return (meta.estruturas || []).some((estruturaMeta) => {
-        const estruturaNorm = normalizarEstruturaMeta(estruturaMeta.estrutura);
-        const codNorm = normalizarEstruturaMeta(estruturaMeta.cod_estrutura || String(estruturaMeta.estrutura || '').split('-')[0]);
-        return estruturasGrupo.has(estruturaNorm) || codigosGrupo.has(codNorm);
-      });
-    });
-  };
-
-  const salvarTabelaNovoCiclo = async () => {
-    setErro('');
-    setMensagem('');
-
-    const cicloInformado = String(cicloNovoEmMassa || '').trim();
-    if (!/^\d{2}\/\d{4}$/.test(cicloInformado)) {
-      setErro('Informe o ciclo no formato 08/2026 antes de salvar.');
-      return;
-    }
-
-    setLinhasNovoCiclo((atuais) => atuais.map((linha) => ({
-      ...linha,
-      ciclo: cicloInformado,
-    })));
-    const linhasComEstrutura = linhasNovoCiclo
-      .map((linha) => ({ ...linha, ciclo: cicloInformado }))
-      .filter((linha) => String(linha.estrutura || '').trim());
-    const gruposValidos = agruparLinhasValidasNovoCiclo(linhasComEstrutura)
-      .filter((grupo) => grupo.linhas.some((linha) => converterMetaRealParaNumero(linha.meta_real) > 0));
-
-    if (!gruposValidos.length) {
-      setErro('Preencha pelo menos uma estrutura com Receita maior que zero.');
-      return;
-    }
-
-    const linhasValidas = gruposValidos.flatMap((grupo) => grupo.linhas).filter((linha) => converterMetaRealParaNumero(linha.meta_real) > 0);
-
-    setSalvandoTabela(true);
-    let salvas = 0;
-    let atualizadas = 0;
-    let estruturasVinculadas = 0;
-
-    try {
-      for (const grupo of gruposValidos) {
-        const linhasComReceitaGrupo = grupo.linhas.filter((linha) => converterMetaRealParaNumero(linha.meta_real) > 0);
-        const primeira = linhasComReceitaGrupo[0] || grupo.linhas[0] || {};
-        const metaRealTotal = linhasComReceitaGrupo.reduce((soma, linha) => soma + converterMetaRealParaNumero(linha.meta_real), 0);
-        const estruturasPayload = grupo.linhas.map((linha) => ({
-          cod_estrutura: linha.cod_estrutura || String(linha.estrutura || '').split('-')[0] || '',
-          estrutura: linha.estrutura
-        }));
-
-        const payload = {
-          ciclo: grupo.ciclo,
-          nome_meta: grupo.nome_meta,
-          tipo_meta: grupo.linhas.length > 1 ? 'grupo_estruturas' : (primeira.tipo_meta || 'estrutura'),
-          meta_real: metaRealTotal,
-          meta_atividade: converterMetaRealParaNumero(primeira.meta_atividade),
-          meta_make: converterMetaRealParaNumero(primeira.meta_make),
-          meta_cabelo: converterMetaRealParaNumero(primeira.meta_cabelo),
-          meta_multimarcas: converterMetaRealParaNumero(primeira.meta_multimarcas) || 78,
-          meta_eudora: converterMetaRealParaNumero(primeira.meta_eudora) || 20,
-          meta_rpa: converterMetaRealParaNumero(primeira.meta_rpa),
-          meta_tkt_medio: converterMetaRealParaNumero(primeira.meta_tkt_medio),
-          meta_upa: converterMetaRealParaNumero(primeira.meta_upa),
-          regra_calculo: 'somar_estruturas',
-          status: primeira.status || 'ativo',
-          observacao: grupo.linhas.length > 1
-            ? `Grupo com ${grupo.linhas.length} estruturas vinculadas.`
-            : (primeira.observacao || `${primeira.canal || 'VD'} • ${String(primeira.nucleo || '').replace('NUCLEO', 'NÚCLEO')}`),
-          estruturas: estruturasPayload
-        };
-
-        if (!payload.ciclo) throw new Error('Informe o ciclo em todas as linhas.');
-        if (!payload.nome_meta) throw new Error('Informe o nome da meta em todas as linhas.');
-
-        const existente = localizarMetaExistenteDoGrupo(grupo);
-        if (existente?.id) {
-          await axios.put(`${apiUrl}/metas-reais/${existente.id}`, payload);
-          atualizadas += 1;
-        } else {
-          await axios.post(`${apiUrl}/metas-reais`, payload);
-          salvas += 1;
-        }
-
-        for (const linha of grupo.linhas) {
-          await axios.post(`${apiUrl}/estruturas-config`, {
-            cod_estrutura: linha.cod_estrutura || String(linha.estrutura || '').split('-')[0] || '',
-            estrutura: linha.estrutura,
-            canal: linha.canal || 'VD',
-            nucleo: normalizarNucleoMeta(linha.nucleo),
-            tipo_estrutura: String(linha.tipo_meta || '').toLowerCase().includes('er') ? 'er' : 'estrutura',
-            status: 'ativo'
-          });
-          estruturasVinculadas += 1;
-        }
-      }
-
-      const cicloSalvo = linhasValidas[0]?.ciclo || form.ciclo || cicloPadrao || '';
-      setMensagem(`Ciclo salvo com sucesso. Grupos novos: ${salvas}. Grupos atualizados: ${atualizadas}. Estruturas vinculadas: ${estruturasVinculadas}.`);
-      setModoTabelaCiclo(false);
-      setLinhasNovoCiclo([]);
-      await carregarEstruturasConfigMeta();
-      await carregarMetas(cicloSalvo);
-      if (onAtualizacao) onAtualizacao();
-    } catch (err) {
-      setErro(err.response?.data?.detail || err.message || 'Erro ao salvar tabela do novo ciclo.');
-    } finally {
-      setSalvandoTabela(false);
-    }
-  };
-
-  const totalTabela = linhasNovoCiclo.reduce((acc, linha) => acc + converterMetaRealParaNumero(linha.meta_real), 0);
-  const mediaTabela = (campo) => {
-    const valores = linhasNovoCiclo.map((linha) => converterMetaRealParaNumero(linha[campo])).filter((valor) => valor > 0);
-    if (!valores.length) return 0;
-    return valores.reduce((soma, valor) => soma + valor, 0) / valores.length;
-  };
-
-  const totalMetas = metas.reduce((acc, meta) => acc + Number(meta.meta_real || 0), 0);
-  const totalRealizado = metas.reduce((acc, meta) => acc + Number(meta.realizado || 0), 0);
-  const percentualTotal = totalMetas > 0 ? (totalRealizado / totalMetas) * 100 : 0;
-
-  const obterEstruturasMeta = (meta) => (Array.isArray(meta?.estruturas) ? meta.estruturas.filter((e) => String(e?.estrutura || '').trim()) : []);
-  const obterConfigEstruturaMeta = (estruturaMeta = {}) => {
-    const estruturaTexto = String(estruturaMeta.estrutura || '').trim();
-    const codTexto = String(estruturaMeta.cod_estrutura || estruturaTexto.split('-')[0] || '').trim();
-    return opcoesEstruturasCadastro.find((item) => {
-      const estruturaIgual = normalizarEstruturaMeta(item.estrutura) === normalizarEstruturaMeta(estruturaTexto);
-      const codIgual = String(item.cod_estrutura || '').trim() && String(item.cod_estrutura || '').trim() === codTexto;
-      return estruturaIgual || codIgual;
-    }) || {};
-  };
-  const obterConsultoresMeta = (meta) => (Array.isArray(meta?.consultores) ? meta.consultores : []);
-
-  const agruparMetasParaVisualizacao = (listaMetas = []) => {
-    // Uma linha visual por meta salva. Não agrupamos mais por nome_meta, pois existem equipes
-    // com o mesmo nome em códigos diferentes e isso fazia a tela somar/deletar metas sem o usuário perceber.
-    return (listaMetas || []).map((meta) => {
-      const estruturasUnicas = [];
-      const chavesEstruturas = new Set();
-      obterEstruturasMeta(meta).forEach((estruturaItem) => {
-        const chaveEstrutura = normalizarEstruturaMeta(`${estruturaItem.cod_estrutura || ''}__${estruturaItem.estrutura || ''}`);
-        if (!chaveEstrutura || chavesEstruturas.has(chaveEstrutura)) return;
-        chavesEstruturas.add(chaveEstrutura);
-        estruturasUnicas.push(estruturaItem);
-      });
-
-      const metaReal = Number(meta.meta_real || 0);
-      const realizado = Number(meta.realizado || 0);
-      const percentual = metaReal > 0 ? (realizado / metaReal) * 100 : 0;
-
-      return {
-        ...meta,
-        _metasAgrupadas: [meta],
-        estruturas: estruturasUnicas,
-        meta_real: metaReal,
-        realizado,
-        pedidos: Number(meta.pedidos || 0),
-        ativos: Number(meta.ativos || 0),
-        percentual,
-        tipo_meta: estruturasUnicas.length > 1 ? 'grupo_estruturas' : meta.tipo_meta
-      };
-    });
-  };
-
-  const metasTabelaVisual = agruparMetasParaVisualizacao(metas);
-
-  const metaPertenceAoNucleoFiltro = (meta) => {
-    if (!filtroNucleoMetas || filtroNucleoMetas === 'Todos') return true;
-    const estruturasMeta = obterEstruturasMeta(meta);
-    if (!estruturasMeta.length) return filtroNucleoMetas === 'Sem núcleo';
-    return estruturasMeta.some((estruturaItem) => {
-      const config = obterConfigEstruturaMeta(estruturaItem);
-      return formatarNucleoCurtoMeta(config.nucleo || 'NUCLEO 1') === filtroNucleoMetas;
-    });
-  };
-
-  const metasTabelaVisualFiltradas = metasTabelaVisual.filter((m) => {
-    const termo = busca.toLowerCase().trim();
-    const estruturasTexto = (m.estruturas || []).map((e) => e.estrutura).join(' ');
-    const passaBusca = !termo || `${m.nome_meta} ${estruturasTexto} ${m.ciclo}`.toLowerCase().includes(termo);
-    return passaBusca && metaPertenceAoNucleoFiltro(m);
+  const metasFiltradasMassa = metas.filter((m) => {
+    const busca = buscaMassa.trim().toLowerCase();
+    const nucleoOk = nucleoMassa === 'TODOS' || String(m.nucleo || '').toUpperCase() === nucleoMassa;
+    if (!nucleoOk) return false;
+    if (!busca) return true;
+    return [m.nome_estrutura, m.nome_meta, m.categoria_canal, m.nucleo, ...(m.variacoes || []).map((v) => v.estrutura)]
+      .filter(Boolean).join(' ').toLowerCase().includes(busca);
   });
 
-  const totalMetasFiltrado = metasTabelaVisualFiltradas.reduce((acc, meta) => acc + Number(meta.meta_real || 0), 0);
-  const totalRealizadoFiltrado = metasTabelaVisualFiltradas.reduce((acc, meta) => acc + Number(meta.realizado || 0), 0);
-  const percentualTotalFiltrado = totalMetasFiltrado > 0 ? (totalRealizadoFiltrado / totalMetasFiltrado) * 100 : 0;
-  const estruturasBaseFiltradas = (() => {
-    const chaves = new Set();
-    metasTabelaVisualFiltradas.forEach((meta) => {
-      const estruturasMeta = obterEstruturasMeta(meta);
-      if (!estruturasMeta.length && meta?.estrutura) {
-        chaves.add(normalizarEstruturaMeta(meta.estrutura));
-      }
-      estruturasMeta.forEach((estruturaItem) => {
-        const chave = normalizarEstruturaMeta(`${estruturaItem.cod_estrutura || ''}__${estruturaItem.estrutura || ''}`);
-        if (chave) chaves.add(chave);
-      });
-    });
-    return chaves.size;
-  })();
-
-  const nucleosDisponiveisMetas = ['Todos', 'N1', 'N2', 'N3'];
-  const resumoMetasPorNucleo = metasTabelaVisual.reduce((acc, meta) => {
-    const estruturasMeta = obterEstruturasMeta(meta);
-    const nucleosMeta = new Set(
-      estruturasMeta.map((estruturaItem) => {
-        const config = obterConfigEstruturaMeta(estruturaItem);
-        return formatarNucleoCurtoMeta(config.nucleo || 'NUCLEO 1');
-      })
-    );
-    Array.from(nucleosMeta).forEach((nucleo) => {
-      acc[nucleo] = (acc[nucleo] || 0) + 1;
-    });
-    return acc;
-  }, {});
-
   if (!aberto) return null;
-
-  return (
-    <div className={modoInline ? "w-full" : "fixed inset-0 bg-black/45 z-[9999] flex items-center justify-center p-2 md:p-4"}>
-      <div className={modoInline ? "bg-white w-full rounded-xl shadow-sm border border-gray-100 overflow-visible flex flex-col" : "bg-white w-full max-w-[98vw] h-[95vh] rounded-[28px] shadow-2xl overflow-hidden flex flex-col"}>
-        <div className="flex items-start justify-between gap-4 p-5 md:p-7 border-b border-gray-100 bg-white">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-700">Cadastro de Metas por Ciclo</h2>
-              <span className="px-3 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-xs font-black">{cicloConsulta || 'Sem ciclo'}</span>
-            </div>
-            <p className="text-sm md:text-base text-gray-400 font-semibold mt-1">Tela em formato de planilha: cadastre metas, acompanhe realizado e abra cada estrutura para dividir por consultor.</p>
-          </div>
-          {!modoInline && <button onClick={onClose} className="text-gray-400 hover:bg-gray-50 rounded-full p-2 shrink-0"><X size={24} /></button>}
-        </div>
-
-        <div className="px-5 md:px-7 py-4 border-b border-gray-100 bg-[#fbfefe]">
-          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Meta do ciclo</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(totalMetasFiltrado)}</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Realizado</p><p className="text-lg font-black text-[#048187] mt-1">{formatarMoeda(totalRealizadoFiltrado)}</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">% ating.</p><p className="text-lg font-black mt-1" style={{ color: corPorFaixaMeta(percentualTotalFiltrado) }}>{percentualTotalFiltrado.toFixed(1)}%</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Metas cadastradas</p><p className="text-lg font-black text-gray-700 mt-1">{metasTabelaVisualFiltradas.length}</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Estruturas base</p><p className="text-lg font-black text-gray-700 mt-1">{estruturasBaseFiltradas || 0}</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-4"><p className="text-[10px] uppercase font-black text-gray-400">Núcleos</p><p className="text-lg font-black text-gray-700 mt-1">N1 • N2 • N3</p></div>
-          </div>
-
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={abrirTabelaNovoCiclo} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center gap-2 text-sm"><Plus size={18} /> Novo ciclo</button>
-              <button type="button" onClick={() => { setModoTabelaCiclo(false); setMostrarFormularioMeta(true); setEditandoId(null); setForm({ ...metaRealVazia, ciclo: form.ciclo || cicloPadrao || '' }); }} className="bg-white border border-gray-200 text-gray-600 font-black px-5 py-3 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Pencil size={16} /> Cadastro simples</button>
-              <button type="button" onClick={() => { carregarMetas(); carregarEstruturas(); carregarEstruturasConfigMeta(); }} className="bg-[#e6f6f7] text-[#048187] font-black px-5 py-3 rounded-xl hover:bg-[#d0f0f1] inline-flex items-center gap-2 text-sm"><RefreshCcw size={16} /> Atualizar</button>
-            </div>
-            <div className="flex flex-col lg:flex-row gap-3 w-full xl:w-auto">
-              <div className="flex flex-wrap gap-2">
-                {nucleosDisponiveisMetas.map((nucleo) => (
-                  <button
-                    key={nucleo}
-                    type="button"
-                    onClick={() => setFiltroNucleoMetas(nucleo)}
-                    className={`px-4 py-3 rounded-xl text-sm font-black transition-colors ${filtroNucleoMetas === nucleo ? 'bg-[#048187] text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-500 hover:bg-[#e6f6f7] hover:text-[#048187]'}`}
-                  >
-                    {nucleo}
-                    {nucleo !== 'Todos' && <span className={`ml-2 ${filtroNucleoMetas === nucleo ? 'text-white/80' : 'text-gray-400'}`}>{resumoMetasPorNucleo[nucleo] || 0}</span>}
-                  </button>
-                ))}
-              </div>
-              <div className="relative w-full xl:w-[420px]">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar meta, estrutura ou código..." className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]" />
-              </div>
-            </div>
-          </div>
-
-          {(erro || mensagem) && (
-            <div className="mt-4 space-y-2">
-              {erro && <div className="bg-red-50 text-red-600 border border-red-100 rounded-xl p-3 text-sm font-bold">{erro}</div>}
-              {mensagem && <div className="bg-green-50 text-green-700 border border-green-100 rounded-xl p-3 text-sm font-bold">{mensagem}</div>}
-            </div>
-          )}
-        </div>
-
-        <div className={modoInline ? "p-5 md:p-7 space-y-6 bg-[#f7fafb] overflow-visible" : "flex-1 overflow-y-auto p-5 md:p-7 space-y-6 bg-[#f7fafb]"}>
-          {modoTabelaCiclo && (
-            <div className="bg-white border border-[#d9eff0] rounded-[24px] overflow-hidden shadow-sm">
-              <div className="p-5 border-b border-gray-100 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-                <div>
-                  <h3 className="text-xl font-black text-gray-700">Novo ciclo em modo planilha</h3>
-                  <p className="text-sm text-gray-400 font-semibold mt-1">Preencha somente as linhas que terão meta. Ao salvar, cada linha vira uma meta oficial daquele ciclo.</p>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-end gap-2">
-                  <div className="min-w-[180px]">
-                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Ciclo das metas</label>
-                    <input
-                      value={cicloNovoEmMassa}
-                      onChange={(e) => atualizarCicloNovoEmMassa(e.target.value)}
-                      placeholder="08/2026"
-                      maxLength={7}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-black text-[#048187] outline-none focus:border-[#048187]"
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={adicionarLinhaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 inline-flex items-center gap-2 text-sm"><Plus size={15} /> Linha</button>
-                    <button type="button" onClick={fecharTabelaNovoCiclo} className="bg-white border border-gray-200 text-gray-600 font-black px-4 py-2.5 rounded-xl hover:bg-gray-50 text-sm">Cancelar</button>
-                    <button type="button" onClick={salvarTabelaNovoCiclo} disabled={salvandoTabela} className="bg-[#048187] text-white font-black px-5 py-2.5 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2 text-sm"><Save size={15} /> {salvandoTabela ? 'Salvando...' : 'Salvar ciclo'}</button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-[12px] min-w-[1450px]">
-                  <thead className="bg-[#f2fafb] text-[10px] uppercase text-gray-500 font-black">
-                    <tr>
-                      <th className="px-3 py-3 text-left w-[190px]">Nome Estrutura</th>
-                      <th className="px-3 py-3 text-left w-[260px]">Estrutura</th>
-                      <th className="px-3 py-3 text-left w-[110px]">Canal</th>
-                      <th className="px-3 py-3 text-left w-[120px]">Núcleo</th>
-                      <th className="px-3 py-3 text-left w-[110px]">Ciclo</th>
-                      <th className="px-3 py-3 text-right w-[150px]">Receita</th>
-                      <th className="px-3 py-3 text-right w-[110px]">Atividade</th>
-                      <th className="px-3 py-3 text-right w-[130px]">RPA</th>
-                      <th className="px-3 py-3 text-right w-[130px]">Tkt Médio</th>
-                      <th className="px-3 py-3 text-right w-[100px]">UPA</th>
-                      <th className="px-3 py-3 text-right w-[110px]">Pen. Make</th>
-                      <th className="px-3 py-3 text-right w-[120px]">Pen. Cabelos</th>
-                      <th className="px-3 py-3 text-right w-[130px]">Pen. Multimarcas</th>
-                      <th className="px-3 py-3 text-right w-[120px]">Meta Eudora</th>
-                      <th className="px-3 py-3 text-right w-[90px]">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {linhasNovoCiclo.map((linha) => (
-                      <tr key={linha.uid} className="hover:bg-[#fbfefe]">
-                        <td className="px-3 py-2"><input value={linha.nome_meta} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'nome_meta', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2">
-                          <select value={linha.estrutura} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'estrutura', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]">
-                            <option value="">Selecionar estrutura</option>
-                            {opcoesEstruturasCadastro.map((item) => <option key={`${linha.uid}-${item.cod_estrutura}-${item.estrutura}`} value={item.estrutura}>{item.estrutura}</option>)}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2"><select value={linha.canal} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'canal', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]"><option value="VD">VD</option><option value="LOJA">LOJA</option><option value="ER">ER</option></select></td>
-                        <td className="px-3 py-2"><select value={linha.nucleo} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'nucleo', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 font-bold text-gray-700 outline-none focus:border-[#048187]"><option value="NUCLEO 1">N1</option><option value="NUCLEO 2">N2</option><option value="NUCLEO 3">N3</option></select></td>
-                        <td className="px-3 py-2"><input value={linha.ciclo} readOnly placeholder="08/2026" className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 font-bold text-gray-500 outline-none" /></td>
-                        <td className="px-3 py-2"><input value={linha.meta_real} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_real', e.target.value)} onBlur={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_real', formatarMetaRealInput(e.target.value))} placeholder="R$ 0,00" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-black text-[#048187] outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2"><input value={linha.meta_atividade} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_atividade', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2"><input value={linha.meta_rpa} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_rpa', e.target.value)} onBlur={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_rpa', formatarMetaIndicadorInput(e.target.value, 2))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2"><input value={linha.meta_tkt_medio} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_tkt_medio', e.target.value)} onBlur={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_tkt_medio', formatarMetaIndicadorInput(e.target.value, 2))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2"><input value={linha.meta_upa} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_upa', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2"><input value={linha.meta_make} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_make', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2"><input value={linha.meta_cabelo} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_cabelo', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2"><input value={linha.meta_multimarcas} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_multimarcas', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2"><input value={linha.meta_eudora} onChange={(e) => atualizarLinhaNovoCiclo(linha.uid, 'meta_eudora', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right font-bold text-gray-700 outline-none focus:border-[#048187]" /></td>
-                        <td className="px-3 py-2 text-right"><button type="button" onClick={() => removerLinhaNovoCiclo(linha.uid)} className="text-red-500 hover:bg-red-50 rounded-lg p-2"><Trash2 size={16} /></button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-yellow-100 text-gray-800 font-black">
-                    <tr>
-                      <td className="px-3 py-3 text-center" colSpan={5}>TOTAL GERAL</td>
-                      <td className="px-3 py-3 text-right">{formatarMoeda(totalTabela)}</td>
-                      <td className="px-3 py-3 text-right">{mediaTabela('meta_atividade').toFixed(1)}%</td>
-                      <td className="px-3 py-3 text-right">{formatarMoeda(mediaTabela('meta_rpa'))}</td>
-                      <td className="px-3 py-3 text-right">{formatarMoeda(mediaTabela('meta_tkt_medio'))}</td>
-                      <td className="px-3 py-3 text-right">{mediaTabela('meta_upa').toFixed(1)}</td>
-                      <td className="px-3 py-3 text-right">{mediaTabela('meta_make').toFixed(1)}%</td>
-                      <td className="px-3 py-3 text-right">{mediaTabela('meta_cabelo').toFixed(1)}%</td>
-                      <td className="px-3 py-3 text-right">{mediaTabela('meta_multimarcas').toFixed(1)}%</td>
-                      <td className="px-3 py-3 text-right">{mediaTabela('meta_eudora').toFixed(1)}%</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {mostrarFormularioMeta && (
-            <form onSubmit={salvarMeta} className="border border-[#d9eff0] bg-white rounded-[24px] p-5 md:p-6 space-y-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-lg font-black text-gray-700">{editandoId ? 'Editar meta real' : 'Nova meta real'}</h3>
-                <button type="submit" disabled={salvando} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 disabled:opacity-60 inline-flex items-center gap-2 text-sm"><Save size={16} /> {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar meta'}</button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Ciclo</label><input value={form.ciclo} onChange={(e) => setForm({ ...form, ciclo: e.target.value })} placeholder="09/2026" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div>
-                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Meta Real</label><input value={form.meta_real} onChange={(e) => { setMensagem(''); setForm({ ...form, meta_real: e.target.value }); }} onBlur={(e) => setForm((atual) => ({ ...atual, meta_real: formatarMetaRealInput(e.target.value) }))} placeholder="383337,00" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div>
-                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Tipo</label><select value={form.tipo_meta} onChange={(e) => setForm({ ...form, tipo_meta: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="estrutura">Estrutura</option><option value="er">ER</option><option value="grupo_estruturas">Grupo de estruturas</option></select></div>
-                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Status</label><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div>
-              </div>
-
-              <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Nome da meta</label><input value={form.nome_meta} onChange={(e) => setForm({ ...form, nome_meta: e.target.value })} placeholder="EQUIPE GRAZIELLE" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187]" required /></div>
-
-              <div className="border border-gray-100 bg-[#f7fafb] rounded-2xl p-4 space-y-3">
-                <h4 className="text-xs font-black text-gray-600 uppercase">Indicadores da estrutura</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  <CampoMetaIndicador label="Meta Atividade (%)" value={form.meta_atividade} casas={1} placeholder="46,0" onChange={(valor) => setForm({ ...form, meta_atividade: valor })} />
-                  <CampoMetaIndicador label="Meta MAKE (%)" value={form.meta_make} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_make: valor })} />
-                  <CampoMetaIndicador label="Meta CABELO (%)" value={form.meta_cabelo} casas={1} placeholder="40,0" onChange={(valor) => setForm({ ...form, meta_cabelo: valor })} />
-                  <CampoMetaIndicador label="Meta MULTIMARCAS (%)" value={form.meta_multimarcas} casas={1} placeholder="78,0" onChange={(valor) => setForm({ ...form, meta_multimarcas: valor })} />
-                  <CampoMetaIndicador label="Meta EUDORA (% do faturamento)" value={form.meta_eudora} casas={1} placeholder="20,0" onChange={(valor) => setForm({ ...form, meta_eudora: valor })} />
-                  <CampoMetaIndicador label="Meta RPA (R$)" value={form.meta_rpa} casas={2} placeholder="1.500,00" onChange={(valor) => setForm({ ...form, meta_rpa: valor })} />
-                  <CampoMetaIndicador label="Meta Tkt Médio (R$)" value={form.meta_tkt_medio} casas={2} placeholder="800,00" onChange={(valor) => setForm({ ...form, meta_tkt_medio: valor })} />
-                  <CampoMetaIndicador label="Meta UPA" value={form.meta_upa} casas={1} placeholder="15,0" onChange={(valor) => setForm({ ...form, meta_upa: valor })} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_.9fr] gap-4">
-                <div>
-                  <label className="text-xs font-black text-gray-400 uppercase block mb-1">Estruturas vinculadas</label>
-                  <div className="relative" onBlur={() => setTimeout(() => setMostrarListaEstruturasMeta(false), 180)}>
-                    <Search size={16} className="absolute left-3 top-3.5 text-gray-400" />
-                    <input value={busca} onFocus={() => setMostrarListaEstruturasMeta(true)} onClick={() => setMostrarListaEstruturasMeta(true)} onChange={(e) => { setBusca(e.target.value); setMostrarListaEstruturasMeta(true); }} placeholder="Buscar por código ou nome da estrutura" className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]" />
-                    {mostrarListaEstruturasMeta && (
-                      <div className="absolute z-10 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
-                        {estruturasFiltradas.length > 0 ? estruturasFiltradas.map((e) => {
-                          const estrutura = String(e.estrutura || '').trim();
-                          const cod = String(e.cod_estrutura || estrutura.split('-')[0] || '').trim();
-                          const jaCadastrada = estruturaJaSelecionada(estrutura) || estruturaJaCadastradaEmMeta(estrutura, cod);
-                          return (
-                            <button key={`${e.cod_estrutura}-${e.estrutura}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => adicionarEstrutura(e)} className={`w-full text-left px-4 py-3 text-sm hover:bg-[#e6f6f7] font-bold flex items-center justify-between gap-3 ${jaCadastrada ? 'text-[#7c1f31] bg-[#7c1f31]/5' : 'text-gray-600'}`}>
-                              <span className="truncate">{e.estrutura}</span>
-                              <span className={`shrink-0 text-[10px] font-black uppercase rounded-full px-2 py-1 ${jaCadastrada ? 'bg-[#7c1f31] text-white' : 'bg-[#048187] text-white'}`}>{jaCadastrada ? 'Já cadastrada' : 'Disponível'}</span>
-                            </button>
-                          );
-                        }) : <div className="px-4 py-3 text-sm font-bold text-gray-400">Nenhuma estrutura encontrada.</div>}
-                      </div>
-                    )}
-                  </div>
-                  {avisoEstrutura && <div className={`mt-2 rounded-xl border px-3 py-3 text-sm font-bold ${avisoEstrutura.tipo === 'erro' ? 'border-red-100 bg-red-50 text-red-600' : 'border-green-100 bg-green-50 text-green-700'}`}><div>{avisoEstrutura.texto}</div>{!!avisoEstrutura.detalhe && <div className="text-xs font-semibold mt-1 opacity-80">{avisoEstrutura.detalhe}</div>}</div>}
-                  <div className="mt-3 flex flex-wrap gap-2 min-h-[44px]">{form.estruturas.map((e) => <span key={e.estrutura} className="bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-xl text-xs font-black inline-flex items-center gap-2">{e.estrutura}<button type="button" onClick={() => removerEstrutura(e.estrutura)} className="hover:text-red-500"><X size={14} /></button></span>)}{!form.estruturas.length && <span className="text-sm text-gray-400 font-semibold">Nenhuma estrutura vinculada.</span>}</div>
-                </div>
-                <div><label className="text-xs font-black text-gray-400 uppercase block mb-1">Observação</label><textarea value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} rows={5} placeholder="Ex.: soma as estruturas 13476 e 17325" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187] resize-none" /></div>
-              </div>
-            </form>
-          )}
-
-          <div className={`${cadastroMetasVdExpandido ? 'fixed inset-3 md:inset-5 z-[99999] bg-white border border-[#d9eff0] rounded-[24px] overflow-auto shadow-2xl' : 'bg-white border border-gray-100 rounded-[24px] overflow-hidden shadow-sm'}`}>
-            <div className="p-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-white sticky top-0 z-10">
-              <div>
-                <h3 className="text-xl font-black text-gray-700">Metas salvas do ciclo</h3>
-                <p className="text-sm text-gray-400 font-semibold">Use Ver + para abrir uma estrutura e ajustar consultores, peso e status.</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black w-fit">{metasTabelaVisualFiltradas.length} blocos</span>
-                <button
-                  type="button"
-                  onClick={() => setCadastroMetasVdExpandido((atual) => !atual)}
-                  className="h-9 px-3 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] inline-flex items-center gap-2 font-black text-xs"
-                  title={cadastroMetasVdExpandido ? 'Reduzir tabela' : 'Expandir tabela'}
-                >
-                  {cadastroMetasVdExpandido ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-                  {cadastroMetasVdExpandido ? 'Reduzir' : 'Expandir'}
-                </button>
-              </div>
-            </div>
-
-            {carregando ? <p className="p-8 text-[#048187] font-bold">Carregando metas reais...</p> : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-[12px] min-w-[1320px]">
-                  <thead className="bg-[#f2fafb] text-[10px] uppercase text-gray-500 font-black">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Nome Estrutura</th>
-                      <th className="px-4 py-3 text-left">Estrutura</th>
-                      <th className="px-4 py-3 text-left">Canal/Núcleo</th>
-                      <th className="px-4 py-3 text-left">Ciclo</th>
-                      <th className="px-4 py-3 text-right">Receita</th>
-                      <th className="px-4 py-3 text-right">Realizado</th>
-                      <th className="px-4 py-3 text-right">% Ating.</th>
-                      <th className="px-4 py-3 text-right">Atividade</th>
-                      <th className="px-4 py-3 text-right">RPA</th>
-                      <th className="px-4 py-3 text-right">Tkt Médio</th>
-                      <th className="px-4 py-3 text-right">UPA</th>
-                      <th className="px-4 py-3 text-right">Pen. Make</th>
-                      <th className="px-4 py-3 text-right">Pen. Cabelos</th>
-                      <th className="px-4 py-3 text-right">Pen. Multimarcas</th>
-                      <th className="px-4 py-3 text-right">Meta Eudora</th>
-                      <th className="px-4 py-3 text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {metasTabelaVisualFiltradas
-                      .map((m) => {
-                        const estruturasMeta = obterEstruturasMeta(m);
-                        const primeiraEstrutura = estruturasMeta[0] || {};
-                        const estruturaConfig = obterConfigEstruturaMeta(primeiraEstrutura);
-                        const configsEstruturas = estruturasMeta.map((estruturaItem) => ({ estruturaItem, config: obterConfigEstruturaMeta(estruturaItem) }));
-                        const canaisUnicosMeta = Array.from(new Set(configsEstruturas.map(({ config }) => config.canal || 'VD')));
-                        const nucleosUnicosMeta = Array.from(new Set(configsEstruturas.map(({ config }) => normalizarNucleoMeta(config.nucleo || 'NUCLEO 1'))));
-                        const metaTemMultiplasEstruturas = estruturasMeta.length > 1;
-                        const consultoresMeta = obterConsultoresMeta(m);
-                        const abertoLinha = String(metaExpandidaId) === String(m.id);
-                        const editandoLinha = String(metaLinhaEditandoId) === String(m.id);
-                        const linhaEditavel = editandoLinha && linhaEditandoMeta ? linhaEditandoMeta : null;
-                        return (
-                          <React.Fragment key={m.id}>
-                            <tr className={`${editandoLinha ? 'bg-[#f2fafb] ring-2 ring-[#048187]/20' : 'hover:bg-[#fbfefe]'}`}>
-                              <td className="px-4 py-3 font-black text-gray-700 max-w-[240px]">
-                                {editandoLinha ? (
-                                  <input value={linhaEditavel.nome_meta} onChange={(e) => atualizarLinhaMetaEditando('nome_meta', e.target.value)} className="w-full min-w-[180px] border border-gray-200 rounded-lg px-3 py-2 text-sm font-black text-gray-700 outline-none focus:border-[#048187]" />
-                                ) : (
-                                  <span className="truncate block">{m.nome_meta}</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 font-bold text-gray-500 max-w-[360px]">
-                                <div className="flex flex-col gap-1">
-                                  <span className="truncate">{primeiraEstrutura.estrutura || '-'}</span>
-                                  {metaTemMultiplasEstruturas && (
-                                    <div className="flex flex-wrap gap-1">
-                                      <span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-black">{estruturasMeta.length} estruturas vinculadas</span>
-                                      {estruturasMeta.slice(1, 3).map((estruturaItem) => (
-                                        <span key={`${m.id}-${estruturaItem.estrutura}`} className="bg-gray-50 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold max-w-[220px] truncate">{estruturaItem.estrutura}</span>
-                                      ))}
-                                      {estruturasMeta.length > 3 && <span className="bg-gray-50 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold">+{estruturasMeta.length - 3}</span>}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 min-w-[190px]">
-                                {editandoLinha ? (
-                                  metaTemMultiplasEstruturas ? (
-                                    <div className="flex flex-wrap gap-1 min-w-[170px]">
-                                      <span className="px-2 py-1 rounded-full bg-gray-50 text-gray-500 text-[10px] font-black">GRUPO</span>
-                                      <span className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{estruturasMeta.length} estruturas</span>
-                                    </div>
-                                  ) : (
-                                    <div className="grid grid-cols-2 gap-2 min-w-[170px]">
-                                      <select value={linhaEditavel.canal || 'VD'} onChange={(e) => atualizarLinhaMetaEditando('canal', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-xs font-black text-gray-700 outline-none focus:border-[#048187]">
-                                        <option value="VD">VD</option>
-                                        <option value="LOJA">LOJA</option>
-                                        <option value="ER">ER</option>
-                                      </select>
-                                      <select value={normalizarNucleoMeta(linhaEditavel.nucleo)} onChange={(e) => atualizarLinhaMetaEditando('nucleo', e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-xs font-black text-gray-700 outline-none focus:border-[#048187]">
-                                        <option value="NUCLEO 1">N1</option>
-                                        <option value="NUCLEO 2">N2</option>
-                                        <option value="NUCLEO 3">N3</option>
-                                      </select>
-                                    </div>
-                                  )
-                                ) : (
-                                  <div className="flex flex-wrap gap-1">
-                                    {canaisUnicosMeta.map((canal) => <span key={`${m.id}-canal-${canal}`} className="px-2 py-1 rounded-full bg-gray-50 text-gray-500 text-[10px] font-black">{canal}</span>)}
-                                    {nucleosUnicosMeta.map((nucleo) => <span key={`${m.id}-nucleo-${nucleo}`} className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{formatarNucleoCurtoMeta(nucleo)}</span>)}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 font-bold text-gray-600 min-w-[110px]">
-                                {editandoLinha ? <input value={linhaEditavel.ciclo} onChange={(e) => atualizarLinhaMetaEditando('ciclo', e.target.value)} className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-[#048187]" /> : m.ciclo}
-                              </td>
-                              <td className="px-4 py-3 text-right font-black text-[#048187] min-w-[145px]">
-                                {editandoLinha ? <input value={linhaEditavel.meta_real} onChange={(e) => atualizarLinhaMetaEditando('meta_real', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_real', formatarMetaRealInput(e.target.value))} className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm text-right font-black text-[#048187] outline-none focus:border-[#048187]" /> : formatarMoeda(m.meta_real)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-black text-gray-700">{formatarMoeda(m.realizado)}</td>
-                              <td className="px-4 py-3 text-right font-black" style={{ color: corPorFaixaMeta(m.percentual) }}>{Number(m.percentual || 0).toFixed(1)}%</td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[110px]">
-                                {editandoLinha ? <input value={linhaEditavel.meta_atividade} onChange={(e) => atualizarLinhaMetaEditando('meta_atividade', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_atividade', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_atividade || 0).toFixed(1)}%`}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[135px]">
-                                {editandoLinha ? <input value={linhaEditavel.meta_rpa} onChange={(e) => atualizarLinhaMetaEditando('meta_rpa', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_rpa', formatarMetaIndicadorInput(e.target.value, 2))} className="w-28 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : formatarMoeda(m.meta_rpa)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[135px]">
-                                {editandoLinha ? <input value={linhaEditavel.meta_tkt_medio} onChange={(e) => atualizarLinhaMetaEditando('meta_tkt_medio', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_tkt_medio', formatarMetaIndicadorInput(e.target.value, 2))} className="w-28 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : formatarMoeda(m.meta_tkt_medio)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[90px]">
-                                {editandoLinha ? <input value={linhaEditavel.meta_upa} onChange={(e) => atualizarLinhaMetaEditando('meta_upa', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_upa', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : Number(m.meta_upa || 0).toFixed(1)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[110px]">
-                                {editandoLinha ? <input value={linhaEditavel.meta_make} onChange={(e) => atualizarLinhaMetaEditando('meta_make', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_make', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_make || 0).toFixed(1)}%`}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[120px]">
-                                {editandoLinha ? <input value={linhaEditavel.meta_cabelo} onChange={(e) => atualizarLinhaMetaEditando('meta_cabelo', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_cabelo', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_cabelo || 0).toFixed(1)}%`}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[120px]">
-                                {editandoLinha ? <input value={linhaEditavel.meta_multimarcas} onChange={(e) => atualizarLinhaMetaEditando('meta_multimarcas', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_multimarcas', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_multimarcas || 78).toFixed(1)}%`}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-gray-600 min-w-[110px]">
-                                {editandoLinha ? <input value={linhaEditavel.meta_eudora} onChange={(e) => atualizarLinhaMetaEditando('meta_eudora', e.target.value)} onBlur={(e) => atualizarLinhaMetaEditando('meta_eudora', formatarMetaIndicadorInput(e.target.value, 1))} className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm text-right font-bold outline-none focus:border-[#048187]" /> : `${Number(m.meta_eudora || 20).toFixed(1)}%`}
-                              </td>
-                              <td className="px-4 py-3 text-right whitespace-nowrap min-w-[170px]">
-                                {editandoLinha ? (
-                                  <>
-                                    <button type="button" onClick={() => salvarEdicaoLinhaMeta(m)} disabled={salvandoLinhaMeta} className="bg-[#048187] text-white hover:brightness-110 disabled:opacity-60 rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1"><Save size={14} /> Salvar</button>
-                                    <button type="button" onClick={cancelarEdicaoLinhaMeta} className="bg-gray-50 text-gray-500 hover:bg-gray-100 rounded-lg p-2"><X size={16} /></button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setMetaExpandidaId(abertoLinha ? null : m.id); }} className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1">Ver +</button>
-                                    <button
-                                      type="button"
-                                      onClick={(event) => { event.preventDefault(); event.stopPropagation(); iniciarEdicaoLinhaMeta(m); }}
-                                      title="Editar meta na própria linha"
-                                      className="bg-white border border-[#d9eff0] text-[#048187] hover:bg-[#e6f6f7] rounded-lg px-3 py-2 inline-flex items-center gap-1 text-xs font-black mr-1"
-                                    >
-                                      <Pencil size={15} /> Editar
-                                    </button>
-                                    <button type="button" onClick={() => excluirMeta(m)} className="text-red-500 hover:bg-red-50 rounded-lg p-2"><Trash2 size={16} /></button>
-                                  </>
-                                )}
-                              </td>
-                            </tr>
-
-                            {abertoLinha && (
-                              <tr>
-                                <td colSpan={15} className="bg-[#fbfefe] px-6 py-5">
-                                  <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white">
-                                    <div className="px-5 py-4 border-b border-gray-100">
-                                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                                        <div>
-                                          <h4 className="font-black text-gray-700">Estruturas vinculadas à equipe</h4>
-                                          <p className="text-xs text-gray-400 font-semibold mt-1">Aqui você enxerga quando uma mesma equipe tem mais de uma estrutura, como EQUIPE GRAZIELLE.</p>
-                                        </div>
-                                        <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{estruturasMeta.length} estrutura(s)</span>
-                                      </div>
-                                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                                        {estruturasMeta.map((estruturaItem) => {
-                                          const configItem = obterConfigEstruturaMeta(estruturaItem);
-                                          return (
-                                            <div key={`${m.id}-estrutura-${estruturaItem.estrutura}`} className="bg-[#f7fafb] border border-gray-100 rounded-2xl p-4">
-                                              <p className="text-xs font-black text-gray-700">{estruturaItem.estrutura}</p>
-                                              <div className="flex flex-wrap gap-1 mt-2">
-                                                <span className="px-2 py-1 rounded-full bg-white text-gray-500 text-[10px] font-black">{configItem.canal || 'VD'}</span>
-                                                <span className="px-2 py-1 rounded-full bg-[#e6f6f7] text-[#048187] text-[10px] font-black">{formatarNucleoCurtoMeta(configItem.nucleo || 'NUCLEO 1')}</span>
-                                                <span className="px-2 py-1 rounded-full bg-white text-gray-500 text-[10px] font-bold">Cód. {estruturaItem.cod_estrutura || String(estruturaItem.estrutura || '').split('-')[0] || '-'}</span>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-                                      <div>
-                                        <h4 className="font-black text-gray-700">Consultores vinculados</h4>
-                                        <p className="text-xs text-gray-400 font-semibold mt-1">Edite peso e status. Consultores em férias/inativos não entram na divisão ativa da meta.</p>
-                                      </div>
-                                      <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">{consultoresMeta.length} consultores</span>
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                      <table className="w-full min-w-[900px] text-sm">
-                                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black"><tr><th className="px-5 py-3 text-left">Consultor</th><th className="px-5 py-3 text-left">Estrutura</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Peso</th><th className="px-5 py-3 text-right">Meta individual</th><th className="px-5 py-3 text-right">Realizado</th><th className="px-5 py-3 text-right">% Fat.</th></tr></thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                          {consultoresMeta.map((c) => (
-                                            <tr key={`${m.id}-${c.id_colaborador}-${c.id}`} className="hover:bg-[#f7fafb]">
-                                              <td className="px-5 py-3"><p className="font-black text-gray-700">{c.nome_exibicao || c.nome_social || c.nome}</p><p className="text-[10px] text-gray-400 font-bold">ID {c.id_colaborador || '-'}</p></td>
-                                              <td className="px-5 py-3 text-xs font-bold text-gray-500 max-w-[260px]"><span className="line-clamp-2">{c.estrutura || c.nome_estrutura || '-'}</span></td>
-                                              <td className="px-5 py-3"><select defaultValue={c.status_consultor || 'ativo'} onChange={(e) => salvarConsultorNaMeta(c, { status_consultor: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#048187]"><option value="ativo">Ativo</option><option value="ferias">Férias</option><option value="inativo">Inativo</option></select></td>
-                                              <td className="px-5 py-3 text-right"><div className="inline-flex items-center gap-2"><input type="number" step="0.01" defaultValue={Number(c.peso_meta || 0).toFixed(2)} onBlur={(e) => salvarPesoConsultorMeta(c, e.target.value)} className="w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold text-[#048187] outline-none focus:border-[#048187]" />%</div></td>
-                                              <td className="px-5 py-3 text-right font-bold text-gray-600">{formatarMoeda(c.meta_individual)}</td>
-                                              <td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(c.realizado)}</td>
-                                              <td className="px-5 py-3 text-right font-black" style={{ color: corPorFaixaMeta(c.percentual) }}>{Number(c.percentual || 0).toFixed(1)}%</td>
-                                            </tr>
-                                          ))}
-                                          {!consultoresMeta.length && <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400 font-bold">Nenhum consultor cadastrado nessa estrutura.</td></tr>}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    {!metasTabelaVisual.length && <tr><td colSpan={15} className="p-10 text-center text-gray-400 font-bold">Nenhuma meta real cadastrada para este ciclo.</td></tr>}
-                  </tbody>
-                  <tfoot className="bg-yellow-100 text-gray-800 font-black">
-                    <tr>
-                      <td className="px-4 py-3 text-center" colSpan={4}>TOTAL GERAL</td>
-                      <td className="px-4 py-3 text-right">{formatarMoeda(totalMetasFiltrado)}</td>
-                      <td className="px-4 py-3 text-right">{formatarMoeda(totalRealizadoFiltrado)}</td>
-                      <td className="px-4 py-3 text-right">{percentualTotalFiltrado.toFixed(1)}%</td>
-                      <td colSpan={7}></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </div>
+  const estruturaSelecionada = contexto?.estrutura || estruturas.find((e) => Number(e.id) === Number(form.estrutura_oficial_id));
+  const ordemNucleos = ['NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'];
+  const conteudo = (
+    <div className="space-y-5">
+      <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div><h2 className="text-xl font-bold text-gray-700">Cadastro de Metas</h2><p className="text-sm text-gray-400 mt-1">Uma estrutura por vez, sem criar estruturas automaticamente.</p></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={cicloAtualForm} onChange={(e) => trocarCiclo(e.target.value)} className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none focus:border-[#048187]">
+            <option value="">Selecione o ciclo</option>{ciclosMeta.map((c) => <option key={c.ciclo} value={c.ciclo}>{c.ciclo}{c.eh_atual ? ' • atual' : ''}</option>)}
+          </select>
+          <button type="button" onClick={abrirEdicaoMassa} disabled={!metas.length} className="bg-white border border-[#b9dfe1] text-[#048187] px-4 py-2.5 rounded-xl font-semibold text-sm inline-flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"><SlidersHorizontal size={16}/> Edição em massa</button>
+          <button type="button" onClick={abrirNovaMeta} className="bg-[#048187] text-white px-4 py-2.5 rounded-xl font-semibold text-sm inline-flex items-center gap-2"><Plus size={16}/> Cadastrar meta</button>
         </div>
       </div>
+
+      {(erro || mensagem) && <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${erro ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>{erro || mensagem}</div>}
+
+      {mostrarEdicaoMassa && (
+        <div className="bg-white border border-[#d9eff0] rounded-2xl p-5 md:p-6 shadow-sm space-y-5">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2"><SlidersHorizontal size={18} className="text-[#048187]"/><h3 className="text-lg font-bold text-gray-700">Edição em massa</h3></div>
+              <p className="text-xs text-gray-400 mt-1">Aplique a mesma meta a todas as estruturas ou selecione apenas as desejadas.</p>
+            </div>
+            <button type="button" onClick={fecharEdicaoMassa} className="w-9 h-9 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center"><X size={18}/></button>
+          </div>
+
+          <div className="rounded-xl border border-[#cce8ea] bg-[#f3fbfb] px-4 py-3 flex items-start gap-3">
+            <ShieldCheck size={17} className="text-[#048187] mt-0.5 shrink-0"/>
+            <div><p className="text-sm font-semibold text-gray-700">Receita e Receita Eudora ficam protegidas.</p><p className="text-xs text-gray-500 mt-0.5">A edição em massa só altera os indicadores abaixo. Deixe um campo em branco para manter o valor atual daquela meta.</p></div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-3"><div><h4 className="text-sm font-bold text-gray-700">Indicadores para alterar</h4><p className="text-xs text-gray-400 mt-0.5">Você pode alterar um ou vários indicadores na mesma operação.</p></div><span className="text-xs font-semibold text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{camposMassaConfigurados.length} configurado(s)</span></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <CampoMetaIndicador label="Meta Atividade (%)" value={valoresMassa.meta_atividade} casas={1} placeholder="Sem alteração" onChange={(v)=>setValoresMassa(a=>({...a,meta_atividade:v}))}/>
+              <CampoMetaIndicador label="Meta MAKE (%)" value={valoresMassa.meta_make} casas={1} placeholder="Sem alteração" onChange={(v)=>setValoresMassa(a=>({...a,meta_make:v}))}/>
+              <CampoMetaIndicador label="Meta CABELO (%)" value={valoresMassa.meta_cabelo} casas={1} placeholder="Sem alteração" onChange={(v)=>setValoresMassa(a=>({...a,meta_cabelo:v}))}/>
+              <CampoMetaIndicador label="Meta MULTIMARCAS (%)" value={valoresMassa.meta_multimarcas} casas={1} placeholder="Sem alteração" onChange={(v)=>setValoresMassa(a=>({...a,meta_multimarcas:v}))}/>
+              <CampoMetaIndicador label="Meta RPA (R$)" value={valoresMassa.meta_rpa} casas={2} placeholder="Sem alteração" onChange={(v)=>setValoresMassa(a=>({...a,meta_rpa:v}))}/>
+              <CampoMetaIndicador label="Meta Tkt Médio (R$)" value={valoresMassa.meta_tkt_medio} casas={2} placeholder="Sem alteração" onChange={(v)=>setValoresMassa(a=>({...a,meta_tkt_medio:v}))}/>
+              <CampoMetaIndicador label="Meta UPA" value={valoresMassa.meta_upa} casas={1} placeholder="Sem alteração" onChange={(v)=>setValoresMassa(a=>({...a,meta_upa:v}))}/>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-[#f7fafb] px-4 py-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+              <div><h4 className="text-sm font-bold text-gray-700">Estruturas que receberão a alteração</h4><p className="text-xs text-gray-400 mt-0.5">{metasSelecionadasMassa.length} de {metas.length} selecionada(s) no ciclo {cicloAtualForm || '-'}.</p></div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={selecionarTodasMassa} className="px-3 py-2 rounded-lg border border-[#b9dfe1] bg-white text-[#048187] text-xs font-semibold">Selecionar todas</button>
+                <button type="button" onClick={limparSelecaoMassa} className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-500 text-xs font-semibold">Limpar seleção</button>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-2 mb-3">
+                <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/><input value={buscaMassa} onChange={(e)=>setBuscaMassa(e.target.value)} placeholder="Buscar estrutura..." className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#048187]"/></div>
+                <select value={nucleoMassa} onChange={(e)=>setNucleoMassa(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#048187]"><option value="TODOS">Todos os núcleos</option><option value="NUCLEO 1">Núcleo 1</option><option value="NUCLEO 2">Núcleo 2</option><option value="NUCLEO 3">Núcleo 3</option></select>
+              </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 max-h-[360px] overflow-y-auto pr-1">
+                {metasFiltradasMassa.map((m)=>{const selecionada=metasSelecionadasMassa.includes(Number(m.id));return <label key={m.id} className={`rounded-xl border p-3 cursor-pointer transition-colors ${selecionada?'border-[#048187] bg-[#eef9f9]':'border-gray-200 bg-white hover:bg-gray-50'}`}><div className="flex items-start gap-3"><input type="checkbox" checked={selecionada} onChange={()=>alternarMetaMassa(m.id)} className="accent-[#048187] mt-1"/><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-gray-700 truncate">{m.nome_estrutura||m.nome_meta}</p><span className="text-[10px] font-semibold text-[#048187] bg-[#e6f6f7] rounded-full px-2 py-1 shrink-0">{String(m.nucleo||'').replace('NUCLEO','N')}</span></div><p className="text-[10px] text-gray-400 mt-0.5 truncate">{m.categoria_canal || '-'} • {(m.variacoes||[]).map(v=>v.estrutura).join(' + ') || 'Sem variação'}</p><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500"><span>Ativ. <b className="text-gray-600">{Number(m.meta_atividade||0).toFixed(1)}%</b></span><span>MAKE <b className="text-gray-600">{Number(m.meta_make||0).toFixed(1)}%</b></span><span>Cabelo <b className="text-gray-600">{Number(m.meta_cabelo||0).toFixed(1)}%</b></span><span>Multi. <b className="text-gray-600">{Number(m.meta_multimarcas||0).toFixed(1)}%</b></span><span>RPA <b className="text-gray-600">{formatarMoeda(m.meta_rpa)}</b></span><span>Tkt <b className="text-gray-600">{formatarMoeda(m.meta_tkt_medio)}</b></span><span>UPA <b className="text-gray-600">{Number(m.meta_upa||0).toFixed(1)}</b></span></div></div></div></label>})}
+                {!metasFiltradasMassa.length && <div className="xl:col-span-2 py-8 text-center text-sm text-gray-400">Nenhuma estrutura encontrada.</div>}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+            <p className="text-xs text-gray-400">A alteração será aplicada somente às metas selecionadas do ciclo atual.</p>
+            <div className="flex justify-end gap-3"><button type="button" onClick={fecharEdicaoMassa} className="px-5 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold">Cancelar</button><button type="button" onClick={aplicarEdicaoMassa} disabled={salvandoMassa || !metasSelecionadasMassa.length || !camposMassaConfigurados.length} className="px-5 py-3 rounded-xl bg-[#048187] text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2"><Save size={16}/>{salvandoMassa?'Aplicando...':`Aplicar em ${metasSelecionadasMassa.length || 0} estrutura(s)`}</button></div>
+          </div>
+        </div>
+      )}
+
+      {mostrarFormulario && (
+        <form onSubmit={salvar} className="bg-white border border-[#d9eff0] rounded-2xl p-5 md:p-6 shadow-sm space-y-5">
+          <div className="flex items-center justify-between gap-3"><div><h3 className="text-lg font-bold text-gray-700">{editandoId ? 'Editar meta' : 'Cadastrar meta'}</h3><p className="text-xs text-gray-400 mt-1">O núcleo e o canal vêm do cadastro oficial da estrutura.</p></div><button type="button" onClick={cancelarFormulario} className="w-9 h-9 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center"><X size={18}/></button></div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div><label className="text-[11px] font-semibold text-gray-500 uppercase block mb-1">Ciclo</label><select value={cicloAtualForm} onChange={(e)=>trocarCiclo(e.target.value)} disabled={modoInline && !!cicloPadrao} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187] disabled:bg-gray-50"><option value="">Selecione</option>{ciclosMeta.map(c=><option key={c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}</select></div>
+            <div className="md:col-span-2"><label className="text-[11px] font-semibold text-gray-500 uppercase block mb-1">Estrutura</label><select value={form.estrutura_oficial_id} disabled={!!editandoId} onChange={(e)=>selecionarEstrutura(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#048187] disabled:bg-gray-50"><option value="">Selecione a estrutura</option>{estruturas.map(est=><option key={est.id} value={est.id}>{est.nome}</option>)}</select></div>
+            <div><label className="text-[11px] font-semibold text-gray-500 uppercase block mb-1">Núcleo</label><div className="border border-gray-100 bg-gray-50 rounded-xl px-4 py-3 text-sm font-semibold text-gray-600">{estruturaSelecionada?.nucleo?.replace('NUCLEO','NÚCLEO') || '-'}</div></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className="text-[11px] font-semibold text-gray-500 uppercase block mb-1">Canal</label><div className="border border-gray-100 bg-gray-50 rounded-xl px-4 py-3 text-sm font-semibold text-gray-600">{estruturaSelecionada?.categoria_canal || '-'}</div></div>
+            <div><label className="text-[11px] font-semibold text-gray-500 uppercase block mb-1">Código</label><div className="border border-gray-100 bg-gray-50 rounded-xl px-4 py-3 text-sm font-semibold text-gray-600">{estruturaSelecionada?.cod_estrutura || '-'}</div></div>
+          </div>
+
+          {!!estruturaSelecionada && <div className="rounded-2xl bg-[#f7fafb] border border-gray-100 p-4"><p className="text-[11px] font-semibold uppercase text-gray-500 mb-3">Estruturas vinculadas</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2">{(estruturaSelecionada.variacoes||[]).map(v=>{const checked=form.variacao_ids.map(Number).includes(Number(v.id));return <label key={v.id} className={`flex items-center gap-3 rounded-xl border px-3 py-3 cursor-pointer ${checked?'border-[#048187] bg-[#e6f6f7]':'border-gray-200 bg-white'}`}><input type="checkbox" checked={checked} onChange={()=>setForm(a=>({...a,variacao_ids:checked?a.variacao_ids.filter(id=>Number(id)!==Number(v.id)):[...a.variacao_ids,Number(v.id)]}))} className="accent-[#048187]"/><div><p className="text-sm font-semibold text-gray-700">{v.estrutura}</p><p className="text-[10px] text-gray-400">Código {v.cod_estrutura||'-'}</p></div></label>})}</div></div>}
+
+          <div className="rounded-2xl border border-gray-100 p-4"><h4 className="text-sm font-bold text-gray-700 mb-4">Indicadores</h4><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <CampoMetaIndicador label="Meta Receita (R$)" value={form.meta_real} casas={2} placeholder="0,00" onChange={(v)=>setForm(a=>({...a,meta_real:v}))}/>
+            <CampoMetaIndicador label="Meta Atividade (%)" value={form.meta_atividade} casas={1} placeholder="45,0" onChange={(v)=>setForm(a=>({...a,meta_atividade:v}))}/>
+            <CampoMetaIndicador label="Meta MAKE (%)" value={form.meta_make} casas={1} placeholder="40,0" onChange={(v)=>setForm(a=>({...a,meta_make:v}))}/>
+            <CampoMetaIndicador label="Meta CABELO (%)" value={form.meta_cabelo} casas={1} placeholder="40,0" onChange={(v)=>setForm(a=>({...a,meta_cabelo:v}))}/>
+            <CampoMetaIndicador label="Meta MULTIMARCAS (%)" value={form.meta_multimarcas} casas={1} placeholder="78,0" onChange={(v)=>setForm(a=>({...a,meta_multimarcas:v}))}/>
+            <CampoMetaIndicador label="Meta EUDORA (% faturamento)" value={form.meta_eudora} casas={1} placeholder="20,0" onChange={(v)=>setForm(a=>({...a,meta_eudora:v}))}/>
+            <CampoMetaIndicador label="Meta RPA (R$)" value={form.meta_rpa} casas={2} placeholder="0,00" onChange={(v)=>setForm(a=>({...a,meta_rpa:v}))}/>
+            <CampoMetaIndicador label="Meta Tkt Médio (R$)" value={form.meta_tkt_medio} casas={2} placeholder="0,00" onChange={(v)=>setForm(a=>({...a,meta_tkt_medio:v}))}/>
+            <CampoMetaIndicador label="Meta UPA" value={form.meta_upa} casas={1} placeholder="0,0" onChange={(v)=>setForm(a=>({...a,meta_upa:v}))}/>
+          </div></div>
+
+          <div className="rounded-2xl border border-gray-100 p-4"><p className="text-sm font-bold text-gray-700">A estrutura tem consultores? <span className="text-red-500">*</span></p><div className="flex gap-3 mt-3"><button type="button" onClick={()=>setForm(a=>({...a,tem_consultores:true}))} className={`px-5 py-2.5 rounded-xl font-semibold text-sm border ${form.tem_consultores===true?'bg-[#048187] text-white border-[#048187]':'bg-white text-gray-600 border-gray-200'}`}>Sim</button><button type="button" onClick={()=>setForm(a=>({...a,tem_consultores:false}))} className={`px-5 py-2.5 rounded-xl font-semibold text-sm border ${form.tem_consultores===false?'bg-[#048187] text-white border-[#048187]':'bg-white text-gray-600 border-gray-200'}`}>Não</button></div></div>
+
+          {form.tem_consultores===true && <div className="rounded-2xl border border-gray-100 overflow-hidden"><div className="bg-[#f7fafb] px-4 py-3 flex items-center justify-between"><div><p className="font-bold text-gray-700">Metas dos consultores</p><p className="text-xs text-gray-400">Atividade, MAKE, CABELO, RPA, Ticket e UPA herdam a meta da estrutura.</p></div><span className={`text-xs font-bold px-3 py-1.5 rounded-full ${Math.abs(saldoDistribuicao)<=0.01?'bg-green-50 text-green-700':'bg-orange-50 text-orange-600'}`}>Falta distribuir: {formatarMoeda(Math.max(saldoDistribuicao,0))}</span></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="text-[10px] uppercase text-gray-400 bg-white"><tr><th className="px-4 py-3 text-left">Consultor</th><th className="px-4 py-3 text-right">Meta Receita</th><th className="px-4 py-3 text-right">Meta Eudora</th><th className="px-4 py-3 text-left">Metas herdadas</th></tr></thead><tbody>{form.consultores.map((c,idx)=><tr key={c.id_colaborador} className="border-t border-gray-100"><td className="px-4 py-3 font-semibold text-gray-700">{c.nome}<div className="text-[10px] text-gray-400">ID {c.id_colaborador}</div></td><td className="px-4 py-3"><input value={c.meta_receita} onChange={(e)=>setForm(a=>({...a,consultores:a.consultores.map((x,i)=>i===idx?{...x,meta_receita:e.target.value}:x)}))} onBlur={(e)=>setForm(a=>({...a,consultores:a.consultores.map((x,i)=>i===idx?{...x,meta_receita:moedaInput(e.target.value)}:x)}))} className="w-36 ml-auto block border border-gray-200 rounded-lg px-3 py-2 text-right outline-none focus:border-[#048187]" placeholder="0,00"/></td><td className="px-4 py-3 text-right font-semibold text-[#048187]">{formatarMoeda(numero(c.meta_receita)*(eudoraPercent/100))}</td><td className="px-4 py-3 text-xs text-gray-500">Ativ. {numero(form.meta_atividade).toFixed(1)}% • Make {numero(form.meta_make).toFixed(1)}% • Cabelo {numero(form.meta_cabelo).toFixed(1)}% • RPA {formatarMoeda(numero(form.meta_rpa))} • Tkt {formatarMoeda(numero(form.meta_tkt_medio))} • UPA {numero(form.meta_upa).toFixed(1)}</td></tr>)}</tbody></table></div><div className="px-4 py-3 bg-[#f7fafb] flex justify-end gap-6 text-sm"><span>Meta estrutura: <b>{formatarMoeda(metaReceita)}</b></span><span>Distribuído: <b>{formatarMoeda(totalDistribuido)}</b></span></div></div>}
+
+          <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={cancelarFormulario} className="px-5 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold">Cancelar</button><button type="submit" disabled={salvando} className="px-5 py-3 rounded-xl bg-[#048187] text-white font-semibold disabled:opacity-50 inline-flex items-center gap-2"><Save size={16}/>{salvando?'Salvando...':editandoId?'Salvar alterações':'Cadastrar meta'}</button></div>
+        </form>
+      )}
+
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"><div className="p-5 border-b border-gray-100"><h3 className="text-lg font-bold text-gray-700">Metas salvas do ciclo</h3><p className="text-sm text-gray-400 mt-1">N1, N2 e N3 separados para facilitar a conferência.</p></div>{carregando?<div className="p-8 text-center text-[#048187] font-semibold">Carregando...</div>:<div className="p-4 space-y-5">{ordemNucleos.map(nucleo=>{const itens=metas.filter(m=>String(m.nucleo||'').toUpperCase()===nucleo);if(!itens.length)return null;return <div key={nucleo} className="border border-gray-100 rounded-2xl overflow-hidden"><div className="bg-[#e6f6f7] px-4 py-3 flex items-center justify-between"><span className="font-bold text-[#048187]">{nucleo.replace('NUCLEO','NÚCLEO')}</span><span className="text-xs font-semibold text-[#048187]">{itens.length} estrutura(s)</span></div><div className="overflow-x-auto"><table className="w-full min-w-[1450px] text-[12px]"><thead className="bg-[#f7fafb] text-[10px] uppercase text-gray-400"><tr><th className="px-3 py-3 text-left">Nome Estrutura</th><th className="px-3 py-3 text-left">Estrutura</th><th className="px-3 py-3 text-left">Canal/Núcleo</th><th className="px-3 py-3">Ciclo</th><th className="px-3 py-3 text-right">Receita</th><th className="px-3 py-3 text-right">Atividade</th><th className="px-3 py-3 text-right">RPA</th><th className="px-3 py-3 text-right">Tkt Médio</th><th className="px-3 py-3 text-right">UPA</th><th className="px-3 py-3 text-right">Pen. Make</th><th className="px-3 py-3 text-right">Pen. Cabelos</th><th className="px-3 py-3 text-right">Pen. Multimarcas</th><th className="px-3 py-3 text-right">Meta Eudora</th><th className="px-3 py-3 text-right">Ações</th></tr></thead><tbody>{itens.map(m=><tr key={m.id} className="border-t border-gray-100 hover:bg-gray-50"><td className="px-3 py-3 font-semibold text-gray-700">{m.nome_estrutura||m.nome_meta}</td><td className="px-3 py-3 text-gray-500 max-w-[260px]">{(m.variacoes||[]).map(v=>v.estrutura).join(' + ')}</td><td className="px-3 py-3 text-gray-500">{m.categoria_canal} / {String(m.nucleo||'').replace('NUCLEO','N')}</td><td className="px-3 py-3 text-center">{m.ciclo}</td><td className="px-3 py-3 text-right font-semibold text-[#048187]">{formatarMoeda(m.meta_real)}</td><td className="px-3 py-3 text-right">{Number(m.meta_atividade||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_rpa)}</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_tkt_medio)}</td><td className="px-3 py-3 text-right">{Number(m.meta_upa||0).toFixed(1)}</td><td className="px-3 py-3 text-right">{Number(m.meta_make||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_cabelo||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_multimarcas||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_eudora||0).toFixed(1)}%</td><td className="px-3 py-3 text-right whitespace-nowrap"><button onClick={()=>editarMeta(m)} className="text-[#048187] mr-3" title="Editar"><Pencil size={16}/></button><button onClick={()=>excluirMeta(m)} className="text-red-500" title="Apagar"><Trash2 size={16}/></button></td></tr>)}</tbody></table></div></div>})}{!metas.length&&<div className="py-10 text-center text-gray-400">Nenhuma meta cadastrada neste ciclo.</div>}</div>}</div>
     </div>
   );
+  if (modoInline) return conteudo;
+  return <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4"><div className="bg-[#f7fafb] w-full max-w-7xl max-h-[94vh] rounded-2xl overflow-y-auto p-5"><div className="flex justify-end mb-3"><button onClick={onClose} className="w-10 h-10 rounded-xl bg-white text-gray-500 flex items-center justify-center"><X size={20}/></button></div>{conteudo}</div></div>;
 }
 
+function CadastroEstruturasV2({ apiUrl, onAtualizacao }) {
+  const vazio = { cod_estrutura: '', nome: '', nucleo: 'NUCLEO 1', categoria_canal: 'FORÇA DE VENDAS', status: 'ativo', variacoes: [] };
+  const [lista, setLista] = useState([]); const [form, setForm] = useState(vazio); const [editando, setEditando] = useState(null);
+  const [modal, setModal] = useState(false); const [busca, setBusca] = useState(''); const [variacoes, setVariacoes] = useState([]);
+  const [carregando, setCarregando] = useState(false); const [salvando, setSalvando] = useState(false); const [erro, setErro] = useState(''); const [mensagem, setMensagem] = useState('');
+  const carregar = async()=>{setCarregando(true);setErro('');try{const {data}=await axios.get(`${apiUrl}/cadastro-v2/estruturas`);setLista(data?.estruturas||[]);}catch(e){setErro(e.response?.data?.detail||'Erro ao carregar estruturas.');}finally{setCarregando(false);}};
+  useEffect(()=>{carregar();},[]);
+  useEffect(()=>{if(!modal)return;const t=setTimeout(async()=>{try{const {data}=await axios.get(`${apiUrl}/cadastro-v2/variacoes-disponiveis`,{params:{q:busca}});setVariacoes(data?.variacoes||[]);}catch(_){setVariacoes([]);}},250);return()=>clearTimeout(t);},[modal,busca]);
+  const abrirNova=()=>{setEditando(null);setForm(vazio);setBusca('');setErro('');setMensagem('');setModal(true);};
+  const abrirEditar=(item)=>{setEditando(item);setForm({cod_estrutura:item.cod_estrutura||'',nome:item.nome||'',nucleo:item.nucleo||'NUCLEO 1',categoria_canal:item.categoria_canal||'FORÇA DE VENDAS',status:item.status||'ativo',variacoes:item.variacoes||[]});setBusca('');setModal(true);};
+  const temVariacao=(v)=>form.variacoes.some(x=>String(x.estrutura||'').trim().toLowerCase()===String(v.estrutura||'').trim().toLowerCase());
+  const alternarVariacao=(v)=>{if(v.equipe_id&&Number(v.equipe_id)!==Number(editando?.id||0)&&String(v.equipe_status||'').toLowerCase()!=='excluido'){setErro(`A variação ${v.estrutura} já pertence a ${v.equipe_nome}.`);return;}setForm(a=>({...a,variacoes:temVariacao(v)?a.variacoes.filter(x=>String(x.estrutura).trim().toLowerCase()!==String(v.estrutura).trim().toLowerCase()):[...a.variacoes,{id:v.id,cod_estrutura:v.cod_estrutura,estrutura:v.estrutura}]}));};
+  const salvar=async(e)=>{e.preventDefault();setErro('');setMensagem('');if(!form.cod_estrutura.trim()||!form.nome.trim())return setErro('Preencha código e nome da estrutura.');if(!form.variacoes.length)return setErro('Selecione pelo menos uma variação.');setSalvando(true);try{const payload={...form,variacoes:form.variacoes.map(v=>({cod_estrutura:v.cod_estrutura||'',estrutura:v.estrutura}))};if(editando?.id)await axios.put(`${apiUrl}/cadastro-v2/estruturas/${editando.id}`,payload);else await axios.post(`${apiUrl}/cadastro-v2/estruturas`,payload);setModal(false);setMensagem(editando?'Estrutura atualizada.':'Estrutura cadastrada.');await carregar();if(onAtualizacao)onAtualizacao();}catch(err){setErro(err.response?.data?.detail||'Erro ao salvar estrutura.');}finally{setSalvando(false);}};
+  const excluir=async(item)=>{if(!window.confirm(`Apagar a estrutura ${item.nome}? O histórico será preservado.`))return;try{await axios.delete(`${apiUrl}/cadastro-v2/estruturas/${item.id}`);setMensagem('Estrutura removida.');await carregar();if(onAtualizacao)onAtualizacao();}catch(e){setErro(e.response?.data?.detail||'Erro ao apagar estrutura.');}};
+  const ordem=['NUCLEO 1','NUCLEO 2','NUCLEO 3'];
+  return <div className="space-y-5"><div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center justify-between gap-3"><div><h2 className="text-xl font-bold text-gray-700">Cadastro de Estruturas</h2><p className="text-sm text-gray-400 mt-1">Somente estruturas cadastradas aqui entram nos núcleos.</p></div><button onClick={abrirNova} className="bg-[#048187] text-white px-4 py-2.5 rounded-xl font-semibold text-sm inline-flex items-center gap-2"><Plus size={16}/> Cadastrar</button></div>{(erro||mensagem)&&<div className={`rounded-xl px-4 py-3 text-sm font-semibold ${erro?'bg-red-50 text-red-600':'bg-green-50 text-green-700'}`}>{erro||mensagem}</div>}{carregando?<div className="bg-white rounded-2xl p-10 text-center text-[#048187]">Carregando...</div>:<div className="space-y-4">{ordem.map(n=>{const itens=lista.filter(x=>x.nucleo===n);if(!itens.length)return null;return <div key={n} className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm"><div className="bg-[#e6f6f7] px-4 py-3 font-bold text-[#048187]">{n.replace('NUCLEO','NÚCLEO')}</div><div className="divide-y divide-gray-100">{itens.map(item=><div key={item.id} className="px-4 py-4 grid grid-cols-1 lg:grid-cols-[1.2fr_.7fr_.8fr_.55fr_auto] gap-3 items-center"><div><p className="font-semibold text-gray-700">{item.nome}</p><p className="text-xs text-gray-400">Código {item.cod_estrutura||'-'} • {item.variacoes?.length||0} variação(ões)</p><div className="flex flex-wrap gap-1 mt-2">{(item.variacoes||[]).map(v=><span key={v.id||v.estrutura} className="bg-gray-50 text-gray-500 px-2 py-1 rounded-lg text-[10px]">{v.estrutura}</span>)}</div></div><div className="text-sm text-gray-600">{item.categoria_canal}</div><div className="text-sm text-gray-500">{item.consultores_ativos||0} consultor(es) ativo(s)</div><div><span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase ${item.status==='ativo'?'bg-green-50 text-green-700':'bg-gray-100 text-gray-500'}`}>{item.status}</span></div><div className="text-right whitespace-nowrap"><button onClick={()=>abrirEditar(item)} className="text-[#048187] mr-3" title="Editar"><Pencil size={17}/></button><button onClick={()=>excluir(item)} className="text-red-500" title="Apagar"><Trash2 size={17}/></button></div></div>)}</div></div>})}</div>}
+  {modal&&<div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4"><div className="bg-white w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl"><div className="p-5 border-b border-gray-100 flex items-center justify-between"><div><h3 className="text-xl font-bold text-gray-700">{editando?'Editar estrutura':'Cadastrar estrutura'}</h3><p className="text-xs text-gray-400 mt-1">Editar usa o mesmo ID; nunca cria uma segunda estrutura.</p></div><button onClick={()=>setModal(false)} className="w-9 h-9 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center"><X size={18}/></button></div><form onSubmit={salvar} className="p-5 space-y-5"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Código da estrutura</label><input value={form.cod_estrutura} onChange={e=>setForm({...form,cod_estrutura:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-[#048187]" required/></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Nome da estrutura</label><input value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-[#048187]" required/></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Núcleo</label><select value={form.nucleo} onChange={e=>setForm({...form,nucleo:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"><option value="NUCLEO 1">N1</option><option value="NUCLEO 2">N2</option><option value="NUCLEO 3">N3</option></select></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Canal</label><select value={form.categoria_canal} onChange={e=>setForm({...form,categoria_canal:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"><option>FORÇA DE VENDAS</option><option>ESPAÇO DO REVENDEDOR</option><option>EQUIPE DE CAMPO</option></select></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Status</label><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div></div><div className="border border-gray-100 rounded-2xl p-4"><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-2">Variações da estrutura</label><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Pesquise pelo nome ou código que aparece nas bases..." className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-[#048187]"/><div className="flex flex-wrap gap-2 mt-3">{form.variacoes.map(v=><span key={v.estrutura} className="bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-2">{v.estrutura}<button type="button" onClick={()=>alternarVariacao(v)}><X size={13}/></button></span>)}</div><div className="mt-3 max-h-64 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-100">{variacoes.filter(v=>!temVariacao(v)).slice(0,80).map(v=><button key={v.estrutura} type="button" onClick={()=>alternarVariacao(v)} className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center justify-between gap-3 ${v.equipe_id&&Number(v.equipe_id)!==Number(editando?.id||0)&&String(v.equipe_status).toLowerCase()!=='excluido'?'opacity-50':''}`}><span><b className="text-gray-700">{v.estrutura}</b><span className="block text-[10px] text-gray-400">Código {v.cod_estrutura||'-'}</span></span><span className="text-[10px] text-gray-400">{v.equipe_id?`Vinculada a ${v.equipe_nome}`:'Disponível'}</span></button>)}</div></div><div className="flex justify-end gap-3"><button type="button" onClick={()=>setModal(false)} className="px-5 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold">Cancelar</button><button type="submit" disabled={salvando} className="px-5 py-3 rounded-xl bg-[#048187] text-white font-semibold disabled:opacity-50"><Save size={16} className="inline mr-2"/>{salvando?'Salvando...':'Salvar'}</button></div></form></div></div>}</div>;
+}
 
-
-const EXCLUSAO_REVENDEDOR_VAZIA = {
-  codigo_revendedor: '',
-  nome_revendedor: '',
-  motivo: '',
-  ciclo: 'TODOS',
-  tipo_exclusao: 'todos',
-  ativo: true
-};
-
-const TIPOS_EXCLUSAO_REVENDEDOR = [
-  { value: 'todos', label: 'Todos os cálculos' },
-  { value: 'metas', label: 'Somente Metas' },
-  { value: 'dashboard', label: 'Somente Dashboard' },
-  { value: 'ranking', label: 'Somente Ranking' },
-  { value: 'historico', label: 'Somente Histórico' },
-  { value: 'revendedores', label: 'Somente Revendedores' }
-];
+function CadastroConsultoresV2({ apiUrl, onAtualizacao, abrirIdentidade, obterFoto, podeGerenciarIdentidade }) {
+  const vazio={id_colaborador:'',nome:'',nome_social:'',estrutura_oficial_id:'',status_consultor:'ativo'};
+  const [lista,setLista]=useState([]);const [estruturas,setEstruturas]=useState([]);const [form,setForm]=useState(vazio);const [editando,setEditando]=useState(null);const [modal,setModal]=useState(false);const [busca,setBusca]=useState('');const [erro,setErro]=useState('');const [mensagem,setMensagem]=useState('');const [carregando,setCarregando]=useState(false);const [salvando,setSalvando]=useState(false);
+  const carregar=async()=>{setCarregando(true);try{const [c,e]=await Promise.all([axios.get(`${apiUrl}/consultores/listar`),axios.get(`${apiUrl}/cadastro-v2/estruturas`,{params:{incluir_inativas:false}})]);setLista(c.data?.consultores||[]);setEstruturas(e.data?.estruturas||[]);}catch(err){setErro(err.response?.data?.detail||'Erro ao carregar consultores.');}finally{setCarregando(false);}};useEffect(()=>{carregar();},[]);
+  const abrirNovo=()=>{setEditando(null);setForm(vazio);setModal(true);setErro('');};const abrirEditar=(c)=>{setEditando(c);setForm({id_colaborador:c.id_colaborador||'',nome:c.nome||'',nome_social:c.nome_social||'',estrutura_oficial_id:c.equipe_consolidada_id||c.estrutura_oficial_id||'',status_consultor:c.status_consultor||'ativo'});setModal(true);};
+  const salvar=async(e)=>{e.preventDefault();setSalvando(true);setErro('');try{if(editando?.id)await axios.put(`${apiUrl}/cadastro-v2/consultores/${editando.id}`,form);else await axios.post(`${apiUrl}/cadastro-v2/consultores`,form);setModal(false);setMensagem(editando?'Consultor atualizado.':'Consultor cadastrado.');await carregar();if(onAtualizacao)onAtualizacao();}catch(err){setErro(err.response?.data?.detail||'Erro ao salvar consultor.');}finally{setSalvando(false);}};
+  const excluir=async(c)=>{if(!window.confirm(`Apagar ${c.nome_exibicao||c.nome}?`))return;try{await axios.delete(`${apiUrl}/cadastro-v2/consultores/${c.id}`);setMensagem('Consultor removido.');await carregar();if(onAtualizacao)onAtualizacao();}catch(err){setErro(err.response?.data?.detail||'Erro ao remover consultor.');}};
+  const filtrada=lista.filter(c=>{const q=busca.toLowerCase();return !q||String(c.nome||'').toLowerCase().includes(q)||String(c.nome_social||'').toLowerCase().includes(q)||String(c.id_colaborador||'').includes(q)||String(c.equipe_consolidada_nome||c.estrutura||'').toLowerCase().includes(q);});
+  return <div className="space-y-5"><div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center justify-between"><div><h2 className="text-xl font-bold text-gray-700">Cadastro de Consultores</h2><p className="text-sm text-gray-400 mt-1">O consultor fica vinculado à estrutura oficial por ID.</p></div><button onClick={abrirNovo} className="bg-[#048187] text-white px-4 py-2.5 rounded-xl font-semibold text-sm inline-flex items-center gap-2"><Plus size={16}/> Cadastrar consultor</button></div>{(erro||mensagem)&&<div className={`rounded-xl px-4 py-3 text-sm font-semibold ${erro?'bg-red-50 text-red-600':'bg-green-50 text-green-700'}`}>{erro||mensagem}</div>}<div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm"><div className="relative max-w-md mb-5"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar nome, ID ou estrutura..." className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]"/></div>{carregando?<div className="py-10 text-center text-[#048187]">Carregando...</div>:<div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="text-xs text-gray-400 uppercase"><tr><th className="text-left py-3 px-2">Foto</th><th className="text-left py-3 px-2">ID</th><th className="text-left py-3 px-2">Consultor</th><th className="text-left py-3 px-2">Estrutura oficial</th><th className="text-left py-3 px-2">Núcleo</th><th className="text-left py-3 px-2">Status</th><th className="text-right py-3 px-2">Ações</th></tr></thead><tbody>{filtrada.map(c=><tr key={c.id} className="border-t border-gray-100"><td className="py-3 px-2"><button type="button" onClick={()=>abrirIdentidade&&abrirIdentidade({area:'VD',id_colaborador:c.id_colaborador,nome_oficial:c.nome_exibicao||c.nome,codigo_contexto:c.equipe_consolidada_nome||c.estrutura||'',foto_data_url:c.foto_data_url,aliases:c.aliases})}><AvatarColaborador src={obterFoto?obterFoto('VD',c.id_colaborador,c.foto_data_url):c.foto_data_url} nome={c.nome_exibicao||c.nome} tamanho={38}/></button></td><td className="py-3 px-2 text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2"><p className="font-semibold text-gray-700">{c.nome}</p>{c.nome_social&&<p className="text-xs text-[#048187]">{c.nome_social}</p>}</td><td className="py-3 px-2 text-gray-600">{c.equipe_consolidada_nome||c.estrutura||'-'}</td><td className="py-3 px-2 text-gray-500">{String(c.nucleo||'').replace('NUCLEO','N')}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase ${c.status_consultor==='ativo'?'bg-green-50 text-green-700':'bg-gray-100 text-gray-500'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right whitespace-nowrap">{podeGerenciarIdentidade&&podeGerenciarIdentidade('VD')&&<button onClick={()=>abrirIdentidade&&abrirIdentidade({area:'VD',id_colaborador:c.id_colaborador,nome_oficial:c.nome_exibicao||c.nome,codigo_contexto:c.equipe_consolidada_nome||c.estrutura||'',foto_data_url:c.foto_data_url,aliases:c.aliases})} className="text-[#257B9C] mr-3"><ImagePlus size={17}/></button>}<button onClick={()=>abrirEditar(c)} className="text-[#048187] mr-3"><Pencil size={17}/></button><button onClick={()=>excluir(c)} className="text-red-500"><Trash2 size={17}/></button></td></tr>)}</tbody></table></div>}</div>{modal&&<div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4"><div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl"><div className="p-5 border-b border-gray-100 flex justify-between"><div><h3 className="text-xl font-bold text-gray-700">{editando?'Editar consultor':'Cadastrar consultor'}</h3><p className="text-xs text-gray-400 mt-1">A estrutura é selecionada do cadastro oficial.</p></div><button onClick={()=>setModal(false)}><X size={20}/></button></div><form onSubmit={salvar} className="p-5 space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">ID colaborador</label><input value={form.id_colaborador} onChange={e=>setForm({...form,id_colaborador:e.target.value})} required className="w-full border border-gray-200 rounded-xl px-4 py-3"/></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Nome</label><input value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})} required className="w-full border border-gray-200 rounded-xl px-4 py-3"/></div></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Nome social</label><input value={form.nome_social} onChange={e=>setForm({...form,nome_social:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"/></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Estrutura</label><select value={form.estrutura_oficial_id} onChange={e=>setForm({...form,estrutura_oficial_id:e.target.value})} required className="w-full border border-gray-200 rounded-xl px-4 py-3"><option value="">Selecione</option>{estruturas.map(est=><option key={est.id} value={est.id}>{est.nome} • {String(est.nucleo).replace('NUCLEO','N')}</option>)}</select></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Status</label><select value={form.status_consultor} onChange={e=>setForm({...form,status_consultor:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div className="flex justify-end gap-3 pt-2"><button type="button" onClick={()=>setModal(false)} className="px-5 py-3 border border-gray-200 rounded-xl font-semibold text-gray-600">Cancelar</button><button type="submit" disabled={salvando} className="px-5 py-3 bg-[#048187] text-white rounded-xl font-semibold disabled:opacity-50">{salvando?'Salvando...':'Salvar'}</button></div></form></div></div>}</div>;
+}
 
 function TelaExclusoesRevendedores({ apiUrl = API_URL, onAtualizacao }) {
   const [exclusoes, setExclusoes] = useState([]);
@@ -5474,6 +4677,125 @@ function TelaExclusoesRevendedores({ apiUrl = API_URL, onAtualizacao }) {
 }
 
 
+
+const carregarApiYoutube = () => new Promise((resolve) => {
+  if (window.YT?.Player) {
+    resolve(window.YT);
+    return;
+  }
+  const callbackAnterior = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = () => {
+    if (typeof callbackAnterior === 'function') callbackAnterior();
+    resolve(window.YT);
+  };
+  if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(script);
+  }
+});
+
+const TutorialVideoPlayer = ({ videoId, posicaoInicial = 0, onProgresso }) => {
+  const containerRef = useRef(null);
+  const playerRef = useRef(null);
+  const intervaloRef = useRef(null);
+  const ultimoTickRef = useRef(null);
+  const callbackRef = useRef(onProgresso);
+
+  useEffect(() => { callbackRef.current = onProgresso; }, [onProgresso]);
+
+  useEffect(() => {
+    if (!videoId || !containerRef.current) return undefined;
+    let ativo = true;
+
+    const pararIntervalo = () => {
+      if (intervaloRef.current) window.clearInterval(intervaloRef.current);
+      intervaloRef.current = null;
+      ultimoTickRef.current = null;
+    };
+
+    const iniciarIntervalo = () => {
+      pararIntervalo();
+      ultimoTickRef.current = Date.now();
+      intervaloRef.current = window.setInterval(() => {
+        const player = playerRef.current;
+        if (!player?.getCurrentTime) return;
+        const agora = Date.now();
+        const decorrido = Math.max(0, Math.min((agora - (ultimoTickRef.current || agora)) / 1000, 7));
+        ultimoTickRef.current = agora;
+        callbackRef.current?.({
+          evento: 'progresso',
+          posicao_atual: Number(player.getCurrentTime() || 0),
+          duracao_video: Number(player.getDuration() || 0),
+          segundos_incremento: decorrido,
+        });
+      }, 5000);
+    };
+
+    carregarApiYoutube().then((YT) => {
+      if (!ativo || !containerRef.current) return;
+      playerRef.current = new YT.Player(containerRef.current, {
+        videoId,
+        width: '100%',
+        height: '100%',
+        playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
+        events: {
+          onReady: (event) => {
+            if (Number(posicaoInicial || 0) > 1) event.target.seekTo(Number(posicaoInicial), true);
+          },
+          onStateChange: (event) => {
+            const player = event.target;
+
+            if (event.data === YT.PlayerState.PLAYING) {
+              callbackRef.current?.({
+                evento: 'iniciar',
+                posicao_atual: Number(player.getCurrentTime() || 0),
+                duracao_video: Number(player.getDuration() || 0),
+                segundos_incremento: 0,
+              });
+              iniciarIntervalo();
+              return;
+            }
+
+            if (event.data === YT.PlayerState.ENDED) {
+              pararIntervalo();
+              const duracao = Number(player.getDuration() || 0);
+              callbackRef.current?.({
+                evento: 'concluido',
+                posicao_atual: duracao,
+                duracao_video: duracao,
+                segundos_incremento: 0,
+              });
+              return;
+            }
+
+            if (event.data === YT.PlayerState.PAUSED) {
+              pararIntervalo();
+              callbackRef.current?.({
+                evento: 'pausar',
+                posicao_atual: Number(player.getCurrentTime() || 0),
+                duracao_video: Number(player.getDuration() || 0),
+                segundos_incremento: 0,
+              });
+            }
+          },
+        },
+      });
+    });
+
+    return () => {
+      ativo = false;
+      pararIntervalo();
+      try { playerRef.current?.destroy?.(); } catch { /* player já removido */ }
+      playerRef.current = null;
+    };
+  }, [videoId]);
+
+  return <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black"><div ref={containerRef} className="w-full h-full" /></div>;
+};
+
+// CARREGAMENTO_OBRIGATORIO_V4
+// FRONTEND_CARREGAMENTO_V5_1
 export default function App() {
   const [usuarioLogado, setUsuarioLogado] = useState(() => lerUsuarioPersistido());
   const [tokenAuth, setTokenAuth] = useState(() => lerTokenPersistido());
@@ -5501,7 +4823,7 @@ export default function App() {
   const [menuLojaExpandido, setMenuLojaExpandido] = useState(() => {
     const canalSalvo = lerStorageUsuario(CANAL_ATUAL_STORAGE_KEY);
     return canalSalvo === 'LOJA';
-  }); const [sidebarExpandida, setSidebarExpandida] = useState(true); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
+  }); const [sidebarExpandida, setSidebarExpandida] = useState(() => typeof window === 'undefined' ? true : window.innerWidth >= 1440); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   
   const [visaoRanking, setVisaoRanking] = useState('consultores');
@@ -5567,6 +4889,24 @@ export default function App() {
     atualizado_em: '',
   });
 
+  const [primeiroPedidoCaptacao, setPrimeiroPedidoCaptacao] = useState({
+    carregando: false,
+    erro: '',
+    ciclo: '',
+    total_revendedores: 0,
+    resumo: {
+      vd_presencial: 0,
+      vd_online: 0,
+      app: 0,
+      vdi: 0,
+      omni: 0,
+      portal: 0,
+      outros: 0,
+    },
+    estruturas: [],
+    regra: '',
+  });
+
   useEffect(() => {
     salvarCacheSessaoDash(cacheDashboard);
   }, [cacheDashboard]);
@@ -5621,26 +4961,39 @@ export default function App() {
     }
 
     try {
-      const { data } = await axios.get(
-        `${API_URL}/notificacoes`,
-        {
-          params: {
-            limite: 50,
-          },
-        }
-      );
+      const [resultadoGerais, resultadoAcoes] = await Promise.allSettled([
+        axios.get(`${API_URL}/notificacoes`, { params: { limite: 50 } }),
+        axios.get(`${API_URL}/notificacoes-acoes`, { params: { limite: 50 } }),
+      ]);
 
-      const lista = (
-        Array.isArray(data?.notificacoes)
-          ? [...data.notificacoes]
-          : []
-      ).sort((a, b) => {
-        const dataA = new Date(
-          a?.criado_em || 0
-        ).getTime();
-        const dataB = new Date(
-          b?.criado_em || 0
-        ).getTime();
+      const dadosGerais = resultadoGerais.status === 'fulfilled'
+        ? (resultadoGerais.value?.data || {})
+        : {};
+      const dadosAcoes = resultadoAcoes.status === 'fulfilled'
+        ? (resultadoAcoes.value?.data || {})
+        : {};
+
+      const gerais = Array.isArray(dadosGerais?.notificacoes)
+        ? dadosGerais.notificacoes.map((item) => ({
+            ...item,
+            origem: item?.origem || 'sistema',
+            id_origem: item?.id,
+            id: `sistema-${item?.id}`,
+          }))
+        : [];
+
+      const acoes = Array.isArray(dadosAcoes?.notificacoes)
+        ? dadosAcoes.notificacoes.map((item) => ({
+            ...item,
+            origem: 'acoes',
+            id_origem: item?.id,
+            id: `acoes-${item?.id}`,
+          }))
+        : [];
+
+      const lista = [...gerais, ...acoes].sort((a, b) => {
+        const dataA = new Date(a?.criado_em || 0).getTime();
+        const dataB = new Date(b?.criado_em || 0).getTime();
 
         if (
           Number.isFinite(dataA)
@@ -5650,22 +5003,23 @@ export default function App() {
           return dataB - dataA;
         }
 
-        return Number(b?.id || 0) - Number(a?.id || 0);
+        return String(b?.id || '').localeCompare(String(a?.id || ''));
       });
 
       const idsAnteriores = idsNotificacoesConhecidasRef.current;
       const novaNaoLida = lista.find((item) => (
         !item?.lida
-        && !idsAnteriores.has(Number(item?.id))
+        && !idsAnteriores.has(String(item?.id))
       ));
 
       setNotificacoesSistema(lista);
       setNotificacoesNaoLidas(
-        Number(data?.nao_lidas || 0)
+        Number(dadosGerais?.nao_lidas || 0)
+        + Number(dadosAcoes?.nao_lidas || 0)
       );
 
       idsNotificacoesConhecidasRef.current = new Set(
-        lista.map((item) => Number(item?.id))
+        lista.map((item) => String(item?.id))
       );
 
       if (
@@ -5677,10 +5031,7 @@ export default function App() {
       }
     } catch (erro) {
       if (!silencioso) {
-        console.error(
-          'Erro ao carregar notificações:',
-          erro
-        );
+        console.error('Erro ao carregar notificações:', erro);
       }
     } finally {
       if (!silencioso) {
@@ -5689,19 +5040,23 @@ export default function App() {
     }
   };
 
-  const marcarNotificacaoComoLida = async (notificacaoId) => {
+  const marcarNotificacaoComoLida = async (notificacao) => {
+    if (!notificacao) return;
+
+    const origem = String(notificacao?.origem || 'sistema');
+    const idOrigem = notificacao?.id_origem ?? notificacao?.id;
+
     try {
-      await axios.post(
-        `${API_URL}/notificacoes/${notificacaoId}/marcar-lida`
-      );
+      const rota = origem === 'acoes'
+        ? `${API_URL}/notificacoes-acoes/${idOrigem}/marcar-lida`
+        : `${API_URL}/notificacoes/${idOrigem}/marcar-lida`;
+
+      await axios.post(rota);
 
       setNotificacoesSistema((atual) => (
         atual.map((item) => (
-          Number(item.id) === Number(notificacaoId)
-            ? {
-                ...item,
-                lida: true,
-              }
+          String(item.id) === String(notificacao.id)
+            ? { ...item, lida: true }
             : item
         ))
       ));
@@ -5709,18 +5064,16 @@ export default function App() {
         Math.max(Number(atual || 0) - 1, 0)
       ));
     } catch (erro) {
-      console.error(
-        'Erro ao marcar notificação:',
-        erro
-      );
+      console.error('Erro ao marcar notificação:', erro);
     }
   };
 
   const marcarTodasNotificacoesComoLidas = async () => {
     try {
-      await axios.post(
-        `${API_URL}/notificacoes/marcar-todas-lidas`
-      );
+      await Promise.allSettled([
+        axios.post(`${API_URL}/notificacoes/marcar-todas-lidas`),
+        axios.post(`${API_URL}/notificacoes-acoes/marcar-todas-lidas`),
+      ]);
 
       setNotificacoesSistema((atual) => (
         atual.map((item) => ({
@@ -5730,10 +5083,7 @@ export default function App() {
       ));
       setNotificacoesNaoLidas(0);
     } catch (erro) {
-      console.error(
-        'Erro ao marcar todas as notificações:',
-        erro
-      );
+      console.error('Erro ao marcar todas as notificações:', erro);
     }
   };
 
@@ -5758,6 +5108,29 @@ export default function App() {
     appleIcon.href = logoEmpresa;
   }, []);
 
+
+  // PERFORMANCE_V7: acorda a API assim que a tela abre. Em hospedagens que
+  // entram em repouso, o servidor começa a inicializar enquanto o usuário
+  // ainda está digitando o login, reduzindo a espera após clicar em Entrar.
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 20000);
+    fetch(`${API_URL}/health`, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal,
+    }).catch(() => {
+      // O warm-up é apenas uma otimização; nunca bloqueia login ou dashboard.
+    }).finally(() => {
+      window.clearTimeout(timer);
+    });
+
+    return () => {
+      window.clearTimeout(timer);
+      try { controller.abort(); } catch { /* sem ação */ }
+    };
+  }, []);
+
   useEffect(() => {
     if (!usuarioLogado || !podeReceberNotificacoes) {
       setNotificacoesSistema([]);
@@ -5766,13 +5139,17 @@ export default function App() {
       return undefined;
     }
 
-    carregarNotificacoesSistema(false);
+    // O sino não bloqueia mais a carga dos dados principais.
+    const timerInicial = window.setTimeout(() => {
+      carregarNotificacoesSistema(false);
+    }, 5000);
 
     const intervalo = window.setInterval(() => {
       carregarNotificacoesSistema(true);
-    }, 120000);
+    }, 300000);
 
     return () => {
+      window.clearTimeout(timerInicial);
       window.clearInterval(intervalo);
     };
   }, [
@@ -5837,7 +5214,15 @@ export default function App() {
   useEffect(() => {
     if (!usuarioLogado) return;
 
-    if (modoGerenteVD && !['AcompanhamentoVD', 'Solicitações', 'Perfil'].includes(telaAtual)) {
+    if (modoGerenteVD && ![
+      'AcompanhamentoVD',
+      ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
+      ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
+      'Ações',
+      'Tutoriais',
+      'Solicitações',
+      'Perfil',
+    ].includes(telaAtual)) {
       setCanalAtual('VD');
       setMenuLojaExpandido(false);
       setMenuVDExpandido(true);
@@ -5886,7 +5271,7 @@ export default function App() {
   }, [usuarioLogado, estruturaSelecionada]);
 
 
-  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'AMBOS' }); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
+  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'VD', estruturas_permitidas: [] }); const [opcoesEscopoUsuarios, setOpcoesEscopoUsuarios] = useState([]); const [carregandoOpcoesEscopoUsuarios, setCarregandoOpcoesEscopoUsuarios] = useState(false); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
   const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' }); const [auditoriaDetalhe, setAuditoriaDetalhe] = useState(null);
   const [modalRelatorioAuditoriaAberto, setModalRelatorioAuditoriaAberto] = useState(false);
   const [gerandoRelatorioAuditoria, setGerandoRelatorioAuditoria] = useState(false);
@@ -5910,12 +5295,14 @@ export default function App() {
   );
   const [alterandoStatusCiclo, setAlterandoStatusCiclo] = useState(false);
   const cicloVisualizacaoVDRef = useRef(cicloSelecionadoVD);
+  const sessaoDadosSeqRef = useRef(0);
   const dashboardRequestSeqRef = useRef(0);
   const metasRequestSeqRef = useRef(0);
   const opcoesRequestSeqRef = useRef(0);
   const acompanhamentoRequestSeqRef = useRef(0);
   const detalheDiarioCacheRef = useRef({});
   const dadosAbortControllerRef = useRef(null);
+  const metasAbortControllerRef = useRef(null);
   const acompanhamentoAbortControllerRef = useRef(null);
   const opcoesAbortControllerRef = useRef(null);
   const comparativoAbortControllerRef = useRef(null);
@@ -5959,7 +5346,13 @@ export default function App() {
   });
   const [listaEstruturasConfig, setListaEstruturasConfig] = useState([]); const [carregandoEstruturasConfig, setCarregandoEstruturasConfig] = useState(false); const [buscaEstruturaConfig, setBuscaEstruturaConfig] = useState(''); const [estruturaConfigForm, setEstruturaConfigForm] = useState(estruturaConfigVazia); const [estruturaConfigEditando, setEstruturaConfigEditando] = useState(null); const [mensagemEstruturaConfig, setMensagemEstruturaConfig] = useState(''); const [erroEstruturaConfig, setErroEstruturaConfig] = useState('');
 
-  const [dadosRevendedores, setDadosRevendedores] = useState(null); const [carregandoRevendedores, setCarregandoRevendedores] = useState(false); const [erroRevendedores, setErroRevendedores] = useState(''); const [buscaRevendedores, setBuscaRevendedores] = useState('');
+  const [dadosRevendedores, setDadosRevendedores] = useState(null); const [carregandoRevendedores, setCarregandoRevendedores] = useState(false); const [erroRevendedores, setErroRevendedores] = useState(''); const [buscaRevendedores, setBuscaRevendedores] = useState(''); const [paginaRevendedores, setPaginaRevendedores] = useState(1);
+  const [modalRelatorioRevendedoresAberto, setModalRelatorioRevendedoresAberto] = useState(false);
+  const [modoRelatorioRevendedores, setModoRelatorioRevendedores] = useState('todas');
+  const [estruturasRelatorioRevendedores, setEstruturasRelatorioRevendedores] = useState([]);
+  const [buscaEstruturaRelatorioRevendedores, setBuscaEstruturaRelatorioRevendedores] = useState('');
+  const [baixandoRelatorioRevendedores, setBaixandoRelatorioRevendedores] = useState(false);
+  const [erroRelatorioRevendedores, setErroRelatorioRevendedores] = useState('');
   const [filtrosRevendedores, setFiltrosRevendedores] = useState({ estruturas: [], cidades: [], atividades: [], papeis: [], inadimplentes: [] }); const [buscaFiltrosRevendedores, setBuscaFiltrosRevendedores] = useState({ estruturas: '', cidades: '', atividades: '', papeis: '', inadimplentes: '' });
 
   const [opcoesFiltros, setOpcFiltros] = useState({ nucleos: ['NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'], unidades: [], estruturas: [], consultores: [], situacoes: [], meios_captacao: [], modelos_comerciais: [], canais_venda: ['app_revendedor', 'omni', 'portal_revendedor', 'vd_mais', 'outros'] });
@@ -5992,7 +5385,11 @@ export default function App() {
     ciclo: '',
     data_inicio: '',
     data_fim: '',
+    hora_inicio: '00:00',
+    hora_fim: '23:59',
+    tipo_indicador: 'atividade',
     meta_valor: '',
+    meta_percentual: '47',
     status_acao: 'acontecendo',
     estruturas: [],
     observacao: ''
@@ -6006,6 +5403,30 @@ export default function App() {
   const [acaoCicloEditandoId, setAcaoCicloEditandoId] = useState(null);
   const [acaoCicloDetalhe, setAcaoCicloDetalhe] = useState(null);
   const [buscaEstruturaAcao, setBuscaEstruturaAcao] = useState('');
+  const [participantesAcao, setParticipantesAcao] = useState([]);
+  const [carregandoParticipantesAcao, setCarregandoParticipantesAcao] = useState(false);
+  const [estruturasAcaoExpandidas, setEstruturasAcaoExpandidas] = useState({});
+
+  const [tutoriaisPosts, setTutoriaisPosts] = useState([]);
+  const [tutoriaisCategorias, setTutoriaisCategorias] = useState([]);
+  const [tutoriaisNovos, setTutoriaisNovos] = useState(0);
+  const [carregandoTutoriais, setCarregandoTutoriais] = useState(false);
+  const [erroTutoriais, setErroTutoriais] = useState('');
+  const [mensagemTutoriais, setMensagemTutoriais] = useState('');
+  const [filtrosTutoriais, setFiltrosTutoriais] = useState({ busca: '', categoria: '', status_publicacao: '' });
+  const [modalTutorialFormAberto, setModalTutorialFormAberto] = useState(false);
+  const [tutorialForm, setTutorialForm] = useState(tutorialFormVazio);
+  const [tutorialEditandoId, setTutorialEditandoId] = useState(null);
+  const [opcoesPublicoTutoriais, setOpcoesPublicoTutoriais] = useState({ perfis: [], usuarios: [] });
+  const [tutorialDetalhe, setTutorialDetalhe] = useState(null);
+  const [tutorialRelatorio, setTutorialRelatorio] = useState(null);
+  const [feedbackTutorial, setFeedbackTutorial] = useState({ resolveu: null, comentario: '' });
+  const [enviandoFeedbackTutorial, setEnviandoFeedbackTutorial] = useState(false);
+  const [feedbackTutorialSalvo, setFeedbackTutorialSalvo] = useState(false);
+  const [mensagemFeedbackTutorial, setMensagemFeedbackTutorial] = useState('');
+  const [tutorialPlayerKey, setTutorialPlayerKey] = useState(0);
+  const progressoTutorialFilaRef = useRef(Promise.resolve());
+
 
   const [dadosLoja, setDadosLoja] = useState(null);
   const [modalRelatorioLojaAberto, setModalRelatorioLojaAberto] = useState(false);
@@ -6062,6 +5483,14 @@ export default function App() {
     metas_consultora: null,
     servicos: null
   });
+  const [dataReferenciaVendaDiariaLoja, setDataReferenciaVendaDiariaLoja] = useState(() => {
+    const data = new Date();
+    data.setDate(data.getDate() - 1);
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, '0');
+    const dia = String(data.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+  });
   const [buscaLoja, setBuscaLoja] = useState('');
   const [filtrosLoja, setFiltrosLoja] = useState({ unidade: '', consultora: '' });
   const [lojaUnidadeForm, setLojaUnidadeForm] = useState({ codigo_pdv: '', cidade: '', nome_loja: '', status_loja: 'ativo' });
@@ -6094,29 +5523,73 @@ export default function App() {
 
   const promessasEmAndamentoRef = useRef({});
   const ultimoCarregamentoTelaRef = useRef('');
+  const dashboardCargaEmAndamentoRef = useRef({ chave: '', promise: null });
+  const dashboardUltimaChaveRef = useRef('');
+  const dashboardWatchdogRef = useRef({ chave: '', tentativas: 0 });
   const debounceFiltroRapidoRef = useRef(null);
 
   const estruturasPermitidasUsuarioLogado = normalizarEstruturasPermitidasUsuario(
     usuarioLogado?.estruturas_permitidas
   );
   const escoposGerenteVD = estruturasPermitidasUsuarioLogado.filter((item) => item.area === 'VD');
-  const modoGerenteVD = String(usuarioLogado?.perfil || '').toLowerCase() === 'visualizador'
+  const escoposGerenteLoja = estruturasPermitidasUsuarioLogado.filter((item) => item.area === 'LOJA');
+  const perfilUsuarioAtual = String(usuarioLogado?.perfil || '').toLowerCase();
+  const areaGestaoUsuarioAtual = String(usuarioLogado?.area_gestao || '').trim().toUpperCase();
+  const modoGerenteVD = perfilUsuarioAtual !== 'admin'
     && escoposGerenteVD.length > 0;
+
+  // REGRA OFICIAL DA ABA "1º PEDIDO":
+  // - ADMIN: sempre visualiza no canal VD e pode consultar TODAS as estruturas,
+  //   usando Todos/N1/N2/N3 e o painel de filtros.
+  // - GESTOR: visualiza quando pertence à gestão VD/núcleos. Isso contempla
+  //   gestores de núcleo e o gestor dos gestores de núcleo.
+  // - GERENTE / VISUALIZADOR de unidade: NÃO visualiza, mesmo que possua
+  //   algum vínculo legado. Usuários exclusivamente LOJA também não visualizam.
+  // - A aba nunca aparece no menu LOJA.
+  const usuarioSomenteLoja = areaGestaoUsuarioAtual === 'LOJA'
+    || (
+      perfilUsuarioAtual !== 'admin'
+      && escoposGerenteLoja.length > 0
+      && escoposGerenteVD.length === 0
+    );
+  const podeAcessarPrimeiroPedidoCaptacao = perfilUsuarioAtual === 'admin'
+    || (
+      perfilUsuarioAtual === 'gestor'
+      && !usuarioSomenteLoja
+    );
+
+  const podeAcessarRevendedoresVD = perfilUsuarioAtual === 'admin' || !usuarioSomenteLoja;
+  const podeExportarRelatorioRevendedores = perfilUsuarioAtual === 'admin'
+    || (
+      perfilUsuarioAtual === 'gestor'
+      && !usuarioSomenteLoja
+      && escoposGerenteVD.length === 0
+    );
 
   const itensMenuTopo = [
     { nome: 'Dashboard', icone: LayoutDashboard },
+    ...(podeAcessarPrimeiroPedidoCaptacao
+      ? [{ nome: 'PrimeiroPedidoCaptacao', icone: FileSpreadsheet }]
+      : []),
     { nome: 'Metas', icone: BarChart2 },
     { nome: 'Ranking', icone: Medal },
     { nome: 'Comparativo', icone: Scale },
     { nome: 'Ações', icone: Sparkles },
     { nome: 'Histórico', icone: CalendarDays },
-    { nome: 'Revendedores', icone: UserCircle },
+    ...(podeAcessarRevendedoresVD ? [{ nome: 'Revendedores', icone: UserCircle }] : []),
     { nome: 'Cadastro', icone: Users },
     { nome: 'Base', icone: Database }
   ];
 
   const itensMenuVD = modoGerenteVD
-    ? [{ nome: 'AcompanhamentoVD', icone: LayoutDashboard }]
+    ? [
+        { nome: 'AcompanhamentoVD', icone: LayoutDashboard },
+        ...(podeAcessarPrimeiroPedidoCaptacao
+          ? [{ nome: 'PrimeiroPedidoCaptacao', icone: FileSpreadsheet }]
+          : []),
+        ...(podeAcessarRevendedoresVD ? [{ nome: 'Revendedores', icone: UserCircle }] : []),
+        { nome: 'Ações', icone: Sparkles },
+      ]
     : itensMenuTopo;
   const itensMenuLoja = [
     { nome: 'LojaVisaoGeral', icone: LayoutDashboard },
@@ -6128,6 +5601,7 @@ export default function App() {
     setCanalAtual('VD');
     setMenuVDExpandido(true);
     setMenuLojaExpandido(false);
+    if (nomeTela === 'Cadastro') setVisaoCadastro('geral');
     setTelaAtual(nomeTela);
   };
 
@@ -6203,8 +5677,22 @@ export default function App() {
     if (tela === 'AcompanhamentoVD') {
       return modoGerenteVD && permissoesDoUsuarioAtual().includes('Dashboard');
     }
+    if (tela === 'PrimeiroPedidoCaptacao') {
+      return podeAcessarPrimeiroPedidoCaptacao;
+    }
+    if (tela === 'Revendedores') {
+      return podeAcessarRevendedoresVD;
+    }
     if (modoGerenteVD) {
-      return ['AcompanhamentoVD', 'Solicitações', 'Perfil'].includes(tela);
+      return [
+        'AcompanhamentoVD',
+        ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
+        ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
+        'Ações',
+        'Tutoriais',
+        'Solicitações',
+        'Perfil',
+      ].includes(tela);
     }
     return permissoesDoUsuarioAtual().includes(tela);
   };
@@ -6213,6 +5701,7 @@ export default function App() {
 
   const podeGerarRelatorioMetas = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
   const podeGerarRelatorioLoja = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
+  const podeGerenciarAcoesCiclo = String(usuarioLogado?.perfil || '').toLowerCase() === 'admin';
 
   const telaEhLoja = (tela) => ['Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking'].includes(tela);
 
@@ -6279,10 +5768,11 @@ export default function App() {
   const gerarChaveFiltros = (filtros) => JSON.stringify({ ci: filtros?.ciclo || '', nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
 
   const limparCachesDados = () => {
-    [dadosAbortControllerRef, acompanhamentoAbortControllerRef, opcoesAbortControllerRef, comparativoAbortControllerRef, detalheMetaAbortControllerRef].forEach((ref) => {
+    [dadosAbortControllerRef, metasAbortControllerRef, acompanhamentoAbortControllerRef, opcoesAbortControllerRef, comparativoAbortControllerRef, detalheMetaAbortControllerRef].forEach((ref) => {
       try { ref.current?.abort(); } catch { /* sem ação */ }
       ref.current = null;
     });
+    sessaoDadosSeqRef.current += 1;
     dashboardRequestSeqRef.current += 1;
     metasRequestSeqRef.current += 1;
     opcoesRequestSeqRef.current += 1;
@@ -6353,17 +5843,43 @@ export default function App() {
   const calcularMetaDashboardPelosFiltros = (dadosMetasApi, filtros, dadosDashboardApi = null) => {
     const estruturasMetas = dadosMetasApi?.estruturas || [];
 
-    if (!estruturasMetas.length) {
-      return Number(dadosDashboardApi?.meta_contextual || dadosDashboardApi?.meta_ciclo || 0);
+    const estruturasFiltro = (filtros?.estruturas || [])
+      .map(normalizarChaveFiltroMeta)
+      .filter(Boolean);
+
+    const unidadesFiltro = (filtros?.unidades || [])
+      .map((u) => String(u || '').trim())
+      .filter(Boolean);
+
+    const nucleosFiltro = (filtros?.nucleos || [])
+      .map((n) => String(n || '').trim())
+      .filter(Boolean);
+
+    const temFiltroEstrutural = (
+      estruturasFiltro.length > 0
+      || unidadesFiltro.length > 0
+      || nucleosFiltro.length > 0
+    );
+
+    const metaContextualApi = Number(dadosDashboardApi?.meta_contextual || 0);
+
+    if (temFiltroEstrutural && metaContextualApi > 0) {
+      return metaContextualApi;
     }
 
-    const estruturasFiltro = (filtros?.estruturas || []).map(normalizarChaveFiltroMeta).filter(Boolean);
-    const unidadesFiltro = (filtros?.unidades || []).map((u) => String(u || '').trim()).filter(Boolean);
+    if (!estruturasMetas.length) {
+      return Number(
+        dadosDashboardApi?.meta_contextual
+        || dadosDashboardApi?.meta_ciclo
+        || 0
+      );
+    }
 
     if (estruturasFiltro.length > 0) {
       const metaEstruturas = estruturasMetas
         .filter((item) => {
-          const estruturasItem = obterEstruturasDaMetaDashboard(item).map(normalizarChaveFiltroMeta);
+          const estruturasItem = obterEstruturasDaMetaDashboard(item)
+            .map(normalizarChaveFiltroMeta);
           return estruturasItem.some((estrutura) => estruturasFiltro.includes(estrutura));
         })
         .reduce((acc, item) => acc + Number(item.receita || 0), 0);
@@ -6385,77 +5901,212 @@ export default function App() {
       if (metaUnidades > 0) return metaUnidades;
     }
 
-    return Number(dadosMetasApi?.meta_total_geral || dadosDashboardApi?.meta_contextual || dadosDashboardApi?.meta_ciclo || 0);
+    return Number(
+      dadosMetasApi?.meta_total_geral
+      || dadosDashboardApi?.meta_contextual
+      || dadosDashboardApi?.meta_ciclo
+      || 0
+    );
   };
 
-  const carregarDashboard = async (filtros, forcarAtualizacao = false) => {
-    if (!usuarioLogado) return;
-    const chaveCache = gerarChaveFiltros(filtros);
-    const chavePromessa = `dashboard_${chaveCache}_${forcarAtualizacao ? 'force' : 'cache'}`;
+  const aguardarDashboard = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
-    if (!forcarAtualizacao && cacheDashboard[chaveCache]) {
-      const c = cacheDashboard[chaveCache];
-      setDados(c.dados);
-      if (c.dadosMetas) {
-        setDadosMetas(c.dadosMetas);
-        setCacheMetas(c.dadosMetas);
+  const requisitarDashboardComRetry = async (executar, tentativas = 2) => {
+    let ultimoErro = null;
+    const total = Math.max(1, Number(tentativas || 1));
+    for (let tentativa = 1; tentativa <= total; tentativa += 1) {
+      try {
+        return await executar();
+      } catch (erro) {
+        ultimoErro = erro;
+        const status = Number(erro?.response?.status || 0);
+        const repetivel = !status || status === 408 || status === 429 || status >= 500;
+        if (!repetivel || tentativa >= total) throw erro;
+        await aguardarDashboard(450 * tentativa);
       }
-      setMetaFaturamentoDashboard(c.metaFaturamentoDashboard || 0);
-      void carregarOpcoesFiltros(false);
-      return c.dados;
+    }
+    throw ultimoErro || new Error('Falha ao carregar dashboard.');
+  };
+
+  const carregarDashboard = async (filtros, forcarAtualizacao = false, carregarMetasSecundarias = true) => {
+    if (!usuarioLogado) return null;
+
+    const cicloCandidatos = [
+      filtros?.ciclo,
+      cicloSelecionadoVD,
+      cicloVisualizacaoVDRef.current,
+      obterCicloReferenciaAtual?.(),
+    ];
+    const cicloSolicitado = cicloCandidatos
+      .map((valor) => String(valor ?? '').trim())
+      .find((valor) => valor && valor !== '[object Object]') || '';
+
+    const filtrosSeguros = {
+      ...(filtros || filtroVazio),
+      ciclo: cicloSolicitado,
+    };
+    const chaveCache = gerarChaveFiltros(filtrosSeguros);
+    const sessaoSeq = sessaoDadosSeqRef.current;
+
+    // Mostra imediatamente o último resultado válido, sem tela branca.
+    const cacheAtual = cacheDashboard[chaveCache];
+    if (!forcarAtualizacao && cacheAtual?.dados) {
+      setDados(cacheAtual.dados);
+      if (cacheAtual.dadosMetas) {
+        setDadosMetas(cacheAtual.dadosMetas);
+        setCacheMetas(cacheAtual.dadosMetas);
+      }
+      const metaCache = Number(
+        cacheAtual.metaFaturamentoDashboard
+        || calcularMetaDashboardPelosFiltros(cacheAtual.dadosMetas || cacheMetas, filtrosSeguros, cacheAtual.dados)
+        || cacheAtual.dados?.meta_contextual
+        || cacheAtual.dados?.meta_ciclo
+        || 0
+      );
+      setMetaFaturamentoDashboard(metaCache);
+      return cacheAtual.dados;
     }
 
-    if (promessasEmAndamentoRef.current[chavePromessa]) {
-      return promessasEmAndamentoRef.current[chavePromessa];
+    // Nunca abre duas leituras pesadas idênticas ao mesmo tempo.
+    const cargaAtual = dashboardCargaEmAndamentoRef.current;
+    if (cargaAtual?.chave === chaveCache && cargaAtual?.promise) {
+      return cargaAtual.promise;
     }
 
-    const cicloSolicitado = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
-    const requestSeq = ++dashboardRequestSeqRef.current;
+    // Ao trocar filtros, cancela a leitura anterior no navegador. Isso evita
+    // respostas antigas concorrendo com o filtro mais recente e melhora a
+    // sensação de carregamento sem apagar os dados que já estão na tela.
     try { dadosAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
     const controller = new AbortController();
     dadosAbortControllerRef.current = controller;
+
+    dashboardUltimaChaveRef.current = chaveCache;
     setCarregandoDashboard(true);
-    const promessa = (async () => {
-      try {
-        void carregarOpcoesFiltros(false, cicloSolicitado);
-        const configCiclo = { headers: { 'X-Ciclo-VD': cicloSolicitado }, signal: controller.signal, timeout: 30000 };
-        const [resMetas, resDados] = await Promise.allSettled([
-          axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, configCiclo),
-          axios.post(`${API_URL}/dashboard/dados`, { ...filtros, ciclo: cicloSolicitado }, configCiclo)
-        ]);
 
-        if (requestSeq !== dashboardRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado) return null;
-        if (resDados.status === 'fulfilled' && resDados.value.data?.ciclo_retorno && String(resDados.value.data.ciclo_retorno) !== cicloSolicitado) return null;
-        const resumoMetas = resMetas.status === 'fulfilled'
-          ? { ...resMetas.value.data, estruturas: [...(resMetas.value.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0)) }
-          : cacheMetas;
+    const executar = (async () => {
+      let respostaDados = null;
+      let ultimoErro = null;
 
-        if (resMetas.status === 'fulfilled') {
-          setCacheMetas(resumoMetas);
-          setDadosMetas(resumoMetas);
+      for (let tentativa = 1; tentativa <= 3; tentativa += 1) {
+        try {
+          respostaDados = await axios.post(
+            `${API_URL}/dashboard/dados`,
+            filtrosSeguros,
+            {
+              headers: {
+                'X-Ciclo-VD': cicloSolicitado,
+                ...(forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {}),
+              },
+              timeout: 45000,
+              signal: controller.signal,
+            },
+          );
+          break;
+        } catch (erro) {
+          ultimoErro = erro;
+          const status = Number(erro?.response?.status || 0);
+          const cancelado = erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError' || erro?.name === 'AbortError';
+          const repetivel = !cancelado && (!status || status === 408 || status === 429 || status >= 500);
+          if (!repetivel || tentativa >= 3) throw erro;
+          await new Promise((resolve) => window.setTimeout(resolve, 600 * tentativa));
         }
-        if (resDados.status !== 'fulfilled') throw resDados.reason;
-
-        const metaCalculada = calcularMetaDashboardPelosFiltros(resumoMetas, filtros, resDados.value.data);
-        setDados(resDados.value.data);
-        setMetaFaturamentoDashboard(metaCalculada);
-        setCacheDashboard((prev) => ({ ...prev, [chaveCache]: { dados: resDados.value.data, dadosMetas: resumoMetas, metaFaturamentoDashboard: metaCalculada } }));
-        return resDados.value.data;
-      } catch (erro) {
-        if (erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError') return null;
-        console.error('Erro dashboard:', erro);
-        if (requestSeq === dashboardRequestSeqRef.current) {
-          setDados(null);
-          setMetaFaturamentoDashboard(0);
-        }
-      } finally {
-        if (requestSeq === dashboardRequestSeqRef.current) setCarregandoDashboard(false);
-        delete promessasEmAndamentoRef.current[chavePromessa];
       }
+
+      if (!respostaDados) throw ultimoErro || new Error('Dashboard não respondeu.');
+      if (sessaoSeq !== sessaoDadosSeqRef.current) return null;
+      if (dashboardUltimaChaveRef.current !== chaveCache) return null;
+
+      const dadosNovos = respostaDados.data || {};
+      setDados(dadosNovos);
+
+      const metaInicial = Number(
+        calcularMetaDashboardPelosFiltros(cacheMetas, filtrosSeguros, dadosNovos)
+        || dadosNovos.meta_contextual
+        || dadosNovos.meta_ciclo
+        || 0
+      );
+      setMetaFaturamentoDashboard(metaInicial);
+      setCacheDashboard((prev) => ({
+        ...prev,
+        [chaveCache]: {
+          ...(prev[chaveCache] || {}),
+          dados: dadosNovos,
+          dadosMetas: prev[chaveCache]?.dadosMetas || cacheMetas || null,
+          metaFaturamentoDashboard: metaInicial,
+        },
+      }));
+
+      // Metas são secundárias no Dashboard. Em Metas/Ranking elas já são
+      // carregadas pela rotina própria, evitando uma chamada duplicada.
+      if (carregarMetasSecundarias) void axios.post(
+        `${API_URL}/metas/resumo`,
+        filtrosSeguros,
+        {
+          headers: {
+            'X-Ciclo-VD': cicloSolicitado,
+            ...(forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {}),
+          },
+          timeout: 45000,
+          signal: controller.signal,
+        },
+      ).then((respostaMetas) => {
+        if (sessaoSeq !== sessaoDadosSeqRef.current) return;
+        if (dashboardUltimaChaveRef.current !== chaveCache) return;
+        const resumo = {
+          ...(respostaMetas.data || {}),
+          estruturas: [...(respostaMetas.data?.estruturas || [])]
+            .sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0)),
+        };
+        setDadosMetas(resumo);
+        setCacheMetas(resumo);
+        const metaRefinada = Number(
+          calcularMetaDashboardPelosFiltros(resumo, filtrosSeguros, dadosNovos)
+          || dadosNovos.meta_contextual
+          || dadosNovos.meta_ciclo
+          || 0
+        );
+        setMetaFaturamentoDashboard(metaRefinada);
+        setCacheDashboard((prev) => ({
+          ...prev,
+          [chaveCache]: {
+            ...(prev[chaveCache] || {}),
+            dados: dadosNovos,
+            dadosMetas: resumo,
+            metaFaturamentoDashboard: metaRefinada,
+          },
+        }));
+      }).catch((erroMetasDashboard) => {
+        console.warn('Metas não bloquearam o dashboard:', erroMetasDashboard);
+      });
+
+      // Filtros também ficam em segundo plano.
+      window.setTimeout(() => {
+        void carregarOpcoesFiltros(false, cicloSolicitado);
+      }, 900);
+
+      return dadosNovos;
     })();
 
-    promessasEmAndamentoRef.current[chavePromessa] = promessa;
-    return promessa;
+    dashboardCargaEmAndamentoRef.current = { chave: chaveCache, promise: executar };
+
+    try {
+      return await executar;
+    } catch (erro) {
+      if (erro?.code !== 'ERR_CANCELED' && erro?.name !== 'CanceledError' && erro?.name !== 'AbortError') {
+        console.error('Erro dashboard:', erro);
+      }
+      return null;
+    } finally {
+      if (dashboardCargaEmAndamentoRef.current?.promise === executar) {
+        dashboardCargaEmAndamentoRef.current = { chave: '', promise: null };
+      }
+      if (dadosAbortControllerRef.current === controller) {
+        dadosAbortControllerRef.current = null;
+      }
+      if (sessaoSeq === sessaoDadosSeqRef.current && dashboardUltimaChaveRef.current === chaveCache) {
+        setCarregandoDashboard(false);
+      }
+    }
   };
 
   const carregarMetas = async (filtros, forcarAtualizacao = false) => {
@@ -6478,10 +6129,24 @@ export default function App() {
 
     const cicloSolicitado = String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim();
     const requestSeq = ++metasRequestSeqRef.current;
+    try { metasAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
+    const controller = new AbortController();
+    metasAbortControllerRef.current = controller;
     setCarregandoMetas(true);
     const promessa = (async () => {
       try {
-        const resposta = await axios.post(`${API_URL}/metas/resumo`, { ...filtros, ciclo: cicloSolicitado }, { headers: { 'X-Ciclo-VD': cicloSolicitado } });
+        const resposta = await axios.post(
+          `${API_URL}/metas/resumo`,
+          { ...filtros, ciclo: cicloSolicitado },
+          {
+            headers: {
+              'X-Ciclo-VD': cicloSolicitado,
+              ...(forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {}),
+            },
+            timeout: 45000,
+            signal: controller.signal,
+          },
+        );
         if (requestSeq !== metasRequestSeqRef.current || String(cicloVisualizacaoVDRef.current || '') !== cicloSolicitado) return null;
         const estruturasOrdenadas = [...(resposta.data.estruturas || [])].sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
         const dadosOrdenados = { ...resposta.data, estruturas: estruturasOrdenadas };
@@ -6495,9 +6160,12 @@ export default function App() {
 
         return dadosOrdenados;
       } catch (erro) {
-        console.error('Erro metas:', erro);
-        setErroMetas('Erro ao carregar metas.');
+        if (erro?.code !== 'ERR_CANCELED' && erro?.name !== 'CanceledError' && erro?.name !== 'AbortError') {
+          console.error('Erro metas:', erro);
+          setErroMetas('Erro ao carregar metas.');
+        }
       } finally {
+        if (metasAbortControllerRef.current === controller) metasAbortControllerRef.current = null;
         if (requestSeq === metasRequestSeqRef.current) setCarregandoMetas(false);
         delete promessasEmAndamentoRef.current[chavePromessa];
       }
@@ -6508,107 +6176,29 @@ export default function App() {
   };
 
   const carregarDashboardEMetas = async (filtros, forcarAtualizacao = false) => {
-    if (!usuarioLogado) return;
-    setErroMetas('');
+    if (!usuarioLogado) return null;
 
-    const cicloSolicitado = String(
-      filtros?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || ''
-    ).trim();
-    const filtrosSolicitados = { ...filtros, ciclo: cicloSolicitado };
-    const chaveFiltro = gerarChaveFiltros(filtrosSolicitados);
-    const chaveDashboard = chaveFiltro;
-    const chaveMetas = 'metas_' + chaveFiltro;
-    const chavePromessa = `dashboard_metas_${chaveFiltro}_${forcarAtualizacao ? 'force' : 'cache'}`;
+    // As duas áreas carregam independentemente. Uma falha não apaga a outra.
+    const [resultadoDashboard, resultadoMetas] = await Promise.allSettled([
+      carregarDashboard(filtros, forcarAtualizacao, false),
+      carregarMetas(filtros, forcarAtualizacao),
+    ]);
 
-    const cacheDash = cacheDashboard[chaveDashboard];
-    const cacheMeta = cacheDashboard[chaveMetas];
-    if (!forcarAtualizacao && cacheDash && cacheMeta) {
-      setDados(cacheDash.dados);
-      setMetaFaturamentoDashboard(cacheDash.metaFaturamentoDashboard || 0);
-      setDadosMetas(cacheMeta.dados);
-      setCacheMetas(cacheMeta.dados);
-      return;
+    if (resultadoDashboard.status === 'rejected') {
+      console.error('Erro dashboard combinado:', resultadoDashboard.reason);
+    }
+    if (resultadoMetas.status === 'rejected') {
+      console.error('Erro metas combinado:', resultadoMetas.reason);
     }
 
-    if (promessasEmAndamentoRef.current[chavePromessa]) {
-      return promessasEmAndamentoRef.current[chavePromessa];
+    if (visaoMetas === 'consultores' && estruturaSelecionada && !detalheMeta) {
+      void carregarDetalheMeta(estruturaSelecionada, filtros, forcarAtualizacao);
     }
 
-    const seqDash = ++dashboardRequestSeqRef.current;
-    const seqMetas = ++metasRequestSeqRef.current;
-    try { dadosAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
-    const controller = new AbortController();
-    dadosAbortControllerRef.current = controller;
-    setCarregandoDashboard(true);
-    setCarregandoMetas(true);
-
-    const promessa = (async () => {
-      try {
-        void carregarOpcoesFiltros(false, cicloSolicitado);
-        const configCiclo = { headers: { 'X-Ciclo-VD': cicloSolicitado }, signal: controller.signal, timeout: 30000 };
-        const [resMetas, resDados] = await Promise.allSettled([
-          axios.post(`${API_URL}/metas/resumo`, filtrosSolicitados, configCiclo),
-          axios.post(`${API_URL}/dashboard/dados`, filtrosSolicitados, configCiclo)
-        ]);
-
-        const respostaAindaValida = (
-          seqDash === dashboardRequestSeqRef.current
-          && seqMetas === metasRequestSeqRef.current
-          && String(cicloVisualizacaoVDRef.current || cicloSolicitado) === cicloSolicitado
-        );
-        if (!respostaAindaValida) return null;
-
-        let dadosMetasAtualizados = null;
-        if (resMetas.status === 'fulfilled') {
-          const estruturasOrdenadas = [...(resMetas.value.data.estruturas || [])]
-            .sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
-          dadosMetasAtualizados = { ...resMetas.value.data, estruturas: estruturasOrdenadas };
-          setDadosMetas(dadosMetasAtualizados);
-          setCacheMetas(dadosMetasAtualizados);
-          setCacheDashboard((prev) => ({ ...prev, [chaveMetas]: { dados: dadosMetasAtualizados } }));
-        } else {
-          console.error('Erro metas:', resMetas.reason);
-          setErroMetas(resMetas.reason?.response?.data?.detail || 'Erro ao carregar metas.');
-        }
-
-        if (resDados.status === 'fulfilled') {
-          if (resDados.value.data?.ciclo_retorno && String(resDados.value.data.ciclo_retorno) !== cicloSolicitado) return null;
-          const metaCalculada = calcularMetaDashboardPelosFiltros(
-            dadosMetasAtualizados || cacheMetas,
-            filtrosSolicitados,
-            resDados.value.data
-          );
-          setDados(resDados.value.data);
-          setMetaFaturamentoDashboard(metaCalculada);
-          setCacheDashboard((prev) => ({
-            ...prev,
-            [chaveDashboard]: {
-              dados: resDados.value.data,
-              metaFaturamentoDashboard: metaCalculada
-            }
-          }));
-        } else {
-          console.error('Erro dashboard:', resDados.reason);
-          setDados(null);
-          setMetaFaturamentoDashboard(0);
-        }
-
-        if (visaoMetas === 'consultores' && estruturaSelecionada) {
-          await carregarDetalheMeta(estruturaSelecionada, filtrosSolicitados, forcarAtualizacao);
-        }
-      } catch (erro) {
-        if (erro?.code !== 'ERR_CANCELED' && erro?.name !== 'CanceledError') {
-          console.error('Erro ao atualizar Dashboard e Metas:', erro);
-        }
-      } finally {
-        if (seqDash === dashboardRequestSeqRef.current) setCarregandoDashboard(false);
-        if (seqMetas === metasRequestSeqRef.current) setCarregandoMetas(false);
-        delete promessasEmAndamentoRef.current[chavePromessa];
-      }
-    })();
-
-    promessasEmAndamentoRef.current[chavePromessa] = promessa;
-    return promessa;
+    return {
+      dashboard: resultadoDashboard.status === 'fulfilled' ? resultadoDashboard.value : null,
+      metas: resultadoMetas.status === 'fulfilled' ? resultadoMetas.value : null,
+    };
   };
 
   const montarFallbackDetalheMeta = (estrutura) => {
@@ -6680,6 +6270,52 @@ export default function App() {
       vendas_fora_estrutura: [],
     };
   };
+
+
+
+  useEffect(() => {
+    if (!usuarioLogado) return undefined;
+    if (!['Dashboard', 'AcompanhamentoVD'].includes(telaAtual)) return undefined;
+
+    const ciclo = String(
+      filtrosAtivos?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || ''
+    ).trim();
+    const usuarioChaveWatchdog = String(
+      usuarioLogado?.id || usuarioLogado?.email || usuarioLogado?.nome || 'usuario'
+    ).trim();
+    const chave = `${usuarioChaveWatchdog}|${telaAtual}|${ciclo}|${gerarChaveFiltros({ ...filtrosAtivos, ciclo })}`;
+
+    if (dados) {
+      dashboardWatchdogRef.current = { chave, tentativas: 0 };
+      return undefined;
+    }
+    if (carregandoDashboard) return undefined;
+
+    if (dashboardWatchdogRef.current.chave !== chave) {
+      dashboardWatchdogRef.current = { chave, tentativas: 0 };
+    }
+    if (dashboardWatchdogRef.current.tentativas >= 2) return undefined;
+
+    dashboardWatchdogRef.current.tentativas += 1;
+    const atraso = 650 * dashboardWatchdogRef.current.tentativas;
+    const timer = window.setTimeout(() => {
+      ultimoCarregamentoTelaRef.current = '';
+      const filtrosRetry = { ...filtrosAtivos, ciclo };
+      if (telaAtual === 'AcompanhamentoVD') {
+        void carregarAcompanhamentoGerenteVD(filtrosRetry, true);
+      } else {
+        void carregarDashboard(filtrosRetry, true);
+      }
+    }, atraso);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    usuarioLogado?.id,
+    telaAtual,
+    cicloSelecionadoVD,
+    carregandoDashboard,
+    Boolean(dados),
+  ]);
 
   const carregarDetalheMeta = async (estrutura, filtros, forcarAtualizacao = false) => {
     if (!estrutura) return null;
@@ -7778,8 +7414,39 @@ const mapearIdentidadesColaboradores = (lista = []) => {
 
   const carregarUsuarios = async () => {
     if (!usuarioPodeAcessar('Configurações')) return;
-    setCarregandoUsuarios(true); setErroUsuarios('');
-    try { const resposta = await axios.get(`${API_URL}/auth/usuarios`); setUsuariosSistema(resposta.data.usuarios || []); } catch (erro) { setErroUsuarios('Erro usuários.'); } finally { setCarregandoUsuarios(false); }
+    setCarregandoUsuarios(true);
+    setCarregandoOpcoesEscopoUsuarios(true);
+    setErroUsuarios('');
+
+    try {
+      const [resultadoUsuarios, resultadoEscopos] = await Promise.allSettled([
+        axios.get(`${API_URL}/auth/usuarios`),
+        axios.get(`${API_URL}/auth/estruturas-disponiveis`),
+      ]);
+
+      if (resultadoUsuarios.status === 'fulfilled') {
+        setUsuariosSistema((resultadoUsuarios.value.data?.usuarios || []).map((usuario) => ({
+          ...usuario,
+          estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas),
+        })));
+      } else {
+        throw resultadoUsuarios.reason;
+      }
+
+      if (resultadoEscopos.status === 'fulfilled') {
+        setOpcoesEscopoUsuarios(
+          normalizarEstruturasPermitidasUsuario(resultadoEscopos.value.data?.todas || [])
+        );
+      } else {
+        setOpcoesEscopoUsuarios([]);
+        setErroUsuarios('Usuários carregados, mas não foi possível carregar as estruturas disponíveis. Clique em Atualizar para tentar novamente.');
+      }
+    } catch (erro) {
+      setErroUsuarios(erro?.response?.data?.detail || 'Erro ao carregar usuários.');
+    } finally {
+      setCarregandoUsuarios(false);
+      setCarregandoOpcoesEscopoUsuarios(false);
+    }
   };
 
   const carregarCiclos = async (priorizarAtual = false) => {
@@ -7962,8 +7629,11 @@ const mapearIdentidadesColaboradores = (lista = []) => {
 
   useEffect(() => {
     if (!usuarioLogado || !tokenAuth) return;
-    carregarCiclos();
-  }, [usuarioLogado, tokenAuth]);
+    // No login novo, carregarCiclos(true) já terminou antes de liberar a tela.
+    // Em refresh/restauração de sessão, a lista ainda estará vazia e é carregada aqui.
+    if (Array.isArray(ciclos) && ciclos.length > 0) return;
+    carregarCiclos(true);
+  }, [usuarioLogado?.id, tokenAuth]);
 
 
   const carregarListaConsultores = async () => {
@@ -8047,25 +7717,126 @@ const mapearIdentidadesColaboradores = (lista = []) => {
     }
   };
 
-const carregarRevendedores = async (cicloParam = '') => {
+const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao = false) => {
   setCarregandoRevendedores(true);
   setErroRevendedores('');
-  const ciclo = String(cicloParam || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || obterCicloReferenciaAtual() || '').trim();
+  setPaginaRevendedores(1);
+  const ciclo = String(_filtros?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || obterCicloReferenciaAtual() || '').trim();
+  const payload = {
+    ...filtroVazio,
+    ...(_filtros || {}),
+    ciclo,
+    // Gestores de unidade VD já possuem o escopo travado no próprio perfil.
+    // Não reaplicamos N1/N2/N3 aqui para evitar que um filtro global/stale
+    // elimine a própria estrutura (ex.: EQUIPE ER VITÓRIA).
+    nucleos: modoGerenteVD
+      ? []
+      : (Array.isArray(_filtros?.nucleos) ? _filtros.nucleos : []),
+    unidades: Array.isArray(_filtros?.unidades) ? _filtros.unidades : [],
+    estruturas: Array.isArray(_filtros?.estruturas) ? _filtros.estruturas : [],
+    consultores: Array.isArray(_filtros?.consultores) ? _filtros.consultores : [],
+    meios_captacao: Array.isArray(_filtros?.meios_captacao) ? _filtros.meios_captacao : [],
+    modelos_comerciais: Array.isArray(_filtros?.modelos_comerciais) ? _filtros.modelos_comerciais : [],
+    canais_venda: Array.isArray(_filtros?.canais_venda) ? _filtros.canais_venda : [],
+    // A situação da aba é fixa no backend: Entregue, Transporte, Separação e Aprovado.
+    situacoes: [],
+  };
   try {
-    const resposta = await axios.get(`${API_URL}/revendedores/resumo`, {
-      params: { ciclo },
+    const resposta = await axios.post(`${API_URL}/revendedores/resumo`, payload, {
       headers: { 'X-Ciclo-VD': ciclo },
-      timeout: 30000,
+      timeout: 45000,
     });
     if (String(cicloVisualizacaoVDRef.current || ciclo) !== ciclo) return;
     setDadosRevendedores(resposta.data || null);
   } catch (erro) {
     console.error('Erro revendedores:', erro);
-    setErroRevendedores(erro.response?.data?.detail || 'Erro ao carregar revendedores.');
+    setDadosRevendedores(null);
+    setErroRevendedores(erro.response?.data?.detail || 'Erro ao carregar os revendedores compradores do ciclo.');
   } finally {
     setCarregandoRevendedores(false);
   }
 };
+
+  const abrirModalRelatorioRevendedores = () => {
+    setModoRelatorioRevendedores('todas');
+    setEstruturasRelatorioRevendedores([]);
+    setBuscaEstruturaRelatorioRevendedores('');
+    setErroRelatorioRevendedores('');
+    setModalRelatorioRevendedoresAberto(true);
+  };
+
+  const alternarEstruturaRelatorioRevendedores = (estrutura) => {
+    const valor = String(estrutura || '').trim();
+    if (!valor) return;
+    setEstruturasRelatorioRevendedores((atuais) => (
+      atuais.includes(valor)
+        ? atuais.filter((item) => item !== valor)
+        : [...atuais, valor]
+    ));
+  };
+
+  const baixarRelatorioRevendedores = async () => {
+    if (baixandoRelatorioRevendedores) return;
+    const ciclo = String(
+      dadosRevendedores?.ciclo
+      || filtrosAtivos?.ciclo
+      || cicloVisualizacaoVDRef.current
+      || cicloSelecionadoVD
+      || obterCicloReferenciaAtual()
+      || ''
+    ).trim();
+    const estruturas = modoRelatorioRevendedores === 'selecionadas'
+      ? estruturasRelatorioRevendedores
+      : [];
+
+    if (modoRelatorioRevendedores === 'selecionadas' && estruturas.length === 0) {
+      setErroRelatorioRevendedores('Selecione pelo menos uma estrutura para gerar o relatório.');
+      return;
+    }
+
+    setBaixandoRelatorioRevendedores(true);
+    setErroRelatorioRevendedores('');
+    try {
+      const resposta = await axios.post(
+        `${API_URL}/revendedores/exportar`,
+        { ciclo, estruturas },
+        {
+          responseType: 'blob',
+          headers: { 'X-Ciclo-VD': ciclo },
+          timeout: 90000,
+        }
+      );
+      const url = window.URL.createObjectURL(new Blob([resposta.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }));
+      const link = document.createElement('a');
+      const cicloArquivo = String(ciclo || 'ciclo').replace(/[^0-9A-Za-z_-]+/g, '-');
+      link.href = url;
+      link.download = `Revendedores_${cicloArquivo}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setModalRelatorioRevendedoresAberto(false);
+    } catch (erro) {
+      let mensagem = 'Não foi possível gerar o relatório de revendedores.';
+      try {
+        if (erro?.response?.data instanceof Blob) {
+          const texto = await erro.response.data.text();
+          const json = JSON.parse(texto);
+          mensagem = json?.detail || mensagem;
+        } else {
+          mensagem = erro?.response?.data?.detail || erro?.message || mensagem;
+        }
+      } catch {
+        // mantém a mensagem padrão
+      }
+      setErroRelatorioRevendedores(mensagem);
+    } finally {
+      setBaixandoRelatorioRevendedores(false);
+    }
+  };
+
 
 
   useEffect(() => {
@@ -8074,6 +7845,259 @@ const carregarRevendedores = async (cicloParam = '') => {
     carregarPermissoesDoBanco();
   }, [usuarioLogado, tokenAuth]);
 
+
+  // CARREGAMENTO_DIRETO_V5_1
+  const dashboardDiretoV51Ref = useRef({
+    chave: '',
+    emAndamento: false,
+    ultimaConclusao: 0,
+  });
+
+  const carregarDashboardDiretoV51 = async (motivo = 'bootstrap') => {
+    if (!usuarioLogado) return null;
+    if (!['Dashboard', 'AcompanhamentoVD'].includes(telaAtual)) return null;
+
+    const token = String(
+      tokenAuth
+      || localStorage.getItem(TOKEN_STORAGE_KEY)
+      || ''
+    ).trim();
+
+    if (!token) {
+      console.warn('[DASH V5.1] Token ainda não disponível.');
+      return null;
+    }
+
+    const normalizarCicloV51 = (valor) => {
+      if (valor && typeof valor === 'object') {
+        return String(valor?.ciclo || valor?.value || '').trim();
+      }
+      const txt = String(valor ?? '').trim();
+      return txt === '[object Object]' ? '' : txt;
+    };
+
+    const ciclo = [
+      filtrosAtivos?.ciclo,
+      cicloSelecionadoVD,
+      localStorage.getItem(CICLO_VD_STORAGE_KEY),
+      localStorage.getItem(CICLO_ATUAL_CONHECIDO_STORAGE_KEY),
+      cicloAtualPelaData(),
+    ]
+      .map(normalizarCicloV51)
+      .find(Boolean) || '';
+
+    const filtrosSeguros = {
+      ...(filtrosAtivos || {}),
+      ciclo,
+      nucleos: Array.isArray(filtrosAtivos?.nucleos) ? filtrosAtivos.nucleos : [],
+      unidades: Array.isArray(filtrosAtivos?.unidades) ? filtrosAtivos.unidades : [],
+      estruturas: Array.isArray(filtrosAtivos?.estruturas) ? filtrosAtivos.estruturas : [],
+      consultores: Array.isArray(filtrosAtivos?.consultores) ? filtrosAtivos.consultores : [],
+      situacoes: Array.isArray(filtrosAtivos?.situacoes) ? filtrosAtivos.situacoes : [],
+      meios_captacao: Array.isArray(filtrosAtivos?.meios_captacao) ? filtrosAtivos.meios_captacao : [],
+      modelos_comerciais: Array.isArray(filtrosAtivos?.modelos_comerciais) ? filtrosAtivos.modelos_comerciais : [],
+      canais_venda: Array.isArray(filtrosAtivos?.canais_venda) ? filtrosAtivos.canais_venda : [],
+    };
+
+    const usuarioChave = String(
+      usuarioLogado?.id
+      || usuarioLogado?.email
+      || usuarioLogado?.nome
+      || 'usuario'
+    );
+    const chave = `${usuarioChave}|${ciclo}|${telaAtual}`;
+
+    if (
+      dashboardDiretoV51Ref.current.emAndamento
+      && dashboardDiretoV51Ref.current.chave === chave
+    ) {
+      return null;
+    }
+
+    dashboardDiretoV51Ref.current = {
+      ...dashboardDiretoV51Ref.current,
+      chave,
+      emAndamento: true,
+    };
+
+    setCarregandoDashboard(true);
+
+    try {
+      let ultimoErro = null;
+
+      for (let tentativa = 1; tentativa <= 3; tentativa += 1) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+
+        try {
+          console.info(
+            `[DASH V5.1] POST /dashboard/dados | ${motivo} | tentativa ${tentativa} | ciclo ${ciclo}`
+          );
+
+          const response = await fetch(`${API_URL}/dashboard/dados`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              'X-Ciclo-VD': ciclo,
+            },
+            body: JSON.stringify(filtrosSeguros),
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+
+          const textoResposta = await response.text();
+          let payload = {};
+          try {
+            payload = textoResposta ? JSON.parse(textoResposta) : {};
+          } catch {
+            payload = {};
+          }
+
+          if (!response.ok) {
+            const detalhe = payload?.detail
+              || textoResposta
+              || `HTTP ${response.status}`;
+            const erroHttp = new Error(
+              `Dashboard respondeu ${response.status}: ${detalhe}`
+            );
+            erroHttp.status = response.status;
+            throw erroHttp;
+          }
+
+          setDados(payload);
+
+          const metaInicial = Number(
+            payload?.meta_contextual
+            || payload?.meta_ciclo
+            || 0
+          );
+          if (Number.isFinite(metaInicial)) {
+            setMetaFaturamentoDashboard(metaInicial);
+          }
+
+          try {
+            sessionStorage.setItem(
+              'dashSbUltimoDashboardV51',
+              JSON.stringify({
+                usuario: usuarioChave,
+                ciclo,
+                salvoEm: Date.now(),
+                dados: payload,
+              })
+            );
+          } catch {
+            // Cache visual opcional.
+          }
+
+          dashboardDiretoV51Ref.current = {
+            chave,
+            emAndamento: false,
+            ultimaConclusao: Date.now(),
+          };
+
+          // Metas refinam o card depois. Nunca bloqueiam os KPIs.
+          window.setTimeout(() => {
+            void fetch(`${API_URL}/metas/resumo`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-Ciclo-VD': ciclo,
+              },
+              body: JSON.stringify(filtrosSeguros),
+              cache: 'no-store',
+            })
+              .then(async (r) => {
+                if (!r.ok) return null;
+                return r.json();
+              })
+              .then((resumo) => {
+                if (!resumo) return;
+                const resumoOrdenado = {
+                  ...resumo,
+                  estruturas: [...(resumo?.estruturas || [])]
+                    .sort(
+                      (a, b) =>
+                        Number(b?.realizado || 0)
+                        - Number(a?.realizado || 0)
+                    ),
+                };
+                setDadosMetas(resumoOrdenado);
+                setCacheMetas(resumoOrdenado);
+
+                const metaRefinada = Number(
+                  calcularMetaDashboardPelosFiltros(
+                    resumoOrdenado,
+                    filtrosSeguros,
+                    payload
+                  )
+                  || payload?.meta_contextual
+                  || payload?.meta_ciclo
+                  || 0
+                );
+                if (Number.isFinite(metaRefinada)) {
+                  setMetaFaturamentoDashboard(metaRefinada);
+                }
+              })
+              .catch((erroMeta) => {
+                console.warn(
+                  '[DASH V5.1] Metas não bloquearam o Dashboard:',
+                  erroMeta
+                );
+              });
+          }, 120);
+
+          return payload;
+        } catch (erro) {
+          ultimoErro = erro;
+          const status = Number(erro?.status || 0);
+          const podeRepetir = (
+            erro?.name === 'AbortError'
+            || !status
+            || status === 408
+            || status === 429
+            || status >= 500
+          );
+
+          console.error(
+            `[DASH V5.1] Falha tentativa ${tentativa}:`,
+            erro
+          );
+
+          if (!podeRepetir || tentativa >= 3) {
+            break;
+          }
+
+          await new Promise(
+            (resolve) => window.setTimeout(resolve, 700 * tentativa)
+          );
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+      }
+
+      console.error(
+        '[DASH V5.1] Não foi possível obter /dashboard/dados:',
+        ultimoErro
+      );
+      return null;
+    } finally {
+      dashboardDiretoV51Ref.current = {
+        ...dashboardDiretoV51Ref.current,
+        emAndamento: false,
+      };
+      setCarregandoDashboard(false);
+    }
+  };
+
+  // O bootstrap V5.1 antigo disparava uma segunda leitura de /dashboard/dados
+  // em paralelo à rotina principal. Além de duplicar o tráfego, uma resposta
+  // sem filtros podia sobrescrever uma resposta filtrada. O carregamento agora
+  // é centralizado em carregarTelaAtual()/carregarDashboard(), que já possuem
+  // cache por combinação de filtros e proteção contra respostas obsoletas.
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
       (response) => response,
@@ -8364,28 +8388,96 @@ const carregarRevendedores = async (cicloParam = '') => {
     });
   };
 
-  const carregarAcoesCiclo = async (cicloParam = '') => {
+  const resolverCicloAcoes = (valor = '') => {
+    const valorRecebido = valor && typeof valor === 'object'
+      ? (valor?.ciclo || '')
+      : valor;
+    return String(
+      valorRecebido
+      || cicloVisualizacaoVDRef.current
+      || cicloSelecionadoVD
+      || filtrosAtivos?.ciclo
+      || obterCicloReferenciaAtual()
+      || ''
+    ).trim();
+  };
+
+  const carregarParticipantesAcao = async (cicloParam = '') => {
+    const ciclo = resolverCicloAcoes(cicloParam || acaoCicloForm.ciclo);
+    if (!ciclo || ciclo === '[object Object]') {
+      setParticipantesAcao([]);
+      return;
+    }
+    setCarregandoParticipantesAcao(true);
+    try {
+      const { data } = await axios.get(`${API_URL}/acoes-ciclo/participantes`, { params: { ciclo } });
+      setParticipantesAcao(Array.isArray(data?.participantes) ? data.participantes : []);
+    } catch (erro) {
+      setParticipantesAcao([]);
+      setErroAcoesCiclo(erro.response?.data?.detail || 'Erro ao carregar estruturas, equipes e gerentes participantes.');
+    } finally {
+      setCarregandoParticipantesAcao(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!modalAcaoCicloAberto || !acaoCicloForm.ciclo) return;
+    carregarParticipantesAcao(acaoCicloForm.ciclo);
+  }, [modalAcaoCicloAberto, acaoCicloForm.ciclo]);
+
+  const carregarAcoesCiclo = async () => {
     if (!usuarioLogado) return;
 
     setCarregandoAcoesCiclo(true);
     setErroAcoesCiclo('');
 
     try {
-      await Promise.allSettled([carregarOpcoesFiltros(), carregarCiclos()]);
-      const ciclo = String(cicloParam || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || obterCicloReferenciaAtual() || '').trim();
+      const ciclo = cicloUploadVD || obterCicloReferenciaAtual();
       const params = ciclo ? { ciclo } : {};
-      const { data } = await axios.get(`${API_URL}/acoes-ciclo`, { params });
+
+      // A lista de ações é prioridade. Filtros e ciclos são auxiliares e não
+      // bloqueiam mais a abertura da aba.
+      const promessaAcoes = requisitarDashboardComRetry(
+        () => axios.get(`${API_URL}/acoes-ciclo`, { params, timeout: 30000 }),
+        2,
+      );
+      void carregarOpcoesFiltros(false, ciclo);
+      void carregarCiclos();
+
+      const { data } = await promessaAcoes;
       setAcoesCiclo(data?.acoes || []);
     } catch (erro) {
-      setErroAcoesCiclo(erro.response?.data?.detail || 'Erro ao carregar ações do ciclo.');
+      setErroAcoesCiclo(
+        erro.response?.data?.detail
+        || 'Erro ao carregar ações do ciclo.'
+      );
     } finally {
       setCarregandoAcoesCiclo(false);
     }
   };
 
   const abrirModalCriarAcaoCiclo = () => {
+    if (!podeGerenciarAcoesCiclo) {
+      setErroAcoesCiclo('Você possui acesso somente para consulta das ações.');
+      return;
+    }
+    const cicloRef = obterCicloReferenciaAtual();
+    const cicloInfo = (ciclos || []).find((item) => String(item.ciclo || '') === String(cicloRef || ''));
     setAcaoCicloEditandoId(null);
-    setAcaoCicloForm({ ...acaoCicloVazia, ciclo: '', status_acao: 'acontecendo' });
+    setAcaoCicloForm({
+      ...acaoCicloVazia,
+      nome_acao: 'Corridinha da Atividade',
+      ciclo: cicloRef || '',
+      data_inicio: normalizarDataAcao(cicloInfo?.data_inicio),
+      data_fim: normalizarDataAcao(cicloInfo?.data_fim),
+      hora_inicio: '00:00',
+      hora_fim: '23:59',
+      tipo_indicador: 'atividade',
+      meta_percentual: '47',
+      status_acao: 'acontecendo'
+    });
+    setParticipantesAcao([]);
+    setEstruturasAcaoExpandidas({});
     setBuscaEstruturaAcao('');
     setMensagemAcoesCiclo('');
     setErroAcoesCiclo('');
@@ -8393,17 +8485,27 @@ const carregarRevendedores = async (cicloParam = '') => {
   };
 
   const abrirModalEditarAcaoCiclo = (acao) => {
+    if (!podeGerenciarAcoesCiclo) {
+      setErroAcoesCiclo('Você possui acesso somente para consulta das ações.');
+      return;
+    }
     setAcaoCicloEditandoId(acao.id);
     setAcaoCicloForm({
       nome_acao: acao.nome_acao || '',
       ciclo: acao.ciclo || obterCicloReferenciaAtual(),
       data_inicio: acao.data_inicio || '',
       data_fim: acao.data_fim || '',
+      hora_inicio: String(acao.hora_inicio || '00:00').slice(0, 5),
+      hora_fim: String(acao.hora_fim || '23:59').slice(0, 5),
+      tipo_indicador: acao.tipo_indicador || 'faturamento',
       meta_valor: Number(acao.meta_valor || 0),
+      meta_percentual: Number(acao.meta_percentual || 0),
       status_acao: acao.status_acao || 'acontecendo',
       estruturas: Array.isArray(acao.estruturas) ? acao.estruturas : [],
       observacao: acao.observacao || ''
     });
+    setParticipantesAcao(Array.isArray(acao.participantes) ? acao.participantes : []);
+    setEstruturasAcaoExpandidas({});
     setBuscaEstruturaAcao('');
     setMensagemAcoesCiclo('');
     setErroAcoesCiclo('');
@@ -8423,39 +8525,58 @@ const carregarRevendedores = async (cicloParam = '') => {
   };
 
   const selecionarTodasEstruturasAcao = (estruturas) => {
-    setAcaoCicloForm((atual) => ({ ...atual, estruturas: estruturas }));
+    setAcaoCicloForm((atual) => ({ ...atual, estruturas }));
+  };
+
+  const alternarConsultoresEstruturaAcao = (estrutura) => {
+    setEstruturasAcaoExpandidas((atual) => ({
+      ...atual,
+      [estrutura]: !atual[estrutura]
+    }));
   };
 
   const salvarAcaoCiclo = async () => {
+    if (!podeGerenciarAcoesCiclo) {
+      setErroAcoesCiclo('Apenas administradores podem salvar ações.');
+      return;
+    }
     const nome = String(acaoCicloForm.nome_acao || '').trim();
     const dataInicio = String(acaoCicloForm.data_inicio || '').trim();
     const dataFim = String(acaoCicloForm.data_fim || '').trim();
+    const horaInicio = String(acaoCicloForm.hora_inicio || '00:00').trim();
+    const horaFim = String(acaoCicloForm.hora_fim || '23:59').trim();
     const cicloInfo = obterCicloPorPeriodoAcao(dataInicio, dataFim);
     const ciclo = String(cicloInfo.ciclo || '').trim();
+    const tipoIndicador = String(acaoCicloForm.tipo_indicador || 'faturamento').trim();
     const metaValor = Number(acaoCicloForm.meta_valor || 0);
+    const metaPercentual = Number(acaoCicloForm.meta_percentual || 0);
 
     if (!nome) {
       setErroAcoesCiclo('Informe o nome da ação.');
       return;
     }
-    if (!dataInicio || !dataFim) {
-      setErroAcoesCiclo('Informe o período da ação.');
+    if (!dataInicio || !dataFim || !horaInicio || !horaFim) {
+      setErroAcoesCiclo('Informe a data e a hora inicial e final da ação.');
       return;
     }
-    if (new Date(dataInicio) > new Date(dataFim)) {
-      setErroAcoesCiclo('A data inicial não pode ser maior que a data final.');
+    if (new Date(`${dataInicio}T${horaInicio}`) > new Date(`${dataFim}T${horaFim}`)) {
+      setErroAcoesCiclo('A data e hora inicial não podem ser maiores que a data e hora final.');
       return;
     }
     if (!ciclo) {
       setErroAcoesCiclo(cicloInfo.mensagem || 'A data informada não pertence a nenhum ciclo cadastrado.');
       return;
     }
-    if (metaValor <= 0) {
-      setErroAcoesCiclo('Informe uma meta maior que zero.');
+    if (tipoIndicador === 'atividade' && (metaPercentual <= 0 || metaPercentual > 100)) {
+      setErroAcoesCiclo('Informe uma meta de atividade entre 0,01% e 100%.');
+      return;
+    }
+    if (tipoIndicador === 'faturamento' && metaValor <= 0) {
+      setErroAcoesCiclo('Informe uma meta de faturamento maior que zero.');
       return;
     }
     if (!Array.isArray(acaoCicloForm.estruturas) || acaoCicloForm.estruturas.length === 0) {
-      setErroAcoesCiclo('Selecione pelo menos uma estrutura.');
+      setErroAcoesCiclo('Selecione pelo menos uma estrutura, equipe ou gerente.');
       return;
     }
 
@@ -8468,7 +8589,11 @@ const carregarRevendedores = async (cicloParam = '') => {
       ciclo,
       data_inicio: dataInicio,
       data_fim: dataFim,
-      meta_valor: metaValor,
+      hora_inicio: horaInicio,
+      hora_fim: horaFim,
+      tipo_indicador: tipoIndicador,
+      meta_valor: tipoIndicador === 'faturamento' ? metaValor : 0,
+      meta_percentual: tipoIndicador === 'atividade' ? metaPercentual : 0,
       status_acao: acaoCicloForm.status_acao || 'acontecendo',
       estruturas: acaoCicloForm.estruturas || [],
       observacao: acaoCicloForm.observacao || ''
@@ -8477,7 +8602,7 @@ const carregarRevendedores = async (cicloParam = '') => {
     try {
       if (acaoCicloEditandoId) {
         await axios.put(`${API_URL}/acoes-ciclo/${acaoCicloEditandoId}`, payload);
-        setMensagemAcoesCiclo('Ação atualizada com sucesso.');
+        setMensagemAcoesCiclo('Ação atualizada com sucesso. O histórico será congelado novamente ao final do período.');
       } else {
         await axios.post(`${API_URL}/acoes-ciclo`, payload);
         setMensagemAcoesCiclo('Ação criada com sucesso.');
@@ -8486,6 +8611,7 @@ const carregarRevendedores = async (cicloParam = '') => {
       setModalAcaoCicloAberto(false);
       setAcaoCicloEditandoId(null);
       setAcaoCicloForm(acaoCicloVazia);
+      setParticipantesAcao([]);
       await carregarAcoesCiclo();
     } catch (erro) {
       setErroAcoesCiclo(erro.response?.data?.detail || 'Erro ao salvar ação.');
@@ -8495,6 +8621,10 @@ const carregarRevendedores = async (cicloParam = '') => {
   };
 
   const apagarAcaoCiclo = async (acao) => {
+    if (!podeGerenciarAcoesCiclo) {
+      setErroAcoesCiclo('Apenas administradores podem excluir ações.');
+      return;
+    }
     const confirmar = window.confirm(`Apagar a ação "${acao.nome_acao}"?`);
     if (!confirmar) return;
 
@@ -8517,6 +8647,7 @@ const carregarRevendedores = async (cicloParam = '') => {
   const carregarDetalheAcaoCiclo = async (acao) => {
     setCarregandoAcoesCiclo(true);
     setErroAcoesCiclo('');
+    setEstruturasAcaoExpandidas({});
 
     try {
       const { data } = await axios.get(`${API_URL}/acoes-ciclo/${acao.id}`);
@@ -8535,6 +8666,19 @@ const carregarRevendedores = async (cicloParam = '') => {
     return { texto: 'Acontecendo', classe: 'bg-[#e6f6f7] text-[#048187]' };
   };
 
+  const statusMetaVisualAcao = (status) => {
+    const texto = String(status || 'Em andamento');
+    const normalizado = texto.toLowerCase();
+    if (normalizado.includes('não batida') || normalizado.includes('nao batida')) {
+      return { texto: 'Meta não batida', classe: 'bg-red-50 text-red-700 border border-red-100' };
+    }
+    if (normalizado.includes('batida')) {
+      return { texto: 'Meta batida', classe: 'bg-green-50 text-green-700 border border-green-100' };
+    }
+    return { texto: 'Em andamento', classe: 'bg-orange-50 text-orange-700 border border-orange-100' };
+  };
+
+
   const cicloLojaSelecionado = () => (
     cicloSelecionadoLoja
     || cicloLoja
@@ -8552,40 +8696,48 @@ const carregarRevendedores = async (cicloParam = '') => {
 
     try {
       const cicloConsulta = cicloParam || cicloLojaSelecionado();
-      const competenciaConsulta = (
-        competenciaServicosParam
-        || competenciaServicosLoja
-      );
+      const competenciaConsulta = competenciaServicosParam || competenciaServicosLoja;
 
-      const params = {};
-      if (cicloConsulta) params.ciclo = cicloConsulta;
-      if (competenciaConsulta) {
-        params.competencia_servicos = competenciaConsulta;
+      const paramsDashboard = {};
+      if (cicloConsulta) paramsDashboard.ciclo = cicloConsulta;
+      if (competenciaConsulta) paramsDashboard.competencia_servicos = competenciaConsulta;
+
+      const paramsHistorico = {};
+      if (cicloConsulta) paramsHistorico.ciclo = cicloConsulta;
+
+      const [resDashboard, resHistorico] = await Promise.allSettled([
+        axios.get(`${API_URL}/loja/dashboard`, { params: paramsDashboard }),
+        axios.get(`${API_URL}/loja/historico-diario`, { params: paramsHistorico }),
+      ]);
+
+      if (resDashboard.status !== 'fulfilled') {
+        throw resDashboard.reason;
       }
 
-      const { data } = await axios.get(
-        `${API_URL}/loja/dashboard`,
-        { params }
-      );
+      const dataDashboard = resDashboard.value?.data || {};
+      const historico = resHistorico.status === 'fulfilled'
+        ? (resHistorico.value?.data?.vendas_por_dia || [])
+        : (dataDashboard?.vendas_por_dia || []);
 
-      setDadosLoja(
-        normalizarDadosLojaMetaSkinPercentual(data || null)
-      );
+      const dadosComHistorico = {
+        ...dataDashboard,
+        vendas_por_dia: historico,
+        diagnostico_historico_diario: resHistorico.status === 'fulfilled'
+          ? (resHistorico.value?.data?.diagnostico || null)
+          : null,
+      };
 
-      if (data?.resumo?.ciclo && !cicloLoja) {
-        setCicloLoja(data.resumo.ciclo);
+      setDadosLoja(normalizarDadosLojaMetaSkinPercentual(dadosComHistorico));
+
+      if (dataDashboard?.resumo?.ciclo && !cicloLoja) {
+        setCicloLoja(dataDashboard.resumo.ciclo);
       }
 
-      if (data?.resumo?.competencia_servicos) {
-        setCompetenciaServicosLoja(
-          data.resumo.competencia_servicos
-        );
+      if (dataDashboard?.resumo?.competencia_servicos) {
+        setCompetenciaServicosLoja(dataDashboard.resumo.competencia_servicos);
       }
     } catch (erro) {
-      setErroLoja(
-        erro.response?.data?.detail
-        || 'Erro ao carregar dados da LOJA.'
-      );
+      setErroLoja(erro.response?.data?.detail || 'Erro ao carregar dados da LOJA.');
     } finally {
       setCarregandoLoja(false);
     }
@@ -8653,7 +8805,10 @@ const carregarRevendedores = async (cicloParam = '') => {
       }
 
       if (opcoes.dataReferenciaHoje) {
-        form.append('data_referencia', dataHojeLocalLoja());
+        form.append(
+          'data_referencia',
+          opcoes.dataReferencia || dataReferenciaVendaDiariaLoja || dataHojeLocalLoja()
+        );
       }
 
       const { data } = await axios.post(`${API_URL}${endpoint}`, form, {
@@ -8782,7 +8937,7 @@ const carregarRevendedores = async (cicloParam = '') => {
         ciclo,
         dataInicioCiclo: cicloInfo.data_inicio || dadosLoja?.resumo?.data_inicio || '',
         dataFimCiclo: cicloInfo.data_fim || dadosLoja?.resumo?.data_fim || '',
-        dataReferenciaDiaria: new Date().toISOString().slice(0, 10)
+        dataReferenciaDiaria: dataReferenciaVendaDiariaLoja || dataHojeLocalLoja()
       });
 
       setStatusSgiLoja('Automação concluída. Atualizando dados do dashboard...');
@@ -9015,6 +9170,51 @@ const carregarRevendedores = async (cicloParam = '') => {
       cicloVisualizacaoVDRef.current || cicloSelecionadoVD || _filtros?.ciclo || ''
     ).trim();
 
+    const criarConsultoresBasicosDashboard = (dadosDashboard) => {
+      const base = Array.isArray(dadosDashboard?.realizado_por_consultor)
+        ? dadosDashboard.realizado_por_consultor
+        : [];
+      return base
+        .map((item) => {
+          const nome = String(item?.Consultor || item?.consultor || item?.nome || '').trim();
+          return {
+            id_colaborador: String(item?.id_colaborador || item?.id_consultor || '').trim(),
+            nome,
+            nome_exibicao: nome,
+            estrutura: String(item?.Estrutura || item?.estrutura || '').trim(),
+            realizado: Number(item?.ValorPraticado || item?.realizado || 0),
+          };
+        })
+        .filter((item) => item.nome || item.id_colaborador)
+        .sort((a, b) => Number(b.realizado || 0) - Number(a.realizado || 0));
+    };
+
+    const mesclarConsultoresAcompanhamento = (...fontes) => {
+      const resultado = [];
+      const localizar = (item) => {
+        const id = String(item?.id_colaborador || item?.id_consultor || '').trim();
+        const nome = normalizarChaveAcompanhamento(
+          item?.nome_exibicao || item?.nome || item?.consultor || item?.Consultor
+        );
+        return resultado.findIndex((existente) => {
+          const idExistente = String(existente?.id_colaborador || existente?.id_consultor || '').trim();
+          const nomeExistente = normalizarChaveAcompanhamento(
+            existente?.nome_exibicao || existente?.nome || existente?.consultor || existente?.Consultor
+          );
+          return (id && idExistente && id === idExistente)
+            || (nome && nomeExistente && nome === nomeExistente);
+        });
+      };
+
+      fontes.flat().filter(Boolean).forEach((item) => {
+        const indice = localizar(item);
+        if (indice >= 0) resultado[indice] = { ...resultado[indice], ...item };
+        else resultado.push({ ...item });
+      });
+
+      return resultado.sort((a, b) => Number(b?.realizado || b?.ValorPraticado || 0) - Number(a?.realizado || a?.ValorPraticado || 0));
+    };
+
     try {
       if (!ciclo) {
         const infoCiclos = await carregarCiclos(true);
@@ -9026,19 +9226,34 @@ const carregarRevendedores = async (cicloParam = '') => {
       if (cicloSelecionadoVD !== ciclo) setCicloSelecionadoVD(ciclo);
       axios.defaults.headers.common['X-Ciclo-VD'] = ciclo;
 
-      const payload = { ...filtroVazio, ciclo };
-      const chaveCache = `acomp_${gerarChaveFiltros(payload)}`;
+      const payload = {
+        ...filtroVazio,
+        ...(_filtros || {}),
+        ciclo,
+        nucleos: Array.isArray(_filtros?.nucleos) ? _filtros.nucleos : [],
+        unidades: Array.isArray(_filtros?.unidades) ? _filtros.unidades : [],
+        estruturas: Array.isArray(_filtros?.estruturas) ? _filtros.estruturas : [],
+        consultores: Array.isArray(_filtros?.consultores) ? _filtros.consultores : [],
+        situacoes: Array.isArray(_filtros?.situacoes) ? _filtros.situacoes : [],
+        meios_captacao: Array.isArray(_filtros?.meios_captacao) ? _filtros.meios_captacao : [],
+        modelos_comerciais: Array.isArray(_filtros?.modelos_comerciais) ? _filtros.modelos_comerciais : [],
+        canais_venda: Array.isArray(_filtros?.canais_venda) ? _filtros.canais_venda : [],
+      };
+
+      const chaveCache = `acomp_v2_consultores_oficiais_${gerarChaveFiltros(payload)}`;
       const cacheAcompanhamento = cacheDashboard[chaveCache];
-      if (!forcarAtualizacao && cacheAcompanhamento?.dados && cacheAcompanhamento?.dadosMetas) {
+      if (!forcarAtualizacao && cacheAcompanhamento?.dados) {
         setDados(cacheAcompanhamento.dados);
-        setDadosMetas(cacheAcompanhamento.dadosMetas);
-        setCacheMetas(cacheAcompanhamento.dadosMetas);
+        if (cacheAcompanhamento.dadosMetas) {
+          setDadosMetas(cacheAcompanhamento.dadosMetas);
+          setCacheMetas(cacheAcompanhamento.dadosMetas);
+        }
         setAcompanhamentoVD({
           carregando: false,
           carregandoConsultores: false,
           carregandoDiario: false,
           erro: '',
-          consultores: cacheAcompanhamento.consultores || [],
+          consultores: cacheAcompanhamento.consultores || criarConsultoresBasicosDashboard(cacheAcompanhamento.dados),
           meta_resolvida: cacheAcompanhamento.meta_resolvida || null,
           diario: cacheAcompanhamento.diario || {
             resumo: {
@@ -9057,6 +9272,7 @@ const carregarRevendedores = async (cicloParam = '') => {
       try { acompanhamentoAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
       const controller = new AbortController();
       acompanhamentoAbortControllerRef.current = controller;
+
       setAcompanhamentoVD((atual) => ({
         ...atual,
         carregando: true,
@@ -9067,52 +9283,35 @@ const carregarRevendedores = async (cicloParam = '') => {
 
       const config = {
         headers: { 'X-Ciclo-VD': ciclo, ...(forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {}) },
-        timeout: 45000,
+        timeout: 60000,
         signal: controller.signal,
       };
 
-      // O resultado principal e as metas carregam primeiro. A lista detalhada de
-      // consultores começa em paralelo, mas não bloqueia os cards e gráficos.
-      const promessaConsultores = axios
-        .post(`${API_URL}/gerente-vd/consultores`, payload, config)
-        .then((resposta) => ({ ok: true, data: resposta.data || {} }))
-        .catch((erro) => ({ ok: false, erro }));
-
-      const [resDash, resMetas] = await Promise.allSettled([
-        axios.post(`${API_URL}/dashboard/dados`, payload, config),
-        axios.post(`${API_URL}/metas/resumo`, payload, config),
-      ]);
+      // PERFORMANCE_V7: primeiro carrega somente o Dashboard. Esta rota aquece
+      // o cache de tabelas do backend e já contém todos os cards/gráficos e um
+      // ranking básico de consultores. Evitamos três cálculos Pandas pesados
+      // concorrendo no primeiro login do gerente.
+      let respostaDashboard;
+      try {
+        respostaDashboard = await requisitarDashboardComRetry(
+          () => axios.post(`${API_URL}/dashboard/dados`, payload, config),
+          2
+        );
+      } catch (erroDashboard) {
+        if (erroDashboard?.code === 'ERR_CANCELED' || erroDashboard?.name === 'CanceledError') return;
+        throw erroDashboard;
+      }
 
       if (
         requestSeq !== acompanhamentoRequestSeqRef.current
         || String(cicloVisualizacaoVDRef.current || ciclo) !== ciclo
       ) return;
 
-      const dadosAtualizados = resDash.status === 'fulfilled' ? (resDash.value.data || null) : null;
-      const metasAtualizadas = resMetas.status === 'fulfilled' ? (resMetas.value.data || null) : null;
-      const consultoresResumo = Array.isArray(metasAtualizadas?.ranking_consultores)
-        ? metasAtualizadas.ranking_consultores
-        : [];
+      const dadosAtualizados = respostaDashboard?.data || null;
+      if (!dadosAtualizados) throw new Error('Falha ao carregar o resultado da unidade.');
 
-      const erros = [];
-      if (!dadosAtualizados) erros.push(resDash.reason?.response?.data?.detail || 'Falha ao carregar o resultado da unidade.');
-      if (!metasAtualizadas) erros.push(resMetas.reason?.response?.data?.detail || 'Falha ao carregar as metas da unidade.');
-      if (metasAtualizadas && Number(metasAtualizadas?.meta_total_geral || 0) <= 0) erros.push('As metas oficiais do ciclo retornaram zeradas. Use Atualizar e avise o administrador.');
-
-      if (dadosAtualizados) {
-        setDados(dadosAtualizados);
-        setMetaFaturamentoDashboard(Number(
-          metasAtualizadas?.meta_total_geral
-          || dadosAtualizados?.meta_contextual
-          || dadosAtualizados?.meta_ciclo
-          || 0
-        ));
-      }
-      if (metasAtualizadas) {
-        setDadosMetas(metasAtualizadas);
-        setCacheMetas(metasAtualizadas);
-      }
-
+      const consultoresBasicos = criarConsultoresBasicosDashboard(dadosAtualizados);
+      const metaDashboard = Number(dadosAtualizados?.meta_contextual || dadosAtualizados?.meta_ciclo || 0);
       const diarioAtualizado = {
         resumo: {
           realizado_hoje: Number(dadosAtualizados?.realizado_diario || 0),
@@ -9122,68 +9321,179 @@ const carregarRevendedores = async (cicloParam = '') => {
         consultores: [],
       };
 
+      setDados(dadosAtualizados);
+      setMetaFaturamentoDashboard(metaDashboard);
       setAcompanhamentoVD({
         carregando: false,
         carregandoConsultores: true,
         carregandoDiario: false,
-        erro: erros.join(' '),
-        consultores: consultoresResumo,
+        erro: '',
+        consultores: consultoresBasicos,
         meta_resolvida: null,
         diario: diarioAtualizado,
         atualizado_em: new Date().toISOString(),
       });
 
-      const resultadoConsultores = await promessaConsultores;
+      // Com o cache de tabelas já aquecido, buscamos metas. Se a própria rota
+      // de metas devolver o ranking individual completo, não chamamos o detalhe
+      // pesado por estrutura desnecessariamente.
+      let metasAtualizadas = null;
+      let erroMetas = '';
+      try {
+        const respostaMetas = await requisitarDashboardComRetry(
+          () => axios.post(`${API_URL}/metas/resumo`, payload, config),
+          2
+        );
+        metasAtualizadas = respostaMetas?.data || null;
+      } catch (erroMetasReq) {
+        if (erroMetasReq?.code !== 'ERR_CANCELED' && erroMetasReq?.name !== 'CanceledError') {
+          erroMetas = erroMetasReq?.response?.data?.detail || 'Não foi possível carregar as metas detalhadas agora.';
+        }
+      }
+
       if (
         requestSeq !== acompanhamentoRequestSeqRef.current
         || String(cicloVisualizacaoVDRef.current || ciclo) !== ciclo
       ) return;
 
-      let consultoresDetalhados = consultoresResumo;
+      const rankingMetas = Array.isArray(metasAtualizadas?.ranking_consultores)
+        ? metasAtualizadas.ranking_consultores
+        : [];
+
+      // REGRA OFICIAL DO RANKING INDIVIDUAL PARA GESTORES VD:
+      // somente consultores efetivamente cadastrados na estrutura podem aparecer.
+      // `realizado_por_consultor` do Dashboard pode conter finalizadores técnicos,
+      // usuários de checkout ou pessoas que venderam na estrutura sem fazer parte
+      // do cadastro oficial. O ranking do Admin já usa o cadastro oficial; o
+      // Acompanhamento do gestor precisa seguir exatamente a mesma regra.
+      const manterSomenteConsultoresOficiais = (lista, oficiais) => {
+        const referencia = Array.isArray(oficiais) ? oficiais.filter(Boolean) : [];
+        if (!referencia.length) return [];
+
+        const idsOficiais = new Set(
+          referencia
+            .map((item) => String(item?.id_colaborador || item?.id_consultor || '').trim())
+            .filter(Boolean)
+        );
+        const nomesOficiais = new Set(
+          referencia
+            .map((item) => normalizarChaveAcompanhamento(
+              item?.nome_exibicao || item?.nome || item?.consultor || item?.Consultor
+            ))
+            .filter(Boolean)
+        );
+
+        return (Array.isArray(lista) ? lista : []).filter((item) => {
+          const id = String(item?.id_colaborador || item?.id_consultor || '').trim();
+          const nome = normalizarChaveAcompanhamento(
+            item?.nome_exibicao || item?.nome || item?.consultor || item?.Consultor
+          );
+          return (id && idsOficiais.has(id)) || (nome && nomesOficiais.has(nome));
+        });
+      };
+
+      let consultoresCompletos = rankingMetas.length
+        ? manterSomenteConsultoresOficiais(
+            mesclarConsultoresAcompanhamento(consultoresBasicos, rankingMetas),
+            rankingMetas
+          )
+        : [];
       let metaResolvida = null;
       let erroConsultores = '';
-      if (resultadoConsultores.ok) {
-        const lista = Array.isArray(resultadoConsultores.data?.consultores)
-          ? resultadoConsultores.data.consultores
-          : [];
-        if (lista.length) consultoresDetalhados = lista;
-        metaResolvida = resultadoConsultores.data?.meta_resolvida || null;
-        if (!lista.length && Array.isArray(resultadoConsultores.data?.erros) && resultadoConsultores.data.erros.length) {
-          erroConsultores = resultadoConsultores.data.erros
-            .map((item) => item?.erro)
-            .filter(Boolean)
-            .join(' ');
-        }
-      } else if (resultadoConsultores.erro?.code !== 'ERR_CANCELED') {
-        erroConsultores = resultadoConsultores.erro?.response?.data?.detail
-          || 'Falha ao carregar os consultores da estrutura.';
+
+      if (metasAtualizadas) {
+        const metaResumo = Number(metasAtualizadas?.meta_total_geral || 0);
+        const metaConsultores = rankingMetas.reduce(
+          (total, item) => total + Number(item?.meta_individual || item?.meta || 0),
+          0
+        );
+        const metaEfetiva = [metaResumo, metaDashboard, metaConsultores]
+          .find((valor) => Number.isFinite(valor) && valor > 0) || 0;
+        const metasResolvidas = metaResumo <= 0 && metaEfetiva > 0
+          ? { ...metasAtualizadas, meta_total_geral: metaEfetiva }
+          : metasAtualizadas;
+        setDadosMetas(metasResolvidas);
+        setCacheMetas(metasResolvidas);
+        if (metaEfetiva > 0) setMetaFaturamentoDashboard(metaEfetiva);
+        metasAtualizadas = metasResolvidas;
       }
 
-      const erroFinal = [erros.join(' '), erroConsultores].filter(Boolean).join(' ');
+      // Só usa a rota de detalhe quando /metas/resumo realmente não conseguiu
+      // formar o ranking. Assim mantemos os indicadores oficiais e ainda temos
+      // um fallback robusto para cadastros/aliases legados.
+      if (!rankingMetas.length) {
+        let resultadoConsultores = null;
+        let ultimoErroConsultores = null;
+        for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
+          try {
+            const respostaConsultores = await axios.post(`${API_URL}/gerente-vd/consultores`, payload, config);
+            resultadoConsultores = respostaConsultores?.data || {};
+            break;
+          } catch (erro) {
+            ultimoErroConsultores = erro;
+            if (erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError') return;
+            const status = Number(erro?.response?.status || 0);
+            const repetivel = !status || status === 408 || status === 429 || status >= 500;
+            if (!repetivel || tentativa >= 2) break;
+            await aguardarDashboard(800 * tentativa);
+          }
+        }
+
+        if (resultadoConsultores) {
+          const listaDetalhada = Array.isArray(resultadoConsultores?.consultores)
+            ? resultadoConsultores.consultores
+            : [];
+          consultoresCompletos = listaDetalhada.length
+            ? manterSomenteConsultoresOficiais(
+                mesclarConsultoresAcompanhamento(consultoresBasicos, listaDetalhada),
+                listaDetalhada
+              )
+            : [];
+          metaResolvida = resultadoConsultores?.meta_resolvida || null;
+          if (!listaDetalhada.length && Array.isArray(resultadoConsultores?.erros)) {
+            erroConsultores = resultadoConsultores.erros.map((item) => item?.erro).filter(Boolean).join(' ');
+          }
+        } else if (!consultoresCompletos.length && ultimoErroConsultores) {
+          erroConsultores = ultimoErroConsultores?.response?.data?.detail
+            || 'Falha ao carregar os consultores da estrutura.';
+        }
+      }
+
+      if (
+        requestSeq !== acompanhamentoRequestSeqRef.current
+        || String(cicloVisualizacaoVDRef.current || ciclo) !== ciclo
+      ) return;
+
+      // Se o dashboard encontrou vendas por consultor, nunca apagamos esse
+      // ranking só porque uma rota secundária falhou. Isso elimina o estado
+      // "Nenhum consultor encontrado" com dados de vendas já carregados.
+      const mensagensErro = [];
+      if (!metasAtualizadas && erroMetas && !metaDashboard) mensagensErro.push(erroMetas);
+      if (!consultoresCompletos.length && erroConsultores) mensagensErro.push(erroConsultores);
+
       const atualizadoEm = new Date().toISOString();
-      setAcompanhamentoVD((atual) => ({
-        ...atual,
+      setAcompanhamentoVD({
         carregando: false,
         carregandoConsultores: false,
-        erro: erroFinal,
-        consultores: consultoresDetalhados,
-        meta_resolvida: metaResolvida || atual.meta_resolvida || null,
+        carregandoDiario: false,
+        erro: mensagensErro.join(' '),
+        consultores: consultoresCompletos,
+        meta_resolvida: metaResolvida,
+        diario: diarioAtualizado,
         atualizado_em: atualizadoEm,
-      }));
+      });
 
-      if (dadosAtualizados && metasAtualizadas) {
-        setCacheDashboard((prev) => ({
-          ...prev,
-          [chaveCache]: {
-            dados: dadosAtualizados,
-            dadosMetas: metasAtualizadas,
-            consultores: consultoresDetalhados,
-            meta_resolvida: metaResolvida,
-            diario: diarioAtualizado,
-            atualizado_em: atualizadoEm,
-          },
-        }));
-      }
+      setCacheDashboard((prev) => ({
+        ...prev,
+        [chaveCache]: {
+          dados: dadosAtualizados,
+          dadosMetas: metasAtualizadas,
+          consultores: consultoresCompletos,
+          meta_resolvida: metaResolvida,
+          diario: diarioAtualizado,
+          atualizado_em: atualizadoEm,
+        },
+      }));
     } catch (erro) {
       if (erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError') return;
       console.error('Erro geral no Acompanhamento VD:', erro);
@@ -9197,16 +9507,87 @@ const carregarRevendedores = async (cicloParam = '') => {
     }
   };
 
+  const carregarPrimeiroPedidoCaptacao = async (_filtros = filtrosAtivos, forcarAtualizacao = false) => {
+    if (!usuarioLogado || !podeAcessarPrimeiroPedidoCaptacao) return;
+
+    const filtrosBase = (_filtros && typeof _filtros === 'object' && !Array.isArray(_filtros))
+      ? _filtros
+      : { ...filtrosAtivos, ciclo: String(_filtros || '').trim() };
+
+    const ciclo = String(
+      filtrosBase?.ciclo
+      || cicloVisualizacaoVDRef.current
+      || cicloSelecionadoVD
+      || filtrosAtivos?.ciclo
+      || obterCicloReferenciaAtual()
+      || ''
+    ).trim();
+
+    if (!ciclo) {
+      setPrimeiroPedidoCaptacao((atual) => ({ ...atual, carregando: false, erro: 'Não foi possível identificar o ciclo.' }));
+      return;
+    }
+
+    const payload = {
+      ...filtroVazio,
+      ...filtrosBase,
+      ciclo,
+      nucleos: Array.isArray(filtrosBase?.nucleos) ? filtrosBase.nucleos : [],
+      unidades: Array.isArray(filtrosBase?.unidades) ? filtrosBase.unidades : [],
+      estruturas: Array.isArray(filtrosBase?.estruturas) ? filtrosBase.estruturas : [],
+      consultores: Array.isArray(filtrosBase?.consultores) ? filtrosBase.consultores : [],
+      situacoes: Array.isArray(filtrosBase?.situacoes) ? filtrosBase.situacoes : [],
+      meios_captacao: Array.isArray(filtrosBase?.meios_captacao) ? filtrosBase.meios_captacao : [],
+      modelos_comerciais: Array.isArray(filtrosBase?.modelos_comerciais) ? filtrosBase.modelos_comerciais : [],
+      canais_venda: Array.isArray(filtrosBase?.canais_venda) ? filtrosBase.canais_venda : [],
+    };
+
+    setPrimeiroPedidoCaptacao((atual) => ({ ...atual, carregando: true, erro: '' }));
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/gestor/primeiro-pedido-captacao`,
+        payload,
+        { params: { _t: forcarAtualizacao ? Date.now() : undefined } }
+      );
+      setPrimeiroPedidoCaptacao({
+        carregando: false,
+        erro: '',
+        ciclo: data?.ciclo || ciclo,
+        total_revendedores: Number(data?.total_revendedores || 0),
+        resumo: {
+          vd_presencial: Number(data?.resumo?.vd_presencial || 0),
+          vd_online: Number(data?.resumo?.vd_online || 0),
+          app: Number(data?.resumo?.app || 0),
+          vdi: Number(data?.resumo?.vdi || 0),
+          omni: Number(data?.resumo?.omni || 0),
+          portal: Number(data?.resumo?.portal || 0),
+          outros: Number(data?.resumo?.outros || 0),
+        },
+        estruturas: Array.isArray(data?.estruturas) ? data.estruturas : [],
+        regra: data?.regra || '',
+        filtros_aplicados: data?.filtros_aplicados || payload,
+      });
+    } catch (erro) {
+      setPrimeiroPedidoCaptacao((atual) => ({
+        ...atual,
+        carregando: false,
+        erro: erro?.response?.data?.detail || erro?.message || 'Erro ao carregar o primeiro pedido dos revendedores.',
+      }));
+    }
+  };
+
   const carregarTelaAtual = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
 
     if (telaAtual === 'AcompanhamentoVD') return carregarAcompanhamentoGerenteVD(filtros, forcarAtualizacao);
+    if (telaAtual === 'PrimeiroPedidoCaptacao') return carregarPrimeiroPedidoCaptacao(filtros, forcarAtualizacao);
     if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao);
     if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
     if (telaAtual === 'Ações') return carregarAcoesCiclo(filtros?.ciclo);
+    if (telaAtual === 'Tutoriais') return carregarTutoriais();
     if (telaAtual === 'Histórico') return carregarHistoricoCiclos(filtros?.ciclo);
-    if (telaAtual === 'Revendedores') return carregarRevendedores(filtros?.ciclo);
+    if (telaAtual === 'Revendedores') return carregarRevendedores(filtros, forcarAtualizacao);
     if (telaAtual === 'Base') return carregarCiclos();
     if (telaAtual === 'Cadastro') return Promise.allSettled([carregarCiclos(), carregarListaConsultores(), carregarEstruturasConfig()]);
     if (telaEhLoja(telaAtual)) return carregarDadosLoja();
@@ -9221,7 +9602,10 @@ const carregarRevendedores = async (cicloParam = '') => {
       detalheDiarioCacheRef.current = {};
       if (telaAtual === 'AcompanhamentoVD') {
         await carregarAcompanhamentoGerenteVD(
-          { ...filtroVazio, ciclo: cicloVisualizacaoVDRef.current || cicloSelecionadoVD },
+          {
+            ...filtrosAtivos,
+            ciclo: cicloVisualizacaoVDRef.current || cicloSelecionadoVD || filtrosAtivos?.ciclo || '',
+          },
           true
         );
       } else if (telaEhLoja(telaAtual)) {
@@ -9509,13 +9893,19 @@ const carregarRevendedores = async (cicloParam = '') => {
     }
   };
 
+
+
+
   useEffect(() => {
     if (!usuarioLogado) return;
     const cicloTela = telaEhLoja(telaAtual)
       ? (cicloSelecionadoLoja || cicloLoja || '')
       : (cicloSelecionadoVD || filtrosAtivos?.ciclo || '');
     if (!telaEhLoja(telaAtual) && !cicloTela) return;
-    const chave = `${telaAtual}_${cicloTela}_${gerarChaveFiltros(filtrosAtivos)}`;
+    const usuarioChaveTela = String(
+      usuarioLogado?.id || usuarioLogado?.email || usuarioLogado?.nome || 'usuario'
+    ).trim();
+    const chave = `${usuarioChaveTela}_${telaAtual}_${cicloTela}_${gerarChaveFiltros(filtrosAtivos)}`;
     if (ultimoCarregamentoTelaRef.current === chave) return;
     ultimoCarregamentoTelaRef.current = chave;
     carregarTelaAtual(
@@ -9551,40 +9941,82 @@ const carregarRevendedores = async (cicloParam = '') => {
       const usuario = resposta.data.usuario;
       const token = resposta.data.access_token;
       if (!token) throw new Error('Token não retornado pelo backend.');
+
+      // PERFORMANCE_V7 / LOGIN_ATOMICO_V1
+      // A sessão/token são persistidos primeiro para que os helpers de storage
+      // já usem a chave do usuário correto, mas o React só libera a tela do
+      // dashboard depois de resolver ciclo + permissões. Isso elimina o flash
+      // "SEM CICLO" e evita duas cargas pesadas concorrentes no primeiro login.
       aplicarTokenAxios(token);
       setTokenAuth(token);
       salvarSessaoAutenticada(usuario, token);
-      setUsuarioLogado(usuario);
+
       limparCachesDados();
+      ultimoCarregamentoTelaRef.current = '';
+      dashboardWatchdogRef.current = { chave: '', tentativas: 0 };
+      acompanhamentoRequestSeqRef.current += 1;
+      try { acompanhamentoAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
       setFiltrosAtivos({ ...filtroVazio });
       setBuscaFiltros(buscaFiltrosVazia);
       setDados(null);
       setDadosMetas(null);
       setDetalheMeta(null);
-      setAcompanhamentoVD({ carregando: false, carregandoConsultores: false, carregandoDiario: false, erro: '', consultores: [], meta_resolvida: null, diario: null, atualizado_em: '' });
+
       const escoposLogin = normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas);
-      const gerenteVDLogin = String(usuario?.perfil || '').toLowerCase() === 'visualizador'
+      const gerenteVDLogin = String(usuario?.perfil || '').toLowerCase() !== 'admin'
         && escoposLogin.some((item) => item.area === 'VD');
       const telaInicialLogin = gerenteVDLogin ? 'AcompanhamentoVD' : 'Dashboard';
+      setAcompanhamentoVD({
+        carregando: gerenteVDLogin,
+        carregandoConsultores: gerenteVDLogin,
+        carregandoDiario: false,
+        erro: '',
+        consultores: [],
+        meta_resolvida: null,
+        diario: null,
+        atualizado_em: '',
+      });
+
       gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, telaInicialLogin);
       gravarStorageUsuario(CANAL_ATUAL_STORAGE_KEY, 'VD');
       gravarStorageUsuario(VISAO_METAS_STORAGE_KEY, 'estruturas');
       removerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
-      await carregarPermissoesDoBanco();
-      const infoCiclosLogin = await carregarCiclos(true);
-      const cicloLogin = String(infoCiclosLogin?.cicloVD || infoCiclosLogin?.cicloAtual || '').trim();
+
+      // As duas rotas são leves e independentes; rodam juntas sem disparar
+      // Dashboard/Metas antes da definição do ciclo.
+      const [, resultadoCiclos] = await Promise.allSettled([
+        carregarPermissoesDoBanco(),
+        carregarCiclos(true),
+      ]);
+
+      const infoCiclosLogin = resultadoCiclos.status === 'fulfilled'
+        ? (resultadoCiclos.value || {})
+        : {};
+      const cicloLogin = String(
+        infoCiclosLogin?.cicloVD
+        || infoCiclosLogin?.cicloAtual
+        || lerStorageUsuario(CICLO_VD_STORAGE_KEY)
+        || lerStorageUsuario(CICLO_ATUAL_CONHECIDO_STORAGE_KEY)
+        || cicloAtualPelaData()
+        || ''
+      ).trim();
+
       if (cicloLogin) {
         cicloVisualizacaoVDRef.current = cicloLogin;
         setCicloSelecionadoVD(cicloLogin);
         setFiltrosAtivos({ ...filtroVazio, ciclo: cicloLogin });
         axios.defaults.headers.common['X-Ciclo-VD'] = cicloLogin;
       }
+
       setCanalAtual('VD');
       setTelaAtual(telaInicialLogin);
       setVisaoMetas('estruturas');
       setEstruturaSelecionada('');
+
+      // Só agora a aplicação autenticada é renderizada.
+      setUsuarioLogado(usuario);
     } catch (erro) {
-      setErroLogin(erro.response?.data?.detail || 'Erro ao realizar login.');
+      setErroLogin(erro.response?.data?.detail || erro?.message || 'Erro ao realizar login.');
     } finally {
       setCarregandoLogin(false);
     }
@@ -9786,7 +10218,7 @@ const carregarRevendedores = async (cicloParam = '') => {
     if (debounceFiltroRapidoRef.current) clearTimeout(debounceFiltroRapidoRef.current);
     debounceFiltroRapidoRef.current = setTimeout(() => {
       carregarTelaAtual(novosFiltros, false);
-    }, 250);
+    }, 120);
   };
 
 
@@ -9953,24 +10385,50 @@ const carregarRevendedores = async (cicloParam = '') => {
   };
 
   const atualizarTelasAposMudancaBanco = async () => {
+    // Invalida requisições antigas, mas NÃO apaga os dados que já estão na tela.
+    // Assim o usuário continua vendo o último estado válido enquanto atualizamos.
     limparCachesDados();
     ultimoCarregamentoTelaRef.current = '';
-    await carregarOpcoesFiltros(true);
+    dashboardRequestSeqRef.current += 1;
+    metasRequestSeqRef.current += 1;
+    opcoesRequestSeqRef.current += 1;
+    promessasEmAndamentoRef.current = {};
 
-    const tarefas = [];
-    if (telaAtual === 'AcompanhamentoVD') tarefas.push(carregarAcompanhamentoGerenteVD(filtrosAtivos, true));
-    else if (telaAtual === 'Dashboard') tarefas.push(carregarDashboard(filtrosAtivos, true));
-    else if (telaAtual === 'Metas' || telaAtual === 'Ranking') tarefas.push(carregarDashboardEMetas(filtrosAtivos, true));
-    else if (telaAtual === 'Comparativo') tarefas.push(carregarComparativo(filtrosAtivos));
-    else tarefas.push(carregarDashboard(filtrosAtivos, true));
+    const cicloAtualizacao = String(
+      cicloUploadVD
+      || filtrosAtivos?.ciclo
+      || cicloVisualizacaoVDRef.current
+      || cicloSelecionadoVD
+      || obterCicloReferenciaAtual()
+      || ''
+    ).trim();
+    const filtrosAtualizacao = {
+      ...filtrosAtivos,
+      ciclo: cicloAtualizacao,
+    };
 
-    if (telaAtual === 'Cadastro') { tarefas.push(carregarCiclos()); tarefas.push(carregarListaConsultores()); tarefas.push(carregarEstruturasConfig()); }
-    if (telaAtual === 'Histórico') tarefas.push(carregarHistoricoCiclos());
-    if (telaAtual === 'Base') tarefas.push(carregarCiclos());
-    if (telaAtual === 'ADM') tarefas.push(carregarAuditoria());
-    if (telaAtual === 'Configurações') tarefas.push(carregarUsuarios());
+    let principal;
+    if (telaAtual === 'Dashboard') {
+      principal = carregarDashboard(filtrosAtualizacao, true);
+    } else if (telaAtual === 'AcompanhamentoVD' || telaAtual === 'Metas' || telaAtual === 'Ranking') {
+      principal = carregarDashboardEMetas(filtrosAtualizacao, true);
+    } else if (telaAtual === 'Comparativo') {
+      principal = carregarComparativo(filtrosAtualizacao);
+    } else if (telaAtual === 'Ações') {
+      principal = carregarAcoesCiclo();
+    } else {
+      principal = carregarTelaAtual(filtrosAtualizacao, true);
+    }
 
-    await Promise.allSettled(tarefas);
+    // Filtros/catálogos são atualizados depois e não seguram o conteúdo principal.
+    window.setTimeout(() => {
+      void carregarOpcoesFiltros(true, cicloAtualizacao);
+      if (telaAtual === 'Cadastro' || telaAtual === 'Base' || telaAtual === 'Histórico') {
+        void carregarCiclos();
+      }
+    }, 350);
+
+    await Promise.resolve(principal);
   };
 
   
@@ -10004,9 +10462,85 @@ const enviarArquivo = async (tipo) => {
     } catch (erro) { setErroUpload(erro.response?.data?.detail || 'Erro.'); } finally { setCarregandoUpload(false); }
   };
 
-  const criarUsuario = async (e) => { e.preventDefault(); setMensagemUsuarios(''); setErroUsuarios(''); try { await axios.post(`${API_URL}/auth/criar-usuario`, { ...novoUsuario, area_gestao: normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil), estruturas_permitidas: novoUsuario.estruturas_permitidas || [] }); setMensagemUsuarios('Criado com sucesso.'); setNovoUsuario({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'AMBOS' }); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
-  const abrirEditarUsuario = (usuario) => { setUsuarioEditando({ ...usuario, area_gestao: normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil) }); setModalEditarUsuarioAberto(true); };
-  const salvarEdicaoUsuario = async (e) => { e.preventDefault(); try { await axios.put(`${API_URL}/auth/atualizar-usuario`, { id: usuarioEditando.id, nome: usuarioEditando.nome, perfil: usuarioEditando.perfil, status_usuario: usuarioEditando.status_usuario, area_gestao: normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil), estruturas_permitidas: usuarioEditando.estruturas_permitidas || [] }); setModalEditarUsuarioAberto(false); setMensagemUsuarios('Atualizado com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
+  const criarUsuario = async (e) => {
+    e.preventDefault();
+    setMensagemUsuarios('');
+    setErroUsuarios('');
+
+    const perfil = String(novoUsuario.perfil || 'visualizador').toLowerCase();
+    const area = normalizarAreaGestao(novoUsuario.area_gestao, perfil);
+    const estruturasNormalizadas = normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas)
+      .filter((item) => area === 'AMBOS' || item.area === area);
+
+    if (perfil === 'visualizador' && !estruturasNormalizadas.length) {
+      setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
+      return;
+    }
+
+    try {
+      await axios.post(`${API_URL}/auth/criar-usuario`, {
+        ...novoUsuario,
+        perfil,
+        area_gestao: area,
+        estruturas_permitidas: perfil === 'admin' ? [] : estruturasNormalizadas,
+      });
+
+      setMensagemUsuarios('Usuário criado com sucesso.');
+      setNovoUsuario({
+        nome: '',
+        email: '',
+        senha: '',
+        perfil: 'visualizador',
+        status_usuario: 'ativo',
+        area_gestao: 'VD',
+        estruturas_permitidas: [],
+      });
+      await carregarUsuarios();
+    } catch (erro) {
+      setErroUsuarios(erro?.response?.data?.detail || 'Erro ao criar usuário.');
+    }
+  };
+
+  const abrirEditarUsuario = (usuario) => {
+    setUsuarioEditando({
+      ...usuario,
+      area_gestao: normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil),
+      estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas),
+    });
+    setErroUsuarios('');
+    setModalEditarUsuarioAberto(true);
+  };
+
+  const salvarEdicaoUsuario = async (e) => {
+    e.preventDefault();
+    setErroUsuarios('');
+
+    const perfil = String(usuarioEditando?.perfil || 'visualizador').toLowerCase();
+    const area = normalizarAreaGestao(usuarioEditando?.area_gestao, perfil);
+    const estruturasNormalizadas = normalizarEstruturasPermitidasUsuario(usuarioEditando?.estruturas_permitidas)
+      .filter((item) => area === 'AMBOS' || item.area === area);
+
+    if (perfil === 'visualizador' && !estruturasNormalizadas.length) {
+      setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
+      return;
+    }
+
+    try {
+      await axios.put(`${API_URL}/auth/atualizar-usuario`, {
+        id: usuarioEditando.id,
+        nome: usuarioEditando.nome,
+        perfil,
+        status_usuario: usuarioEditando.status_usuario,
+        area_gestao: area,
+        estruturas_permitidas: perfil === 'admin' ? [] : estruturasNormalizadas,
+      });
+      setModalEditarUsuarioAberto(false);
+      setMensagemUsuarios('Usuário atualizado com sucesso.');
+      await carregarUsuarios();
+    } catch (erro) {
+      setErroUsuarios(erro?.response?.data?.detail || 'Erro ao atualizar usuário.');
+    }
+  };
   const abrirExcluirUsuario = (usuario) => { setUsuarioParaExcluir(usuario); setModalExcluirUsuarioAberto(true); };
   const confirmarExclusaoUsuario = async () => { if (!usuarioParaExcluir) return; try { await axios.delete(`${API_URL}/auth/deletar-usuario/${usuarioParaExcluir.id}`); setModalExcluirUsuarioAberto(false); setUsuarioParaExcluir(null); setMensagemUsuarios('Excluído com sucesso.'); await carregarUsuarios(); } catch (erro) { setErroUsuarios(erro.response?.data?.detail || 'Erro.'); } };
   const gerarSenhaTemporariaAdmin = () => {
@@ -10304,6 +10838,10 @@ const enviarArquivo = async (tipo) => {
 
     vendasConsultores.forEach((item, indice) => {
       if (consultoresConsumidos.has(indice)) return;
+      // No acompanhamento restrito do gestor, não transforma finalizadores
+      // avulsos em consultores do ranking. Se existe uma lista oficial vinda
+      // das metas/cadastro, somente ela define quem pertence à equipe.
+      if (modoGerenteVD && consultoresMetaUnicos.length > 0) return;
       const vendidoHoje = Number(item?.realizado || item?.vendido_hoje || 0);
       consultores.push({
         ...item,
@@ -10585,10 +11123,26 @@ const enviarArquivo = async (tipo) => {
   };
   const obterResumoMetasAtual = () => dadosMetas || cacheMetas || {};
 
-  const abrirDetAtiv = async () => {
+  const abrirDetAtiv = async (opcoes = {}) => {
+    const estruturasForcadas = (
+      Array.isArray(opcoes?.estruturas)
+        ? opcoes.estruturas
+        : [opcoes?.estrutura]
+    )
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+    const filtrosAtividade = estruturasForcadas.length > 0
+      ? {
+          ...filtrosAtivos,
+          estruturas: estruturasForcadas,
+          consultores: [],
+        }
+      : filtrosAtivos;
+    const tituloModal = String(opcoes?.titulo || '').trim() || 'Atividade Geral';
+
     setModalValorExpandido({
       aberto: true,
-      titulo: 'Atividade Geral',
+      titulo: tituloModal,
       valorTexto: 'Carregando...',
       descricao: 'Atividade = revendedores ativados dividido pela base ativa.',
       detalhes: [],
@@ -10600,14 +11154,14 @@ const enviarArquivo = async (tipo) => {
 
     try {
       const cicloSolicitado = String(
-        filtrosAtivos?.ciclo
+        filtrosAtividade?.ciclo
         || cicloVisualizacaoVDRef.current
         || cicloSelecionadoVD
         || ''
       ).trim();
       const { data } = await axios.post(
         `${API_URL}/indicadores-iaf/atividade-detalhe`,
-        { ...filtrosAtivos, ciclo: cicloSolicitado },
+        { ...filtrosAtividade, ciclo: cicloSolicitado },
         { headers: { 'X-Ciclo-VD': cicloSolicitado } }
       );
 
@@ -10621,7 +11175,7 @@ const enviarArquivo = async (tipo) => {
 
       setModalValorExpandido({
         aberto: true,
-        titulo: 'Atividade Geral',
+        titulo: tituloModal,
         valorTexto: `${formatarNumeroBR(resumo?.percentual_ativacao || 0, 1)}%`,
         descricao: 'Atividade = revendedores ativados dividido pela base ativa.',
         detalhes: [
@@ -10641,7 +11195,7 @@ const enviarArquivo = async (tipo) => {
     } catch (erro) {
       setModalValorExpandido({
         aberto: true,
-        titulo: 'Atividade Geral',
+        titulo: tituloModal,
         valorTexto: 'Não foi possível carregar',
         descricao: '',
         detalhes: [],
@@ -10767,7 +11321,7 @@ const enviarArquivo = async (tipo) => {
 
 
   const renderTelaAcompanhamentoVD = () => {
-    if (acompanhamentoVD.carregando && !dados) return <DashboardSkeletons />;
+    if (!dados && (acompanhamentoVD.carregando || !acompanhamentoVD.erro)) return <DashboardSkeletons />;
     if (!dados) {
       return (
         <div className="bg-white rounded-2xl border border-red-100 p-8 text-center">
@@ -10960,15 +11514,50 @@ const enviarArquivo = async (tipo) => {
             <p className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-100 pb-1">Indicadores</p>
             <div className="grid grid-cols-2 gap-1.5">
               {[
-                ['MAKE', pMake, calcPerc(pMake, metaMake)],
-                ['CABELO', pCabelo, calcPerc(pCabelo, metaCabelo)],
-                ['MULTI.', pMulti, calcPerc(pMulti, metaMulti)],
-                ['ATIV.', pAtividade, calcPerc(pAtividade, metaAtividade)],
-              ].map(([nome, valor, atingimento]) => (
-                <div key={nome} className="rounded px-2 py-1.5 flex items-center justify-between text-white" style={{ backgroundColor: corPorFaixaMeta(atingimento) }}>
+                {
+                  nome: 'MAKE',
+                  valor: pMake,
+                  atingimento: calcPerc(pMake, metaMake),
+                  onClick: () => abrirDetIndicadorDashboard('MAKE', {
+                    titulo: `MAKE - ${escopoTexto}`,
+                  }),
+                },
+                {
+                  nome: 'CABELO',
+                  valor: pCabelo,
+                  atingimento: calcPerc(pCabelo, metaCabelo),
+                  onClick: () => abrirDetIndicadorDashboard('CABELO', {
+                    titulo: `CABELO - ${escopoTexto}`,
+                  }),
+                },
+                {
+                  nome: 'MULTI.',
+                  valor: pMulti,
+                  atingimento: calcPerc(pMulti, metaMulti),
+                  onClick: () => abrirDetIndicadorDashboard('MULTIMARCAS', {
+                    titulo: `MULTIMARCAS - ${escopoTexto}`,
+                  }),
+                },
+                {
+                  nome: 'ATIV.',
+                  valor: pAtividade,
+                  atingimento: calcPerc(pAtividade, metaAtividade),
+                  onClick: () => abrirDetAtiv({
+                    titulo: `Atividade - ${escopoTexto}`,
+                  }),
+                },
+              ].map(({ nome, valor, atingimento, onClick }) => (
+                <button
+                  key={nome}
+                  type="button"
+                  onClick={onClick}
+                  className="w-full rounded px-2 py-1.5 flex items-center justify-between text-white transition-all hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#048187]/30"
+                  style={{ backgroundColor: corPorFaixaMeta(atingimento) }}
+                  title={`Abrir detalhamento de ${nome}`}
+                >
                   <span className="text-[9px] font-black">{nome}</span>
                   <span className="text-[9px] font-black">{formatarNumeroBR(valor, 1)}%</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -10994,19 +11583,15 @@ const enviarArquivo = async (tipo) => {
             <h3 className="text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2">Vendas por dia de Captação</h3>
             <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dados?.vendas_por_dia || []} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorVendasGerente" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#048187" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#048187" stopOpacity={0.03} />
-                    </linearGradient>
-                  </defs>
+                <BarChart data={dados?.vendas_por_dia || []} margin={{ top: 28, right: 20, left: 0, bottom: 0 }} barCategoryGap="28%">
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="Data Captação" tick={{ fontSize: 10, fill: '#64748b' }} />
                   <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={formatarTickMoeda} width={48} />
-                  <Tooltip formatter={(value) => formatarMoeda(value)} />
-                  <Area type="monotone" dataKey="ValorPraticado" stroke="#048187" strokeWidth={3} fill="url(#colorVendasGerente)" />
-                </AreaChart>
+                  <Tooltip formatter={(value) => formatarMoeda(value)} cursor={{ fill: 'rgba(4, 129, 135, 0.06)' }} />
+                  <Bar dataKey="ValorPraticado" fill="#048187" radius={[4, 4, 0, 0]} maxBarSize={48}>
+                    <LabelList dataKey="ValorPraticado" position="top" formatter={(value) => formatarTickMoeda(value).replace('k', 'K')} style={{ fontSize: 9, fill: '#048187', fontWeight: 800 }} />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -11168,16 +11753,55 @@ const enviarArquivo = async (tipo) => {
 
   const renderTelaDashboard = () => {
     if (carregandoDashboard && !dados) return <DashboardSkeletons />;
-    if (!dados) return (<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8"><p className="text-gray-400">Nenhum dado carregado.</p></div>);
+    if (!dados) return <DashboardSkeletons />;
     const pTot = calcPerc(dados.valor_total, metaFaturamentoDashboard); const pDia = Number(dados.percentual_meta_diaria || 0); const pEudora = Number(dados.percentual_eudora || 0); const pMk = Number(dados.percentual_make || 0); const pCb = Number(dados.percentual_cabelo || 0); const pMulti = Number(dados.percentual_multimarcas || 0); const tPos = Number(dados.gap_tendencia || 0) >= 0;
-    const corMakeDashboard = corPorFaixaMeta(pMk);
-    const corCabeloDashboard = corPorFaixaMeta(pCb);
-    const corMultimarcasDashboard = corPorFaixaMeta(calcPerc(pMulti, Number(dados.meta_multimarcas || 76)));
-    const corAtividadeDashboard = corPorFaixaMeta(Number(dados.percentual_atividade_geral || 0));
+
+    // CORES_DASHBOARD_POR_ATINGIMENTO_V2
+    // IMPORTANTE: pMk, pCb, pMulti e percentual_atividade_geral são
+    // RESULTADOS dos indicadores. Para definir a cor precisamos comparar
+    // o resultado com a META correspondente.
+    const resumoMetasDashboard = obterResumoMetasAtual();
+
+    const metaMakeDashboard = Number(
+      resumoMetasDashboard?.meta_make_geral
+      || dados?.meta_make
+      || 40
+    );
+
+    const metaCabeloDashboard = Number(
+      resumoMetasDashboard?.meta_cabelo_geral
+      || dados?.meta_cabelo
+      || 40
+    );
+
+    const metaMultimarcasDashboard = Number(
+      resumoMetasDashboard?.meta_multimarcas_geral
+      || dados?.meta_multimarcas
+      || 78
+    );
+
+    const metaAtividadeDashboard = Number(
+      resumoMetasDashboard?.meta_atividade_geral
+      || dados?.meta_atividade
+      || 45
+    );
+
+    const atingimentoMakeDashboard = calcPerc(pMk, metaMakeDashboard);
+    const atingimentoCabeloDashboard = calcPerc(pCb, metaCabeloDashboard);
+    const atingimentoMultimarcasDashboard = calcPerc(pMulti, metaMultimarcasDashboard);
+    const atingimentoAtividadeDashboard = calcPerc(
+      Number(dados.percentual_atividade_geral || 0),
+      metaAtividadeDashboard
+    );
+
+    const corMakeDashboard = corPorFaixaMeta(atingimentoMakeDashboard);
+    const corCabeloDashboard = corPorFaixaMeta(atingimentoCabeloDashboard);
+    const corMultimarcasDashboard = corPorFaixaMeta(atingimentoMultimarcasDashboard);
+    const corAtividadeDashboard = corPorFaixaMeta(atingimentoAtividadeDashboard);
+
     const rpaDashboard = dados.revendedores_ativados > 0 ? dados.valor_total / dados.revendedores_ativados : 0;
     const tktDashboard = dados.total_pedidos > 0 ? dados.valor_total / dados.total_pedidos : 0;
     const upaDashboard = dados.revendedores_ativados > 0 ? (dados.total_itens || 0) / dados.revendedores_ativados : 0;
-    const resumoMetasDashboard = obterResumoMetasAtual();
     const corRpaDashboard = corPorFaixaMeta(calcPerc(rpaDashboard, resumoMetasDashboard?.meta_rpa_geral));
     const corTktDashboard = corPorFaixaMeta(calcPerc(tktDashboard, resumoMetasDashboard?.meta_tkt_medio_geral));
     const corUpaDashboard = corPorFaixaMeta(calcPerc(upaDashboard, resumoMetasDashboard?.meta_upa_geral));
@@ -11369,7 +11993,7 @@ const enviarArquivo = async (tipo) => {
 
     return (
       <>
-      <div className="space-y-6 animate-fade-in">
+      <div className="dash-dashboard-view space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-2 min-w-0">
             <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
@@ -11385,7 +12009,7 @@ const enviarArquivo = async (tipo) => {
           </div>
           <p className="text-xs font-medium text-gray-400 text-left sm:text-right">{dados.ultima_atualizacao_pedidos ? `Última atualização (Base Pedidos): ${dados.ultima_atualizacao_pedidos}` : 'Nenhum upload de Pedidos'}</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-3">
+        <div className="dash-dashboard-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-3">
           <CardMini titulo="Realizado Total" valor={formatarAbrev(dados.valor_total)} percentual={pTot} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(metaFaturamentoDashboard)} onClickExpandir={abrirDetRealizadoTotal} />
           <CardMini titulo="Realizado Diário" valor={formatarAbrev(dados.realizado_diario || 0)} percentual={pDia} labelMeta="Meta Diária:" valorMeta={formatarAbrev(dados.meta_diaria || 0)} onClickExpandir={abrirDetRealizadoDiario} />
           <CardMini titulo="Realizado Eudora" valor={formatarAbrev(dados.realizado_eudora || 0)} percentual={pEudora} labelMeta={`Meta Eudora (${Number(dados.meta_eudora_percentual || 20).toFixed(1)}%):`} valorMeta={formatarAbrev(dados.meta_eudora || 0)} onClickExpandir={abrirDetalheEudora} />
@@ -11413,19 +12037,37 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 xl:gap-6 mt-6">
+        <div className="dash-dashboard-charts grid grid-cols-1 lg:grid-cols-4 gap-4 xl:gap-6 mt-6">
           <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
             <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Vendas por dia de Captação</h3>
             <div className="h-[260px] sm:h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dados.vendas_por_dia || []} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <defs><linearGradient id="colorVendas" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#048187" stopOpacity={0.25} /><stop offset="95%" stopColor="#048187" stopOpacity={0.03} /></linearGradient></defs>
+                <BarChart data={dados.vendas_por_dia || []} margin={{ top: 28, right: 20, left: 0, bottom: 0 }} barCategoryGap="28%">
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="Data Captação" tick={{ fontSize: 11, fill: '#64748b' }} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatarTickMoeda} width={48} />
-                  <Tooltip formatter={(value) => formatarMoeda(value)} />
-                  <Area type="monotone" dataKey="ValorPraticado" stroke="#048187" strokeWidth={3} fill="url(#colorVendas)" activeDot={{ r: 6, cursor: 'pointer', onClick: (e, payload) => { const dataTexto = payload?.payload?.['Data Captação']; if (dataTexto) { const [dia, mes, ano] = String(dataTexto).split('/'); const dataIso = `${ano}-${mes}-${dia}`; const novosFiltros = { ...filtrosAtivos, data_inicio: dataIso, data_fim: dataIso }; setFiltrosAtivos(novosFiltros); ultimoCarregamentoTelaRef.current = ''; carregarTelaAtual(novosFiltros, false); } } }} />
-                </AreaChart>
+                  <Tooltip formatter={(value) => formatarMoeda(value)} cursor={{ fill: 'rgba(4, 129, 135, 0.06)' }} />
+                  <Bar
+                    dataKey="ValorPraticado"
+                    fill="#048187"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={48}
+                    cursor="pointer"
+                    onClick={(item) => {
+                      const dataTexto = item?.['Data Captação'] || item?.payload?.['Data Captação'];
+                      if (dataTexto) {
+                        const [dia, mes, ano] = String(dataTexto).split('/');
+                        const dataIso = `${ano}-${mes}-${dia}`;
+                        const novosFiltros = { ...filtrosAtivos, data_inicio: dataIso, data_fim: dataIso };
+                        setFiltrosAtivos(novosFiltros);
+                        ultimoCarregamentoTelaRef.current = '';
+                        carregarTelaAtual(novosFiltros, false);
+                      }
+                    }}
+                  >
+                    <LabelList dataKey="ValorPraticado" position="top" formatter={(value) => formatarTickMoeda(value).replace('k', 'K')} style={{ fontSize: 9, fill: '#048187', fontWeight: 800 }} />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -11509,7 +12151,7 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 xl:gap-6 mt-6">
+        <div className="dash-dashboard-secondary grid grid-cols-1 xl:grid-cols-5 gap-4 xl:gap-6 mt-6">
           <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
             <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">Vendas por canal</h3>
             <div className="overflow-x-auto h-[360px]" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
@@ -11903,7 +12545,7 @@ const enviarArquivo = async (tipo) => {
       return (
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] uppercase font-black tracking-wide text-gray-500">{titulo}:</p>
+            <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500">{titulo}:</p>
             <button
               type="button"
               onClick={onClickExpandir}
@@ -11915,12 +12557,12 @@ const enviarArquivo = async (tipo) => {
           </div>
           <div className="mt-3 space-y-2">
             <div>
-              <p className="text-[11px] uppercase font-black text-gray-400">Meta:</p>
-              <p className="text-[13px] sm:text-[14px] font-black text-gray-700 mt-0.5 break-words leading-tight">{meta}</p>
+              <p className="text-[11px] uppercase font-semibold text-gray-400">Meta:</p>
+              <p className="text-[13px] sm:text-[14px] font-semibold text-gray-700 mt-0.5 break-words leading-tight">{meta}</p>
             </div>
             <div>
-              <p className="text-[11px] uppercase font-black text-gray-400">Realizado:</p>
-              <p className="text-[13px] sm:text-[14px] font-black mt-0.5 break-words leading-tight" style={{ color: corDesempenho }}>{realizado}</p>
+              <p className="text-[11px] uppercase font-semibold text-gray-400">Realizado:</p>
+              <p className="text-[13px] sm:text-[14px] font-semibold mt-0.5 break-words leading-tight" style={{ color: corDesempenho }}>{realizado}</p>
             </div>
           </div>
           <div className="mt-3">
@@ -12310,10 +12952,10 @@ const enviarArquivo = async (tipo) => {
       const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
       return (
         <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
-          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
-          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{titulo}</p>
+          <p className="mt-2 text-lg font-semibold whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
           {percentual !== null && (
-            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
+            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-semibold bg-[#e6f6f7] text-[#048187]">
               {percentual}
             </span>
           )}
@@ -12326,11 +12968,11 @@ const enviarArquivo = async (tipo) => {
       return (
         <div className="h-full min-h-[104px] bg-white px-4 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
           <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
-          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">Faturamento</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 pl-2">Faturamento</p>
 
           <div className="mt-2 pl-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
+              <span className="text-[9px] font-semibold uppercase text-gray-400">Meta</span>
               {onClickDetalhe && (
                 <button
                   type="button"
@@ -12342,17 +12984,17 @@ const enviarArquivo = async (tipo) => {
                 </button>
               )}
             </div>
-            <p className="text-[17px] font-black text-[#7c1f31] whitespace-nowrap">{meta}</p>
+            <p className="text-[17px] font-semibold text-[#7c1f31] whitespace-nowrap">{meta}</p>
           </div>
 
           <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
             <div className="flex items-end justify-between gap-3">
               <div className="min-w-0">
-                <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
-                <p className="text-[17px] font-black text-[#048187] whitespace-nowrap">{realizado}</p>
+                <span className="text-[9px] font-semibold uppercase text-gray-400">Realizado</span>
+                <p className="text-[17px] font-semibold text-[#048187] whitespace-nowrap">{realizado}</p>
               </div>
               <span
-                className="shrink-0 rounded-lg px-2.5 py-1 text-[13px] font-black"
+                className="shrink-0 rounded-lg px-2.5 py-1 text-[13px] font-semibold"
                 style={{ color: cor, backgroundColor: `${cor}14` }}
               >
                 {formatarNumeroBR(percentualReceita, 1)}%
@@ -12369,7 +13011,7 @@ const enviarArquivo = async (tipo) => {
         <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
           <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
           <div className="flex items-center justify-between gap-2 pl-2">
-            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{titulo}</p>
             {onClickDetalhe && (
               <button type="button" onClick={onClickDetalhe} className="text-[#048187] hover:text-[#036b70]" title={`Ver detalhes de ${titulo}`}>
                 <Eye size={14} />
@@ -12378,17 +13020,17 @@ const enviarArquivo = async (tipo) => {
           </div>
           <div className="mt-2 pl-2">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
-              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
+              <span className="text-[9px] font-semibold uppercase text-gray-400">Meta</span>
+              {percentualMeta && <span className="text-[10px] font-semibold text-[#7c1f31]">{percentualMeta}</span>}
             </div>
-            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-semibold text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
           </div>
           <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
-              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
+              <span className="text-[9px] font-semibold uppercase text-gray-400">Realizado</span>
+              {percentualRealizado && <span className="text-[10px] font-semibold" style={{ color: cor }}>{percentualRealizado}</span>}
             </div>
-            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
+            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-semibold text-[#048187] whitespace-nowrap`}>{realizado}</p>
           </div>
         </div>
       );
@@ -12429,15 +13071,15 @@ const enviarArquivo = async (tipo) => {
             <Users size={20} />
           </div>
           <div className="w-[205px] max-w-[205px] min-w-0 overflow-hidden">
-            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
-            <div className="mt-0.5 text-sm font-black text-gray-800 leading-[1.12] uppercase" title={item?.estrutura}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Estrutura</p>
+            <div className="mt-0.5 text-sm font-semibold text-gray-800 leading-[1.12] uppercase" title={item?.estrutura}>
               <span className="block whitespace-nowrap overflow-hidden text-ellipsis">{nomeQuebrado.linha1}</span>
               {nomeQuebrado.linha2 && (
                 <span className="block whitespace-nowrap overflow-hidden text-ellipsis">{nomeQuebrado.linha2}</span>
               )}
             </div>
             {estruturasVinculadas.length > 1 && (
-              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187] whitespace-nowrap">
+              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-semibold text-[#048187] whitespace-nowrap">
                 {estruturasVinculadas.length} estruturas vinculadas
               </span>
             )}
@@ -12447,38 +13089,64 @@ const enviarArquivo = async (tipo) => {
     };
 
     return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
-            <div className="flex items-start sm:items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-full bg-[#048187] text-white flex items-center justify-center shrink-0"><Target size={25} /></div>
-              <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 break-words">{visaoMetas === 'estruturas' ? 'Metas por Estrutura' : 'Metas por Consultores'}</h1><p className="text-sm text-gray-400">{visaoMetas === 'estruturas' ? 'Visão consolidada por estrutura comercial.' : 'Resumo da estrutura selecionada e performance individual dos consultores.'}</p></div>
-            </div>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <div className="dash-dashboard-view space-y-6 animate-fade-in">
+        {/* METAS_VISUAL_VISAO_GERAL_V1 */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="space-y-2 min-w-0">
+            <FiltroRapidoNucleos
+              filtrosAtivos={filtrosAtivos}
+              onSelecionar={handleFiltroRapidoNucleo}
+              opcoesNucleos={opcoesFiltros.nucleos}
+            />
+
+            {filtrosAtivosResumo.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {filtrosAtivosResumo.map((filtro) => (
+                  <button
+                    key={`${filtro.categoria}-${filtro.valor}`}
+                    type="button"
+                    onClick={() => limparFiltroInterativo(filtro.categoria, filtro.valor)}
+                    className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-[11px] font-medium inline-flex items-center gap-2 hover:bg-[#d0f0f1]"
+                  >
+                    {filtro.label} <X size={12} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col items-start sm:items-end gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               {visaoMetas === 'consultores' && (
                 <button
                   type="button"
                   onClick={voltarParaListaMetas}
-                  className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d8f0f1] px-4 py-2 rounded-lg font-black text-xs inline-flex items-center gap-2 transition-colors"
+                  className="bg-[#e6f6f7] text-[#048187] hover:bg-[#d8f0f1] px-4 py-2 rounded-lg font-medium text-xs inline-flex items-center gap-2 transition-colors"
                 >
                   <ChevronLeft size={18} /> Voltar
                 </button>
               )}
+
               {visaoMetas === 'estruturas' && podeGerarRelatorioMetas && (
                 <button
                   type="button"
                   onClick={abrirModalRelatorioMetas}
-                  className="bg-[#048187] text-white hover:bg-[#036b70] px-4 py-2.5 rounded-xl font-black text-xs inline-flex items-center gap-2 transition-colors shadow-lg shadow-[#048187]/20"
+                  className="bg-[#048187] text-white hover:bg-[#036b70] px-4 py-2.5 rounded-xl font-medium text-xs inline-flex items-center gap-2 transition-colors shadow-sm"
                   title="Gerar relatório dos resultados em imagem PNG"
                 >
                   <FileSpreadsheet size={17} /> Gerar relatório em imagem
                 </button>
               )}
-              <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
             </div>
+
+            <p className="text-xs font-medium text-gray-400 text-left sm:text-right">
+              {dados?.ultima_atualizacao_pedidos
+                ? `Última atualização (Base Pedidos): ${dados.ultima_atualizacao_pedidos}`
+                : 'Nenhum upload de Pedidos'}
+            </p>
           </div>
         </div>
-        {erroMetas && (<div className="rounded-xl p-4 font-bold text-sm bg-red-50 border border-red-100 text-red-600">{erroMetas}</div>)}
+        {erroMetas && (<div className="rounded-xl p-4 font-medium text-sm bg-red-50 border border-red-100 text-red-600">{erroMetas}</div>)}
         {visaoMetas === 'estruturas' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
             <CardMini
@@ -12509,7 +13177,7 @@ const enviarArquivo = async (tipo) => {
             />
 
             <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-all hover:shadow-md">
-              <h3 className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Indicadores</h3>
+              <h3 className="text-[10px] font-medium uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Indicadores</h3>
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   type="button"
@@ -12518,8 +13186,8 @@ const enviarArquivo = async (tipo) => {
                   style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualMakeGeral, metaMakeGeralPercentual)) }}
                   title={`MAKE: ${formatarNumeroBR(percentualMakeGeral, 1)}% | Meta: ${formatarNumeroBR(metaMakeGeralPercentual, 1)}%`}
                 >
-                  <span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span>
-                  <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{percentualMakeGeral.toFixed(1)}%</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium truncate">MAKE</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium shrink-0">{percentualMakeGeral.toFixed(1)}%</span>
                 </button>
 
                 <button
@@ -12529,8 +13197,8 @@ const enviarArquivo = async (tipo) => {
                   style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)) }}
                   title={`CABELO: ${formatarNumeroBR(percentualCabeloGeral, 1)}% | Meta: ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%`}
                 >
-                  <span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span>
-                  <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{percentualCabeloGeral.toFixed(1)}%</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium truncate">CABELO</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium shrink-0">{percentualCabeloGeral.toFixed(1)}%</span>
                 </button>
 
                 <button
@@ -12540,8 +13208,8 @@ const enviarArquivo = async (tipo) => {
                   style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualMultimarcasGeral, metaMultimarcasGeralPercentual)) }}
                   title={`MULTIMARCAS: ${formatarNumeroBR(percentualMultimarcasGeral, 1)}% | Meta: ${formatarNumeroBR(metaMultimarcasGeralPercentual, 1)}%`}
                 >
-                  <span className="text-[8px] sm:text-[9px] font-bold truncate">MULTI.</span>
-                  <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{percentualMultimarcasGeral.toFixed(1)}%</span>
+                  <span className="text-[8px] sm:text-[9px] font-medium truncate">MULTI.</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium shrink-0">{percentualMultimarcasGeral.toFixed(1)}%</span>
                 </button>
 
                 <button
@@ -12551,14 +13219,14 @@ const enviarArquivo = async (tipo) => {
                   style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)) }}
                   title={`ATIVIDADE: ${formatarNumeroBR(percentualAtividadeGeral, 1)}% | Meta: ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%`}
                 >
-                  <span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span>
-                  <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{percentualAtividadeGeral.toFixed(1)}%</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium truncate">ATIV.</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium shrink-0">{percentualAtividadeGeral.toFixed(1)}%</span>
                 </button>
               </div>
             </div>
 
             <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 justify-center transition-all hover:shadow-md">
-              <h3 className="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Desempenho</h3>
+              <h3 className="text-[10px] font-medium uppercase text-gray-500 mb-2 border-b border-gray-50 pb-1.5 truncate">Desempenho</h3>
               <div className="space-y-1.5">
                 <button
                   type="button"
@@ -12566,9 +13234,9 @@ const enviarArquivo = async (tipo) => {
                   className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
                   title={`RPA: ${formatarMoeda(rpaGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_rpa_geral)}`}
                 >
-                  <span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">RPA</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium uppercase truncate">RPA</span>
                   <span
-                    className="text-[9px] sm:text-[10px] font-bold shrink-0"
+                    className="text-[9px] sm:text-[10px] font-medium shrink-0"
                     style={{ color: corPorFaixaMeta(calcPerc(rpaGeral, dadosMetas?.meta_rpa_geral)) }}
                   >
                     {formatarMoeda(rpaGeral)}
@@ -12581,9 +13249,9 @@ const enviarArquivo = async (tipo) => {
                   className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
                   title={`Ticket Médio: ${formatarMoeda(tktGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_tkt_medio_geral)}`}
                 >
-                  <span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">TKT MÉD.</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium uppercase truncate">TKT MÉD.</span>
                   <span
-                    className="text-[9px] sm:text-[10px] font-bold shrink-0"
+                    className="text-[9px] sm:text-[10px] font-medium shrink-0"
                     style={{ color: corPorFaixaMeta(calcPerc(tktGeral, dadosMetas?.meta_tkt_medio_geral)) }}
                   >
                     {formatarMoeda(tktGeral)}
@@ -12596,9 +13264,9 @@ const enviarArquivo = async (tipo) => {
                   className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
                   title={`UPA: ${formatarNumeroBR(upaGeral, 1)} | Meta: ${formatarNumeroBR(dadosMetas?.meta_upa_geral, 1)}`}
                 >
-                  <span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">UPA</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium uppercase truncate">UPA</span>
                   <span
-                    className="text-[9px] sm:text-[10px] font-bold shrink-0"
+                    className="text-[9px] sm:text-[10px] font-medium shrink-0"
                     style={{ color: corPorFaixaMeta(calcPerc(upaGeral, dadosMetas?.meta_upa_geral)) }}
                   >
                     {upaGeral.toFixed(1)}
@@ -12611,11 +13279,11 @@ const enviarArquivo = async (tipo) => {
         
         {visaoMetas === 'estruturas' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-lg font-bold text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-bold text-[#048187]">{ests.length} estruturas</span></div>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-base font-medium text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-medium text-[#048187]">{ests.length} estruturas</span></div>
           <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
             <div className="min-w-[1700px] space-y-2">
               <div
-                className="grid gap-0 px-1 text-[9px] font-black uppercase tracking-wide text-gray-400"
+                className="grid gap-0 px-1 text-[9px] font-semibold uppercase tracking-wide text-gray-400"
                 style={{ gridTemplateColumns: '280px 245px 155px 120px 105px 135px 135px 90px 120px 120px 120px 72px' }}
               >
                 <div className="px-2 py-2">Estrutura</div>
@@ -12805,7 +13473,7 @@ const enviarArquivo = async (tipo) => {
         {visaoMetas === 'consultores' && carregandoDetalheMeta && !detalheMeta && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 min-h-[360px] flex flex-col items-center justify-center text-center">
             <Loader2 size={42} className="animate-spin text-[#048187]" />
-            <h2 className="mt-5 text-xl font-black text-gray-700">Carregando detalhes da estrutura</h2>
+            <h2 className="mt-5 text-xl font-semibold text-gray-700">Carregando detalhes da estrutura</h2>
             <p className="mt-2 text-sm font-semibold text-gray-400">{estruturaSelecionada || 'Aguarde um instante...'}</p>
           </div>
         )}
@@ -12818,15 +13486,15 @@ const enviarArquivo = async (tipo) => {
                   <button
                     type="button"
                     onClick={voltarParaListaMetas}
-                    className="mb-3 bg-[#e6f6f7] text-[#048187] hover:bg-[#d8f0f1] px-4 py-2 rounded-lg font-black text-xs inline-flex items-center gap-2 transition-colors"
+                    className="mb-3 bg-[#e6f6f7] text-[#048187] hover:bg-[#d8f0f1] px-4 py-2 rounded-lg font-semibold text-xs inline-flex items-center gap-2 transition-colors"
                   >
                     <ChevronLeft size={16} /> Voltar para estruturas
                   </button>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-700 break-words">{detalheMeta.estrutura}</h2>
+                  <h2 className="text-xl sm:text-2xl font-medium text-gray-700 break-words">{detalheMeta.estrutura}</h2>
                   <p className="text-sm text-gray-400 mt-1">{descricaoResumoDetalhe}</p>
                 </div>
                 <div className="w-full xl:w-[420px] relative">
-                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 tracking-wide">Filtro rápido de estrutura</label>
+                  <label className="block text-[10px] font-semibold uppercase text-gray-400 mb-2 tracking-wide">Filtro rápido de estrutura</label>
                   <div className="relative">
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
@@ -12851,17 +13519,17 @@ const enviarArquivo = async (tipo) => {
                         key={item.estrutura}
                         type="button"
                         onClick={() => abrirDetalheEstruturaMetas(item.estrutura, false)}
-                        className={`w-full text-left px-4 py-3 text-sm border-b border-gray-50 last:border-b-0 hover:bg-[#e6f6f7] transition-colors ${detalheMeta?.estrutura === item.estrutura ? 'bg-[#f4fbfb] text-[#048187] font-bold' : 'text-gray-600 font-medium'}`}
+                        className={`w-full text-left px-4 py-3 text-sm border-b border-gray-50 last:border-b-0 hover:bg-[#e6f6f7] transition-colors ${detalheMeta?.estrutura === item.estrutura ? 'bg-[#f4fbfb] text-[#048187] font-medium' : 'text-gray-600 font-medium'}`}
                       >
                         <div className="flex items-center justify-between gap-3 min-w-0">
                           <span className="truncate">{item.estrutura}</span>
-                          <span className="text-[11px] font-black text-[#048187] shrink-0">{Number(item.percentual || 0).toFixed(1)}%</span>
+                          <span className="text-[11px] font-semibold text-[#048187] shrink-0">{Number(item.percentual || 0).toFixed(1)}%</span>
                         </div>
                         <p className="text-[11px] text-gray-400 mt-0.5 truncate">Realizado: {formatarMoeda(item.realizado)} • Meta: {formatarMoeda(item.receita)}</p>
                       </button>
                     ))}
                     {estruturasFiltradasBuscaMeta.length === 0 && buscaEstruturaMeta && (
-                      <div className="px-4 py-6 text-center text-xs font-bold text-gray-400">Nenhuma estrutura encontrada.</div>
+                      <div className="px-4 py-6 text-center text-xs font-medium text-gray-400">Nenhuma estrutura encontrada.</div>
                     )}
                   </div>
                   )}
@@ -12888,7 +13556,7 @@ const enviarArquivo = async (tipo) => {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-              <h2 className="text-lg font-bold text-gray-700 text-center mb-4 border-b border-gray-100 pb-3">Ranking individual</h2>
+              <h2 className="text-lg font-medium text-gray-700 text-center mb-4 border-b border-gray-100 pb-3">Ranking individual</h2>
               <div className="space-y-4">
                 {cons.map((c, idx) => {
                   const trend = obterTendenciaVisual(c.id_colaborador);
@@ -13070,9 +13738,9 @@ const enviarArquivo = async (tipo) => {
                     <div key={`${c.id_colaborador}-${idx}`} className="border border-gray-100 rounded-xl p-4 bg-[#fcfbf7] min-w-0">
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4 min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-7 h-7 rounded-full bg-[#048187] text-white text-xs font-bold flex items-center justify-center shrink-0">{idx + 1}</span>
+                          <span className="w-7 h-7 rounded-full bg-[#048187] text-white text-xs font-medium flex items-center justify-center shrink-0">{idx + 1}</span>
                           <div className="min-w-0">
-                            <h3 className="text-sm font-bold text-gray-700 truncate">{obterNomeExibicaoConsultor(c)}</h3>
+                            <h3 className="text-sm font-medium text-gray-700 truncate">{obterNomeExibicaoConsultor(c)}</h3>
                             <p className="text-xs text-gray-400 truncate">
                               {c.tipo_fallback_estrutura
                                 ? `Resultado consolidado da equipe • Pedidos: ${c.quantidade_pedidos || 0}`
@@ -13081,7 +13749,7 @@ const enviarArquivo = async (tipo) => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <p className="text-lg font-bold text-[#048187] whitespace-nowrap">{Number(c.percentual || 0).toFixed(2)}%</p>
+                          <p className="text-lg font-medium text-[#048187] whitespace-nowrap">{Number(c.percentual || 0).toFixed(2)}%</p>
                           {!c.tipo_fallback_estrutura && trend.val > 0 && (trend.up ? <ArrowUpRight size={18} className="text-green-500" /> : <ArrowDownRight size={18} className="text-red-500" />)}
                         </div>
                       </div>
@@ -13165,12 +13833,12 @@ const enviarArquivo = async (tipo) => {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-              <div className="flex items-start gap-2 mb-4"><AlertCircle size={22} className="text-[#F97316] shrink-0" /><div><h2 className="text-lg font-bold text-gray-700">Vendas fora da estrutura</h2></div></div>
+              <div className="flex items-start gap-2 mb-4"><AlertCircle size={22} className="text-[#F97316] shrink-0" /><div><h2 className="text-lg font-medium text-gray-700">Vendas fora da estrutura</h2></div></div>
               {vFora.length > 0 ? (
                 <div className="overflow-x-auto"><table className="w-full text-sm min-w-[820px]"><thead><tr className="text-left text-gray-500 border-b border-gray-100"><th className="py-3 px-2">Consultor</th><th className="py-3 px-2">ID</th><th className="py-3 px-2">Estrutura onde vendeu</th><th className="py-3 px-2 text-right">Pedidos</th><th className="py-3 px-2 text-right">Valor</th></tr></thead><tbody>
-                  {vFora.map((i, idx) => (<tr key={`${i.cod_usuario_finalizacao}-${idx}`} className="border-b border-gray-50"><td className="py-4 px-2 font-medium text-gray-700">{i.nome_consultor}</td><td className="py-4 px-2 text-gray-500">{i.cod_usuario_finalizacao}</td><td className="py-4 px-2 text-gray-600">{i.estrutura}</td><td className="py-4 px-2 text-right text-gray-600">{i.quantidade_pedidos}</td><td className="py-4 px-2 text-right font-bold text-[#F97316]">{formatarMoeda(i.valor_praticado)}</td></tr>))}
+                  {vFora.map((i, idx) => (<tr key={`${i.cod_usuario_finalizacao}-${idx}`} className="border-b border-gray-50"><td className="py-4 px-2 font-medium text-gray-700">{i.nome_consultor}</td><td className="py-4 px-2 text-gray-500">{i.cod_usuario_finalizacao}</td><td className="py-4 px-2 text-gray-600">{i.estrutura}</td><td className="py-4 px-2 text-right text-gray-600">{i.quantidade_pedidos}</td><td className="py-4 px-2 text-right font-medium text-[#F97316]">{formatarMoeda(i.valor_praticado)}</td></tr>))}
                 </tbody></table></div>
-              ) : (<div className="bg-green-50 border border-green-100 rounded-xl p-5 text-green-700 font-bold text-sm flex items-center gap-2"><CheckCircle size={18} /> Nenhuma venda fora da estrutura.</div>)}
+              ) : (<div className="bg-green-50 border border-green-100 rounded-xl p-5 text-green-700 font-medium text-sm flex items-center gap-2"><CheckCircle size={18} /> Nenhuma venda fora da estrutura.</div>)}
             </div>
           </>
         )}
@@ -13835,384 +14503,276 @@ const enviarArquivo = async (tipo) => {
 
 
   const renderTelaRevendedores = () => {
-    const lista = dadosRevendedores?.revendedores || [];
+    const lista = Array.isArray(dadosRevendedores?.revendedores) ? dadosRevendedores.revendedores : [];
+    const resumo = dadosRevendedores?.resumo || {};
     const termo = buscaRevendedores.toLowerCase().trim();
+    const listaFiltrada = !termo
+      ? lista
+      : lista.filter((item) => [
+          item.codigo,
+          item.revendedor,
+          item.meu_clube_boti,
+          item.estrutura,
+          item.nucleo,
+          item.telefone,
+        ].some((valor) => String(valor || '').toLowerCase().includes(termo)));
 
-    const passaFiltroLista = (campoFiltro, valor) => {
-      const selecionados = filtrosRevendedores[campoFiltro] || [];
-      if (!selecionados.length) return true;
-      return selecionados.includes(String(valor || '').trim());
-    };
+    const porPagina = 100;
+    const totalPaginas = Math.max(1, Math.ceil(listaFiltrada.length / porPagina));
+    const paginaAtual = Math.min(Math.max(1, paginaRevendedores), totalPaginas);
+    const inicio = (paginaAtual - 1) * porPagina;
+    const fim = Math.min(inicio + porPagina, listaFiltrada.length);
+    const linhasPagina = listaFiltrada.slice(inicio, fim);
 
-    const ehInadimplente = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('sim');
-    const papelTratado = (valor) => String(valor || '').trim() || 'Não informado';
-    const atividadeTratada = (valor) => String(valor || '').trim() || 'Não informado';
-
-    const listaFiltrada = lista.filter((item) => {
-      const passaBusca = !termo || [item.cod_revendedor, item.nome_revendedor, item.nome_estrutura, item.cidade, item.bairro, item.atividade, item.papel]
-        .some((valor) => String(valor || '').toLowerCase().includes(termo));
-      return passaBusca
-        && passaFiltroLista('estruturas', item.nome_estrutura)
-        && passaFiltroLista('cidades', item.cidade)
-        && passaFiltroLista('atividades', item.atividade)
-        && passaFiltroLista('papeis', item.papel)
-        && passaFiltroLista('inadimplentes', item.inadimplente);
-    });
-
-    const somaCampo = (campo) => listaFiltrada.reduce((acc, item) => acc + Number(item?.[campo] || 0), 0);
-    const totalFiltrado = listaFiltrada.length;
-    const estruturasFiltradas = new Set(listaFiltrada.map((i) => String(i.nome_estrutura || '').trim()).filter(Boolean)).size;
-    const cidadesFiltradas = new Set(listaFiltrada.map((i) => String(i.cidade || '').trim()).filter(Boolean)).size;
-    const inadimplentesFiltrados = listaFiltrada.filter((i) => ehInadimplente(i.inadimplente)).length;
-    const ativosFiltrados = listaFiltrada.filter((i) => String(i.atividade || '').trim().toUpperCase().startsWith('A')).length;
-    const receitaFiltrada = somaCampo('vlr_receita_liquida');
-    const creditoFiltrado = somaCampo('credito_disponivel');
-
-    const papelMapa = {};
-    listaFiltrada.forEach((item) => {
-      const chave = papelTratado(item.papel);
-      if (!papelMapa[chave]) papelMapa[chave] = { name: chave, adimplente: 0, inadimplente: 0, total: 0 };
-      if (ehInadimplente(item.inadimplente)) papelMapa[chave].inadimplente += 1;
-      else papelMapa[chave].adimplente += 1;
-      papelMapa[chave].total += 1;
-    });
-    const papelData = Object.values(papelMapa).sort((a, b) => b.total - a.total).slice(0, 10);
-
-    const atividadeMapa = {};
-    listaFiltrada.forEach((item) => {
-      const chave = atividadeTratada(item.atividade);
-      atividadeMapa[chave] = (atividadeMapa[chave] || 0) + 1;
-    });
-    const ordemAtividade = ['I', 'R', 'A0', 'A1', 'A2', 'A3', 'I4', 'I5', 'I6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15'];
-    const atividadeData = Object.entries(atividadeMapa)
-      .map(([name, value]) => ({ name, value, ordem: ordemAtividade.indexOf(String(name).toUpperCase()) >= 0 ? ordemAtividade.indexOf(String(name).toUpperCase()) : 999 }))
-      .sort((a, b) => a.ordem - b.ordem || String(a.name).localeCompare(String(b.name)))
-      .slice(0, 18);
-
-    const receitaPapelMapa = {};
-    listaFiltrada.forEach((item) => {
-      const chave = papelTratado(item.papel);
-      const valorPedido = Number(item.receita_praticada_pedidos || 0);
-      const valorFallback = Number(item.vlr_receita_liquida || 0);
-      receitaPapelMapa[chave] = (receitaPapelMapa[chave] || 0) + (valorPedido > 0 ? valorPedido : valorFallback);
-    });
-    const receitaPorPapelData = Object.entries(receitaPapelMapa)
-      .map(([name, value]) => ({ name, value }))
-      .filter((item) => Number(item.value || 0) > 0)
-      .sort((a, b) => b.value - a.value);
-
-    const corAtividade = (nome) => {
-      const n = String(nome || '').toUpperCase();
-      if (n === 'I' || n === 'R') return 'bg-[#c9a27f] text-[#3f2d20]';
-      if (n.startsWith('A')) return 'bg-[#739e6b] text-white';
-      if (n.startsWith('I')) return 'bg-[#f5e35c] text-[#554d00]';
-      if (n.startsWith('C7') || n.startsWith('C8') || n.startsWith('C9')) return 'bg-[#f6b7b7] text-[#5b1e1e]';
-      if (n.startsWith('C')) return 'bg-[#bd4a4a] text-white';
-      return 'bg-gray-100 text-gray-700';
-    };
-
-    const CardRevendedor = ({ titulo, valor, detalhe }) => (
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 min-w-0">
-        <h3 className="text-[10px] font-bold uppercase text-gray-500 tracking-wide truncate mb-2">{titulo}</h3>
-        <p className="text-2xl font-black text-[#048187] tracking-tighter truncate">{valor}</p>
-        {detalhe && <p className="text-[10px] font-bold text-gray-400 uppercase mt-3 truncate">{detalhe}</p>}
+    const CardRevendedoresCiclo = ({ titulo, valor, detalhe = '', destaque = false }) => (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 min-w-0">
+        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-black truncate">{titulo}</p>
+        <p className={`mt-2 text-xl sm:text-2xl font-black tracking-tight truncate ${destaque ? 'text-[#7c1f31]' : 'text-[#048187]'}`}>{valor}</p>
+        {detalhe && <p className="mt-2 text-[10px] font-bold uppercase text-gray-400 truncate">{detalhe}</p>}
       </div>
     );
 
+    const IndicadorSimNao = ({ ativo }) => (
+      <span className={`inline-flex min-w-[48px] items-center justify-center rounded-full px-2.5 py-1 text-[10px] font-black ${ativo ? 'bg-[#e6f6f7] text-[#048187]' : 'bg-gray-100 text-gray-400'}`}>
+        {ativo ? 'SIM' : 'NÃO'}
+      </span>
+    );
 
-    const obterNumeroLinhaMeta = (valor, fallback = 0) => {
-      const numero = Number(valor);
-      if (Number.isFinite(numero)) return numero;
-      const numeroFallback = Number(fallback);
-      return Number.isFinite(numeroFallback) ? numeroFallback : 0;
-    };
-
-    const calcularIndicadoresLinhaEstrutura = (item) => {
-      const receitaMeta = obterNumeroLinhaMeta(item?.receita, 0);
-      const receitaRealizada = obterNumeroLinhaMeta(item?.realizado, 0);
-      const percentualReceita = obterNumeroLinhaMeta(item?.percentual, calcPerc(receitaRealizada, receitaMeta));
-
-      const atividadeRealizada = obterNumeroLinhaMeta(item?.atividade_realizada, 0);
-      const baseAtiva = obterNumeroLinhaMeta(item?.base_ativa, 0);
-      const metaAtividadePercentual = obterNumeroLinhaMeta(item?.meta_atividade, dadosMetas?.meta_atividade_geral || 0);
-      const metaAtividadeQtd = calcularQtdMetaAtividade(baseAtiva, metaAtividadePercentual);
-      const percentualAtividadeApi = obterNumeroLinhaMeta(item?.percentual_atividade, 0);
-      const percentualAtividade = percentualAtividadeApi > 0
-        ? percentualAtividadeApi
-        : calcularPercentualSeguro(atividadeRealizada, baseAtiva);
-
-      const rpaMeta = obterNumeroLinhaMeta(item?.meta_rpa, dadosMetas?.meta_rpa_geral || 0);
-      const rpaRealizado = atividadeRealizada > 0 ? receitaRealizada / atividadeRealizada : 0;
-
-      const pedidos = obterNumeroLinhaMeta(item?.quantidade_pedidos, 0);
-      const ticketMeta = obterNumeroLinhaMeta(item?.meta_tkt_medio, dadosMetas?.meta_tkt_medio_geral || 0);
-      const ticketRealizado = pedidos > 0 ? receitaRealizada / pedidos : 0;
-
-      const totalItens = obterNumeroLinhaMeta(item?.total_itens, 0);
-      const upaMeta = obterNumeroLinhaMeta(item?.meta_upa, dadosMetas?.meta_upa_geral || 0);
-      const upaRealizada = atividadeRealizada > 0 ? totalItens / atividadeRealizada : 0;
-
-      const metaMakePercentual = obterNumeroLinhaMeta(item?.meta_make, dadosMetas?.meta_make_geral || 0);
-      const atividadeMakeBase = obterNumeroLinhaMeta(item?.atividade_make_base, atividadeRealizada);
-      const makeRealizado = obterNumeroLinhaMeta(item?.make_realizado, 0);
-      const makeMetaQtd = metaMakePercentual > 0 && atividadeMakeBase > 0 ? Math.ceil((atividadeMakeBase * metaMakePercentual) / 100) : 0;
-      const percentualMakeApi = obterNumeroLinhaMeta(item?.percentual_make, 0);
-      const percentualMake = percentualMakeApi > 0
-        ? percentualMakeApi
-        : calcularPercentualSeguro(makeRealizado, atividadeMakeBase);
-
-      const metaCabeloPercentual = obterNumeroLinhaMeta(item?.meta_cabelo, dadosMetas?.meta_cabelo_geral || 0);
-      const atividadeCabeloBase = obterNumeroLinhaMeta(item?.atividade_cabelo_base, atividadeRealizada);
-      const cabeloRealizado = obterNumeroLinhaMeta(item?.cabelo_realizado, 0);
-      const cabeloMetaQtd = metaCabeloPercentual > 0 && atividadeCabeloBase > 0 ? Math.ceil((atividadeCabeloBase * metaCabeloPercentual) / 100) : 0;
-      const percentualCabeloApi = obterNumeroLinhaMeta(item?.percentual_cabelo, 0);
-      const percentualCabelo = percentualCabeloApi > 0
-        ? percentualCabeloApi
-        : calcularPercentualSeguro(cabeloRealizado, atividadeCabeloBase);
-
-      const metaMultimarcasPercentual = obterNumeroLinhaMeta(item?.meta_multimarcas, dadosMetas?.meta_multimarcas_geral || dados?.meta_multimarcas || 76);
-      const multimarcasRealizado = obterNumeroLinhaMeta(item?.multimarcas_realizado, 0);
-      const multimarcasMetaQtd = metaMultimarcasPercentual > 0 && atividadeRealizada > 0 ? Math.ceil((atividadeRealizada * metaMultimarcasPercentual) / 100) : 0;
-      const percentualMultimarcasApi = obterNumeroLinhaMeta(item?.percentual_multimarcas, 0);
-      const percentualMultimarcas = percentualMultimarcasApi > 0
-        ? percentualMultimarcasApi
-        : calcularPercentualSeguro(multimarcasRealizado, atividadeRealizada);
-
-      return {
-        receitaMeta,
-        receitaRealizada,
-        percentualReceita,
-        atividadeRealizada,
-        baseAtiva,
-        metaAtividadePercentual,
-        metaAtividadeQtd,
-        percentualAtividade,
-        rpaMeta,
-        rpaRealizado,
-        ticketMeta,
-        ticketRealizado,
-        upaMeta,
-        upaRealizada,
-        metaMakePercentual,
-        atividadeMakeBase,
-        makeMetaQtd,
-        makeRealizado,
-        percentualMake,
-        metaCabeloPercentual,
-        atividadeCabeloBase,
-        cabeloMetaQtd,
-        cabeloRealizado,
-        percentualCabelo,
-        metaMultimarcasPercentual,
-        multimarcasMetaQtd,
-        multimarcasRealizado,
-        percentualMultimarcas
-      };
-    };
-
-    const calcularPercentualSeguro = (realizado, meta) => {
-      const m = Number(meta || 0);
-      if (!m || m <= 0) return 0;
-      return (Number(realizado || 0) / m) * 100;
-    };
-
-    const CelulaValorPrincipalMeta = ({ titulo, valor, tipo = 'meta', percentual = null }) => {
-      const corValor = tipo === 'meta' ? '#7c1f31' : '#048187';
-      return (
-        <div className="h-full min-h-[104px] bg-white px-4 py-3 flex flex-col justify-center border-l border-gray-100">
-          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">{titulo}</p>
-          <p className="mt-2 text-lg font-black whitespace-nowrap" style={{ color: corValor }}>{valor}</p>
-          {percentual !== null && (
-            <span className="mt-2 w-fit rounded-full px-2 py-1 text-[11px] font-black bg-[#e6f6f7] text-[#048187]">
-              {percentual}
-            </span>
-          )}
-        </div>
-      );
-    };
-
-    const CelulaIndicadorMetaRealizado = ({ titulo, meta, realizado, percentualMeta = null, percentualRealizado = null, percentualAtingimento = 0, compacto = false }) => {
-      const cor = corPorFaixaMeta(percentualAtingimento);
-      return (
-        <div className="h-full min-h-[104px] bg-white px-3 py-3 border-l border-gray-100 flex flex-col justify-center relative overflow-hidden">
-          <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full" style={{ backgroundColor: cor }} />
-          <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 pl-2">{titulo}</p>
-          <div className="mt-2 pl-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Meta</span>
-              {percentualMeta && <span className="text-[10px] font-black text-[#7c1f31]">{percentualMeta}</span>}
-            </div>
-            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#7c1f31] whitespace-nowrap`}>{meta}</p>
+    return (
+      <div className="space-y-5">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-700">Revendedores</h1>
+            <p className="text-sm text-gray-400 mt-1">
+              Revendedores que compraram no ciclo {dadosRevendedores?.ciclo || filtrosAtivos?.ciclo || cicloSelecionadoVD || '-'} considerando somente Entregue, Transporte, Separação e Aprovado.
+            </p>
           </div>
-          <div className="mt-2 pt-2 border-t border-gray-100 pl-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[9px] font-black uppercase text-gray-400">Realizado</span>
-              {percentualRealizado && <span className="text-[10px] font-black" style={{ color: cor }}>{percentualRealizado}</span>}
-            </div>
-            <p className={`${compacto ? 'text-sm' : 'text-[15px]'} font-black text-[#048187] whitespace-nowrap`}>{realizado}</p>
-          </div>
-        </div>
-      );
-    };
-
-    const ColunaEstruturaMetaRealizado = ({ item }) => {
-      const estruturasVinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
-      return (
-        <div className="h-full min-h-[104px] bg-gradient-to-br from-[#f3fbfb] via-white to-[#e6f6f7] px-4 py-4 flex items-center gap-3 rounded-l-3xl border-r border-gray-100">
-          <div className="w-10 h-10 rounded-2xl bg-[#d9f0f1] text-[#048187] flex items-center justify-center shrink-0">
-            <Users size={20} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Estrutura</p>
-            <p className="text-sm font-black text-gray-800 leading-tight truncate">{item?.estrutura}</p>
-            {estruturasVinculadas.length > 1 && (
-              <span className="mt-2 inline-flex rounded-full bg-[#e6f6f7] px-2 py-1 text-[10px] font-black text-[#048187]">
-                {estruturasVinculadas.length} estruturas vinculadas
-              </span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {!modoGerenteVD && (
+              <FiltroRapidoNucleos
+                filtrosAtivos={filtrosAtivos}
+                opcoesNucleos={opcoesFiltros?.nucleos || []}
+                onSelecionar={handleFiltroRapidoNucleo}
+              />
+            )}
+            {podeExportarRelatorioRevendedores && (
+              <button
+                type="button"
+                onClick={abrirModalRelatorioRevendedores}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#712231] px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-[#5f1c2a]"
+              >
+                <FileSpreadsheet size={17} />
+                Baixar relatório
+              </button>
             )}
           </div>
         </div>
-      );
-    };
 
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><UserCircle size={26} /></div>
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-700 truncate">Revendedores</h1>
-              <p className="text-sm text-gray-400">Visão adaptada da base Detalhe Revendedor.</p>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button onClick={carregarRevendedores} className="bg-[#048187] text-white font-bold px-4 py-3 rounded-lg hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><RefreshCcw size={17} />Atualizar</button>
-          </div>
-        </div>
-
-        {erroRevendedores && (<div className="rounded-xl p-4 font-bold text-sm bg-red-50 text-red-600">{erroRevendedores}</div>)}
+        {erroRevendedores && (
+          <div className="rounded-xl p-4 font-bold text-sm bg-red-50 text-red-600 border border-red-100">{erroRevendedores}</div>
+        )}
 
         {carregandoRevendedores ? (
-          <DashboardSkeletons />
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+            {Array.from({ length: 8 }).map((_, idx) => <SkeletonCard key={idx} />)}
+          </div>
         ) : !dadosRevendedores ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-gray-400 font-medium">Nenhuma base de revendedores carregada ainda. Envie a planilha na aba Base.</div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-gray-400 font-medium">
+            Nenhum dado carregado. Atualize a Base de Pedidos do ciclo e tente novamente.
+          </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-              <CardRevendedor titulo="Receita Praticada" valor={formatarAbrev(receitaFiltrada)} detalhe={`Selecionados: ${Number(totalFiltrado || 0).toLocaleString('pt-BR')}`} />
-              <CardRevendedor titulo="RE Ativos" valor={Number(ativosFiltrados || 0).toLocaleString('pt-BR')} detalhe={`${calcPerc(ativosFiltrados, totalFiltrado).toFixed(1)}% da base`} />
-              <CardRevendedor titulo="Crédito Disponível" valor={formatarAbrev(creditoFiltrado)} />
-              <CardRevendedor titulo="Inadimplentes" valor={Number(inadimplentesFiltrados || 0).toLocaleString('pt-BR')} />
-              <CardRevendedor titulo="Cidades" valor={Number(cidadesFiltradas || 0).toLocaleString('pt-BR')} detalhe={`Registros: ${Number(totalFiltrado || 0).toLocaleString('pt-BR')}`} />
-              <CardRevendedor titulo="Estruturas" valor={Number(estruturasFiltradas || 0).toLocaleString('pt-BR')} />
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+              <CardRevendedoresCiclo titulo="Receita do ciclo" valor={formatarMoeda(resumo.receita_ciclo || 0)} detalhe="Valor praticado válido" />
+              <CardRevendedoresCiclo titulo="Revendedores" valor={Number(resumo.revendedores || 0).toLocaleString('pt-BR')} detalhe="Compradores únicos" />
+              <CardRevendedoresCiclo titulo="Nº de pedidos" valor={Number(resumo.pedidos || 0).toLocaleString('pt-BR')} detalhe="Pedidos válidos" />
+              <CardRevendedoresCiclo titulo="Ticket médio" valor={formatarMoeda(resumo.ticket_medio || 0)} detalhe="Receita ÷ pedidos" />
+              <CardRevendedoresCiclo titulo="RPA" valor={formatarMoeda(resumo.rpa || 0)} detalhe="Receita ÷ revendedores" />
+              <CardRevendedoresCiclo titulo="MAKE" valor={`${Number(resumo.make || 0).toLocaleString('pt-BR')} · ${formatarNumeroBR(resumo.percentual_make || 0, 1)}%`} detalhe="Revendedores com MAKE" />
+              <CardRevendedoresCiclo titulo="CABELO" valor={`${Number(resumo.cabelo || 0).toLocaleString('pt-BR')} · ${formatarNumeroBR(resumo.percentual_cabelo || 0, 1)}%`} detalhe="Revendedores com CABELO" />
+              <CardRevendedoresCiclo titulo="MULTIMARCAS" valor={`${Number(resumo.multimarcas || 0).toLocaleString('pt-BR')} · ${formatarNumeroBR(resumo.percentual_multimarcas || 0, 1)}%`} detalhe="Revendedores multimarcas" />
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
-                <h3 className="text-sm font-bold text-gray-600 text-center mb-3">Revendedores por papel</h3>
-                <div className="h-[270px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={papelData.slice(0, 8)} layout="vertical" margin={{ top: 4, right: 34, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
-                      <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={92} tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <Tooltip formatter={(value, name) => [Number(value || 0).toLocaleString('pt-BR'), name === 'adimplente' ? 'Adimplente' : 'Inadimplente']} />
-                      <Legend verticalAlign="top" height={28} wrapperStyle={{ fontSize: '11px' }} formatter={(value) => value === 'adimplente' ? 'Adimplente' : 'Inadimplente'} />
-                      <Bar dataKey="adimplente" stackId="a" fill="#048187" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="inadimplente" stackId="a" fill="#712231" radius={[0, 7, 7, 0]}>
-                        <LabelList dataKey="total" position="right" fontSize={11} fill="#64748b" formatter={(v) => Number(v || 0).toLocaleString('pt-BR')} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-5 sm:p-6 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-700">Compradores do ciclo</h2>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {listaFiltrada.length > 0
+                      ? `Exibindo ${Number(inicio + 1).toLocaleString('pt-BR')}–${Number(fim).toLocaleString('pt-BR')} de ${Number(listaFiltrada.length).toLocaleString('pt-BR')} revendedores.`
+                      : 'Nenhum revendedor encontrado para os filtros atuais.'}
+                  </p>
+                </div>
+                <div className="relative w-full lg:w-[360px]">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={buscaRevendedores}
+                    onChange={(e) => { setBuscaRevendedores(e.target.value); setPaginaRevendedores(1); }}
+                    placeholder="Buscar código, revendedor, estrutura, clube ou telefone..."
+                    className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#048187]"
+                  />
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
-                <h3 className="text-sm font-bold text-gray-600 text-center mb-3">Receita por papel</h3>
-                <div className="h-[270px]">
-                  {receitaPorPapelData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={receitaPorPapelData.slice(0, 8)} layout="vertical" margin={{ top: 12, right: 52, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
-                        <XAxis type="number" hide />
-                        <YAxis dataKey="name" type="category" width={92} tick={{ fontSize: 11, fill: '#64748b' }} />
-                        <Tooltip formatter={(value) => formatarMoeda(value)} />
-                        <Bar dataKey="value" fill="#048187" radius={[0, 7, 7, 0]}>
-                          <LabelList dataKey="value" position="right" fontSize={11} fill="#64748b" formatter={(v) => formatarAbrev(v)} />
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm">Nenhuma receita encontrada.</div>)}
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
-                <h3 className="text-sm font-bold text-gray-600 text-center mb-3">Revendedores por atividade</h3>
-                <div className="mx-auto max-w-[210px] border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-                  <div className="grid grid-cols-[1fr_1.1fr] bg-[#048187] text-white text-xs font-black text-center">
-                    <div className="py-2 border-r border-white/60">Atividade</div>
-                    <div className="py-2">Qtd.</div>
-                  </div>
-                  <div className="max-h-[260px] overflow-y-auto">
-                    {atividadeData.map((item) => (
-                      <div key={item.name} className={`grid grid-cols-[1fr_1.1fr] text-sm font-bold text-center ${corAtividade(item.name)}`}>
-                        <div className="py-1.5 border-r border-white/60">{item.name}</div>
-                        <div className="py-1.5">{Number(item.value || 0).toLocaleString('pt-BR')}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 xl:gap-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-700">Tabela de Revendedores</h2>
-                    <p className="text-sm text-gray-400">Mostrando {Number(listaFiltrada.slice(0, 300).length).toLocaleString('pt-BR')} de {Number(totalFiltrado).toLocaleString('pt-BR')} registros filtrados.</p>
-                  </div>
-                  <div className="relative w-full sm:w-80">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input value={buscaRevendedores} onChange={(e) => setBuscaRevendedores(e.target.value)} placeholder="Buscar revendedor, estrutura, cidade..." className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#048187]" />
-                  </div>
-                </div>
-                <div className="overflow-x-auto max-h-[390px]">
-                  <table className="w-full text-sm min-w-[1150px]">
-                    <thead className="sticky top-0 bg-white z-10">
-                      <tr className="text-left text-gray-500 border-b border-gray-100">
-                        <th className="py-3 px-2">Cód.</th>
-                        <th className="py-3 px-2">Revendedor</th>
-                        <th className="py-3 px-2">Estrutura</th>
-                        <th className="py-3 px-2">Cidade</th>
-                        <th className="py-3 px-2">Atividade</th>
-                        <th className="py-3 px-2">Papel</th>
-                        <th className="py-3 px-2 text-right">Crédito</th>
-                        <th className="py-3 px-2 text-right">Receita Praticada</th>
-                        <th className="py-3 px-2">Inadimplente?</th>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1450px] text-sm">
+                  <thead className="bg-[#048187] text-white">
+                    <tr className="text-left text-[11px] uppercase tracking-wide">
+                      <th className="px-4 py-3.5">Código</th>
+                      <th className="px-4 py-3.5">Revendedor</th>
+                      <th className="px-4 py-3.5">Meu Clube Boti</th>
+                      <th className="px-4 py-3.5">Estrutura</th>
+                      <th className="px-4 py-3.5 text-right">Receita do ciclo</th>
+                      <th className="px-4 py-3.5 text-center">Nº de pedidos</th>
+                      <th className="px-4 py-3.5 text-center">MAKE</th>
+                      <th className="px-4 py-3.5 text-center">CABELO</th>
+                      <th className="px-4 py-3.5 text-center">MULTIMARCAS</th>
+                      <th className="px-4 py-3.5">Telefone</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {linhasPagina.map((item, idx) => (
+                      <tr key={`${item.codigo}-${item.estrutura}-${idx}`} className="border-b border-gray-100 hover:bg-[#f7fbfb] transition-colors">
+                        <td className="px-4 py-3 font-black text-[#048187] whitespace-nowrap">{item.codigo || '-'}</td>
+                        <td className="px-4 py-3 font-bold text-gray-700">{item.revendedor || '-'}</td>
+                        <td className="px-4 py-3 text-gray-600 font-semibold">{item.meu_clube_boti || '-'}</td>
+                        <td className="px-4 py-3 text-gray-600">{item.estrutura || '-'}</td>
+                        <td className="px-4 py-3 text-right font-black text-gray-700 whitespace-nowrap">{formatarMoeda(item.receita_ciclo || 0)}</td>
+                        <td className="px-4 py-3 text-center font-black text-gray-700">{Number(item.numero_pedidos || 0).toLocaleString('pt-BR')}</td>
+                        <td className="px-4 py-3 text-center"><IndicadorSimNao ativo={Boolean(item.make)} /></td>
+                        <td className="px-4 py-3 text-center"><IndicadorSimNao ativo={Boolean(item.cabelo)} /></td>
+                        <td className="px-4 py-3 text-center"><IndicadorSimNao ativo={Boolean(item.multimarcas)} /></td>
+                        <td className="px-4 py-3 text-gray-600 font-semibold whitespace-nowrap">{item.telefone || '-'}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {listaFiltrada.slice(0, 300).map((r, idx) => (
-                        <tr key={`${r.cod_revendedor}-${idx}`} className="border-b border-gray-50 hover:bg-gray-50/60">
-                          <td className="py-3 px-2 font-bold text-[#048187]">{r.cod_revendedor || '-'}</td>
-                          <td className="py-3 px-2 font-bold text-gray-700">{r.nome_revendedor || '-'}</td>
-                          <td className="py-3 px-2 text-gray-500">{r.nome_estrutura || '-'}</td>
-                          <td className="py-3 px-2 text-gray-500">{r.cidade || '-'}</td>
-                          <td className="py-3 px-2 text-gray-500">{r.atividade || '-'}</td>
-                          <td className="py-3 px-2 text-gray-500">{r.papel || '-'}</td>
-                          <td className="py-3 px-2 text-right font-bold text-gray-700">{formatarMoeda(r.credito_disponivel || 0)}</td>
-                          <td className="py-3 px-2 text-right font-bold text-gray-700">{formatarMoeda(Number(r.receita_praticada_pedidos || 0) > 0 ? r.receita_praticada_pedidos : r.vlr_receita_liquida || 0)}</td>
-                          <td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-xs font-bold ${ehInadimplente(r.inadimplente) ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{r.inadimplente || '-'}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                    {linhasPagina.length === 0 && (
+                      <tr><td colSpan="10" className="px-4 py-14 text-center text-gray-400 font-semibold">Nenhum revendedor encontrado.</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
+
+              {listaFiltrada.length > porPagina && (
+                <div className="p-4 border-t border-gray-100 flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-gray-400">Página {paginaAtual} de {totalPaginas}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={paginaAtual <= 1}
+                      onClick={() => setPaginaRevendedores((atual) => Math.max(1, atual - 1))}
+                      className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-bold text-gray-600 disabled:opacity-40 hover:border-[#048187] hover:text-[#048187]"
+                    >Anterior</button>
+                    <button
+                      type="button"
+                      disabled={paginaAtual >= totalPaginas}
+                      onClick={() => setPaginaRevendedores((atual) => Math.min(totalPaginas, atual + 1))}
+                      className="px-4 py-2 rounded-lg bg-[#048187] text-white text-sm font-bold disabled:opacity-40 hover:bg-[#036b70]"
+                    >Próxima</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#d9eef0] bg-[#f7fbfb] px-4 py-3 text-xs text-gray-500">
+              <strong className="text-[#048187]">Regra:</strong> Receita do ciclo = soma de ValorPraticado dos pedidos Entregue, Transporte, Separação e Aprovado. Cada revendedor aparece uma única vez na tabela; MAKE, CABELO e MULTIMARCAS indicam presença nas respectivas bases do ciclo.
             </div>
           </>
         )}
+
+        {modalRelatorioRevendedoresAberto && (() => {
+          const estruturasDisponiveis = Array.from(new Set([
+            ...(opcoesFiltros?.estruturas || []),
+            ...lista.map((item) => item?.estrutura),
+          ].map((item) => String(item || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+          const termoEstrutura = buscaEstruturaRelatorioRevendedores.trim().toLowerCase();
+          const estruturasVisiveis = termoEstrutura
+            ? estruturasDisponiveis.filter((item) => item.toLowerCase().includes(termoEstrutura))
+            : estruturasDisponiveis;
+          return (
+            <div className="fixed inset-0 z-[140] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="p-5 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide font-black text-[#048187]">Relatório Excel</p>
+                    <h2 className="text-xl font-black text-gray-700 mt-1">Revendedores compradores do ciclo</h2>
+                    <p className="text-sm text-gray-400 mt-1">Escolha todas as estruturas ou somente as que deseja incluir.</p>
+                  </div>
+                  <button type="button" onClick={() => setModalRelatorioRevendedoresAberto(false)} className="w-9 h-9 rounded-xl bg-gray-50 text-gray-400 hover:text-gray-600 flex items-center justify-center"><X size={18} /></button>
+                </div>
+
+                <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setModoRelatorioRevendedores('todas'); setErroRelatorioRevendedores(''); }}
+                      className={`rounded-xl border-2 p-4 text-left transition-colors ${modoRelatorioRevendedores === 'todas' ? 'border-[#048187] bg-[#f1fbfb]' : 'border-gray-100 bg-white hover:border-gray-200'}`}
+                    >
+                      <p className="font-black text-gray-700">Todas as estruturas</p>
+                      <p className="text-xs text-gray-400 mt-1">Gera o consolidado completo do ciclo.</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setModoRelatorioRevendedores('selecionadas'); setErroRelatorioRevendedores(''); }}
+                      className={`rounded-xl border-2 p-4 text-left transition-colors ${modoRelatorioRevendedores === 'selecionadas' ? 'border-[#048187] bg-[#f1fbfb]' : 'border-gray-100 bg-white hover:border-gray-200'}`}
+                    >
+                      <p className="font-black text-gray-700">Selecionar estruturas</p>
+                      <p className="text-xs text-gray-400 mt-1">Baixa apenas as equipes marcadas.</p>
+                    </button>
+                  </div>
+
+                  {modoRelatorioRevendedores === 'selecionadas' && (
+                    <div className="rounded-xl border border-gray-100 overflow-hidden">
+                      <div className="p-4 border-b border-gray-100 space-y-3">
+                        <div className="relative">
+                          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            value={buscaEstruturaRelatorioRevendedores}
+                            onChange={(e) => setBuscaEstruturaRelatorioRevendedores(e.target.value)}
+                            placeholder="Buscar estrutura..."
+                            className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#048187]"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-bold text-gray-400">{estruturasRelatorioRevendedores.length} selecionada(s)</p>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => setEstruturasRelatorioRevendedores(estruturasDisponiveis)} className="text-xs font-black text-[#048187] hover:underline">Selecionar todas</button>
+                            <button type="button" onClick={() => setEstruturasRelatorioRevendedores([])} className="text-xs font-black text-[#7c1f31] hover:underline">Limpar</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="max-h-[280px] overflow-y-auto divide-y divide-gray-100">
+                        {estruturasVisiveis.map((estrutura) => (
+                          <label key={estrutura} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={estruturasRelatorioRevendedores.includes(estrutura)}
+                              onChange={() => alternarEstruturaRelatorioRevendedores(estrutura)}
+                              className="w-4 h-4 accent-[#048187]"
+                            />
+                            <span className="text-sm font-bold text-gray-600">{estrutura}</span>
+                          </label>
+                        ))}
+                        {estruturasVisiveis.length === 0 && <div className="p-6 text-center text-sm text-gray-400">Nenhuma estrutura encontrada.</div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {erroRelatorioRevendedores && (
+                    <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">{erroRelatorioRevendedores}</div>
+                  )}
+                </div>
+
+                <div className="p-5 border-t border-gray-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 bg-white">
+                  <button type="button" disabled={baixandoRelatorioRevendedores} onClick={() => setModalRelatorioRevendedoresAberto(false)} className="px-5 py-3 rounded-xl border border-gray-200 text-gray-600 font-black disabled:opacity-50">Cancelar</button>
+                  <button type="button" disabled={baixandoRelatorioRevendedores} onClick={baixarRelatorioRevendedores} className="px-5 py-3 rounded-xl bg-[#048187] text-white font-black inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                    {baixandoRelatorioRevendedores ? <Loader2 size={17} className="animate-spin" /> : <FileSpreadsheet size={17} />}
+                    {baixandoRelatorioRevendedores ? 'Gerando...' : 'Baixar Excel'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -14382,17 +14942,23 @@ const enviarArquivo = async (tipo) => {
     );
   };
 
-  const renderBlocoCiclosCadastro = () => (
+  const renderBlocoCiclosCadastro = ({ modoSubpagina = false } = {}) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-6">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><CalendarDays size={22} /></div>
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-8">
+        <div className={`flex items-start ${modoSubpagina ? '' : 'sm:items-center gap-3'}`}>
+          {!modoSubpagina && (
+            <div className="w-11 h-11 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><CalendarDays size={22} /></div>
+          )}
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-gray-700">Ciclos</h2>
-            <p className="text-sm text-gray-400 font-semibold mt-1">Cadastre o período de cada ciclo. As metas detalhadas ficam salvas em Metas por Ciclo.</p>
+            <h2 className={`${modoSubpagina ? 'text-2xl sm:text-3xl' : 'text-lg sm:text-xl'} font-bold text-gray-700`}>
+              {modoSubpagina ? 'Cadastro de ciclo' : 'Ciclos'}
+            </h2>
+            <p className="text-sm text-gray-400 font-semibold mt-1">Cadastre o período de cada ciclo.</p>
           </div>
         </div>
-        <button onClick={carregarCiclos} className="bg-[#048187] text-white font-bold px-4 py-3 rounded-lg hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><RefreshCcw size={17} />Atualizar</button>
+        {!modoSubpagina && (
+          <button onClick={carregarCiclos} className="bg-[#048187] text-white font-bold px-4 py-3 rounded-lg hover:bg-[#036b70] inline-flex items-center justify-center gap-2"><RefreshCcw size={17} />Atualizar</button>
+        )}
       </div>
 
       {(mensagemCiclo || erroCiclo) && (<div className={`rounded-xl p-4 font-bold text-sm mb-5 ${mensagemCiclo ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemCiclo || erroCiclo}</div>)}
@@ -14434,40 +15000,72 @@ const enviarArquivo = async (tipo) => {
     </div>
   );
 
-  const CardOpcaoCadastro = ({ titulo, descricao, icone: Icone, onClick, destaque }) => (
+  const CardOpcaoCadastro = ({
+    titulo,
+    descricao,
+    icone: Icone,
+    onClick,
+    destaque = false,
+    conteudoExtra = null,
+    textoBotao = 'CADASTRAR'
+  }) => (
     <button
       type="button"
       onClick={onClick}
-      className={`text-left rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md ${destaque ? 'bg-[#048187] border-[#048187] text-white' : 'bg-white border-gray-100 text-gray-700 hover:border-[#048187]/40'}`}
+      className={`group min-h-[160px] w-full rounded-[28px] border px-6 py-5 text-left transition-all hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#048187]/15 ${destaque ? 'bg-[#048187] border-[#048187] text-white' : 'bg-white border-gray-100 text-gray-700 hover:border-[#048187]/30'}`}
     >
-      <div className={`w-11 h-11 rounded-full flex items-center justify-center mb-4 ${destaque ? 'bg-white/15 text-white' : 'bg-[#e6f6f7] text-[#048187]'}`}>
-        <Icone size={22} />
+      <div className="flex min-h-[118px] flex-col justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${destaque ? 'bg-white/15 text-white' : 'bg-[#5bb2b4] text-white'}`}>
+            <Icone size={25} strokeWidth={2.2} />
+          </div>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <h3 className="font-black text-lg sm:text-xl leading-tight">{titulo}</h3>
+            <p className={`mt-1 text-sm font-semibold leading-snug ${destaque ? 'text-white/80' : 'text-gray-400'}`}>{descricao}</p>
+            {conteudoExtra && <div className="mt-4">{conteudoExtra}</div>}
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <span className={`inline-flex min-w-[118px] items-center justify-center rounded-xl px-4 py-2 text-xs font-black tracking-wide transition-colors ${destaque ? 'bg-white text-[#048187]' : 'bg-[#048187] text-white group-hover:bg-[#036b70]'}`}>
+            {textoBotao}
+          </span>
+        </div>
       </div>
-      <h3 className="font-black text-base mb-1">{titulo}</h3>
-      <p className={`text-sm font-semibold leading-relaxed ${destaque ? 'text-white/80' : 'text-gray-400'}`}>{descricao}</p>
     </button>
   );
 
-  const CabecalhoSubCadastro = ({ titulo, descricao }) => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
+  const CabecalhoSubCadastro = ({ titulo, icone: Icone = CalendarDays }) => (
+    <div className="flex items-center px-1 sm:px-4">
       <button
         type="button"
         onClick={() => setVisaoCadastro('geral')}
-        className="mb-4 inline-flex items-center gap-2 text-[#048187] font-black text-sm bg-[#e6f6f7] hover:bg-[#d0f0f1] rounded-lg px-4 py-2"
+        className="group inline-flex items-center gap-2 text-[11px] sm:text-xs font-black uppercase text-gray-500 hover:text-[#048187]"
       >
-        <ChevronLeft size={18} /> Voltar
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#e6f6f7] text-[#048187] transition-colors group-hover:bg-[#d0f0f1]">
+          <Icone size={16} />
+        </span>
+        <span>Cadastro</span>
+        <ChevronRight size={14} className="text-gray-300" />
+        <span>{titulo}</span>
       </button>
-      <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">{titulo}</h1>
-      <p className="text-sm text-gray-400 font-semibold">{descricao}</p>
     </div>
   );
 
   const renderTelaCadastro = () => {
+    if (visaoCadastro === 'ciclos') {
+      return (
+        <div className="space-y-5 animate-fade-in">
+          <CabecalhoSubCadastro titulo="Cadastro de ciclo" icone={CalendarDays} />
+          {renderBlocoCiclosCadastro({ modoSubpagina: true })}
+        </div>
+      );
+    }
+
     if (visaoCadastro === 'estruturas') {
       return (
         <div className="space-y-6 animate-fade-in">
-          <CabecalhoSubCadastro titulo="Estruturas e Núcleos" descricao="Configure N1, N2, N3, canal, tipo e status de cada estrutura." />
-          {renderTelaEstruturasConfig()}
+          <CabecalhoSubCadastro titulo="Estruturas e Núcleos" icone={Target} />
+          <CadastroEstruturasV2 apiUrl={API_URL} onAtualizacao={() => { limparCachesDados(); carregarOpcoesFiltros(true); }} />
         </div>
       );
     }
@@ -14475,8 +15073,14 @@ const enviarArquivo = async (tipo) => {
     if (visaoCadastro === 'consultores') {
       return (
         <div className="space-y-6 animate-fade-in">
-          <CabecalhoSubCadastro titulo="Consultores" descricao="Cadastre nomes sociais, status, estrutura e peso de meta dos consultores." />
-          {renderTelaConsultores()}
+          <CabecalhoSubCadastro titulo="Gestão de Consultores" icone={Users} />
+          <CadastroConsultoresV2
+            apiUrl={API_URL}
+            onAtualizacao={() => { limparCachesDados(); carregarOpcoesFiltros(true); }}
+            abrirIdentidade={abrirModalIdentidadeColaborador}
+            obterFoto={obterFotoColaborador}
+            podeGerenciarIdentidade={podeGerenciarIdentidadeColaborador}
+          />
         </div>
       );
     }
@@ -14484,7 +15088,7 @@ const enviarArquivo = async (tipo) => {
     if (visaoCadastro === 'metas') {
       return (
         <div className="space-y-6 animate-fade-in">
-          <CabecalhoSubCadastro titulo="Metas por Ciclo" descricao="Tabela completa na própria tela: cadastre, edite na linha, apague e use Ver + para dividir por consultor." />
+          <CabecalhoSubCadastro titulo="Metas por Ciclo" icone={BarChart2} />
           <ModalMetasReais
             aberto={true}
             onClose={() => {}}
@@ -14501,7 +15105,7 @@ const enviarArquivo = async (tipo) => {
     if (visaoCadastro === 'exclusoes-revendedores') {
       return (
         <div className="space-y-6 animate-fade-in">
-          <CabecalhoSubCadastro titulo="Exclusões de Revendedores" descricao="Cadastre revendedores que devem ficar fora dos cálculos sem mexer na base original." />
+          <CabecalhoSubCadastro titulo="Exclusões de Revendedores" icone={Trash2} />
           <TelaExclusoesRevendedores
             apiUrl={API_URL}
             onAtualizacao={atualizarTelasAposMudancaBanco}
@@ -14666,49 +15270,53 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
+    const cicloAtualCadastro = ciclos.find((item) => item.eh_atual)
+      || ciclos.find((item) => String(item.ciclo || '') === String(cicloAtualPelaData() || ''))
+      || ciclos[0]
+      || null;
+
     return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Cadastro</h1>
-            <p className="text-sm text-gray-400 font-semibold">Cadastre ciclos, metas reais, estruturas por núcleo, consultores, nomes sociais e pesos de meta. Tudo fica salvo para histórico e comparação entre ciclos.</p>
-          </div>
-        </div>
-
-        {renderBlocoCiclosCadastro()}
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-          <div className="mb-5">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-700">Módulos de cadastro</h2>
-            <p className="text-sm text-gray-400 font-semibold mt-1">Escolha uma opção para editar. Use o botão Voltar para retornar a esta tela.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <CardOpcaoCadastro
-              titulo="Metas por Ciclo"
-              descricao="Tabela estilo planilha para receita, atividade, RPA, ticket, UPA, Make, Cabelo e divisão por consultor."
-              icone={BadgeDollarSign}
-              destaque
-              onClick={() => setVisaoCadastro('metas')}
-            />
-            <CardOpcaoCadastro
-              titulo="Estruturas e Núcleos"
-              descricao="Defina N1, N2 ou N3, canal, tipo e status de cada estrutura."
-              icone={Target}
-              onClick={() => setVisaoCadastro('estruturas')}
-            />
-            <CardOpcaoCadastro
-              titulo="Consultores"
-              descricao="Gerencie nome social, status, estrutura e peso de meta dos consultores."
-              icone={Users}
-              onClick={() => setVisaoCadastro('consultores')}
-            />
-            <CardOpcaoCadastro
-              titulo="Exclusões de Revendedores"
-              descricao="Remova cadastros teste ou exceções dos cálculos sem alterar a base de pedidos."
-              icone={ShieldCheck}
-              onClick={() => setVisaoCadastro('exclusoes-revendedores')}
-            />
-          </div>
+      <div className="animate-fade-in px-0 sm:px-1 py-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-7 xl:gap-10">
+          <CardOpcaoCadastro
+            titulo="Cadastro de ciclo"
+            descricao="Cadastre o período de cada ciclo."
+            icone={CalendarDays}
+            conteudoExtra={cicloAtualCadastro ? (
+              <div>
+                <p className="text-[11px] font-black text-gray-500">Ciclo Atual:</p>
+                <p className="text-sm font-black text-[#048187]">{cicloAtualCadastro.ciclo || '-'}</p>
+                <p className="text-[11px] font-semibold text-gray-400">
+                  {formatarDataBR(cicloAtualCadastro.data_inicio)} à {formatarDataBR(cicloAtualCadastro.data_fim)}
+                </p>
+              </div>
+            ) : null}
+            onClick={() => setVisaoCadastro('ciclos')}
+          />
+          <CardOpcaoCadastro
+            titulo="Metas por Ciclo"
+            descricao="Cadastre, edite, apague."
+            icone={BarChart2}
+            onClick={() => setVisaoCadastro('metas')}
+          />
+          <CardOpcaoCadastro
+            titulo="Estruturas e Núcleos"
+            descricao="Defina a qual núcleo cada estrutura pertence. Isso alimenta os botões Todos, N1, N2, N3 e o painel de filtros."
+            icone={Target}
+            onClick={() => setVisaoCadastro('estruturas')}
+          />
+          <CardOpcaoCadastro
+            titulo="Gestão de Consultores"
+            descricao="Vincule consultores às estruturas oficiais e mantenha o status atualizado."
+            icone={Users}
+            onClick={() => setVisaoCadastro('consultores')}
+          />
+          <CardOpcaoCadastro
+            titulo="Exclusões de Revendedores"
+            descricao="Cadastre revendedores que devem ficar fora dos cálculos sem mexer na base original."
+            icone={Trash2}
+            onClick={() => setVisaoCadastro('exclusoes-revendedores')}
+          />
         </div>
       </div>
     );
@@ -15371,7 +15979,10 @@ const enviarArquivo = async (tipo) => {
                 perfil,
                 area_gestao: perfil === 'admin'
                   ? 'AMBOS'
-                  : novoUsuario.area_gestao,
+                  : (novoUsuario.area_gestao || 'VD'),
+                estruturas_permitidas: perfil === 'admin'
+                  ? []
+                  : normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas),
               });
             }}
             className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"
@@ -15382,10 +15993,15 @@ const enviarArquivo = async (tipo) => {
           </select>
           <select
             value={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
-            onChange={(e) => setNovoUsuario({
-              ...novoUsuario,
-              area_gestao: e.target.value,
-            })}
+            onChange={(e) => {
+              const area = e.target.value;
+              setNovoUsuario({
+                ...novoUsuario,
+                area_gestao: area,
+                estruturas_permitidas: normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas)
+                  .filter((item) => area === 'AMBOS' || item.area === area),
+              });
+            }}
             disabled={novoUsuario.perfil === 'admin'}
             className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
             title="Define quais notificações de meta este usuário receberá."
@@ -15396,9 +16012,20 @@ const enviarArquivo = async (tipo) => {
               </option>
             ))}
           </select>
+          {novoUsuario.perfil !== 'admin' && (
+            <div className="md:col-span-2 xl:col-span-6">
+              <SeletorEscopoUsuario
+                area={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
+                opcoes={opcoesEscopoUsuarios}
+                selecionadas={novoUsuario.estruturas_permitidas}
+                onChange={(estruturas_permitidas) => setNovoUsuario({ ...novoUsuario, estruturas_permitidas })}
+                carregando={carregandoOpcoesEscopoUsuarios}
+              />
+            </div>
+          )}
           <button
             type="submit"
-            className="bg-[#048187] text-white font-bold rounded-lg py-3 hover:bg-[#036b70] inline-flex items-center justify-center gap-2"
+            className="bg-[#048187] text-white font-bold rounded-lg py-3 hover:bg-[#036b70] inline-flex items-center justify-center gap-2 xl:col-start-6"
           >
             <ShieldCheck size={18} />
             Criar
@@ -15409,13 +16036,14 @@ const enviarArquivo = async (tipo) => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6"><h2 className="text-xl font-bold text-gray-700">Usuários cadastrados</h2><button onClick={carregarUsuarios} className="text-[#048187] font-bold text-sm hover:underline">Atualizar</button></div>
         {carregandoUsuarios ? (<p className="text-[#048187] font-bold">Carregando usuários...</p>) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[1120px]">
+            <table className="w-full text-sm min-w-[1320px]">
               <thead>
                 <tr className="text-left text-gray-500 border-b border-gray-100">
                   <th className="py-3 px-2">Nome</th>
                   <th className="py-3 px-2">E-mail</th>
                   <th className="py-3 px-2">Perfil</th>
                   <th className="py-3 px-2">Área</th>
+                  <th className="py-3 px-2">Estruturas</th>
                   <th className="py-3 px-2">Permissões</th>
                   <th className="py-3 px-2">Status</th>
                   <th className="py-3 px-2 text-right">Ações</th>
@@ -15453,6 +16081,27 @@ const enviarArquivo = async (tipo) => {
                             ? 'VD + LOJA'
                             : areaUsuario}
                         </span>
+                      </td>
+                      <td className="py-4 px-2">
+                        <div className="flex flex-wrap gap-1.5 min-w-[230px] max-w-[360px]">
+                          {normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).slice(0, 3).map((item) => (
+                            <span
+                              key={chaveEscopoUsuario(item)}
+                              className="rounded-full bg-[#f1fbfb] border border-[#cde9ea] px-2.5 py-1 text-[10px] font-bold text-[#048187] max-w-[220px] truncate"
+                              title={item.rotulo || item.estrutura}
+                            >
+                              {item.estrutura}
+                            </span>
+                          ))}
+                          {normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).length > 3 && (
+                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-bold text-gray-500">
+                              +{normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).length - 3}
+                            </span>
+                          )}
+                          {!normalizarEstruturasPermitidasUsuario(u.estruturas_permitidas).length && (
+                            <span className="text-xs font-medium text-gray-400">Sem estrutura vinculada</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-2">
                         <div className="flex flex-col gap-2 min-w-[220px]">
@@ -15576,12 +16225,549 @@ const enviarArquivo = async (tipo) => {
   );
 
 
+
+  const usuarioAdminTutoriais = String(usuarioLogado?.perfil || '').toLowerCase() === 'admin';
+
+  const carregarTutoriais = async (filtros = filtrosTutoriais) => {
+    setCarregandoTutoriais(true);
+    setErroTutoriais('');
+    try {
+      const params = {};
+      if (filtros?.busca) params.busca = filtros.busca;
+      if (filtros?.categoria) params.categoria = filtros.categoria;
+      if (usuarioAdminTutoriais && filtros?.status_publicacao) params.status_publicacao = filtros.status_publicacao;
+      const { data } = await axios.get(`${API_URL}/tutoriais`, { params });
+      setTutoriaisPosts(Array.isArray(data?.posts) ? data.posts : []);
+      setTutoriaisCategorias(Array.isArray(data?.categorias) ? data.categorias : []);
+      setTutoriaisNovos(Number(data?.novos || 0));
+    } catch (erro) {
+      setErroTutoriais(erro.response?.data?.detail || 'Erro ao carregar Tutoriais e Dúvidas.');
+    } finally {
+      setCarregandoTutoriais(false);
+    }
+  };
+
+  const carregarOpcoesPublicoTutoriais = async () => {
+    if (!usuarioAdminTutoriais) return;
+    try {
+      const { data } = await axios.get(`${API_URL}/tutoriais/publico-opcoes`);
+      setOpcoesPublicoTutoriais({ perfis: data?.perfis || [], usuarios: data?.usuarios || [] });
+    } catch (erro) {
+      setErroTutoriais(erro.response?.data?.detail || 'Erro ao carregar perfis e usuários.');
+    }
+  };
+
+  const abrirNovoTutorial = async () => {
+    setTutorialEditandoId(null);
+    setTutorialForm(tutorialFormVazio);
+    setModalTutorialFormAberto(true);
+    await carregarOpcoesPublicoTutoriais();
+  };
+
+  const abrirEdicaoTutorial = async (post) => {
+    setTutorialEditandoId(post.id);
+    setTutorialForm({
+      ...tutorialFormVazio,
+      ...post,
+      perfis: post?.publico?.perfis || [],
+      usuarios_incluir: post?.publico?.usuarios_incluir || [],
+      usuarios_excluir: post?.publico?.usuarios_excluir || [],
+    });
+    setModalTutorialFormAberto(true);
+    await carregarOpcoesPublicoTutoriais();
+  };
+
+  const salvarTutorial = async () => {
+    setCarregandoTutoriais(true);
+    setErroTutoriais('');
+    try {
+      if (tutorialEditandoId) await axios.put(`${API_URL}/tutoriais/${tutorialEditandoId}`, tutorialForm);
+      else await axios.post(`${API_URL}/tutoriais`, tutorialForm);
+      setMensagemTutoriais(tutorialEditandoId ? 'Publicação atualizada.' : 'Publicação criada.');
+      setModalTutorialFormAberto(false);
+      setTutorialEditandoId(null);
+      setTutorialForm(tutorialFormVazio);
+      await carregarTutoriais();
+    } catch (erro) {
+      setErroTutoriais(erro.response?.data?.detail || 'Erro ao salvar publicação.');
+    } finally {
+      setCarregandoTutoriais(false);
+    }
+  };
+
+  const excluirTutorial = async (post) => {
+    if (!window.confirm(`Excluir “${post.titulo}”?`)) return;
+    try {
+      await axios.delete(`${API_URL}/tutoriais/${post.id}`);
+      setMensagemTutoriais('Publicação excluída.');
+      await carregarTutoriais();
+    } catch (erro) {
+      setErroTutoriais(erro.response?.data?.detail || 'Erro ao excluir publicação.');
+    }
+  };
+
+  const abrirDetalheTutorial = async (post) => {
+    setErroTutoriais('');
+    setMensagemFeedbackTutorial('');
+    setFeedbackTutorialSalvo(false);
+    setEnviandoFeedbackTutorial(false);
+    setTutorialPlayerKey(0);
+
+    try {
+      const { data } = await axios.get(`${API_URL}/tutoriais/${post.id}`);
+      const postCompleto = data?.post || post;
+      const feedbackExistente = postCompleto?.feedback_usuario || null;
+
+      setTutorialDetalhe(postCompleto);
+      setFeedbackTutorial({
+        resolveu: typeof feedbackExistente?.resolveu === 'boolean' ? feedbackExistente.resolveu : null,
+        comentario: String(feedbackExistente?.comentario || ''),
+      });
+      setFeedbackTutorialSalvo(Boolean(feedbackExistente));
+
+      const { data: progressoData } = await axios.post(
+        `${API_URL}/tutoriais/${post.id}/progresso`,
+        {
+          evento: 'abrir',
+          posicao_atual: 0,
+          duracao_video: 0,
+          segundos_incremento: 0,
+        },
+      );
+
+      setTutorialDetalhe((atual) => (
+        atual
+          ? { ...atual, progresso: progressoData?.progresso || atual.progresso }
+          : atual
+      ));
+      await carregarTutoriais();
+    } catch (erro) {
+      setErroTutoriais(erro.response?.data?.detail || 'Erro ao abrir publicação.');
+    }
+  };
+
+  const fecharDetalheTutorial = () => {
+    setTutorialDetalhe(null);
+    setFeedbackTutorial({ resolveu: null, comentario: '' });
+    setFeedbackTutorialSalvo(false);
+    setMensagemFeedbackTutorial('');
+    setEnviandoFeedbackTutorial(false);
+    setTutorialPlayerKey(0);
+  };
+
+  const registrarProgressoTutorial = (postId, payload) => {
+    if (payload?.evento === 'concluido') {
+      setTutorialDetalhe((atual) => (
+        atual?.id === postId
+          ? {
+              ...atual,
+              progresso: {
+                ...(atual.progresso || {}),
+                percentual_assistido: 100,
+                status_progresso: 'concluido',
+                ultima_posicao: Number(payload?.duracao_video || payload?.posicao_atual || 0),
+                duracao_video: Number(payload?.duracao_video || atual.progresso?.duracao_video || 0),
+              },
+            }
+          : atual
+      ));
+    }
+
+    const executar = async () => {
+      try {
+        const { data } = await axios.post(`${API_URL}/tutoriais/${postId}/progresso`, payload);
+        setTutorialDetalhe((atual) => (
+          atual?.id === postId
+            ? { ...atual, progresso: data?.progresso || atual.progresso }
+            : atual
+        ));
+        return data;
+      } catch (erro) {
+        console.error('Erro ao registrar progresso do tutorial:', erro);
+        return null;
+      }
+    };
+
+    const tarefa = progressoTutorialFilaRef.current
+      .catch(() => null)
+      .then(executar);
+
+    progressoTutorialFilaRef.current = tarefa.then(() => null, () => null);
+    return tarefa;
+  };
+
+  const marcarTutorialComoLido = async (postId) => {
+    await registrarProgressoTutorial(postId, {
+      evento: 'marcar_lido',
+      posicao_atual: 0,
+      duracao_video: 0,
+      segundos_incremento: 0,
+    });
+    await carregarTutoriais();
+  };
+
+  const enviarFeedbackTutorial = async () => {
+    if (!tutorialDetalhe?.id || enviandoFeedbackTutorial) return;
+
+    if (typeof feedbackTutorial.resolveu !== 'boolean') {
+      setMensagemFeedbackTutorial('Selecione “Sim” ou “Não” antes de enviar.');
+      return;
+    }
+
+    setEnviandoFeedbackTutorial(true);
+    setMensagemFeedbackTutorial('');
+
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/tutoriais/${tutorialDetalhe.id}/feedback`,
+        feedbackTutorial,
+      );
+
+      setFeedbackTutorialSalvo(true);
+      setMensagemFeedbackTutorial(data?.mensagem || 'Feedback salvo com sucesso.');
+      setTutorialDetalhe((atual) => (
+        atual
+          ? {
+              ...atual,
+              feedback_usuario: {
+                resolveu: feedbackTutorial.resolveu,
+                comentario: feedbackTutorial.comentario,
+              },
+            }
+          : atual
+      ));
+    } catch (erro) {
+      setMensagemFeedbackTutorial(
+        erro.response?.data?.detail || 'Erro ao enviar feedback.',
+      );
+    } finally {
+      setEnviandoFeedbackTutorial(false);
+    }
+  };
+
+  const abrirRelatorioTutorial = async (post) => {
+    try {
+      const { data } = await axios.get(`${API_URL}/tutoriais/${post.id}/relatorio`);
+      setTutorialRelatorio(data);
+    } catch (erro) {
+      setErroTutoriais(erro.response?.data?.detail || 'Erro ao carregar relatório.');
+    }
+  };
+
+  const alternarListaTutorialForm = (campo, valor) => {
+    setTutorialForm((atual) => {
+      const lista = Array.isArray(atual[campo]) ? atual[campo] : [];
+      return { ...atual, [campo]: lista.includes(valor) ? lista.filter((item) => item !== valor) : [...lista, valor] };
+    });
+  };
+
+  const rotuloTipoTutorial = (tipo) => ({ tutorial: 'Tutorial', duvida: 'Dúvida frequente', erro: 'Solução de erro', comunicado: 'Comunicado', procedimento: 'Procedimento interno' }[tipo] || 'Tutorial');
+  const iconeTipoTutorial = (tipo) => tipo === 'tutorial' ? Video : tipo === 'duvida' ? FileQuestion : tipo === 'erro' ? AlertCircle : tipo === 'comunicado' ? MessageSquare : BookOpen;
+  const statusProgressoTutorial = (progresso) => {
+    const status = String(progresso?.status_progresso || 'nao_iniciado');
+    if (status === 'concluido') return { texto: 'Concluído', classe: 'bg-green-50 text-green-700' };
+    if (status === 'em_andamento' || status === 'visualizado') return { texto: 'Em andamento', classe: 'bg-orange-50 text-orange-700' };
+    return { texto: 'Não iniciado', classe: 'bg-gray-100 text-gray-500' };
+  };
+
+  const renderTelaTutoriais = () => (
+    <div className="space-y-5">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-7">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><BookOpen size={24} /></div>
+            <div>
+              <h1 className="text-2xl font-black text-gray-700">Tutoriais e Dúvidas</h1>
+              <p className="text-sm text-gray-400 font-bold mt-1">Tutoriais, soluções de erros, comunicados e procedimentos destinados ao seu perfil ou usuário.</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => carregarTutoriais()} className="px-4 py-3 rounded-xl border border-[#048187]/20 text-[#048187] font-black flex items-center gap-2"><RefreshCcw size={17} /> Atualizar</button>
+            {usuarioAdminTutoriais && <button onClick={abrirNovoTutorial} className="px-4 py-3 rounded-xl bg-[#048187] text-white font-black flex items-center gap-2"><Plus size={18} /> Nova publicação</button>}
+          </div>
+        </div>
+        {tutoriaisNovos > 0 && !usuarioAdminTutoriais && <div className="mt-5 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-blue-700 font-bold">Você tem {tutoriaisNovos} conteúdo(s) novo(s) para visualizar.</div>}
+        {mensagemTutoriais && <div className="mt-4 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-green-700 font-bold">{mensagemTutoriais}</div>}
+        {erroTutoriais && <div className="mt-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-red-700 font-bold">{erroTutoriais}</div>}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="relative"><Search size={17} className="absolute left-3 top-3.5 text-gray-400" /><input value={filtrosTutoriais.busca} onChange={(e) => setFiltrosTutoriais((a) => ({ ...a, busca: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && carregarTutoriais()} placeholder="Buscar título, categoria ou conteúdo" className="w-full border border-gray-200 rounded-xl py-3 pl-10 pr-3 text-sm outline-none focus:border-[#048187]" /></div>
+          <select value={filtrosTutoriais.categoria} onChange={(e) => { const valor=e.target.value; setFiltrosTutoriais((a)=>({...a,categoria:valor})); window.setTimeout(()=>carregarTutoriais({...filtrosTutoriais,categoria:valor}),0); }} className="border border-gray-200 rounded-xl px-3 py-3 text-sm"><option value="">Todas as categorias</option>{tutoriaisCategorias.map((c)=><option key={c} value={c}>{c}</option>)}</select>
+          {usuarioAdminTutoriais ? <select value={filtrosTutoriais.status_publicacao} onChange={(e) => { const valor=e.target.value; setFiltrosTutoriais((a)=>({...a,status_publicacao:valor})); window.setTimeout(()=>carregarTutoriais({...filtrosTutoriais,status_publicacao:valor}),0); }} className="border border-gray-200 rounded-xl px-3 py-3 text-sm"><option value="">Todos os status</option><option value="publicado">Publicados</option><option value="rascunho">Rascunhos</option><option value="arquivado">Arquivados</option></select> : <button onClick={() => carregarTutoriais()} className="rounded-xl bg-gray-100 text-gray-600 font-black">Pesquisar</button>}
+        </div>
+      </div>
+
+      {carregandoTutoriais ? <div className="bg-white rounded-2xl p-12 text-center"><Loader2 className="animate-spin mx-auto text-[#048187]" /><p className="mt-3 text-gray-400 font-bold">Carregando conteúdos...</p></div> : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {tutoriaisPosts.map((post) => {
+            const Icone = iconeTipoTutorial(post.tipo_publicacao);
+            const progresso = statusProgressoTutorial(post.progresso);
+            return <div key={post.id} className={`bg-white rounded-2xl border shadow-sm p-5 ${post.destaque ? 'border-[#048187]/40' : 'border-gray-100'}`}>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 shrink-0 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Icone size={23} /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2"><span className="text-[10px] uppercase font-black text-[#048187]">{rotuloTipoTutorial(post.tipo_publicacao)}</span><span className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 font-black">{post.categoria || 'Geral'}</span>{post.destaque && <span className="text-[10px] px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 font-black">Destaque</span>}</div>
+                  <h2 className="text-lg font-black text-gray-700 mt-2">{post.titulo}</h2>
+                  <p className="text-sm text-gray-500 mt-2 line-clamp-3">{post.descricao || post.conteudo || 'Sem descrição.'}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-4"><span className={`text-xs px-3 py-1.5 rounded-full font-black ${progresso.classe}`}>{progresso.texto}{Number(post.progresso?.percentual_assistido || 0)>0 ? ` • ${formatarNumeroBR(post.progresso.percentual_assistido,0)}%` : ''}</span>{usuarioAdminTutoriais && <span className="text-xs px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 font-black">{post.status_publicacao}</span>}</div>
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2 mt-5 pt-4 border-t border-gray-100">
+                <button onClick={() => abrirDetalheTutorial(post)} className="px-4 py-2.5 rounded-xl bg-[#048187] text-white font-black flex items-center gap-2"><PlayCircle size={16} /> Abrir</button>
+                {usuarioAdminTutoriais && <><button onClick={() => abrirRelatorioTutorial(post)} className="px-3 py-2.5 rounded-xl bg-blue-50 text-blue-700 font-black flex items-center gap-2"><UsersRound size={16}/> Acessos</button><button onClick={() => abrirEdicaoTutorial(post)} className="px-3 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-black"><Pencil size={16}/></button><button onClick={() => excluirTutorial(post)} className="px-3 py-2.5 rounded-xl bg-red-50 text-red-600 font-black"><Trash2 size={16}/></button></>}
+              </div>
+            </div>;
+          })}
+          {!tutoriaisPosts.length && <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 p-12 text-center"><BookOpen size={42} className="mx-auto text-gray-300"/><p className="mt-4 text-gray-500 font-black">Nenhum conteúdo disponível para você no momento.</p></div>}
+        </div>
+      )}
+
+      {modalTutorialFormAberto && <div className="fixed inset-0 z-[130] bg-black/55 flex items-center justify-center p-3"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[94vh] overflow-hidden flex flex-col">
+        <div className="p-5 border-b flex items-center justify-between"><div><h2 className="text-xl font-black text-gray-700">{tutorialEditandoId ? 'Editar publicação' : 'Nova publicação'}</h2><p className="text-sm text-gray-400 font-bold">Defina o conteúdo e exatamente quem poderá visualizar.</p></div><button onClick={()=>setModalTutorialFormAberto(false)} className="p-2 rounded-full bg-gray-100"><X size={18}/></button></div>
+        <div className="p-5 overflow-y-auto space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3"><select value={tutorialForm.tipo_publicacao} onChange={(e)=>setTutorialForm((a)=>({...a,tipo_publicacao:e.target.value}))} className="border rounded-xl px-3 py-3"><option value="tutorial">Tutorial</option><option value="duvida">Dúvida frequente</option><option value="erro">Solução de erro</option><option value="comunicado">Comunicado</option><option value="procedimento">Procedimento interno</option></select><input value={tutorialForm.categoria} onChange={(e)=>setTutorialForm((a)=>({...a,categoria:e.target.value}))} placeholder="Categoria" className="border rounded-xl px-3 py-3"/><select value={tutorialForm.status_publicacao} onChange={(e)=>setTutorialForm((a)=>({...a,status_publicacao:e.target.value}))} className="border rounded-xl px-3 py-3"><option value="rascunho">Rascunho</option><option value="publicado">Publicado</option><option value="arquivado">Arquivado</option></select></div>
+          <input value={tutorialForm.titulo} onChange={(e)=>setTutorialForm((a)=>({...a,titulo:e.target.value}))} placeholder="Título da publicação" className="w-full border rounded-xl px-3 py-3 font-bold"/>
+          <textarea value={tutorialForm.descricao} onChange={(e)=>setTutorialForm((a)=>({...a,descricao:e.target.value}))} placeholder="Descrição curta" rows={2} className="w-full border rounded-xl px-3 py-3"/>
+          <textarea value={tutorialForm.conteudo} onChange={(e)=>setTutorialForm((a)=>({...a,conteudo:e.target.value}))} placeholder="Passo a passo, solução ou conteúdo completo" rows={7} className="w-full border rounded-xl px-3 py-3"/>
+          <div><label className="text-xs uppercase font-black text-gray-500">Link do YouTube</label><div className="relative mt-2"><Video size={18} className="absolute left-3 top-3.5 text-gray-400"/><input value={tutorialForm.youtube_url} onChange={(e)=>setTutorialForm((a)=>({...a,youtube_url:e.target.value}))} placeholder="https://www.youtube.com/watch?v=..." className="w-full border rounded-xl py-3 pl-10 pr-3"/></div></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3"><label className="flex items-center gap-3 border rounded-xl p-3 font-bold"><input type="checkbox" checked={tutorialForm.destaque} onChange={(e)=>setTutorialForm((a)=>({...a,destaque:e.target.checked}))}/> Conteúdo em destaque</label><label className="flex items-center gap-3 border rounded-xl p-3 font-bold"><input type="checkbox" checked={tutorialForm.permitir_feedback} onChange={(e)=>setTutorialForm((a)=>({...a,permitir_feedback:e.target.checked}))}/> Permitir feedback</label></div>
+          <div className="border rounded-2xl p-4 space-y-4"><div><h3 className="font-black text-gray-700">Quem poderá visualizar?</h3><p className="text-xs text-gray-400 font-bold">A aba existe para todos, mas a API entrega apenas os conteúdos autorizados.</p></div><select value={tutorialForm.publico_modo} onChange={(e)=>setTutorialForm((a)=>({...a,publico_modo:e.target.value}))} className="w-full border rounded-xl px-3 py-3"><option value="todos">Todos os usuários</option><option value="perfis">Perfis selecionados</option><option value="usuarios">Usuários específicos</option><option value="perfis_usuarios">Perfis + usuários adicionais</option><option value="todos_exceto">Todos, exceto usuários selecionados</option></select>
+            {['perfis','perfis_usuarios'].includes(tutorialForm.publico_modo) && <div><p className="text-xs uppercase font-black text-gray-500 mb-2">Perfis</p><div className="flex flex-wrap gap-2">{opcoesPublicoTutoriais.perfis.map((perfil)=><button type="button" key={perfil} onClick={()=>alternarListaTutorialForm('perfis',perfil)} className={`px-3 py-2 rounded-xl text-sm font-black border ${tutorialForm.perfis.includes(perfil)?'bg-[#048187] text-white border-[#048187]':'bg-white text-gray-600 border-gray-200'}`}>{perfil}</button>)}</div><label className="mt-3 flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={tutorialForm.incluir_novos_perfis} onChange={(e)=>setTutorialForm((a)=>({...a,incluir_novos_perfis:e.target.checked}))}/> Incluir automaticamente novos usuários destes perfis</label></div>}
+            {['usuarios','perfis_usuarios','todos_exceto'].includes(tutorialForm.publico_modo) && <div><p className="text-xs uppercase font-black text-gray-500 mb-2">{tutorialForm.publico_modo==='todos_exceto'?'Não exibir para':'Usuários específicos'}</p><div className="max-h-52 overflow-y-auto border rounded-xl divide-y">{opcoesPublicoTutoriais.usuarios.map((u)=>{const campo=tutorialForm.publico_modo==='todos_exceto'?'usuarios_excluir':'usuarios_incluir';const marcado=tutorialForm[campo].includes(Number(u.id));return <label key={u.id} className="flex items-center gap-3 p-3 hover:bg-gray-50"><input type="checkbox" checked={marcado} onChange={()=>alternarListaTutorialForm(campo,Number(u.id))}/><div><p className="font-black text-gray-700">{u.nome}</p><p className="text-xs text-gray-400">{u.email} • {u.perfil}</p></div></label>})}</div></div>}
+          </div>
+        </div>
+        <div className="p-4 border-t flex justify-end gap-2"><button onClick={()=>setModalTutorialFormAberto(false)} className="px-5 py-3 rounded-xl bg-gray-100 font-black">Cancelar</button><button onClick={salvarTutorial} disabled={carregandoTutoriais} className="px-5 py-3 rounded-xl bg-[#048187] text-white font-black flex items-center gap-2"><Save size={17}/>{tutorialEditandoId?'Salvar alterações':'Criar publicação'}</button></div>
+      </div></div>}
+
+      {tutorialDetalhe && (
+        <div className="fixed inset-0 z-[130] bg-black/55 flex items-center justify-center p-3">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[94vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b flex justify-between gap-4">
+              <div>
+                <div className="flex gap-2 mb-2">
+                  <span className="text-xs font-black text-[#048187] uppercase">
+                    {rotuloTipoTutorial(tutorialDetalhe.tipo_publicacao)}
+                  </span>
+                  <span className="text-xs font-black text-gray-400">
+                    {tutorialDetalhe.categoria}
+                  </span>
+                </div>
+                <h2 className="text-2xl font-black text-gray-700">
+                  {tutorialDetalhe.titulo}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={fecharDetalheTutorial}
+                className="p-2 h-fit rounded-full bg-gray-100"
+                title="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-5">
+              {tutorialDetalhe.youtube_video_id && (
+                <TutorialVideoPlayer
+                  key={`${tutorialDetalhe.id}-${tutorialPlayerKey}`}
+                  videoId={tutorialDetalhe.youtube_video_id}
+                  posicaoInicial={(
+                    tutorialPlayerKey > 0
+                    || tutorialDetalhe.progresso?.status_progresso === 'concluido'
+                  )
+                    ? 0
+                    : (tutorialDetalhe.progresso?.ultima_posicao || 0)}
+                  onProgresso={(payload) => (
+                    registrarProgressoTutorial(tutorialDetalhe.id, payload)
+                  )}
+                />
+              )}
+
+              {tutorialDetalhe.youtube_url && !tutorialDetalhe.youtube_video_id && (
+                <a
+                  href={tutorialDetalhe.youtube_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[#048187] font-black flex items-center gap-2"
+                >
+                  <ExternalLink size={17} />
+                  Abrir vídeo no YouTube
+                </a>
+              )}
+
+              {tutorialDetalhe.descricao && (
+                <p className="text-gray-600 font-bold">
+                  {tutorialDetalhe.descricao}
+                </p>
+              )}
+
+              {tutorialDetalhe.conteudo && (
+                <div className="whitespace-pre-wrap rounded-2xl bg-gray-50 border border-gray-100 p-5 text-gray-700 leading-relaxed">
+                  {tutorialDetalhe.conteudo}
+                </div>
+              )}
+
+              <div className="rounded-2xl border p-4">
+                <div className="flex justify-between text-sm font-black">
+                  <span>Seu progresso</span>
+                  <span>
+                    {formatarNumeroBR(
+                      tutorialDetalhe.progresso?.percentual_assistido || 0,
+                      0,
+                    )}%
+                  </span>
+                </div>
+
+                <div className="h-2 bg-gray-100 rounded-full mt-3 overflow-hidden">
+                  <div
+                    className="h-full bg-[#048187]"
+                    style={{
+                      width: `${Math.min(
+                        Number(tutorialDetalhe.progresso?.percentual_assistido || 0),
+                        100,
+                      )}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {!tutorialDetalhe.youtube_video_id
+                    && tutorialDetalhe.progresso?.status_progresso !== 'concluido' && (
+                      <button
+                        type="button"
+                        onClick={() => marcarTutorialComoLido(tutorialDetalhe.id)}
+                        className="px-4 py-2.5 bg-[#048187] text-white rounded-xl font-black"
+                      >
+                        <CheckCircle size={16} className="inline mr-2" />
+                        Marcar como lido
+                      </button>
+                  )}
+
+                  {tutorialDetalhe.youtube_video_id
+                    && tutorialDetalhe.progresso?.status_progresso === 'concluido' && (
+                      <button
+                        type="button"
+                        onClick={() => setTutorialPlayerKey((atual) => atual + 1)}
+                        className="px-4 py-2.5 bg-[#e6f6f7] text-[#048187] rounded-xl font-black flex items-center gap-2"
+                      >
+                        <RefreshCcw size={16} />
+                        Assistir novamente
+                      </button>
+                  )}
+                </div>
+              </div>
+
+              {tutorialDetalhe.permitir_feedback && (
+                <div className="rounded-2xl border p-4 space-y-3">
+                  <h3 className="font-black text-gray-700">
+                    Este conteúdo resolveu sua dúvida?
+                  </h3>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeedbackTutorial((atual) => ({ ...atual, resolveu: true }));
+                        setMensagemFeedbackTutorial('');
+                      }}
+                      className={`px-4 py-2 rounded-xl font-black ${
+                        feedbackTutorial.resolveu === true
+                          ? 'bg-green-600 text-white'
+                          : 'bg-green-50 text-green-700'
+                      }`}
+                    >
+                      Sim
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeedbackTutorial((atual) => ({ ...atual, resolveu: false }));
+                        setMensagemFeedbackTutorial('');
+                      }}
+                      className={`px-4 py-2 rounded-xl font-black ${
+                        feedbackTutorial.resolveu === false
+                          ? 'bg-red-600 text-white'
+                          : 'bg-red-50 text-red-700'
+                      }`}
+                    >
+                      Não
+                    </button>
+                  </div>
+
+                  <textarea
+                    value={feedbackTutorial.comentario}
+                    onChange={(event) => {
+                      setFeedbackTutorial((atual) => ({
+                        ...atual,
+                        comentario: event.target.value,
+                      }));
+                      setMensagemFeedbackTutorial('');
+                    }}
+                    rows={3}
+                    placeholder="Comentário opcional"
+                    className="w-full border rounded-xl p-3"
+                  />
+
+                  {mensagemFeedbackTutorial && (
+                    <div className={`rounded-xl px-4 py-3 text-sm font-black ${
+                      feedbackTutorialSalvo
+                        ? 'bg-green-50 border border-green-100 text-green-700'
+                        : 'bg-orange-50 border border-orange-100 text-orange-700'
+                    }`}>
+                      {mensagemFeedbackTutorial}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={enviarFeedbackTutorial}
+                    disabled={
+                      enviandoFeedbackTutorial
+                      || typeof feedbackTutorial.resolveu !== 'boolean'
+                    }
+                    className="px-4 py-2.5 bg-[#048187] text-white rounded-xl font-black flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {enviandoFeedbackTutorial
+                      ? <Loader2 size={16} className="animate-spin" />
+                      : feedbackTutorialSalvo
+                        ? <CheckCircle size={16} />
+                        : <Send size={16} />}
+                    {enviandoFeedbackTutorial
+                      ? 'Salvando...'
+                      : feedbackTutorialSalvo
+                        ? 'Atualizar feedback'
+                        : 'Enviar feedback'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tutorialRelatorio && <div className="fixed inset-0 z-[140] bg-black/55 flex items-center justify-center p-3"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[94vh] overflow-hidden flex flex-col"><div className="p-5 border-b flex justify-between"><div><h2 className="text-xl font-black text-gray-700">Relatório de acessos</h2><p className="text-sm text-gray-400 font-bold">{tutorialRelatorio.post?.titulo}</p></div><button onClick={()=>setTutorialRelatorio(null)} className="p-2 rounded-full bg-gray-100"><X size={18}/></button></div><div className="p-5 overflow-y-auto"><div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-5">{[['Público','publico'],['Visualizaram','visualizaram'],['Iniciaram','iniciaram'],['Concluíram','concluiram'],['Pendentes','pendentes'],['Taxa','taxa_conclusao']].map(([l,c])=><div key={c} className="rounded-xl border p-3"><p className="text-[10px] uppercase font-black text-gray-400">{l}</p><p className="text-xl font-black text-gray-700 mt-1">{c==='taxa_conclusao'?`${formatarNumeroBR(tutorialRelatorio.resumo?.[c]||0,1)}%`:formatarNumeroBR(tutorialRelatorio.resumo?.[c]||0,0)}</p></div>)}</div><div className="overflow-x-auto"><table className="w-full text-sm min-w-[900px]"><thead><tr className="bg-gray-50 text-left text-xs uppercase text-gray-400"><th className="p-3">Usuário</th><th className="p-3">Perfil</th><th className="p-3">Status</th><th className="p-3">Progresso</th><th className="p-3">Acessos</th><th className="p-3">Último acesso</th><th className="p-3">Feedback</th></tr></thead><tbody>{(tutorialRelatorio.usuarios||[]).map((u)=><tr key={u.id} className="border-b"><td className="p-3"><p className="font-black">{u.nome}</p><p className="text-xs text-gray-400">{u.email}</p></td><td className="p-3">{u.perfil}</td><td className="p-3 font-bold">{statusProgressoTutorial(u.progresso).texto}</td><td className="p-3">{formatarNumeroBR(u.progresso?.percentual_assistido||0,1)}%</td><td className="p-3">{u.progresso?.quantidade_acessos||0}</td><td className="p-3">{u.progresso?.ultimo_acesso_em?new Date(u.progresso.ultimo_acesso_em).toLocaleString('pt-BR'):'—'}</td><td className="p-3">{u.feedback?.resolveu===true?'Resolveu':u.feedback?.resolveu===false?'Não resolveu':'—'}</td></tr>)}</tbody></table></div></div></div></div>}
+    </div>
+  );
+
   const renderTelaAcoesCiclo = () => {
     const cicloAtualAcao = obterCicloReferenciaAtual();
-    const estruturasDisponiveis = Array.from(new Set((opcoesFiltros.estruturas || []).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
-    const estruturasFiltradas = estruturasDisponiveis.filter((estrutura) =>
-      String(estrutura || '').toLowerCase().includes(String(buscaEstruturaAcao || '').toLowerCase())
-    );
+    const participantesDisponiveis = (participantesAcao.length
+      ? participantesAcao
+      : Array.from(new Set((opcoesFiltros.estruturas || []).filter(Boolean))).map((estrutura) => ({
+          nome: estrutura,
+          nucleo: 'SEM NÚCLEO',
+          tipo_participante: 'estrutura',
+          estruturas_vinculadas: [estrutura]
+        }))
+    ).sort((a, b) => `${a.nucleo}-${a.nome}`.localeCompare(`${b.nucleo}-${b.nome}`));
+    const participantesFiltrados = participantesDisponiveis.filter((participante) => {
+      const busca = String(buscaEstruturaAcao || '').toLowerCase();
+      return !busca || [participante.nome, participante.nucleo, participante.tipo_participante]
+        .some((valor) => String(valor || '').toLowerCase().includes(busca));
+    });
+    const nomesParticipantesDisponiveis = participantesDisponiveis.map((item) => item.nome);
     const resumoAcoes = {
       total: acoesCiclo.length,
       acontecendo: acoesCiclo.filter((a) => String(a.status_final || a.status_acao || '').toLowerCase() === 'acontecendo').length,
@@ -15589,6 +16775,15 @@ const enviarArquivo = async (tipo) => {
       canceladas: acoesCiclo.filter((a) => String(a.status_final || a.status_acao || '').toLowerCase() === 'cancelada').length,
     };
     const cicloInfoAcaoForm = obterCicloPorPeriodoAcao(acaoCicloForm.data_inicio, acaoCicloForm.data_fim);
+    const formEhAtividade = String(acaoCicloForm.tipo_indicador || '') === 'atividade';
+    const detalheEhAtividade = String(acaoCicloDetalhe?.tipo_indicador || '') === 'atividade';
+    const statusDetalhe = statusVisualAcao(acaoCicloDetalhe?.status_final || acaoCicloDetalhe?.status_acao);
+
+    const formatarSaldoAtividade = (saldo) => {
+      const numero = Number(saldo || 0);
+      if (numero > 0) return `+${numero}`;
+      return String(numero);
+    };
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -15602,8 +16797,13 @@ const enviarArquivo = async (tipo) => {
                 <div>
                   <h1 className="text-2xl font-black text-gray-700">Ações do Ciclo</h1>
                   <p className="text-sm text-gray-400 font-semibold mt-1">
-                    Crie campanhas como Dia D, viradas de ciclo, desafios de estruturas e acompanhe só o período da ação.
+                    Crie ações de faturamento ou atividade com data e hora exatas, acompanhe estruturas, gerentes e consultores e preserve o histórico final.
                   </p>
+                  {!podeGerenciarAcoesCiclo && (
+                    <span className="inline-flex mt-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black uppercase">
+                      Acesso somente para consulta
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -15611,18 +16811,20 @@ const enviarArquivo = async (tipo) => {
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 type="button"
-                onClick={carregarAcoesCiclo}
+                onClick={() => carregarAcoesCiclo()}
                 className="border border-[#d9eff0] text-[#048187] bg-white px-5 py-3 rounded-xl font-black hover:bg-[#f4fbfb] inline-flex items-center justify-center gap-2"
               >
                 <RefreshCcw size={18} /> Atualizar
               </button>
-              <button
-                type="button"
-                onClick={abrirModalCriarAcaoCiclo}
-                className="bg-[#048187] text-white px-5 py-3 rounded-xl font-black hover:bg-[#036b70] shadow-lg shadow-[#048187]/20 inline-flex items-center justify-center gap-2"
-              >
-                <Plus size={18} /> Criar ação
-              </button>
+              {podeGerenciarAcoesCiclo && (
+                <button
+                  type="button"
+                  onClick={abrirModalCriarAcaoCiclo}
+                  className="bg-[#048187] text-white px-5 py-3 rounded-xl font-black hover:bg-[#036b70] shadow-lg shadow-[#048187]/20 inline-flex items-center justify-center gap-2"
+                >
+                  <Plus size={18} /> Criar ação
+                </button>
+              )}
             </div>
           </div>
 
@@ -15662,15 +16864,16 @@ const enviarArquivo = async (tipo) => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-sm">
+            <table className="w-full min-w-[1220px] text-sm">
               <thead className="bg-[#f7fafb] text-[11px] uppercase text-gray-400 font-black">
                 <tr>
                   <th className="px-4 py-3 text-left">Nome da ação</th>
+                  <th className="px-4 py-3 text-left">Indicador</th>
                   <th className="px-4 py-3 text-left">Período</th>
                   <th className="px-4 py-3 text-right">Meta</th>
                   <th className="px-4 py-3 text-right">Realizado</th>
                   <th className="px-4 py-3 text-right">% Meta</th>
-                  <th className="px-4 py-3 text-center">Estruturas</th>
+                  <th className="px-4 py-3 text-center">Participantes</th>
                   <th className="px-4 py-3 text-center">Status</th>
                   <th className="px-4 py-3 text-right">Ações</th>
                 </tr>
@@ -15679,17 +16882,28 @@ const enviarArquivo = async (tipo) => {
                 {acoesCiclo.map((acao) => {
                   const visual = statusVisualAcao(acao.status_final || acao.status_acao);
                   const percentual = Number(acao.percentual_meta || 0);
+                  const ehAtividade = String(acao.tipo_indicador || '') === 'atividade';
                   return (
                     <tr key={acao.id} className="border-b border-gray-50 last:border-0 hover:bg-[#fbfefe]">
                       <td className="px-4 py-4">
                         <p className="font-black text-gray-700">{acao.nome_acao}</p>
                         <p className="text-[11px] text-gray-400 font-bold mt-1">Ciclo {acao.ciclo}</p>
                       </td>
-                      <td className="px-4 py-4 font-bold text-gray-600">
-                        {formatarDataBR(acao.data_inicio)} até {formatarDataBR(acao.data_fim)}
+                      <td className="px-4 py-4">
+                        <span className={`px-3 py-1.5 rounded-full text-xs font-black ${ehAtividade ? 'bg-[#e6f6f7] text-[#048187]' : 'bg-purple-50 text-purple-700'}`}>
+                          {ehAtividade ? 'Atividade' : 'Faturamento'}
+                        </span>
                       </td>
-                      <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{formatarMoeda(acao.meta_valor)}</td>
-                      <td className="px-4 py-4 text-right font-black text-[#048187]">{formatarMoeda(acao.realizado)}</td>
+                      <td className="px-4 py-4 font-bold text-gray-600 whitespace-nowrap">
+                        <div>{formatarDataBR(acao.data_inicio)} {String(acao.hora_inicio || '00:00').slice(0, 5)}</div>
+                        <div className="text-[11px] text-gray-400 mt-1">até {formatarDataBR(acao.data_fim)} {String(acao.hora_fim || '23:59').slice(0, 5)}</div>
+                      </td>
+                      <td className="px-4 py-4 text-right font-black text-[#7c1f31]">
+                        {ehAtividade ? `${formatarNumeroBR(acao.meta_percentual || 0, 1)}%` : formatarMoeda(acao.meta_valor)}
+                      </td>
+                      <td className="px-4 py-4 text-right font-black text-[#048187]">
+                        {ehAtividade ? `${formatarNumeroBR(acao.percentual_ativacao || acao.realizado || 0, 1)}%` : formatarMoeda(acao.realizado)}
+                      </td>
                       <td className="px-4 py-4 text-right font-black" style={{ color: corPorFaixaMeta(percentual) }}>{formatarNumeroBR(percentual, 1)}%</td>
                       <td className="px-4 py-4 text-center">
                         <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-xs font-black">
@@ -15708,20 +16922,24 @@ const enviarArquivo = async (tipo) => {
                           >
                             <Eye size={14} /> Ver +
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => abrirModalEditarAcaoCiclo(acao)}
-                            className="bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-lg text-xs font-black hover:bg-[#d0f0f1] inline-flex items-center gap-1"
-                          >
-                            <Pencil size={14} /> Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => apagarAcaoCiclo(acao)}
-                            className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-xs font-black hover:bg-red-100 inline-flex items-center gap-1"
-                          >
-                            <Trash2 size={14} /> Apagar
-                          </button>
+                          {podeGerenciarAcoesCiclo && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => abrirModalEditarAcaoCiclo(acao)}
+                                className="bg-[#e6f6f7] text-[#048187] px-3 py-2 rounded-lg text-xs font-black hover:bg-[#d0f0f1] inline-flex items-center gap-1"
+                              >
+                                <Pencil size={14} /> Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => apagarAcaoCiclo(acao)}
+                                className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-xs font-black hover:bg-red-100 inline-flex items-center gap-1"
+                              >
+                                <Trash2 size={14} /> Apagar
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -15732,7 +16950,9 @@ const enviarArquivo = async (tipo) => {
 
             {!acoesCiclo.length && !carregandoAcoesCiclo && (
               <div className="py-12 text-center text-gray-400 font-bold">
-                Nenhuma ação cadastrada ainda. Clique em “Criar ação” para começar.
+                {podeGerenciarAcoesCiclo
+                  ? 'Nenhuma ação cadastrada ainda. Clique em “Criar ação” para começar.'
+                  : 'Nenhuma ação disponível para a sua estrutura neste ciclo.'}
               </div>
             )}
           </div>
@@ -15740,69 +16960,241 @@ const enviarArquivo = async (tipo) => {
 
         {acaoCicloDetalhe && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-4 mb-5">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">
               <div>
-                <h2 className="text-xl font-black text-gray-700">{acaoCicloDetalhe.nome_acao}</h2>
-                <p className="text-sm text-gray-400 font-bold mt-1">
-                  {formatarDataBR(acaoCicloDetalhe.data_inicio)} até {formatarDataBR(acaoCicloDetalhe.data_fim)} • {acaoCicloDetalhe.total_estruturas || 0} estruturas
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-black text-gray-700">{acaoCicloDetalhe.nome_acao}</h2>
+                  <span className={`px-3 py-1 rounded-full text-xs font-black ${statusDetalhe.classe}`}>{statusDetalhe.texto}</span>
+                  {acaoCicloDetalhe.possui_snapshot && (
+                    <span className="px-3 py-1 rounded-full text-xs font-black bg-blue-50 text-blue-700">Histórico congelado</span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-400 font-bold mt-2">
+                  {formatarDataBR(acaoCicloDetalhe.data_inicio)} {String(acaoCicloDetalhe.hora_inicio || '00:00').slice(0, 5)} até {formatarDataBR(acaoCicloDetalhe.data_fim)} {String(acaoCicloDetalhe.hora_fim || '23:59').slice(0, 5)} • {acaoCicloDetalhe.total_estruturas || 0} participantes
+                </p>
+                <p className="text-xs text-gray-400 font-semibold mt-1">
+                  Esta meta pertence somente à ação e não altera a meta oficial de atividade do ciclo.
                 </p>
               </div>
-              <button onClick={() => setAcaoCicloDetalhe(null)} className="bg-gray-100 text-gray-500 rounded-full p-2 hover:bg-gray-200"><X size={18} /></button>
+              <button onClick={() => setAcaoCicloDetalhe(null)} className="bg-gray-100 text-gray-500 rounded-full p-2 hover:bg-gray-200 self-start"><X size={18} /></button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-              <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
-                <p className="text-[10px] uppercase font-black text-gray-400">Meta da ação</p>
-                <p className="text-xl font-black text-[#7c1f31] mt-1">{formatarMoeda(acaoCicloDetalhe.meta_valor)}</p>
-              </div>
-              <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
-                <p className="text-[10px] uppercase font-black text-gray-400">Realizado</p>
-                <p className="text-xl font-black text-[#048187] mt-1">{formatarMoeda(acaoCicloDetalhe.realizado)}</p>
-              </div>
-              <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
-                <p className="text-[10px] uppercase font-black text-gray-400">% Meta</p>
-                <p className="text-xl font-black mt-1" style={{ color: corPorFaixaMeta(acaoCicloDetalhe.percentual_meta || 0) }}>{formatarNumeroBR(acaoCicloDetalhe.percentual_meta || 0, 1)}%</p>
-              </div>
-              <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
-                <p className="text-[10px] uppercase font-black text-gray-400">Falta para a meta</p>
-                <p className="text-xl font-black text-[#7c1f31] mt-1">{formatarMoeda(acaoCicloDetalhe.falta_meta || 0)}</p>
-              </div>
-            </div>
+            {detalheEhAtividade ? (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                  <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                    <p className="text-[10px] uppercase font-black text-gray-400">Meta da ação</p>
+                    <p className="text-xl font-black text-[#7c1f31] mt-1">{formatarNumeroBR(acaoCicloDetalhe.meta_percentual || 0, 1)}%</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                    <p className="text-[10px] uppercase font-black text-gray-400">Ativos</p>
+                    <p className="text-xl font-black text-[#048187] mt-1">{Number(acaoCicloDetalhe.ativos || 0).toLocaleString('pt-BR')}</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                    <p className="text-[10px] uppercase font-black text-gray-400">Base ativa</p>
+                    <p className="text-xl font-black text-gray-700 mt-1">{Number(acaoCicloDetalhe.base_ativa_total || 0).toLocaleString('pt-BR')}</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                    <p className="text-[10px] uppercase font-black text-gray-400">% Ativação</p>
+                    <p className="text-xl font-black mt-1" style={{ color: corPorFaixaMeta(acaoCicloDetalhe.percentual_meta || 0) }}>{formatarNumeroBR(acaoCicloDetalhe.percentual_ativacao || 0, 1)}%</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe] col-span-2 lg:col-span-1">
+                    <p className="text-[10px] uppercase font-black text-gray-400">Faltam ativar</p>
+                    <p className={`text-xl font-black mt-1 ${Number(acaoCicloDetalhe.falta_meta || 0) > 0 ? 'text-[#7c1f31]' : 'text-green-700'}`}>
+                      {Number(acaoCicloDetalhe.falta_meta || 0).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[780px] text-sm">
-                <thead className="bg-[#f7fafb] text-[11px] uppercase text-gray-400 font-black">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Estrutura</th>
-                    <th className="px-4 py-3 text-right">Realizado</th>
-                    <th className="px-4 py-3 text-right">Pedidos</th>
-                    <th className="px-4 py-3 text-right">Revendedores</th>
-                    <th className="px-4 py-3 text-right">Participação</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(acaoCicloDetalhe.estruturas_apuracao || []).map((item) => (
-                    <tr key={item.estrutura} className="border-b border-gray-50 last:border-0">
-                      <td className="px-4 py-3 font-black text-gray-700">{item.estrutura}</td>
-                      <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(item.pedidos || 0).toLocaleString('pt-BR')}</td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(item.revendedores || 0).toLocaleString('pt-BR')}</td>
-                      <td className="px-4 py-3 text-right font-black text-gray-700">{formatarNumeroBR(item.participacao || 0, 1)}%</td>
-                    </tr>
+                <div className="space-y-5">
+                  {(acaoCicloDetalhe.nucleos || []).map((grupo) => (
+                    <div key={grupo.nucleo} className="border border-gray-100 rounded-2xl overflow-hidden">
+                      <div className="bg-[#048187] text-white px-5 py-3 flex items-center justify-between gap-3">
+                        <h3 className="font-black">{grupo.nucleo}</h3>
+                        <span className="bg-white/15 px-3 py-1 rounded-full text-xs font-black">{(grupo.estruturas || []).length} participante(s)</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[1260px] text-sm">
+                          <thead className="bg-[#f7fafb] text-[10px] uppercase text-gray-400 font-black">
+                            <tr>
+                              <th className="px-4 py-3 text-left">Estrutura</th>
+                              <th className="px-4 py-3 text-right">Ativos</th>
+                              <th className="px-4 py-3 text-right">Base Ativa Total</th>
+                              <th className="px-4 py-3 text-right">% Ativação</th>
+                              <th className="px-4 py-3 text-right">Meta</th>
+                              <th className="px-4 py-3 text-right">% da Meta</th>
+                              <th className="px-4 py-3 text-right">Ativação ideal</th>
+                              <th className="px-4 py-3 text-right">Saldo</th>
+                              <th className="px-4 py-3 text-center">Resultado</th>
+                              <th className="px-4 py-3 text-center">Consultores</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(grupo.estruturas || []).map((item) => {
+                              const expandida = Boolean(estruturasAcaoExpandidas[item.estrutura]);
+                              const statusMeta = statusMetaVisualAcao(item.status_meta);
+                              return (
+                                <React.Fragment key={`${grupo.nucleo}-${item.estrutura}`}>
+                                  <tr className="border-b border-gray-50 hover:bg-[#fbfefe]">
+                                    <td className="px-4 py-4">
+                                      <p className="font-black text-gray-700">{item.estrutura}</p>
+                                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                                        {item.tipo_participante !== 'estrutura' && (
+                                          <span className="text-[9px] uppercase font-black bg-purple-50 text-purple-700 px-2 py-1 rounded-full">{item.tipo_participante}</span>
+                                        )}
+                                        {Array.isArray(item.estruturas_vinculadas) && item.estruturas_vinculadas.length > 1 && (
+                                          <span className="text-[10px] text-gray-400 font-bold">{item.estruturas_vinculadas.length} estruturas vinculadas</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-4 text-right font-black text-[#048187]">{Number(item.ativos || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="px-4 py-4 text-right font-bold text-gray-700">{Number(item.base_ativa_total || 0).toLocaleString('pt-BR')}</td>
+                                    <td className="px-4 py-4 text-right font-black text-gray-700">{formatarNumeroBR(item.percentual_ativacao || 0, 1)}%</td>
+                                    <td className="px-4 py-4 text-right font-black text-[#7c1f31]">{formatarNumeroBR(item.meta || 0, 1)}%</td>
+                                    <td className="px-4 py-4 text-right font-black" style={{ color: corPorFaixaMeta(item.percentual_meta || 0) }}>{formatarNumeroBR(item.percentual_meta || 0, 1)}%</td>
+                                    <td className="px-4 py-4 text-right font-bold text-gray-700">{Number(item.ativacao_ideal || 0).toLocaleString('pt-BR')}</td>
+                                    <td className={`px-4 py-4 text-right font-black ${Number(item.saldo || 0) >= 0 ? 'text-green-700' : 'text-[#7c1f31]'}`}>{formatarSaldoAtividade(item.saldo)}</td>
+                                    <td className="px-4 py-4 text-center"><span className={`px-3 py-1.5 rounded-full text-xs font-black whitespace-nowrap ${statusMeta.classe}`}>{statusMeta.texto}</span></td>
+                                    <td className="px-4 py-4 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => alternarConsultoresEstruturaAcao(item.estrutura)}
+                                        className={`w-9 h-9 rounded-full inline-flex items-center justify-center font-black transition-colors ${expandida ? 'bg-[#7c1f31] text-white' : 'bg-[#048187] text-white hover:bg-[#036b70]'}`}
+                                        title={expandida ? 'Fechar desempenho dos consultores' : 'Ver desempenho por consultor'}
+                                      >
+                                        {expandida ? <X size={16} /> : <Plus size={17} />}
+                                      </button>
+                                    </td>
+                                  </tr>
+                                  {expandida && (
+                                    <tr className="bg-[#f8fcfc] border-b border-gray-100">
+                                      <td colSpan="10" className="px-5 py-5">
+                                        <div className="rounded-2xl border border-[#d9eff0] bg-white overflow-hidden">
+                                          <div className="px-4 py-3 bg-[#e6f6f7] flex items-center justify-between gap-3">
+                                            <div>
+                                              <h4 className="font-black text-[#048187]">Performance por consultor — {item.estrutura}</h4>
+                                              <p className="text-[11px] text-gray-500 font-bold mt-1">A base ativa é distribuída conforme os pesos de meta cadastrados dos consultores.</p>
+                                            </div>
+                                            <span className="text-xs font-black text-[#048187]">{(item.consultores || []).length} consultor(es)</span>
+                                          </div>
+                                          {(item.consultores || []).length ? (
+                                            <div className="overflow-x-auto">
+                                              <table className="w-full min-w-[1050px] text-xs">
+                                                <thead className="bg-[#f7fafb] text-[9px] uppercase text-gray-400 font-black">
+                                                  <tr>
+                                                    <th className="px-4 py-3 text-left">Consultor</th>
+                                                    <th className="px-4 py-3 text-right">Ativos</th>
+                                                    <th className="px-4 py-3 text-right">Base ativa</th>
+                                                    <th className="px-4 py-3 text-right">% Ativação</th>
+                                                    <th className="px-4 py-3 text-right">Meta</th>
+                                                    <th className="px-4 py-3 text-right">% da Meta</th>
+                                                    <th className="px-4 py-3 text-right">Ideal</th>
+                                                    <th className="px-4 py-3 text-right">Saldo</th>
+                                                    <th className="px-4 py-3 text-center">Resultado</th>
+                                                  </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {(item.consultores || []).map((consultor) => {
+                                                    const statusConsultor = statusMetaVisualAcao(consultor.status_meta);
+                                                    return (
+                                                      <tr key={`${item.estrutura}-${consultor.id_colaborador || consultor.consultor}`} className="border-b border-gray-50 last:border-0">
+                                                        <td className="px-4 py-3">
+                                                          <p className="font-black text-gray-700">{consultor.consultor}</p>
+                                                          <p className="text-[10px] text-gray-400 font-bold mt-1">ID {consultor.id_colaborador || '-'} • {(consultor.estruturas || []).join(', ')}</p>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-black text-[#048187]">{Number(consultor.ativos || 0).toLocaleString('pt-BR')}</td>
+                                                        <td className="px-4 py-3 text-right font-bold text-gray-600">{formatarNumeroBR(consultor.base_ativa_total || 0, 1)}</td>
+                                                        <td className="px-4 py-3 text-right font-black text-gray-700">{formatarNumeroBR(consultor.percentual_ativacao || 0, 1)}%</td>
+                                                        <td className="px-4 py-3 text-right font-black text-[#7c1f31]">{formatarNumeroBR(consultor.meta || 0, 1)}%</td>
+                                                        <td className="px-4 py-3 text-right font-black" style={{ color: corPorFaixaMeta(consultor.percentual_meta || 0) }}>{formatarNumeroBR(consultor.percentual_meta || 0, 1)}%</td>
+                                                        <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(consultor.ativacao_ideal || 0).toLocaleString('pt-BR')}</td>
+                                                        <td className={`px-4 py-3 text-right font-black ${Number(consultor.saldo || 0) >= 0 ? 'text-green-700' : 'text-[#7c1f31]'}`}>{formatarSaldoAtividade(consultor.saldo)}</td>
+                                                        <td className="px-4 py-3 text-center"><span className={`px-2.5 py-1 rounded-full text-[10px] font-black whitespace-nowrap ${statusConsultor.classe}`}>{statusConsultor.texto}</span></td>
+                                                      </tr>
+                                                    );
+                                                  })}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          ) : (
+                                            <div className="py-8 text-center text-gray-400 font-bold">Nenhum consultor ativo vinculado a esta estrutura.</div>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                  {!(acaoCicloDetalhe.nucleos || []).length && (
+                    <div className="py-10 text-center text-gray-400 font-bold">Nenhum resultado disponível para os participantes selecionados.</div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+                  <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                    <p className="text-[10px] uppercase font-black text-gray-400">Meta da ação</p>
+                    <p className="text-xl font-black text-[#7c1f31] mt-1">{formatarMoeda(acaoCicloDetalhe.meta_valor)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                    <p className="text-[10px] uppercase font-black text-gray-400">Realizado</p>
+                    <p className="text-xl font-black text-[#048187] mt-1">{formatarMoeda(acaoCicloDetalhe.realizado)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                    <p className="text-[10px] uppercase font-black text-gray-400">% Meta</p>
+                    <p className="text-xl font-black mt-1" style={{ color: corPorFaixaMeta(acaoCicloDetalhe.percentual_meta || 0) }}>{formatarNumeroBR(acaoCicloDetalhe.percentual_meta || 0, 1)}%</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 p-4 bg-[#fbfefe]">
+                    <p className="text-[10px] uppercase font-black text-gray-400">Falta para a meta</p>
+                    <p className="text-xl font-black text-[#7c1f31] mt-1">{formatarMoeda(acaoCicloDetalhe.falta_meta || 0)}</p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[900px] text-sm">
+                    <thead className="bg-[#f7fafb] text-[11px] uppercase text-gray-400 font-black">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Estrutura</th>
+                        <th className="px-4 py-3 text-left">Núcleo</th>
+                        <th className="px-4 py-3 text-right">Realizado</th>
+                        <th className="px-4 py-3 text-right">Pedidos</th>
+                        <th className="px-4 py-3 text-right">Revendedores</th>
+                        <th className="px-4 py-3 text-right">Participação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(acaoCicloDetalhe.estruturas_apuracao || []).map((item) => (
+                        <tr key={item.estrutura} className="border-b border-gray-50 last:border-0">
+                          <td className="px-4 py-3 font-black text-gray-700">{item.estrutura}</td>
+                          <td className="px-4 py-3 font-bold text-gray-500">{item.nucleo || '-'}</td>
+                          <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td>
+                          <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(item.pedidos || 0).toLocaleString('pt-BR')}</td>
+                          <td className="px-4 py-3 text-right font-bold text-gray-600">{Number(item.revendedores || 0).toLocaleString('pt-BR')}</td>
+                          <td className="px-4 py-3 text-right font-black text-gray-700">{formatarNumeroBR(item.participacao || 0, 1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {modalAcaoCicloAberto && (
+        {modalAcaoCicloAberto && podeGerenciarAcoesCiclo && (
           <div className="fixed inset-0 bg-black/40 z-[80] flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl max-h-[92vh] overflow-hidden flex flex-col">
+            <div className="bg-white w-full max-w-6xl rounded-2xl shadow-2xl max-h-[94vh] overflow-hidden flex flex-col">
               <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-black text-gray-700">{acaoCicloEditandoId ? 'Editar ação' : 'Criar ação'}</h2>
-                  <p className="text-sm text-gray-400 font-bold mt-1">Defina período, estruturas participantes e meta de faturamento.</p>
+                  <p className="text-sm text-gray-400 font-bold mt-1">Defina indicador, meta exclusiva da ação, data, hora e participantes.</p>
                 </div>
                 <button onClick={() => setModalAcaoCicloAberto(false)} className="bg-gray-100 text-gray-500 rounded-full p-2 hover:bg-gray-200"><X size={18} /></button>
               </div>
@@ -15814,18 +17206,20 @@ const enviarArquivo = async (tipo) => {
                     <input
                       value={acaoCicloForm.nome_acao}
                       onChange={(e) => setAcaoCicloForm({ ...acaoCicloForm, nome_acao: e.target.value })}
-                      placeholder="Ex.: Dia D, Virada de Ciclo, Arrancada N2"
+                      placeholder="Ex.: Corridinha da Atividade"
                       className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Ciclo automático</label>
-                    <div className={`w-full border rounded-lg px-4 py-3 text-sm font-black ${cicloInfoAcaoForm.ciclo ? 'border-[#d9eff0] bg-[#e6f6f7] text-[#048187]' : 'border-orange-100 bg-orange-50 text-orange-600'}`}>
-                      {cicloInfoAcaoForm.ciclo || 'Escolha o período'}
-                    </div>
-                    <p className="mt-1 text-[10px] font-bold text-gray-400 leading-tight">
-                      A data escolhida define o ciclo automaticamente.
-                    </p>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Indicador da ação</label>
+                    <select
+                      value={acaoCicloForm.tipo_indicador}
+                      onChange={(e) => setAcaoCicloForm({ ...acaoCicloForm, tipo_indicador: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                    >
+                      <option value="atividade">Atividade</option>
+                      <option value="faturamento">Faturamento</option>
+                    </select>
                   </div>
                   <div>
                     <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Status</label>
@@ -15849,6 +17243,15 @@ const enviarArquivo = async (tipo) => {
                     />
                   </div>
                   <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Hora início</label>
+                    <input
+                      type="time"
+                      value={acaoCicloForm.hora_inicio}
+                      onChange={(e) => setAcaoCicloForm({ ...acaoCicloForm, hora_inicio: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                    />
+                  </div>
+                  <div>
                     <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Data fim</label>
                     <input
                       type="date"
@@ -15858,18 +17261,37 @@ const enviarArquivo = async (tipo) => {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Valor da meta</label>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Hora fim</label>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={acaoCicloForm.meta_valor}
-                      onChange={(e) => setAcaoCicloForm({ ...acaoCicloForm, meta_valor: e.target.value })}
-                      placeholder="Ex.: 50000"
+                      type="time"
+                      value={acaoCicloForm.hora_fim}
+                      onChange={(e) => setAcaoCicloForm({ ...acaoCicloForm, hora_fim: e.target.value })}
                       className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
                     />
                   </div>
                   <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Ciclo automático</label>
+                    <div className={`w-full border rounded-lg px-4 py-3 text-sm font-black ${cicloInfoAcaoForm.ciclo ? 'border-[#d9eff0] bg-[#e6f6f7] text-[#048187]' : 'border-orange-100 bg-orange-50 text-orange-600'}`}>
+                      {cicloInfoAcaoForm.ciclo || 'Escolha o período'}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">{formEhAtividade ? 'Meta de atividade (%)' : 'Meta de faturamento (R$)'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={formEhAtividade ? '100' : undefined}
+                      step="0.01"
+                      value={formEhAtividade ? acaoCicloForm.meta_percentual : acaoCicloForm.meta_valor}
+                      onChange={(e) => setAcaoCicloForm({
+                        ...acaoCicloForm,
+                        [formEhAtividade ? 'meta_percentual' : 'meta_valor']: e.target.value
+                      })}
+                      placeholder={formEhAtividade ? 'Ex.: 47' : 'Ex.: 50000'}
+                      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
+                    />
+                  </div>
+                  <div className="xl:col-span-2">
                     <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Observação</label>
                     <input
                       value={acaoCicloForm.observacao}
@@ -15880,6 +17302,12 @@ const enviarArquivo = async (tipo) => {
                   </div>
                 </div>
 
+                <div className="rounded-2xl border px-4 py-3 text-sm font-bold bg-blue-50 border-blue-100 text-blue-700">
+                  {formEhAtividade
+                    ? 'A meta desta ação é independente. Ela não substitui nem altera a meta oficial de atividade cadastrada no ciclo.'
+                    : 'A meta desta ação é independente da meta oficial de faturamento do ciclo.'}
+                </div>
+
                 <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${cicloInfoAcaoForm.ciclo ? 'bg-[#f4fbfb] border-[#d9eff0] text-[#048187]' : 'bg-orange-50 border-orange-100 text-orange-600'}`}>
                   {cicloInfoAcaoForm.mensagem}
                 </div>
@@ -15887,44 +17315,54 @@ const enviarArquivo = async (tipo) => {
                 <div className="border border-gray-100 rounded-2xl p-4 bg-[#fbfefe]">
                   <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
                     <div>
-                      <h3 className="font-black text-gray-700">Estruturas participantes</h3>
-                      <p className="text-xs text-gray-400 font-bold">{acaoCicloForm.estruturas.length} selecionada(s)</p>
+                      <h3 className="font-black text-gray-700">Estruturas, equipes e gerentes participantes</h3>
+                      <p className="text-xs text-gray-400 font-bold">{acaoCicloForm.estruturas.length} selecionada(s). As equipes consolidadas usam todas as estruturas vinculadas.</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <input
                         value={buscaEstruturaAcao}
                         onChange={(e) => setBuscaEstruturaAcao(e.target.value)}
-                        placeholder="Buscar estrutura..."
+                        placeholder="Buscar participante ou núcleo..."
                         className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-[#048187]"
                       />
-                      <button type="button" onClick={() => selecionarTodasEstruturasAcao(estruturasDisponiveis)} className="bg-[#e6f6f7] text-[#048187] rounded-lg px-3 py-2.5 text-xs font-black">Selecionar todas</button>
+                      <button type="button" onClick={() => selecionarTodasEstruturasAcao(nomesParticipantesDisponiveis)} className="bg-[#e6f6f7] text-[#048187] rounded-lg px-3 py-2.5 text-xs font-black">Selecionar todas</button>
                       <button type="button" onClick={() => setAcaoCicloForm({ ...acaoCicloForm, estruturas: [] })} className="bg-red-50 text-red-600 rounded-lg px-3 py-2.5 text-xs font-black">Limpar</button>
                     </div>
                   </div>
 
-                  <div className="max-h-[300px] overflow-y-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-                    {estruturasFiltradas.map((estrutura) => {
-                      const marcada = acaoCicloForm.estruturas.includes(estrutura);
+                  {carregandoParticipantesAcao && (
+                    <div className="py-3 text-center text-[#048187] font-black text-sm">Carregando participantes...</div>
+                  )}
+
+                  <div className="max-h-[330px] overflow-y-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
+                    {participantesFiltrados.map((participante) => {
+                      const marcada = acaoCicloForm.estruturas.includes(participante.nome);
                       return (
                         <button
-                          key={estrutura}
+                          key={`${participante.nucleo}-${participante.nome}`}
                           type="button"
-                          onClick={() => alternarEstruturaAcao(estrutura)}
-                          className={`text-left rounded-xl border px-3 py-2.5 text-xs font-black transition-colors ${marcada ? 'bg-[#e6f6f7] border-[#5bb2b4] text-[#048187]' : 'bg-white border-gray-100 text-gray-600 hover:border-[#5bb2b4]'}`}
-                          title={estrutura}
+                          onClick={() => alternarEstruturaAcao(participante.nome)}
+                          className={`text-left rounded-xl border px-3 py-3 text-xs font-black transition-colors ${marcada ? 'bg-[#e6f6f7] border-[#5bb2b4] text-[#048187]' : 'bg-white border-gray-100 text-gray-600 hover:border-[#5bb2b4]'}`}
+                          title={participante.nome}
                         >
-                          <span className="inline-flex items-center gap-2 min-w-0">
-                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${marcada ? 'bg-[#048187] border-[#048187] text-white' : 'border-gray-300'}`}>
+                          <span className="flex items-start gap-2 min-w-0">
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5 ${marcada ? 'bg-[#048187] border-[#048187] text-white' : 'border-gray-300'}`}>
                               {marcada ? '✓' : ''}
                             </span>
-                            <span className="truncate">{estrutura}</span>
+                            <span className="min-w-0">
+                              <span className="block truncate">{participante.nome}</span>
+                              <span className="flex flex-wrap gap-1 mt-1">
+                                <span className="text-[9px] uppercase bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{participante.nucleo || 'SEM NÚCLEO'}</span>
+                                {participante.tipo_participante !== 'estrutura' && <span className="text-[9px] uppercase bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{participante.tipo_participante}</span>}
+                              </span>
+                            </span>
                           </span>
                         </button>
                       );
                     })}
-                    {!estruturasFiltradas.length && (
+                    {!participantesFiltrados.length && !carregandoParticipantesAcao && (
                       <div className="col-span-full py-8 text-center text-gray-400 font-bold">
-                        Nenhuma estrutura encontrada.
+                        Nenhuma estrutura, equipe ou gerente encontrada.
                       </div>
                     )}
                   </div>
@@ -16966,7 +18404,7 @@ const enviarArquivo = async (tipo) => {
 
     const CardLoja = ({ titulo, valor, meta, percentual, labelMeta, valorMeta, onDetalhes, isTendencia = false, tendenciaIcon: TIcon, tendenciaStatus }) => {
       const percentualNumero = Number(percentual || 0);
-      const percFix = Math.min(percentualNumero, 100);
+      const percFix = Math.max(0, Math.min(percentualNumero, 100));
       const corDesempenho = isTendencia
         ? (percentualNumero >= 100 ? '#16a34a' : '#ef4444')
         : (percentual !== undefined ? corPorFaixaMeta(percentualNumero) : '#048187');
@@ -16974,8 +18412,8 @@ const enviarArquivo = async (tipo) => {
       return (
         <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full min-w-0 transition-all hover:shadow-md">
           <div className="min-w-0">
-            <div className="flex items-center justify-between mb-0.5 min-w-0">
-              <h3 className="text-[10px] font-bold uppercase text-gray-500 truncate pr-1">{titulo}</h3>
+            <div className="flex items-center justify-between mb-0.5 min-w-0 gap-2">
+              <h3 className="text-[10px] font-bold uppercase text-gray-500 truncate pr-1 tracking-wide">{titulo}</h3>
               {onDetalhes && (
                 <button type="button" onClick={onDetalhes} className="text-[#048187] hover:text-[#036b70] shrink-0" title={`Ver detalhes de ${titulo}`}>
                   <Eye size={14} />
@@ -16987,13 +18425,15 @@ const enviarArquivo = async (tipo) => {
               {isTendencia && TIcon && <TIcon size={16} className="shrink-0" style={{ color: corDesempenho }} />}
             </div>
             {percentual !== undefined && (
-              <div className="mt-1">
+              <div className="mt-1.5">
                 {isTendencia ? (
                   <p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{tendenciaStatus}</p>
                 ) : (
-                  <p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span></p>
+                  <p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{formatarNumeroBR(percentualNumero || 0, 1)}% <span className="text-gray-400 font-medium">da meta</span></p>
                 )}
-                <div className="w-full bg-gray-100 h-1 rounded-full"><div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} /></div>
+                <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                  <div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} />
+                </div>
               </div>
             )}
           </div>
@@ -17004,6 +18444,9 @@ const enviarArquivo = async (tipo) => {
         </div>
       );
     };
+
+// LOJA_VISUAL_GRAFICO_V2_SEGURO
+// LOJA_HISTORICO_GRAFICO_UNIDADES_V3
 
     const TabelaUnidades = ({ lista = unidadesFiltradas }) => (
       <div className="overflow-x-auto">
@@ -17178,19 +18621,15 @@ const enviarArquivo = async (tipo) => {
       </div>
     );
 
+
     const BlocoTabelaLoja = ({ titulo, subtitulo, tipo, children }) => (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
         <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <h2 className="text-lg font-black text-gray-700">{titulo}</h2>
-            {subtitulo && <p className="text-xs text-gray-400 font-bold mt-1">{subtitulo}</p>}
+          <div className="flex-1 min-w-0 text-center">
+            <h2 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-1 leading-tight truncate">{titulo}</h2>
+            {subtitulo && <p className="text-[10px] text-gray-400 font-medium mt-1 leading-relaxed">{subtitulo}</p>}
           </div>
-          <button
-            type="button"
-            onClick={() => setTabelaLojaExpandida(tipo)}
-            className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] flex items-center justify-center shrink-0"
-            title="Expandir resultados"
-          >
+          <button type="button" onClick={() => setTabelaLojaExpandida(tipo)} className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] flex items-center justify-center shrink-0" title="Expandir resultados">
             <Maximize2 size={17} />
           </button>
         </div>
@@ -17198,38 +18637,220 @@ const enviarArquivo = async (tipo) => {
       </div>
     );
 
-
+    const normalizarSerieVendasLojaPorDia = (lista = []) => {
+      if (!Array.isArray(lista)) return [];
+      const parseData = (valor) => {
+        if (!valor) return null;
+        const texto = String(valor).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+          const [ano, mes, dia] = texto.split('-').map(Number);
+          return new Date(ano, mes - 1, dia);
+        }
+        const data = new Date(texto);
+        return Number.isNaN(data.getTime()) ? null : data;
+      };
+      return lista.map((item, indice) => {
+        const bruto = item || {};
+        const dataObj = parseData(bruto.data_referencia ?? bruto.data ?? bruto.dia ?? bruto.data_label);
+        const valor = Number(bruto.realizado ?? bruto.valor ?? bruto.receita ?? bruto.total ?? 0);
+        const labelCompleto = dataObj ? dataObj.toLocaleDateString('pt-BR') : String(bruto.data_label ?? bruto.data_referencia ?? bruto.data ?? bruto.dia ?? '-');
+        const labelCurto = dataObj ? dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : labelCompleto;
+        return { ...bruto, data: String(bruto.data_referencia ?? bruto.data ?? bruto.dia ?? indice), labelCompleto, labelCurto, valor };
+      }).sort((a,b) => String(a.data).localeCompare(String(b.data)));
+    };
 
     const LojaHeader = () => (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
-        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-black text-gray-700">Visão Geral LOJA</h1>
-            <p className="text-sm text-gray-400 font-bold mt-1">Acompanhamento por PDV e consultor.</p>
+      <div className="flex items-center justify-end">
+        {podeGerarRelatorioLoja && (
+          <button
+            type="button"
+            onClick={abrirModalRelatorioLoja}
+            disabled={carregandoLoja || !(dadosLoja?.unidades || []).length}
+            className="bg-[#712231] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#5d1c29] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+          >
+            <FileSpreadsheet size={14} />
+            Gerar relatório em imagem
+          </button>
+        )}
+      </div>
+    );
+
+    const serieVendasLojaPorDia = normalizarSerieVendasLojaPorDia(dadosLoja?.vendas_por_dia || []);
+    const totalSerieLoja = serieVendasLojaPorDia.reduce((acc, item) => acc + Number(item?.valor || 0), 0);
+    const mediaSerieLoja = serieVendasLojaPorDia.length ? totalSerieLoja / serieVendasLojaPorDia.length : 0;
+    const melhorDiaLoja = serieVendasLojaPorDia.reduce((melhor, item) => (!melhor || Number(item?.valor || 0) > Number(melhor?.valor || 0)) ? item : melhor, null);
+
+    const unidadesPercentualFaturamentoLoja = (dadosLoja?.unidades || [])
+      .map((item) => {
+        const meta = Number(item?.meta_faturamento || 0);
+        const realizado = Number(item?.realizado || 0);
+        const percentual = meta > 0 ? (realizado / meta) * 100 : 0;
+        const nome = String(item?.cidade || item?.nome_loja || item?.codigo_pdv || 'Unidade');
+        return {
+          codigo_pdv: item?.codigo_pdv || '',
+          nome,
+          nomeCurto: nome.length > 20 ? `${nome.slice(0, 18)}…` : nome,
+          meta,
+          realizado,
+          percentual,
+        };
+      })
+      .filter((item) => item.meta > 0 || item.realizado > 0)
+      .sort((a, b) => b.percentual - a.percentual)
+      .slice(0, 10);
+
+    // LOJA_VISUAL_GRAFICOS_V4_PADRAO_VD
+    const PainelHistoricoLoja = () => (
+      <div className="dash-dashboard-charts dash-loja-geral-charts grid grid-cols-1 lg:grid-cols-4 gap-4 xl:gap-6">
+        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+          <div className="mb-3 text-center">
+            <h2 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">
+              VENDAS POR DIA
+            </h2>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {podeGerarRelatorioLoja && (
-              <button
-                type="button"
-                onClick={abrirModalRelatorioLoja}
-                disabled={carregandoLoja || !(dadosLoja?.unidades || []).length}
-                className="bg-[#712231] text-white px-4 py-2 rounded-lg font-black hover:bg-[#5d1c29] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-              >
-                <FileSpreadsheet size={16} />
-                Gerar relatório em imagem
-              </button>
-            )}
+          <div className="h-[300px]">
+            {serieVendasLojaPorDia.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={serieVendasLojaPorDia}
+                  margin={{ top: 28, right: 14, left: 0, bottom: 0 }}
+                  barCategoryGap="28%"
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#e7ecef"
+                  />
 
-            <select
-              value={cicloSelecionadoLoja || cicloLoja || resumo.ciclo || ''}
-              onChange={(e) => selecionarCicloVisualizacao(e.target.value, 'LOJA')}
-              className="border border-gray-200 rounded-lg px-4 py-2 font-black text-gray-700 outline-none focus:border-[#048187] bg-white"
-            >
-              <option value="">Ciclo ativo</option>
-              {ciclos.map((c) => <option key={c.id || c.ciclo} value={c.ciclo}>{c.ciclo}</option>)}
-            </select>
-            <button onClick={() => carregarDadosLoja()} disabled={carregandoLoja} className="bg-[#048187] text-white px-4 py-2 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-60 inline-flex items-center gap-2"><RefreshCcw size={16} /> Atualizar</button>
+                  <XAxis
+                    dataKey="labelCurto"
+                    axisLine={{ stroke: '#94a3b8' }}
+                    tickLine={false}
+                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 400 }}
+                  />
+
+                  <YAxis
+                    axisLine={{ stroke: '#94a3b8' }}
+                    tickLine={false}
+                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 400 }}
+                    tickFormatter={formatarTickMoeda}
+                    width={54}
+                  />
+
+                  <Tooltip
+                    formatter={(value) => [formatarMoeda(value || 0), 'Faturamento']}
+                    labelFormatter={(_, payload) => payload?.[0]?.payload?.labelCompleto || '-'}
+                    cursor={{ fill: 'rgba(4, 129, 135, 0.06)' }}
+                    contentStyle={{
+                      borderRadius: 10,
+                      border: '1px solid #e5e7eb',
+                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+                      fontSize: 11,
+                    }}
+                  />
+
+                  <Bar
+                    dataKey="valor"
+                    fill="#048187"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={48}
+                  >
+                    <LabelList
+                      dataKey="valor"
+                      position="top"
+                      formatter={(value) => formatarTickMoeda(value).replace('k', 'K')}
+                      style={{ fontSize: 9, fill: '#048187', fontWeight: 800 }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-400 bg-[#fbfcfd] px-5 text-center">
+                Ainda não há dias retornados pelo histórico.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+          <div className="mb-3 text-center">
+            <h2 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">
+              % DE FATURAMENTO POR UNIDADE
+            </h2>
+          </div>
+
+          <div className="h-[300px]">
+            {unidadesPercentualFaturamentoLoja.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={unidadesPercentualFaturamentoLoja}
+                  layout="vertical"
+                  margin={{ top: 4, right: 48, left: 10, bottom: 4 }}
+                  barCategoryGap="26%"
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    horizontal={false}
+                    stroke="#e7ecef"
+                  />
+
+                  <XAxis
+                    type="number"
+                    domain={[0, 'auto']}
+                    axisLine={{ stroke: '#94a3b8' }}
+                    tickLine={false}
+                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 400 }}
+                    tickFormatter={(value) => `${formatarNumeroBR(value || 0, 0)}%`}
+                  />
+
+                  <YAxis
+                    type="category"
+                    dataKey="nomeCurto"
+                    width={112}
+                    axisLine={{ stroke: '#94a3b8' }}
+                    tickLine={false}
+                    tick={{ fontSize: 9, fill: '#475569', fontWeight: 400 }}
+                  />
+
+                  <Tooltip
+                    formatter={(value) => [
+                      `${formatarNumeroBR(value || 0, 1)}%`,
+                      '% da meta'
+                    ]}
+                    labelFormatter={(_, payload) => payload?.[0]?.payload?.nome || '-'}
+                    contentStyle={{
+                      borderRadius: 10,
+                      border: '1px solid #e5e7eb',
+                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+                      fontSize: 11,
+                    }}
+                  />
+
+                  <Bar
+                    dataKey="percentual"
+                    fill="#048187"
+                    radius={[0, 5, 5, 0]}
+                    barSize={24}
+                  >
+                    <LabelList
+                      dataKey="percentual"
+                      position="right"
+                      formatter={(value) => `${formatarNumeroBR(value || 0, 1)}%`}
+                      style={{
+                        fontSize: 9,
+                        fill: '#334155',
+                        fontWeight: 500,
+                      }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-400 bg-[#fbfcfd] px-4 text-center">
+                Cadastre as metas das unidades para acompanhar o percentual realizado.
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -17242,7 +18863,7 @@ const enviarArquivo = async (tipo) => {
       </>
     );
 
-    const ModuloUploadLoja = ({ titulo, descricao, tipo, endpoint, usaCiclo = false, substituir = false, dataReferenciaHoje = false, aceitar = '.csv,.xlsx,.xls', permiteSgi = false, tipoSgi = 'vendas' }) => (
+    const ModuloUploadLoja = ({ titulo, descricao, tipo, endpoint, usaCiclo = false, substituir = false, dataReferenciaHoje = false, dataReferenciaValor = '', onDataReferenciaChange = null, aceitar = '.csv,.xlsx,.xls', permiteSgi = false, tipoSgi = 'vendas' }) => (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
@@ -17267,7 +18888,7 @@ const enviarArquivo = async (tipo) => {
             <button
               type="button"
               disabled={carregandoLoja || !arquivosLojaUpload?.[tipo] || (usaCiclo && !cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA'))}
-              onClick={() => importarBaseLojaUpload(tipo, endpoint, titulo, { usaCiclo, substituir, dataReferenciaHoje })}
+              onClick={() => importarBaseLojaUpload(tipo, endpoint, titulo, { usaCiclo, substituir, dataReferenciaHoje, dataReferencia: dataReferenciaValor })}
               className="bg-[#048187] text-white px-5 py-3 rounded-lg font-black hover:bg-[#036b70] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Importar
@@ -17287,7 +18908,22 @@ const enviarArquivo = async (tipo) => {
           )}
 
           {usaCiclo && <p className="text-xs text-gray-400 font-bold mt-3">Ciclo usado no upload: {cicloUploadLoja || cicloAtualLoja || '-'}</p>}
-          {dataReferenciaHoje && <p className="text-xs text-gray-400 font-bold mt-2">Data de referência: {new Date().toLocaleDateString('pt-BR')}</p>}
+          {dataReferenciaHoje && (
+            <div className="mt-3 rounded-xl bg-[#f8fbfb] border border-gray-100 p-3">
+              <label className="block text-[10px] font-medium uppercase tracking-wide text-gray-400 mb-1.5">
+                Data das vendas que estão neste arquivo
+              </label>
+              <input
+                type="date"
+                value={dataReferenciaValor || ''}
+                onChange={(e) => onDataReferenciaChange?.(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 bg-white outline-none focus:border-[#048187]"
+              />
+              <p className="text-[10px] text-gray-400 mt-1.5 font-normal">
+                Se você publica hoje as vendas consolidadas de ontem, selecione a data de ontem.
+              </p>
+            </div>
+          )}
           {permiteSgi && <p className="text-[11px] text-gray-400 font-bold mt-2">{tipoSgi === 'skin' ? 'Baixa a base Skin/Botik na Extranet GI, envia ao banco, apaga o arquivo e fecha a aba.' : 'Baixa o acumulado do ciclo e a venda diária, envia ao banco, apaga os CSVs e fecha a aba do SGI.'}</p>}
         </div>
       </div>
@@ -17562,12 +19198,14 @@ const enviarArquivo = async (tipo) => {
 
               <ModuloUploadLoja
                 titulo="Venda diária / GMV"
-                descricao="Importe o relatório contendo somente as vendas do dia atual. Este arquivo alimenta o indicador Venda do Dia sem alterar o acumulado do ciclo."
+                descricao="Importe o relatório consolidado de um único dia. Selecione abaixo a data real das vendas do arquivo para formar corretamente o histórico diário."
                 tipo="vendas_diaria"
                 endpoint="/loja/upload-gerencial-diaria-sgi"
                 usaCiclo
                 substituir
                 dataReferenciaHoje
+                dataReferenciaValor={dataReferenciaVendaDiariaLoja}
+                onDataReferenciaChange={setDataReferenciaVendaDiariaLoja}
               />
 
               <ModuloUploadLoja
@@ -18015,7 +19653,7 @@ const enviarArquivo = async (tipo) => {
 
 
     return (
-      <div className="space-y-6 animate-fade-in">
+      <div className="dash-loja-area dash-dashboard-view space-y-6 animate-fade-in">
         <AvisosLoja />
 
         {!carregandoLoja && abaLoja === 'geral' && (
@@ -18184,7 +19822,7 @@ const enviarArquivo = async (tipo) => {
 
         {!carregandoLoja && abaLoja === 'geral' && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7 gap-4">
+            <div className="dash-dashboard-kpis dash-loja-geral-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-3">
               <CardLoja
                 titulo="Faturamento realizado"
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.faturamento_realizado)}
@@ -18286,10 +19924,12 @@ const enviarArquivo = async (tipo) => {
               <p className="text-xs text-gray-400 font-bold">
                 {temFiltroCardsLoja ? 'Cards calculados com os filtros aplicados.' : ''}
               </p>
-              <p className="text-xs text-gray-400 font-bold">Última atualização (Bases Loja): {formatarDataHoraLoja(resumoCardsLoja.ultima_atualizacao)}</p>
+              <p className="text-xs text-gray-400 font-normal">Última atualização (Bases Loja): {formatarDataHoraLoja(resumoCardsLoja.ultima_atualizacao)}</p>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <PainelHistoricoLoja />
+
+            <div className="dash-dashboard-secondary grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-6">
               <BlocoTabelaLoja titulo="Unidades" subtitulo="Resultado pelo PDV onde a venda aconteceu." tipo="unidades">
                 <TabelaUnidades lista={unidadesFiltradas.slice(0, 8)} />
               </BlocoTabelaLoja>
@@ -18298,7 +19938,7 @@ const enviarArquivo = async (tipo) => {
               </BlocoTabelaLoja>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="dash-dashboard-secondary grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-6">
               <BlocoTabelaLoja
                 titulo="Meta Mês x Serviço por PDV"
                 subtitulo={`Competência ${formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)} • Meta de 25 serviços para cada PDV participante.`}
@@ -18370,8 +20010,189 @@ const enviarArquivo = async (tipo) => {
     );
   };
 
+  const renderTelaPrimeiroPedidoCaptacao = () => {
+    const resumo = primeiroPedidoCaptacao?.resumo || {};
+    const estruturas = Array.isArray(primeiroPedidoCaptacao?.estruturas) ? primeiroPedidoCaptacao.estruturas : [];
+    const total = Number(primeiroPedidoCaptacao?.total_revendedores || 0);
+    const categorias = [
+      { chave: 'vd_presencial', titulo: 'VD+ Presencial', subtitulo: 'Modelo Comercial Presencial' },
+      { chave: 'vd_online', titulo: 'VD+ Online', subtitulo: 'Modelo Comercial Online' },
+      { chave: 'app', titulo: 'APP', subtitulo: 'APP Revendedor' },
+      { chave: 'vdi', titulo: 'VDI', subtitulo: 'Venda via VDI' },
+      { chave: 'omni', titulo: 'OMNI', subtitulo: 'Pedido Omnichannel' },
+      { chave: 'portal', titulo: 'Portal', subtitulo: 'Portal Revendedores' },
+    ];
+    const percentualCategoria = (valor) => total > 0 ? (Number(valor || 0) / total) * 100 : 0;
+
+    return (
+      <div className="space-y-5 pb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="space-y-2 min-w-0">
+            <FiltroRapidoNucleos
+              filtrosAtivos={filtrosAtivos}
+              onSelecionar={handleFiltroRapidoNucleo}
+              opcoesNucleos={opcoesFiltros.nucleos}
+            />
+            {filtrosAtivosResumo.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {filtrosAtivosResumo.map((filtro) => (
+                  <button
+                    key={`${filtro.categoria}-${filtro.valor}`}
+                    type="button"
+                    onClick={() => limparFiltroInterativo(filtro.categoria, filtro.valor)}
+                    className="bg-[#e6f6f7] text-[#048187] px-3 py-1.5 rounded-full text-[11px] font-black inline-flex items-center gap-2 hover:bg-[#d0f0f1]"
+                  >
+                    {filtro.label} <X size={12} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-5 py-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center">
+                <FileSpreadsheet size={22} />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-gray-700">Meio de Captação do 1º Pedido</h2>
+                <p className="text-sm text-gray-400 mt-1">Primeiro pedido válido de cada revendedor no ciclo {primeiroPedidoCaptacao?.ciclo || cicloSelecionadoVD || '-'}.</p>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => carregarPrimeiroPedidoCaptacao({
+              ...filtrosAtivos,
+              ciclo: primeiroPedidoCaptacao?.ciclo || cicloSelecionadoVD || filtrosAtivos?.ciclo || '',
+            }, true)}
+            disabled={primeiroPedidoCaptacao?.carregando}
+            className="inline-flex items-center justify-center gap-2 bg-[#048187] text-white px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-60"
+          >
+            <RefreshCcw size={16} className={primeiroPedidoCaptacao?.carregando ? 'animate-spin' : ''} />
+            Atualizar
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 min-h-[108px] flex flex-col justify-between">
+            <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Revendedores únicos</p>
+            <div>
+              <p className="text-2xl font-black text-[#048187]">{total.toLocaleString('pt-BR')}</p>
+              <p className="text-[11px] text-gray-400 mt-1">1º pedido válido do ciclo</p>
+            </div>
+          </div>
+          {categorias.map((categoria) => {
+            const valor = Number(resumo?.[categoria.chave] || 0);
+            return (
+              <div key={categoria.chave} className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 min-h-[108px] flex flex-col justify-between">
+                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">{categoria.titulo}</p>
+                <div>
+                  <div className="flex items-end justify-between gap-2">
+                    <p className="text-2xl font-black text-gray-700">{valor.toLocaleString('pt-BR')}</p>
+                    <span className="text-[11px] font-black text-[#048187]">{percentualCategoria(valor).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1 truncate" title={categoria.subtitulo}>{categoria.subtitulo}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {Number(resumo?.outros || 0) > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+            Existem {Number(resumo.outros).toLocaleString('pt-BR')} primeiro(s) pedido(s) com combinação de MeioCaptacao/ModeloComercial fora das categorias previstas.
+          </div>
+        )}
+
+        {primeiroPedidoCaptacao?.erro && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+            {primeiroPedidoCaptacao.erro}
+          </div>
+        )}
+
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h3 className="text-base font-black text-gray-700">Primeiro pedido por equipe</h3>
+            <p className="text-xs text-gray-400 mt-1">Considera somente Entregue, Transporte, Separação e Aprovado. Cada revendedor aparece uma única vez.</p>
+          </div>
+
+          {primeiroPedidoCaptacao?.carregando && !estruturas.length ? (
+            <div className="py-16 flex items-center justify-center gap-3 text-[#048187] font-bold">
+              <Loader2 size={20} className="animate-spin" /> Calculando primeiros pedidos...
+            </div>
+          ) : estruturas.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1040px] text-sm">
+                <thead className="bg-[#048187] text-white">
+                  <tr>
+                    <th className="px-5 py-3.5 text-left text-[11px] uppercase tracking-wide">Equipe</th>
+                    <th className="px-3 py-3.5 text-center text-[11px] uppercase tracking-wide">VD+ Presencial</th>
+                    <th className="px-3 py-3.5 text-center text-[11px] uppercase tracking-wide">VD+ Online</th>
+                    <th className="px-3 py-3.5 text-center text-[11px] uppercase tracking-wide">APP</th>
+                    <th className="px-3 py-3.5 text-center text-[11px] uppercase tracking-wide">VDI</th>
+                    <th className="px-3 py-3.5 text-center text-[11px] uppercase tracking-wide">OMNI</th>
+                    <th className="px-3 py-3.5 text-center text-[11px] uppercase tracking-wide">Portal</th>
+                    <th className="px-4 py-3.5 text-center text-[11px] uppercase tracking-wide">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {estruturas.map((item, indice) => (
+                    <tr key={`${item?.estrutura || item?.equipe || 'equipe'}-${indice}`} className="border-t border-gray-100 hover:bg-[#f5fbfb] transition-colors">
+                      <td className="px-5 py-4">
+                        <p className="font-black text-gray-700">{item?.equipe || item?.estrutura || '-'}</p>
+                        {item?.estrutura && item?.equipe !== item?.estrutura && <p className="text-[10px] text-gray-400 mt-0.5">{item.estrutura}</p>}
+                      </td>
+                      {['vd_presencial', 'vd_online', 'app', 'vdi', 'omni', 'portal'].map((chave) => {
+                        const valorCategoria = Number(item?.[chave] || 0);
+                        const totalEquipe = Number(item?.total || 0);
+                        const percentualEquipe = totalEquipe > 0 ? (valorCategoria / totalEquipe) * 100 : 0;
+                        return (
+                          <td key={chave} className="px-3 py-4 text-center">
+                            <span className="font-black text-gray-700">{valorCategoria.toLocaleString('pt-BR')}</span>
+                            <span className="ml-1.5 text-[10px] font-black text-[#048187]">{percentualEquipe.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
+                          </td>
+                        );
+                      })}
+                      <td className="px-4 py-4 text-center"><span className="inline-flex min-w-14 justify-center rounded-lg bg-[#e6f6f7] px-3 py-1.5 font-black text-[#048187]">{Number(item?.total || 0).toLocaleString('pt-BR')} · 100%</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                  <tr>
+                    <td className="px-5 py-4 font-black text-gray-700">TOTAL</td>
+                    {['vd_presencial', 'vd_online', 'app', 'vdi', 'omni', 'portal'].map((chave) => {
+                      const valorCategoria = Number(resumo?.[chave] || 0);
+                      const percentualTotal = total > 0 ? (valorCategoria / total) * 100 : 0;
+                      return (
+                        <td key={chave} className="px-3 py-4 text-center">
+                          <span className="font-black text-[#048187]">{valorCategoria.toLocaleString('pt-BR')}</span>
+                          <span className="ml-1.5 text-[10px] font-black text-gray-500">{percentualTotal.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
+                        </td>
+                      );
+                    })}
+                    <td className="px-4 py-4 text-center font-black text-[#048187]">{total.toLocaleString('pt-BR')} · 100%</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : (
+            <div className="py-16 text-center text-gray-400 font-semibold">Nenhum primeiro pedido válido encontrado para seu escopo neste ciclo.</div>
+          )}
+        </div>
+
+        <div className="bg-[#f8fbfb] border border-[#dceff0] rounded-xl px-4 py-3 text-xs text-gray-500">
+          <span className="font-black text-[#048187]">Regra:</span> {primeiroPedidoCaptacao?.regra || 'Cada revendedor conta uma única vez no ciclo, considerando o primeiro pedido comercial válido.'}
+        </div>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     if (telaAtual === 'AcompanhamentoVD') return renderTelaAcompanhamentoVD();
+    if (telaAtual === 'PrimeiroPedidoCaptacao') return renderTelaPrimeiroPedidoCaptacao();
     if (telaAtual === 'Dashboard') return renderTelaDashboard();
     if (telaAtual === 'Metas') return renderTelaMetas();
     if (telaAtual === 'N1') return <TelaGestaoNucleo nucleo="N1" />;
@@ -18380,6 +20201,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'Ranking') return renderTelaRanking();
     if (telaAtual === 'Comparativo') return renderTelaComparativo();
     if (telaAtual === 'Ações') return renderTelaAcoesCiclo();
+    if (telaAtual === 'Tutoriais') return renderTelaTutoriais();
     if (telaAtual === 'Histórico') return renderTelaHistorico();
     if (telaAtual === 'Revendedores') return renderTelaRevendedores();
     if (telaAtual === 'Base') return renderTelaBase();
@@ -18654,10 +20476,10 @@ const enviarArquivo = async (tipo) => {
 
   return (
     <>
-      <div className="h-[100dvh] bg-[#f7fafb] flex overflow-hidden">
-        <aside className={`${sidebarExpandida ? 'w-64' : 'w-20'} hidden md:flex bg-[#111827] text-white transition-all duration-300 flex-col relative shrink-0`}>
-          <button onClick={() => setSidebarExpandida(!sidebarExpandida)} className="absolute -right-3 top-9 bg-[#5bb2b4] rounded-full p-1 z-30"><ChevronLeft size={14} className={sidebarExpandida ? '' : 'rotate-180'} /></button>
-          <div className={`${sidebarExpandida ? 'justify-start gap-3 px-5' : 'justify-center px-3'} h-28 flex items-center border-b border-white/10`}>
+      <div className="dash-shell-refinado h-[100dvh] bg-[#f7fafb] flex overflow-hidden">
+        <aside className={`dash-sidebar-refinado ${sidebarExpandida ? 'w-64' : 'w-20'} hidden md:flex bg-[#111827] text-white transition-all duration-300 flex-col relative shrink-0`}>
+          <button onClick={() => setSidebarExpandida(!sidebarExpandida)} className="dash-sidebar-toggle absolute -right-3 top-9 bg-[#5bb2b4] rounded-full p-1 z-30"><ChevronLeft size={14} className={sidebarExpandida ? '' : 'rotate-180'} /></button>
+          <div className={`dash-sidebar-brand ${sidebarExpandida ? 'justify-start gap-3 px-5' : 'justify-center px-3'} h-28 flex items-center border-b border-white/10`}>
             <div className={`${sidebarExpandida ? 'w-14 h-14' : 'w-11 h-11'} rounded-2xl bg-white/5 flex items-center justify-center shrink-0 overflow-hidden`}>
               <img
                 src={logoEmpresa}
@@ -18673,7 +20495,7 @@ const enviarArquivo = async (tipo) => {
               </div>
             )}
           </div>
-          <nav className={`${sidebarExpandida ? 'p-4 space-y-2' : 'p-3 space-y-2'} flex-1 overflow-y-auto`}>
+          <nav className={`dash-sidebar-nav ${sidebarExpandida ? 'p-4 space-y-2' : 'p-3 space-y-2'} flex-1 overflow-y-auto`}>
             <div>
               <button
                 type="button"
@@ -18755,7 +20577,16 @@ const enviarArquivo = async (tipo) => {
             </div>
             )}
           </nav>
-          <div className={`${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} border-t border-white/10`}>
+          <div className={`dash-sidebar-footer ${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} border-t border-white/10`}>
+            <button
+              onClick={() => setTelaAtual('Tutoriais')}
+              title="Tutoriais e Dúvidas"
+              className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} relative flex items-center font-bold ${telaAtual === 'Tutoriais' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+            >
+              <BookOpen size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
+              {sidebarExpandida && <span>Tutoriais e Dúvidas</span>}
+              {tutoriaisNovos > 0 && <span className={`${sidebarExpandida ? 'ml-auto' : 'absolute -top-1 -right-1'} min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-black`}>{tutoriaisNovos > 99 ? '99+' : tutoriaisNovos}</span>}
+            </button>
             <button
               onClick={() => setTelaAtual('Solicitações')}
               title="Solicitações"
@@ -18764,15 +20595,7 @@ const enviarArquivo = async (tipo) => {
               <LifeBuoy size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
               {sidebarExpandida && <span>Solicitações</span>}
             </button>
-            <button
-              onClick={() => setTelaAtual('Perfil')}
-              title="Perfil"
-              className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'Perfil' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
-            >
-              <User size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-              {sidebarExpandida && <span>Perfil</span>}
-            </button>
-            {usuarioPodeAcessar('ADM') && (
+{usuarioPodeAcessar('ADM') && (
               <button
                 onClick={() => { setCanalAtual('VD'); setTelaAtual('ADM'); }}
                 title="Painel ADM"
@@ -18805,7 +20628,7 @@ const enviarArquivo = async (tipo) => {
 
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-white/10 z-40 px-2 py-2">
           <div className="flex items-center justify-around gap-1">
-            {[...itensMenuVD, ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []), { nome: 'Solicitações', icone: LifeBuoy }, { nome: 'ADM', icone: ShieldCheck }, { nome: 'Perfil', icone: User }].map((item) => {
+            {[...itensMenuVD, ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []), { nome: 'Solicitações', icone: LifeBuoy }, { nome: 'ADM', icone: ShieldCheck }].map((item) => {
               if (!usuarioPodeAcessar(item.nome)) return null;
               const Icone = item.icone; const ativo = telaAtual === item.nome;
               return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}>{item.nome === 'Loja' ? <IconeCanalLoja size={18} /> : <Icone size={18} />}<span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
@@ -18815,7 +20638,7 @@ const enviarArquivo = async (tipo) => {
 
         <div className={`fixed right-0 top-0 h-[100dvh] w-full sm:w-[28rem] bg-white shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${painelFiltrosAberto ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="p-5 border-b border-gray-100 bg-[#f7fafb] flex items-start justify-between shrink-0">
-            <div><h3 className="text-xl font-bold text-gray-700">Filtros</h3><p className="text-sm text-gray-400">{telaEhLoja(telaAtual) ? 'Refine os dados da LOJA.' : telaAtual === 'Revendedores' ? 'Refine somente a aba Revendedores.' : 'Refine os dados do dashboard.'}</p></div>
+            <div><h3 className="text-xl font-bold text-gray-700">Filtros</h3><p className="text-sm text-gray-400">{telaEhLoja(telaAtual) ? 'Refine os dados da LOJA.' : telaAtual === 'Revendedores' ? 'Refine os compradores do ciclo por núcleo, estrutura, consultor e canal.' : telaAtual === 'PrimeiroPedidoCaptacao' ? 'Refine o primeiro pedido por núcleo, estrutura, consultor, captação e período.' : 'Refine os dados do dashboard.'}</p></div>
             <button onClick={() => setPainelFiltrosAberto(false)} className="text-gray-400 hover:text-red-500 bg-white rounded-full p-2 shadow-sm"><X size={20} /></button>
           </div>
           {telaEhLoja(telaAtual) ? (
@@ -18879,15 +20702,16 @@ const enviarArquivo = async (tipo) => {
           ) : telaAtual === 'Revendedores' ? (
             <>
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                <GrupoFiltro cat="estruturas" tit="Estrutura" busca={buscaFiltrosRevendedores} setBusca={setBuscaFiltrosRevendedores} opc={obterOpcoesRevendedores(dadosRevendedores?.revendedores || [])} ativos={filtrosRevendedores} toggle={toggleFiltroRevendedoresArray} />
-                <GrupoFiltro cat="cidades" tit="Cidade" busca={buscaFiltrosRevendedores} setBusca={setBuscaFiltrosRevendedores} opc={obterOpcoesRevendedores(dadosRevendedores?.revendedores || [])} ativos={filtrosRevendedores} toggle={toggleFiltroRevendedoresArray} />
-                <GrupoFiltro cat="atividades" tit="Atividade" busca={buscaFiltrosRevendedores} setBusca={setBuscaFiltrosRevendedores} opc={obterOpcoesRevendedores(dadosRevendedores?.revendedores || [])} ativos={filtrosRevendedores} toggle={toggleFiltroRevendedoresArray} />
-                <GrupoFiltro cat="papeis" tit="Papel" busca={buscaFiltrosRevendedores} setBusca={setBuscaFiltrosRevendedores} opc={obterOpcoesRevendedores(dadosRevendedores?.revendedores || [])} ativos={filtrosRevendedores} toggle={toggleFiltroRevendedoresArray} />
-                <GrupoFiltro cat="inadimplentes" tit="Inadimplência" busca={buscaFiltrosRevendedores} setBusca={setBuscaFiltrosRevendedores} opc={obterOpcoesRevendedores(dadosRevendedores?.revendedores || [])} ativos={filtrosRevendedores} toggle={toggleFiltroRevendedoresArray} />
+                <GrupoFiltro cat="nucleos" tit="Núcleo (N1, N2 e N3)" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
+                <GrupoFiltro cat="estruturas" tit="Estrutura" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
+                <GrupoFiltro cat="consultores" tit="Consultor" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
+                <GrupoFiltro cat="meios_captacao" tit="Meio de Captação" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
+                <GrupoFiltro cat="modelos_comerciais" tit="Modelo de Venda" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
+                <GrupoFiltro cat="canais_venda" tit="Canal de Venda" busca={buscaFiltros} setBusca={setBuscaFiltros} opc={opcoesFiltros} ativos={filtrosAtivos} toggle={toggleFiltroArray} />
               </div>
               <div className="p-5 border-t border-gray-100 bg-white shrink-0 space-y-3">
-                <button onClick={() => setPainelFiltrosAberto(false)} className="w-full bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70]">Aplicar Filtros</button>
-                <button onClick={() => { limparFiltrosRevendedores(); setPainelFiltrosAberto(false); }} className="w-full border-2 border-red-500 text-red-500 font-bold py-2.5 rounded-lg hover:bg-red-50">Remover Todos</button>
+                <button onClick={handleAplicarFiltros} className="w-full bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70]">Aplicar Filtros</button>
+                <button onClick={handleRemoverFiltros} className="w-full border-2 border-red-500 text-red-500 font-bold py-2.5 rounded-lg hover:bg-red-50">Remover Todos</button>
               </div>
             </>
           ) : (
@@ -18919,9 +20743,9 @@ const enviarArquivo = async (tipo) => {
 
         {painelFiltrosAberto && (<div className="fixed inset-0 bg-black/20 z-40" onClick={() => setPainelFiltrosAberto(false)} />)}
 
-        <main className={`flex-1 overflow-y-auto relative transition-all duration-300 z-0 ${painelFiltrosAberto ? 'opacity-50' : 'opacity-100'}`}>
-          <div className="p-4 sm:p-6 xl:p-8 pb-24 md:pb-8">
-            <header className="mb-6 xl:mb-8 w-full bg-[#5bb2b4] min-h-12 rounded-full flex justify-between items-center px-4 sm:px-6 text-white shadow-sm gap-4">
+        <main className={`dash-main-refinado flex-1 overflow-y-auto relative transition-all duration-300 z-0 ${painelFiltrosAberto ? 'opacity-50' : 'opacity-100'}`}>
+          <div className="dash-content-refinado p-4 sm:p-6 xl:p-8 pb-24 md:pb-8">
+            <header className="dash-topbar-refinada mb-6 xl:mb-8 w-full bg-[#5bb2b4] min-h-12 rounded-full flex justify-between items-center px-4 sm:px-6 text-white shadow-sm gap-4">
               <div className="relative shrink-0">
                 <select
                   value={cicloTopoAtual || ''}
@@ -18952,7 +20776,7 @@ const enviarArquivo = async (tipo) => {
                   </button>
                 )}
 
-                {(telaAtual === 'Dashboard' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
+                {(telaAtual === 'Dashboard' || telaAtual === 'PrimeiroPedidoCaptacao' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
                   <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#4a9394] px-3 py-1.5 rounded-full font-medium">
                     <SlidersHorizontal size={18} /><span className="hidden sm:inline">Filtros</span>
                   </button>
@@ -19046,13 +20870,18 @@ const enviarArquivo = async (tipo) => {
                               key={item.id}
                               onClick={() => {
                                 if (!item.lida) {
-                                  marcarNotificacaoComoLida(item.id);
+                                  marcarNotificacaoComoLida(item);
                                 }
-                                if (String(item.entidade_tipo || '').toUpperCase() === 'SOLICITACAO') {
+                                const entidadeTipo = String(item.entidade_tipo || '').toUpperCase();
+                                if (entidadeTipo === 'SOLICITACAO') {
                                   const ticketId = Number(String(item.entidade_id || '').split('|')[0]);
                                   if (ticketId) sessionStorage.setItem('dashSbSolicitacaoAbrirId', String(ticketId));
                                   setPainelNotificacoesAberto(false);
                                   setTelaAtual('Solicitações');
+                                }
+                                if (entidadeTipo === 'ACAO_CICLO') {
+                                  setPainelNotificacoesAberto(false);
+                                  navegarParaTelaVD('Ações');
                                 }
                               }}
                               className={`w-full text-left px-4 py-4 border-b border-gray-50 hover:bg-[#f8fcfc] transition-colors ${
@@ -19100,7 +20929,19 @@ const enviarArquivo = async (tipo) => {
                                     </span>
                                   </div>
 
-                                  {String(item.entidade_tipo || '').toUpperCase() !== 'SOLICITACAO' && (
+                                  {String(item.entidade_tipo || '').toUpperCase() === 'ACAO_CICLO' ? (
+                                    <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] font-bold text-gray-400">
+                                      <span>Atividade {formatarNumeroBR(item.percentual || 0, 1)}%</span>
+                                      {Number(item.meta_percentual || 0) > 0 && (
+                                        <><span>•</span><span>Meta {formatarNumeroBR(item.meta_percentual || 0, 1)}%</span></>
+                                      )}
+                                      {Number(item.saldo || 0) < 0 && (
+                                        <><span>•</span><span>Faltam {formatarNumeroBR(Math.abs(Number(item.saldo || 0)), 0)}</span></>
+                                      )}
+                                      {item.estrutura && (<><span>•</span><span>{item.estrutura}</span></>)}
+                                      {item.ciclo && (<><span>•</span><span>Ciclo {item.ciclo}</span></>)}
+                                    </div>
+                                  ) : String(item.entidade_tipo || '').toUpperCase() !== 'SOLICITACAO' && (
                                     <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] font-bold text-gray-400">
                                       <span>{formatarNumeroBR(item.percentual || 0, 1)}%</span>
                                       <span>•</span>
@@ -19151,7 +20992,27 @@ const enviarArquivo = async (tipo) => {
                 </button>
               </div>
             </header>
-            {renderContent()}
+            <div
+              className={
+                telaEhLoja(telaAtual) || [
+                  'Dashboard',
+                  'AcompanhamentoVD',
+                  'PrimeiroPedidoCaptacao',
+                  'Metas',
+                  'Ranking',
+                  'Comparativo',
+                  'Ações',
+                  'Histórico',
+                  'Revendedores',
+                  'Cadastro',
+                  'Base',
+                ].includes(telaAtual)
+                  ? 'dash-visual-standard'
+                  : ''
+              }
+            >
+              {renderContent()}
+            </div>
           </div>
         </main>
       </div>
@@ -19169,11 +21030,15 @@ const enviarArquivo = async (tipo) => {
                 ? 'bg-[#e6f6f7] text-[#048187]'
                 : 'bg-orange-50 text-orange-600'
             }`}>
-              <Trophy size={21} />
+              {String(toastNotificacao.entidade_tipo || '').toUpperCase() === 'ACAO_CICLO'
+                ? <Sparkles size={21} />
+                : <Trophy size={21} />}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[9px] font-black uppercase text-gray-400">
-                Nova meta atingida — {toastNotificacao.area}
+                {String(toastNotificacao.entidade_tipo || '').toUpperCase() === 'ACAO_CICLO'
+                  ? `Atualização da ação — ${toastNotificacao.area}`
+                  : `Nova meta atingida — ${toastNotificacao.area}`}
               </p>
               <p className="font-black text-gray-700 mt-1">
                 {toastNotificacao.titulo}
@@ -21290,7 +23155,10 @@ const enviarArquivo = async (tipo) => {
                         perfil,
                         area_gestao: perfil === 'admin'
                           ? 'AMBOS'
-                          : usuarioEditando.area_gestao,
+                          : (usuarioEditando.area_gestao || 'VD'),
+                        estruturas_permitidas: perfil === 'admin'
+                          ? []
+                          : normalizarEstruturasPermitidasUsuario(usuarioEditando.estruturas_permitidas),
                       });
                     }}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
@@ -21310,10 +23178,15 @@ const enviarArquivo = async (tipo) => {
                       usuarioEditando.area_gestao,
                       usuarioEditando.perfil
                     )}
-                    onChange={(e) => setUsuarioEditando({
-                      ...usuarioEditando,
-                      area_gestao: e.target.value,
-                    })}
+                    onChange={(e) => {
+                      const area = e.target.value;
+                      setUsuarioEditando({
+                        ...usuarioEditando,
+                        area_gestao: area,
+                        estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuarioEditando.estruturas_permitidas)
+                          .filter((item) => area === 'AMBOS' || item.area === area),
+                      });
+                    }}
                     disabled={usuarioEditando.perfil === 'admin'}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
                   >
@@ -21343,8 +23216,18 @@ const enviarArquivo = async (tipo) => {
                 </div>
               </div>
 
-              <div className="rounded-xl bg-[#f7fafb] border border-gray-100 px-4 py-3 text-xs text-gray-500 font-semibold">
-                Gestor VD recebe alertas somente de VD. Gestor LOJA recebe alertas somente de LOJA. Admin recebe os dois.
+              {usuarioEditando.perfil !== 'admin' && (
+                <SeletorEscopoUsuario
+                  area={normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil)}
+                  opcoes={opcoesEscopoUsuarios}
+                  selecionadas={usuarioEditando.estruturas_permitidas}
+                  onChange={(estruturas_permitidas) => setUsuarioEditando({ ...usuarioEditando, estruturas_permitidas })}
+                  carregando={carregandoOpcoesEscopoUsuarios}
+                />
+              )}
+
+              <div className="rounded-xl bg-[#f7fafb] border border-gray-100 px-4 py-3 text-xs text-gray-500 font-normal">
+                Visualizador VD fica limitado às estruturas selecionadas. Visualizador LOJA fica limitado aos PDVs selecionados. Gestor continua respeitando a área e, quando houver estruturas vinculadas, também respeita esse escopo.
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
@@ -21366,6 +23249,8 @@ const enviarArquivo = async (tipo) => {
     </>
   );
 }
+
+
 
 
 
