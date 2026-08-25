@@ -5346,7 +5346,7 @@ export default function App() {
   });
   const [listaEstruturasConfig, setListaEstruturasConfig] = useState([]); const [carregandoEstruturasConfig, setCarregandoEstruturasConfig] = useState(false); const [buscaEstruturaConfig, setBuscaEstruturaConfig] = useState(''); const [estruturaConfigForm, setEstruturaConfigForm] = useState(estruturaConfigVazia); const [estruturaConfigEditando, setEstruturaConfigEditando] = useState(null); const [mensagemEstruturaConfig, setMensagemEstruturaConfig] = useState(''); const [erroEstruturaConfig, setErroEstruturaConfig] = useState('');
 
-  const [dadosRevendedores, setDadosRevendedores] = useState(null); const [carregandoRevendedores, setCarregandoRevendedores] = useState(false); const [erroRevendedores, setErroRevendedores] = useState(''); const [buscaRevendedores, setBuscaRevendedores] = useState(''); const [paginaRevendedores, setPaginaRevendedores] = useState(1);
+  const [dadosRevendedores, setDadosRevendedores] = useState(null); const [carregandoRevendedores, setCarregandoRevendedores] = useState(false); const [erroRevendedores, setErroRevendedores] = useState(''); const [buscaRevendedores, setBuscaRevendedores] = useState(''); const [paginaRevendedores, setPaginaRevendedores] = useState(1); const [filtroMakeRevendedores, setFiltroMakeRevendedores] = useState('TODOS'); const [filtroCabeloRevendedores, setFiltroCabeloRevendedores] = useState('TODOS'); const [filtroMultimarcasRevendedores, setFiltroMultimarcasRevendedores] = useState('TODOS');
   const [modalRelatorioRevendedoresAberto, setModalRelatorioRevendedoresAberto] = useState(false);
   const [modoRelatorioRevendedores, setModoRelatorioRevendedores] = useState('todas');
   const [estruturasRelatorioRevendedores, setEstruturasRelatorioRevendedores] = useState([]);
@@ -14506,16 +14506,43 @@ const enviarArquivo = async (tipo) => {
     const lista = Array.isArray(dadosRevendedores?.revendedores) ? dadosRevendedores.revendedores : [];
     const resumo = dadosRevendedores?.resumo || {};
     const termo = buscaRevendedores.toLowerCase().trim();
-    const listaFiltrada = !termo
-      ? lista
-      : lista.filter((item) => [
-          item.codigo,
-          item.revendedor,
-          item.meu_clube_boti,
-          item.estrutura,
-          item.nucleo,
-          item.telefone,
-        ].some((valor) => String(valor || '').toLowerCase().includes(termo)));
+    const indicadorAtivoRevendedor = (valor) => {
+      if (typeof valor === 'boolean') return valor;
+      if (typeof valor === 'number') return valor > 0;
+      const texto = String(valor ?? '').trim().toLowerCase();
+      return ['1', 'true', 'sim', 's', 'yes'].includes(texto);
+    };
+    const atendeFiltroIndicadorRevendedor = (valor, filtro) => {
+      if (filtro === 'TODOS') return true;
+      const ativo = indicadorAtivoRevendedor(valor);
+      return filtro === 'SIM' ? ativo : !ativo;
+    };
+    const listaFiltrada = lista.filter((item) => {
+      const correspondeBusca = !termo || [
+        item.codigo,
+        item.revendedor,
+        item.meu_clube_boti,
+        item.estrutura,
+        item.nucleo,
+        item.telefone,
+      ].some((valor) => String(valor || '').toLowerCase().includes(termo));
+
+      return correspondeBusca
+        && atendeFiltroIndicadorRevendedor(item.make, filtroMakeRevendedores)
+        && atendeFiltroIndicadorRevendedor(item.cabelo, filtroCabeloRevendedores)
+        && atendeFiltroIndicadorRevendedor(item.multimarcas, filtroMultimarcasRevendedores);
+    });
+    const filtrosIndicadoresAtivos = [
+      filtroMakeRevendedores !== 'TODOS',
+      filtroCabeloRevendedores !== 'TODOS',
+      filtroMultimarcasRevendedores !== 'TODOS',
+    ].some(Boolean);
+    const limparFiltrosIndicadoresRevendedores = () => {
+      setFiltroMakeRevendedores('TODOS');
+      setFiltroCabeloRevendedores('TODOS');
+      setFiltroMultimarcasRevendedores('TODOS');
+      setPaginaRevendedores(1);
+    };
 
     const porPagina = 100;
     const totalPaginas = Math.max(1, Math.ceil(listaFiltrada.length / porPagina));
@@ -14614,6 +14641,44 @@ const enviarArquivo = async (tipo) => {
                 </div>
               </div>
 
+              <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-[#fbfdfd]">
+                <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-gray-500">Filtrar por categoria comprada</p>
+                    <p className="text-xs text-gray-400 mt-1">Combine os filtros para localizar, por exemplo, revendedores que ainda não compraram MAKE.</p>
+                  </div>
+                  <div className="flex flex-wrap items-end gap-3">
+                    {[
+                      { label: 'MAKE', valor: filtroMakeRevendedores, setValor: setFiltroMakeRevendedores },
+                      { label: 'CABELO', valor: filtroCabeloRevendedores, setValor: setFiltroCabeloRevendedores },
+                      { label: 'MULTIMARCAS', valor: filtroMultimarcasRevendedores, setValor: setFiltroMultimarcasRevendedores },
+                    ].map((filtro) => (
+                      <label key={filtro.label} className="min-w-[145px]">
+                        <span className="block mb-1.5 text-[10px] font-black uppercase tracking-wide text-gray-400">{filtro.label}</span>
+                        <select
+                          value={filtro.valor}
+                          onChange={(e) => { filtro.setValor(e.target.value); setPaginaRevendedores(1); }}
+                          className={`w-full rounded-lg border px-3 py-2.5 text-sm font-black outline-none transition-colors ${filtro.valor !== 'TODOS' ? 'border-[#048187] bg-[#eef9fa] text-[#048187]' : 'border-gray-200 bg-white text-gray-600 focus:border-[#048187]'}`}
+                        >
+                          <option value="TODOS">TODOS</option>
+                          <option value="SIM">SIM</option>
+                          <option value="NAO">NÃO</option>
+                        </select>
+                      </label>
+                    ))}
+                    {filtrosIndicadoresAtivos && (
+                      <button
+                        type="button"
+                        onClick={limparFiltrosIndicadoresRevendedores}
+                        className="h-[42px] rounded-lg border border-gray-200 bg-white px-4 text-xs font-black text-gray-500 hover:border-[#7c1f31] hover:text-[#7c1f31]"
+                      >
+                        Limpar filtros
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1450px] text-sm">
                   <thead className="bg-[#048187] text-white">
@@ -14639,9 +14704,9 @@ const enviarArquivo = async (tipo) => {
                         <td className="px-4 py-3 text-gray-600">{item.estrutura || '-'}</td>
                         <td className="px-4 py-3 text-right font-black text-gray-700 whitespace-nowrap">{formatarMoeda(item.receita_ciclo || 0)}</td>
                         <td className="px-4 py-3 text-center font-black text-gray-700">{Number(item.numero_pedidos || 0).toLocaleString('pt-BR')}</td>
-                        <td className="px-4 py-3 text-center"><IndicadorSimNao ativo={Boolean(item.make)} /></td>
-                        <td className="px-4 py-3 text-center"><IndicadorSimNao ativo={Boolean(item.cabelo)} /></td>
-                        <td className="px-4 py-3 text-center"><IndicadorSimNao ativo={Boolean(item.multimarcas)} /></td>
+                        <td className="px-4 py-3 text-center"><IndicadorSimNao ativo={indicadorAtivoRevendedor(item.make)} /></td>
+                        <td className="px-4 py-3 text-center"><IndicadorSimNao ativo={indicadorAtivoRevendedor(item.cabelo)} /></td>
+                        <td className="px-4 py-3 text-center"><IndicadorSimNao ativo={indicadorAtivoRevendedor(item.multimarcas)} /></td>
                         <td className="px-4 py-3 text-gray-600 font-semibold whitespace-nowrap">{item.telefone || '-'}</td>
                       </tr>
                     ))}
