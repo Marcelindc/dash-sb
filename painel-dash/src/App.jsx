@@ -5252,9 +5252,17 @@ export default function App() {
   }, [usuarioLogado, canalAtual]);
 
   useEffect(() => {
-    if (!usuarioLogado) return;
-    carregarIdentidadesColaboradores();
-  }, [usuarioLogado]);
+    if (!usuarioLogado) return undefined;
+
+    // PERFORMANCE_LOGIN_V8: fotos/aliases nao sao necessarios para liberar os
+    // cards. Em login frio essa rota concorria com /dashboard/dados no mesmo
+    // backend/DB. Carregamos depois que a tela principal ja teve tempo de abrir.
+    const timerIdentidades = window.setTimeout(() => {
+      void carregarIdentidadesColaboradores();
+    }, 6000);
+
+    return () => window.clearTimeout(timerIdentidades);
+  }, [usuarioLogado?.id]);
 
   useEffect(() => {
     if (!usuarioLogado) return;
@@ -7455,7 +7463,7 @@ const mapearIdentidadesColaboradores = (lista = []) => {
     setErroCiclo('');
 
     try {
-      const resposta = await axios.get(`${API_URL}/ciclos`);
+      const resposta = await axios.get(`${API_URL}/ciclos`, { timeout: 15000 });
       let lista = Array.isArray(resposta.data?.ciclos)
         ? resposta.data.ciclos
         : [];
@@ -7629,11 +7637,16 @@ const mapearIdentidadesColaboradores = (lista = []) => {
   };
 
   useEffect(() => {
-    if (!usuarioLogado || !tokenAuth) return;
-    // No login novo, carregarCiclos(true) já terminou antes de liberar a tela.
-    // Em refresh/restauração de sessão, a lista ainda estará vazia e é carregada aqui.
-    if (Array.isArray(ciclos) && ciclos.length > 0) return;
-    carregarCiclos(true);
+    if (!usuarioLogado || !tokenAuth) return undefined;
+    if (Array.isArray(ciclos) && ciclos.length > 0) return undefined;
+
+    // PERFORMANCE_LOGIN_V8: o ciclo atual ja vem no login. O catalogo completo
+    // fica para depois da primeira carga dos cards.
+    const timerCiclos = window.setTimeout(() => {
+      void carregarCiclos(false);
+    }, 1800);
+
+    return () => window.clearTimeout(timerCiclos);
   }, [usuarioLogado?.id, tokenAuth]);
 
 
@@ -7841,10 +7854,17 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
 
 
   useEffect(() => {
-    if (!usuarioLogado || !tokenAuth) return;
+    if (!usuarioLogado || !tokenAuth) return undefined;
+
+    // O token precisa entrar no axios imediatamente. As permissoes do proprio
+    // usuario ja chegam em /auth/login; a leitura global e secundaria.
     aplicarTokenAxios(tokenAuth);
-    carregarPermissoesDoBanco();
-  }, [usuarioLogado, tokenAuth]);
+    const timerPermissoes = window.setTimeout(() => {
+      void carregarPermissoesDoBanco();
+    }, 3500);
+
+    return () => window.clearTimeout(timerPermissoes);
+  }, [usuarioLogado?.id, tokenAuth]);
 
 
   // CARREGAMENTO_DIRETO_V5_1
@@ -9937,17 +9957,18 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     e.preventDefault();
     setErroLogin('');
     setCarregandoLogin(true);
+
     try {
-      const resposta = await axios.post(`${API_URL}/auth/login`, { email: emailLogin, senha: senhaLogin });
+      // PERFORMANCE_LOGIN_V8: apenas a autenticacao bloqueia o botao Entrar.
+      const resposta = await axios.post(
+        `${API_URL}/auth/login`,
+        { email: emailLogin, senha: senhaLogin },
+        { timeout: 20000 },
+      );
       const usuario = resposta.data.usuario;
       const token = resposta.data.access_token;
       if (!token) throw new Error('Token não retornado pelo backend.');
 
-      // PERFORMANCE_V7 / LOGIN_ATOMICO_V1
-      // A sessão/token são persistidos primeiro para que os helpers de storage
-      // já usem a chave do usuário correto, mas o React só libera a tela do
-      // dashboard depois de resolver ciclo + permissões. Isso elimina o flash
-      // "SEM CICLO" e evita duas cargas pesadas concorrentes no primeiro login.
       aplicarTokenAxios(token);
       setTokenAuth(token);
       salvarSessaoAutenticada(usuario, token);
@@ -9967,6 +9988,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       const gerenteVDLogin = String(usuario?.perfil || '').toLowerCase() !== 'admin'
         && escoposLogin.some((item) => item.area === 'VD');
       const telaInicialLogin = gerenteVDLogin ? 'AcompanhamentoVD' : 'Dashboard';
+
       setAcompanhamentoVD({
         carregando: gerenteVDLogin,
         carregandoConsultores: gerenteVDLogin,
@@ -9983,22 +10005,11 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       gravarStorageUsuario(VISAO_METAS_STORAGE_KEY, 'estruturas');
       removerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
 
-      // As duas rotas são leves e independentes; rodam juntas sem disparar
-      // Dashboard/Metas antes da definição do ciclo.
-      const [, resultadoCiclos] = await Promise.allSettled([
-        carregarPermissoesDoBanco(),
-        carregarCiclos(true),
-      ]);
-
-      const infoCiclosLogin = resultadoCiclos.status === 'fulfilled'
-        ? (resultadoCiclos.value || {})
-        : {};
       const cicloLogin = String(
-        infoCiclosLogin?.cicloVD
-        || infoCiclosLogin?.cicloAtual
+        resposta.data?.ciclo_atual
         || lerStorageUsuario(CICLO_VD_STORAGE_KEY)
         || lerStorageUsuario(CICLO_ATUAL_CONHECIDO_STORAGE_KEY)
-        || cicloAtualPelaData()
+        || cicloSelecionadoVD
         || ''
       ).trim();
 
@@ -10007,6 +10018,8 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
         setCicloSelecionadoVD(cicloLogin);
         setFiltrosAtivos({ ...filtroVazio, ciclo: cicloLogin });
         axios.defaults.headers.common['X-Ciclo-VD'] = cicloLogin;
+        gravarStorageUsuario(CICLO_VD_STORAGE_KEY, cicloLogin);
+        gravarStorageUsuario(CICLO_ATUAL_CONHECIDO_STORAGE_KEY, cicloLogin);
       }
 
       setCanalAtual('VD');
@@ -10014,7 +10027,8 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       setVisaoMetas('estruturas');
       setEstruturaSelecionada('');
 
-      // Só agora a aplicação autenticada é renderizada.
+      // Libera a interface imediatamente. O efeito principal recebe usuario +
+      // ciclo e dispara /dashboard/dados sem esperar chamadas secundarias.
       setUsuarioLogado(usuario);
     } catch (erro) {
       setErroLogin(erro.response?.data?.detail || erro?.message || 'Erro ao realizar login.');
@@ -10022,6 +10036,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       setCarregandoLogin(false);
     }
   };
+
 
   const abrirModalRecuperacaoSenha = () => {
     setErroLogin('');
@@ -20999,7 +21014,10 @@ const enviarArquivo = async (tipo) => {
                   className="appearance-none bg-white text-[#048187] font-extrabold text-xs sm:text-sm pl-4 pr-9 py-1.5 rounded-full uppercase tracking-wide whitespace-nowrap outline-none cursor-pointer"
                   title="Selecionar ciclo para consulta"
                 >
-                  {!ciclos.length && <option value="">SEM CICLO</option>}
+                  {!ciclos.length && cicloTopoAtual && (
+                    <option value={cicloTopoAtual}>{`CICLO ${cicloTopoAtual} • ATUAL`}</option>
+                  )}
+                  {!ciclos.length && !cicloTopoAtual && <option value="">CARREGANDO CICLO...</option>}
                   {ciclos.map((item) => (
                     <option key={item.id || item.ciclo} value={item.ciclo}>
                       {`CICLO ${item.ciclo}${item.eh_atual ? ' • ATUAL' : ''}${obterStatusCicloArea(item.ciclo, telaEhLoja(telaAtual) ? 'LOJA' : 'VD') === 'fechado' ? ' • FECHADO' : ''}`}
