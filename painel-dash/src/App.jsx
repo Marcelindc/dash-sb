@@ -5430,6 +5430,7 @@ export default function App() {
 
   const [dadosLoja, setDadosLoja] = useState(null);
   const [modalRelatorioLojaAberto, setModalRelatorioLojaAberto] = useState(false);
+  const [modalServicosLojaAberto, setModalServicosLojaAberto] = useState(false);
   const [modalVendaDiariaLoja, setModalVendaDiariaLoja] = useState({
     aberto: false,
     total: 0,
@@ -18687,16 +18688,18 @@ const enviarArquivo = async (tipo) => {
     );
 
 
-    const BlocoTabelaLoja = ({ titulo, subtitulo, tipo, children }) => (
+    const BlocoTabelaLoja = ({ titulo, subtitulo, tipo, children, expandivel = true }) => (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex-1 min-w-0 text-center">
-            <h2 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-1 leading-tight truncate">{titulo}</h2>
+            <h2 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-1 leading-tight">{titulo}</h2>
             {subtitulo && <p className="text-[10px] text-gray-400 font-medium mt-1 leading-relaxed">{subtitulo}</p>}
           </div>
-          <button type="button" onClick={() => setTabelaLojaExpandida(tipo)} className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] flex items-center justify-center shrink-0" title="Expandir resultados">
-            <Maximize2 size={17} />
-          </button>
+          {expandivel && (
+            <button type="button" onClick={() => setTabelaLojaExpandida(tipo)} className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] flex items-center justify-center shrink-0" title="Expandir resultados">
+              <Maximize2 size={17} />
+            </button>
+          )}
         </div>
         {children}
       </div>
@@ -18763,6 +18766,41 @@ const enviarArquivo = async (tipo) => {
       .filter((item) => item.meta > 0 || item.realizado > 0)
       .sort((a, b) => b.percentual - a.percentual)
       .slice(0, 10);
+
+    const servicosPorPdvGraficoLoja = servicosPdvFiltrados
+      .map((item) => {
+        const realizado = Number(item?.realizado_mes || 0);
+        const nome = String(item?.cidade || item?.nome_loja || item?.codigo_pdv || 'PDV');
+        return {
+          codigo_pdv: String(item?.codigo_pdv || ''),
+          nome,
+          nomeRotulo: nome.length > 15 ? `${nome.slice(0, 13)}…` : nome,
+          realizado,
+        };
+      })
+      .filter((item) => item.realizado > 0)
+      .sort((a, b) => b.realizado - a.realizado);
+
+    const totalServicosPorPdvGraficoLoja = servicosPorPdvGraficoLoja.reduce(
+      (acc, item) => acc + Number(item.realizado || 0),
+      0
+    );
+
+    const CORES_SERVICOS_PDV_LOJA = ['#048187', '#7c1f31', '#3f73e8', '#f2c84b', '#5db7b7', '#7b61b3'];
+
+    const renderRotuloServicosPdvLoja = ({ cx, cy, midAngle, outerRadius, name, percent }) => {
+      const RADIAN = Math.PI / 180;
+      const raio = Number(outerRadius || 0) + 25;
+      const x = Number(cx || 0) + raio * Math.cos(-Number(midAngle || 0) * RADIAN);
+      const y = Number(cy || 0) + raio * Math.sin(-Number(midAngle || 0) * RADIAN);
+      const anchor = x > Number(cx || 0) ? 'start' : 'end';
+      return (
+        <text x={x} y={y} fill="#475569" textAnchor={anchor} dominantBaseline="central">
+          <tspan x={x} dy="-0.25em" fontSize="8" fontWeight="700">{String(name || '').toUpperCase()}</tspan>
+          <tspan x={x} dy="1.25em" fontSize="8" fontWeight="700">{`${formatarNumeroBR(Number(percent || 0) * 100, 1)}%`}</tspan>
+        </text>
+      );
+    };
 
     // LOJA_VISUAL_GRAFICOS_V4_PADRAO_VD
     const PainelHistoricoLoja = () => (
@@ -18838,7 +18876,7 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
 
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+        <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
           <div className="mb-3 text-center">
             <h2 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">
               % DE FATURAMENTO POR UNIDADE
@@ -18851,8 +18889,8 @@ const enviarArquivo = async (tipo) => {
                 <BarChart
                   data={unidadesPercentualFaturamentoLoja}
                   layout="vertical"
-                  margin={{ top: 4, right: 48, left: 10, bottom: 4 }}
-                  barCategoryGap="26%"
+                  margin={{ top: 4, right: 34, left: 0, bottom: 4 }}
+                  barCategoryGap="24%"
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -18872,7 +18910,7 @@ const enviarArquivo = async (tipo) => {
                   <YAxis
                     type="category"
                     dataKey="nomeCurto"
-                    width={112}
+                    width={82}
                     axisLine={{ stroke: '#94a3b8' }}
                     tickLine={false}
                     tick={{ fontSize: 9, fill: '#475569', fontWeight: 400 }}
@@ -18896,7 +18934,7 @@ const enviarArquivo = async (tipo) => {
                     dataKey="percentual"
                     fill="#048187"
                     radius={[0, 5, 5, 0]}
-                    barSize={24}
+                    barSize={20}
                   >
                     <LabelList
                       dataKey="percentual"
@@ -18914,6 +18952,65 @@ const enviarArquivo = async (tipo) => {
             ) : (
               <div className="h-full flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-400 bg-[#fbfcfd] px-4 text-center">
                 Cadastre as metas das unidades para acompanhar o percentual realizado.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
+          <div className="mb-3 text-center">
+            <h2 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-1 border-b border-gray-100 pb-2 leading-tight">
+              SERVIÇO POR PDV
+            </h2>
+            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">Participação no realizado mensal</p>
+          </div>
+
+          <div className="h-[300px]">
+            {servicosPorPdvGraficoLoja.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart margin={{ top: 18, right: 34, bottom: 18, left: 34 }}>
+                  <Pie
+                    data={servicosPorPdvGraficoLoja}
+                    dataKey="realizado"
+                    nameKey="nomeRotulo"
+                    cx="50%"
+                    cy="52%"
+                    innerRadius={58}
+                    outerRadius={82}
+                    paddingAngle={1}
+                    labelLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                    label={renderRotuloServicosPdvLoja}
+                  >
+                    {servicosPorPdvGraficoLoja.map((item, indice) => (
+                      <Cell
+                        key={`servico-pdv-${item.codigo_pdv}-${indice}`}
+                        fill={CORES_SERVICOS_PDV_LOJA[indice % CORES_SERVICOS_PDV_LOJA.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, _name, payload) => {
+                      const realizado = Number(value || 0);
+                      const percentual = totalServicosPorPdvGraficoLoja > 0
+                        ? (realizado / totalServicosPorPdvGraficoLoja) * 100
+                        : 0;
+                      return [
+                        `${formatarNumeroBR(realizado, 0)} serviços • ${formatarNumeroBR(percentual, 1)}%`,
+                        payload?.payload?.nome || 'PDV'
+                      ];
+                    }}
+                    contentStyle={{
+                      borderRadius: 10,
+                      border: '1px solid #e5e7eb',
+                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+                      fontSize: 11,
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-400 bg-[#fbfcfd] px-4 text-center">
+                Ainda não há serviços realizados por PDV nesta competência.
               </div>
             )}
           </div>
@@ -19971,17 +20068,7 @@ const enviarArquivo = async (tipo) => {
                 percentual={resumoCardsLoja.percentual_servicos || 0}
                 labelMeta="Meta mensal:"
                 valorMeta={formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)}
-                onDetalhes={() => abrirDetalheCardLoja('Serviços mensais LOJA', [
-                  { label: 'Competência', valor: formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos) },
-                  { label: 'Realizado no mês', valor: formatarNumeroBR(resumoCardsLoja.servicos_realizado_mes || 0, 0) },
-                  { label: 'Meta mensal geral', valor: formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0) },
-                  { label: '% da meta mensal', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_servicos || 0, 1)}%` },
-                  { label: 'Faltam no mês', valor: Number(resumoCardsLoja.faltam_servicos_mes || 0) > 0 ? formatarNumeroBR(resumoCardsLoja.faltam_servicos_mes, 0) : 'Meta batida' },
-                  { label: 'Meta anual de referência', valor: formatarNumeroBR(resumoCardsLoja.meta_servicos_anual_referencia || 1200, 0) },
-                  { label: 'Cálculo da meta mensal', valor: `${formatarNumeroBR(resumoCardsLoja.meta_servicos_anual_referencia || 1200, 0)} ÷ 12 = ${formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)}` },
-                  { label: 'PDVs participantes', valor: (resumoCardsLoja.pdvs_meta_servicos || ['9071', '9151', '17322', '17324']).join(', ') },
-                  { label: 'Meta mensal por PDV', valor: formatarNumeroBR(resumoCardsLoja.meta_servicos_por_pdv || 25, 0) }
-                ], 'Serviços é um indicador mensal, sem vínculo com o ciclo. Meta mensal = 1.200 ÷ 12 = 100. Meta por PDV = 100 ÷ 4 = 25.')}
+                onDetalhes={() => setModalServicosLojaAberto(true)}
               />
             </div>
 
@@ -19994,34 +20081,128 @@ const enviarArquivo = async (tipo) => {
 
             <PainelHistoricoLoja />
 
-            <div className="dash-dashboard-secondary grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-6">
-              <BlocoTabelaLoja titulo="Unidades" subtitulo="Resultado pelo PDV onde a venda aconteceu." tipo="unidades">
-                <TabelaUnidades lista={unidadesFiltradas.slice(0, 8)} />
-              </BlocoTabelaLoja>
-              <BlocoTabelaLoja titulo="Consultores" subtitulo="Resultado por ID do consultor, independente do PDV." tipo="consultores">
-                <TabelaConsultoras lista={consultorasFiltradas.slice(0, 8)} />
-              </BlocoTabelaLoja>
-            </div>
-
-            <div className="dash-dashboard-secondary grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-6">
+            <div className="dash-dashboard-secondary space-y-4 xl:space-y-6">
               <BlocoTabelaLoja
-                titulo="Meta Mês x Serviço por PDV"
-                subtitulo={`Competência ${formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)} • Meta de 25 serviços para cada PDV participante.`}
-                tipo="servicos_pdv"
+                titulo="METAS X UNIDADES"
+                subtitulo="Resultado pelo PDV onde a venda aconteceu."
+                tipo="unidades"
+                expandivel={false}
               >
-                <TabelaServicosPdv lista={servicosPdvFiltrados.slice(0, 8)} />
+                <TabelaUnidades lista={unidadesFiltradas} />
               </BlocoTabelaLoja>
 
               <BlocoTabelaLoja
-                titulo="Quantidade de serviços realizados por Consultor"
-                subtitulo={`Ranking mensal por consultor • Competência ${formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)}.`}
-                tipo="servicos_consultores"
+                titulo="METAS X CONSULTORES"
+                subtitulo="Resultado por ID do consultor, independente do PDV."
+                tipo="consultores"
+                expandivel={false}
               >
-                <TabelaServicosConsultores lista={servicosConsultoresFiltrados.slice(0, 10)} />
+                <TabelaConsultoras lista={consultorasFiltradas} />
               </BlocoTabelaLoja>
             </div>
           </>
         )}
+
+        {modalServicosLojaAberto && (
+          <div className="fixed inset-0 z-[10020] bg-black/45 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[96vw] h-[90vh] overflow-hidden flex flex-col">
+              <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4 shrink-0">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black text-gray-700">Serviços mensais LOJA</h2>
+                  <p className="text-xs text-gray-400 font-bold mt-1">
+                    Competência {formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)} • detalhamento completo por PDV e por consultor.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalServicosLojaAberto(false)}
+                  className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center shrink-0"
+                  title="Fechar"
+                >
+                  <X size={19} />
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-6">
+                <section className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-4 sm:p-5">
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                    <div className="rounded-xl bg-white border border-gray-100 p-4">
+                      <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Competência</p>
+                      <p className="mt-1 text-lg font-black text-gray-700 capitalize">{formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)}</p>
+                    </div>
+                    <div className="rounded-xl bg-white border border-gray-100 p-4">
+                      <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Realizado no mês</p>
+                      <p className="mt-1 text-xl font-black text-[#048187]">{formatarNumeroBR(resumoCardsLoja.servicos_realizado_mes || 0, 0)}</p>
+                    </div>
+                    <div className="rounded-xl bg-white border border-gray-100 p-4">
+                      <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Meta mensal geral</p>
+                      <p className="mt-1 text-xl font-black text-gray-700">{formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)}</p>
+                    </div>
+                    <div className="rounded-xl bg-white border border-gray-100 p-4">
+                      <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">% da meta mensal</p>
+                      <p className="mt-1 text-xl font-black" style={{ color: corPorFaixaMeta(resumoCardsLoja.percentual_servicos || 0) }}>{formatarNumeroBR(resumoCardsLoja.percentual_servicos || 0, 1)}%</p>
+                    </div>
+                    <div className="rounded-xl bg-white border border-gray-100 p-4">
+                      <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Faltam no mês</p>
+                      <p className="mt-1 text-xl font-black text-gray-700">
+                        {Number(resumoCardsLoja.faltam_servicos_mes || 0) > 0
+                          ? formatarNumeroBR(resumoCardsLoja.faltam_servicos_mes, 0)
+                          : 'Meta batida'}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-white border border-gray-100 p-4">
+                      <p className="text-[10px] font-black uppercase tracking-wide text-gray-400">Meta mensal por PDV</p>
+                      <p className="mt-1 text-xl font-black text-gray-700">{formatarNumeroBR(resumoCardsLoja.meta_servicos_por_pdv || 25, 0)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 rounded-xl bg-[#e6f6f7] border border-[#ccecee] px-4 py-3">
+                    <p className="text-[10px] font-black uppercase text-[#048187] tracking-wide">Cálculo</p>
+                    <p className="mt-1 text-sm sm:text-base font-black text-[#048187]">
+                      Meta mensal = {formatarNumeroBR(resumoCardsLoja.meta_servicos_anual_referencia || 1200, 0)} ÷ 12 = {formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)}.
+                      {' '}Meta por PDV = {formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)} ÷ {(resumoCardsLoja.pdvs_meta_servicos || ['9071', '9151', '17322', '17324']).length || 4} = {formatarNumeroBR(resumoCardsLoja.meta_servicos_por_pdv || 25, 0)}.
+                    </p>
+                  </div>
+                </section>
+
+                <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <h3 className="text-base sm:text-lg font-black text-gray-700">Meta Mês x Serviço por PDV</h3>
+                    <p className="text-xs text-gray-400 font-bold mt-1">
+                      Competência {formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)} • meta mensal por PDV participante.
+                    </p>
+                  </div>
+                  <div className="p-2 sm:p-4">
+                    <TabelaServicosPdv lista={servicosPdvFiltrados} />
+                  </div>
+                </section>
+
+                <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <h3 className="text-base sm:text-lg font-black text-gray-700">Quantidade de serviços realizados por Consultor</h3>
+                    <p className="text-xs text-gray-400 font-bold mt-1">
+                      Ranking mensal por consultor • competência {formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)}.
+                    </p>
+                  </div>
+                  <div className="p-2 sm:p-4">
+                    <TabelaServicosConsultores lista={servicosConsultoresFiltrados} />
+                  </div>
+                </section>
+              </div>
+
+              <div className="px-4 sm:px-6 py-4 border-t border-gray-100 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModalServicosLojaAberto(false)}
+                  className="w-full bg-[#048187] text-white py-3 rounded-xl font-black hover:bg-[#036b70]"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {tabelaLojaExpandida && (
           <div className="fixed inset-0 z-[9999] bg-black/45 backdrop-blur-sm p-4 sm:p-6 flex items-center justify-center">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[96vw] h-[88vh] overflow-hidden flex flex-col">
@@ -20029,9 +20210,9 @@ const enviarArquivo = async (tipo) => {
                 <div>
                   <h2 className="text-xl font-black text-gray-700">{
                     tabelaLojaExpandida === 'unidades'
-                      ? 'Unidades - lista completa'
+                      ? 'METAS X UNIDADES - lista completa'
                       : tabelaLojaExpandida === 'consultores' || tabelaLojaExpandida === 'consultoras'
-                        ? 'Consultores - lista completa'
+                        ? 'METAS X CONSULTORES - lista completa'
                         : tabelaLojaExpandida === 'servicos_pdv'
                           ? 'Meta Mês x Serviço por PDV'
                           : 'Serviços realizados por Consultor'
