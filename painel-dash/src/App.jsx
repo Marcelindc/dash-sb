@@ -5964,7 +5964,7 @@ export default function App() {
     throw ultimoErro || new Error('Falha ao carregar dashboard.');
   };
 
-  const carregarDashboard = async (filtros, forcarAtualizacao = false, carregarMetasSecundarias = true) => {
+  const carregarDashboard = async (filtros, forcarAtualizacao = false, carregarMetasSecundarias = false) => {
     if (!usuarioLogado) return null;
 
     const cicloCandidatos = [
@@ -6023,7 +6023,10 @@ export default function App() {
       let respostaDados = null;
       let ultimoErro = null;
 
-      for (let tentativa = 1; tentativa <= 3; tentativa += 1) {
+      // PERFORMANCE V11: não repetimos automaticamente uma requisição pesada.
+      // Abort/timeout no navegador não encerra o cálculo síncrono já iniciado no
+      // servidor; retries antigos multiplicavam o trabalho e deixavam filtros mais lentos.
+      for (let tentativa = 1; tentativa <= 1; tentativa += 1) {
         try {
           respostaDados = await axios.post(
             `${API_URL}/dashboard/dados`,
@@ -6033,7 +6036,7 @@ export default function App() {
                 'X-Ciclo-VD': cicloSolicitado,
                 ...(forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {}),
               },
-              timeout: 45000,
+              timeout: 90000,
               signal: controller.signal,
             },
           );
@@ -6043,7 +6046,7 @@ export default function App() {
           const status = Number(erro?.response?.status || 0);
           const cancelado = erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError' || erro?.name === 'AbortError';
           const repetivel = !cancelado && (!status || status === 408 || status === 429 || status >= 500);
-          if (!repetivel || tentativa >= 3) throw erro;
+          if (!repetivel || tentativa >= 1) throw erro;
           await new Promise((resolve) => window.setTimeout(resolve, 600 * tentativa));
         }
       }
@@ -9661,7 +9664,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
 
     if (telaAtual === 'AcompanhamentoVD') return carregarAcompanhamentoGerenteVD(filtros, forcarAtualizacao);
     if (telaAtual === 'PrimeiroPedidoCaptacao') return carregarPrimeiroPedidoCaptacao(filtros, forcarAtualizacao);
-    if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao);
+    if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao, false);
     if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
     if (telaAtual === 'Ações') return carregarAcoesCiclo(filtros?.ciclo);
@@ -10277,11 +10280,12 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     setPainelFiltrosAberto(false);
     setFiltrosAtivos(filtrosLimpos);
     setBuscaFiltros(buscaFiltrosVazia); 
-    limparCachesDados();
+    // PERFORMANCE V11: remover filtros não altera o banco. Mantemos o cache da
+    // combinação TODOS para que voltar à visão geral seja imediato.
     ultimoCarregamentoTelaRef.current = '';
 
     setTimeout(() => {
-      carregarTelaAtual(filtrosLimpos, true);
+      carregarTelaAtual(filtrosLimpos, false);
     }, 0);
   };
 
@@ -10300,7 +10304,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     if (debounceFiltroRapidoRef.current) clearTimeout(debounceFiltroRapidoRef.current);
     debounceFiltroRapidoRef.current = setTimeout(() => {
       carregarTelaAtual(novosFiltros, false);
-    }, 120);
+    }, 320);
   };
 
 
