@@ -23,6 +23,8 @@ const CICLO_SELECTOR_REPAIR_KEY = 'dashSbCicloSelectorRepairV1';
 const APP_NAME = 'DASH COMERCIAL SB';
 const CACHE_SESSAO_DASH_KEY = 'dashSbCacheInteracoesV3MetaNucleo';
 const CACHE_SESSAO_TTL_MS = 15 * 60 * 1000;
+const CACHE_SESSAO_LOJA_KEY = 'dashSbCacheLojaPerformanceV9';
+const CACHE_SESSAO_LOJA_TTL_MS = 15 * 60 * 1000;
 
 
 const AUTH_USER_SESSION_KEY = 'dashSbUsuarioSessao';
@@ -91,6 +93,27 @@ const lerStorageUsuario = (chaveBase) => localStorage.getItem(chaveStorageUsuari
 const gravarStorageUsuario = (chaveBase, valor) => localStorage.setItem(chaveStorageUsuario(chaveBase), valor);
 const removerStorageUsuario = (chaveBase) => localStorage.removeItem(chaveStorageUsuario(chaveBase));
 const chaveCacheSessaoDashUsuario = () => chaveStorageUsuario(CACHE_SESSAO_DASH_KEY);
+const chaveCacheSessaoLojaUsuario = () => chaveStorageUsuario(CACHE_SESSAO_LOJA_KEY);
+
+const carregarCacheSessaoLoja = () => {
+  try {
+    const bruto = sessionStorage.getItem(chaveCacheSessaoLojaUsuario());
+    if (!bruto) return {};
+    const payload = JSON.parse(bruto);
+    if (!payload?.salvoEm || Date.now() - Number(payload.salvoEm) > CACHE_SESSAO_LOJA_TTL_MS) {
+      sessionStorage.removeItem(chaveCacheSessaoLojaUsuario());
+      return {};
+    }
+    return payload?.dados && typeof payload.dados === 'object' ? payload.dados : {};
+  } catch { return {}; }
+};
+
+const salvarCacheSessaoLoja = (cache) => {
+  try {
+    const entradas = Object.entries(cache || {}).slice(-8);
+    sessionStorage.setItem(chaveCacheSessaoLojaUsuario(), JSON.stringify({ salvoEm: Date.now(), dados: Object.fromEntries(entradas) }));
+  } catch { /* cache visual opcional */ }
+};
 
 const carregarCacheSessaoDash = () => {
   try {
@@ -5259,7 +5282,7 @@ export default function App() {
     // backend/DB. Carregamos depois que a tela principal ja teve tempo de abrir.
     const timerIdentidades = window.setTimeout(() => {
       void carregarIdentidadesColaboradores();
-    }, 6000);
+    }, 8000);
 
     return () => window.clearTimeout(timerIdentidades);
   }, [usuarioLogado?.id]);
@@ -5455,6 +5478,10 @@ export default function App() {
   const [erroLoja, setErroLoja] = useState('');
   const [mensagemLoja, setMensagemLoja] = useState('');
   const [cicloLoja, setCicloLoja] = useState('');
+  // PERFORMANCE_GLOBAL_V9: cache visual e cancelamento de respostas obsoletas da LOJA.
+  const cacheLojaRef = useRef(carregarCacheSessaoLoja());
+  const lojaRequestSeqRef = useRef(0);
+  const lojaAbortControllerRef = useRef(null);
 
   useEffect(() => {
     cicloVisualizacaoVDRef.current = cicloSelecionadoVD || '';
@@ -8710,57 +8737,89 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
 
   const carregarDadosLoja = async (
     cicloParam = '',
-    competenciaServicosParam = ''
+    competenciaServicosParam = '',
+    forcarAtualizacao = false
   ) => {
-    setCarregandoLoja(true);
+    const cicloConsulta = String(cicloParam || cicloLojaSelecionado() || '').trim();
+    const competenciaConsulta = String(competenciaServicosParam || competenciaServicosLoja || '').trim();
+    const usuarioChave = String(usuarioLogado?.id || usuarioLogado?.email || usuarioLogado?.nome || 'usuario').trim().toLowerCase();
+    const chaveCache = `${usuarioChave}|${cicloConsulta || 'sem-ciclo'}|${competenciaConsulta || 'competencia-atual'}`;
+    const cacheAtual = cacheLojaRef.current?.[chaveCache];
+    const cacheAindaValido = cacheAtual?.dados && Date.now() - Number(cacheAtual?.salvoEm || 0) < CACHE_SESSAO_LOJA_TTL_MS;
+
+    if (!forcarAtualizacao && cacheAindaValido) {
+      setDadosLoja(cacheAtual.dados);
+      setCarregandoLoja(false);
+    } else {
+      setCarregandoLoja(true);
+    }
     setErroLoja('');
 
+    const requestSeq = ++lojaRequestSeqRef.current;
+    try { lojaAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
+    const controller = new AbortController();
+    lojaAbortControllerRef.current = controller;
+
+    const paramsDashboard = {};
+    if (cicloConsulta) paramsDashboard.ciclo = cicloConsulta;
+    if (competenciaConsulta) paramsDashboard.competencia_servicos = competenciaConsulta;
+    const paramsHistorico = {};
+    if (cicloConsulta) paramsHistorico.ciclo = cicloConsulta;
+
     try {
-      const cicloConsulta = cicloParam || cicloLojaSelecionado();
-      const competenciaConsulta = competenciaServicosParam || competenciaServicosLoja;
+      // Cards/tabelas primeiro; o histórico diário passa a ser secundário.
+      const resDashboard = await axios.get(`${API_URL}/loja/dashboard`, {
+        params: paramsDashboard,
+        headers: forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {},
+        timeout: 45000,
+        signal: controller.signal,
+      });
+      if (requestSeq !== lojaRequestSeqRef.current) return null;
 
-      const paramsDashboard = {};
-      if (cicloConsulta) paramsDashboard.ciclo = cicloConsulta;
-      if (competenciaConsulta) paramsDashboard.competencia_servicos = competenciaConsulta;
-
-      const paramsHistorico = {};
-      if (cicloConsulta) paramsHistorico.ciclo = cicloConsulta;
-
-      const [resDashboard, resHistorico] = await Promise.allSettled([
-        axios.get(`${API_URL}/loja/dashboard`, { params: paramsDashboard }),
-        axios.get(`${API_URL}/loja/historico-diario`, { params: paramsHistorico }),
-      ]);
-
-      if (resDashboard.status !== 'fulfilled') {
-        throw resDashboard.reason;
-      }
-
-      const dataDashboard = resDashboard.value?.data || {};
-      const historico = resHistorico.status === 'fulfilled'
-        ? (resHistorico.value?.data?.vendas_por_dia || [])
-        : (dataDashboard?.vendas_por_dia || []);
-
-      const dadosComHistorico = {
+      const dataDashboard = resDashboard?.data || {};
+      const historicoAnterior = cacheAtual?.dados?.vendas_por_dia;
+      const dadosIniciais = normalizarDadosLojaMetaSkinPercentual({
         ...dataDashboard,
-        vendas_por_dia: historico,
-        diagnostico_historico_diario: resHistorico.status === 'fulfilled'
-          ? (resHistorico.value?.data?.diagnostico || null)
-          : null,
-      };
-
-      setDadosLoja(normalizarDadosLojaMetaSkinPercentual(dadosComHistorico));
-
-      if (dataDashboard?.resumo?.ciclo && !cicloLoja) {
-        setCicloLoja(dataDashboard.resumo.ciclo);
-      }
-
-      if (dataDashboard?.resumo?.competencia_servicos) {
-        setCompetenciaServicosLoja(dataDashboard.resumo.competencia_servicos);
-      }
-    } catch (erro) {
-      setErroLoja(erro.response?.data?.detail || 'Erro ao carregar dados da LOJA.');
-    } finally {
+        vendas_por_dia: Array.isArray(historicoAnterior) && historicoAnterior.length
+          ? historicoAnterior
+          : (dataDashboard?.vendas_por_dia || []),
+      });
+      setDadosLoja(dadosIniciais);
       setCarregandoLoja(false);
+      cacheLojaRef.current = { ...(cacheLojaRef.current || {}), [chaveCache]: { dados: dadosIniciais, salvoEm: Date.now() } };
+      salvarCacheSessaoLoja(cacheLojaRef.current);
+
+      if (dataDashboard?.resumo?.ciclo && !cicloLoja) setCicloLoja(dataDashboard.resumo.ciclo);
+      if (dataDashboard?.resumo?.competencia_servicos) setCompetenciaServicosLoja(dataDashboard.resumo.competencia_servicos);
+
+      void axios.get(`${API_URL}/loja/historico-diario`, {
+        params: paramsHistorico,
+        headers: forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {},
+        timeout: 30000,
+        signal: controller.signal,
+      }).then((resHistorico) => {
+        if (requestSeq !== lojaRequestSeqRef.current) return;
+        const dadosComHistorico = normalizarDadosLojaMetaSkinPercentual({
+          ...dataDashboard,
+          vendas_por_dia: resHistorico?.data?.vendas_por_dia || dataDashboard?.vendas_por_dia || [],
+          diagnostico_historico_diario: resHistorico?.data?.diagnostico || null,
+        });
+        setDadosLoja(dadosComHistorico);
+        cacheLojaRef.current = { ...(cacheLojaRef.current || {}), [chaveCache]: { dados: dadosComHistorico, salvoEm: Date.now() } };
+        salvarCacheSessaoLoja(cacheLojaRef.current);
+      }).catch((erroHistorico) => {
+        if (erroHistorico?.code !== 'ERR_CANCELED' && erroHistorico?.name !== 'CanceledError') {
+          console.warn('Histórico LOJA não bloqueou a tela principal:', erroHistorico);
+        }
+      });
+      return dadosIniciais;
+    } catch (erro) {
+      if (erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError') return null;
+      if (!cacheAindaValido) setErroLoja(erro.response?.data?.detail || 'Erro ao carregar dados da LOJA.');
+      else console.warn('Revalidação LOJA falhou; mantendo cache visual:', erro);
+      return cacheAtual?.dados || null;
+    } finally {
+      if (requestSeq === lojaRequestSeqRef.current) setCarregandoLoja(false);
     }
   };
 
@@ -9630,7 +9689,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
           true
         );
       } else if (telaEhLoja(telaAtual)) {
-        await carregarDadosLoja(cicloSelecionadoLoja || cicloLojaSelecionado());
+        await carregarDadosLoja(cicloSelecionadoLoja || cicloLojaSelecionado(), '', true);
       } else {
         await carregarTelaAtual(
           { ...filtrosAtivos, ciclo: cicloVisualizacaoVDRef.current || cicloSelecionadoVD || filtrosAtivos?.ciclo || '' },
@@ -9985,9 +10044,12 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       setDetalheMeta(null);
 
       const escoposLogin = normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas);
-      const gerenteVDLogin = String(usuario?.perfil || '').toLowerCase() !== 'admin'
-        && escoposLogin.some((item) => item.area === 'VD');
-      const telaInicialLogin = gerenteVDLogin ? 'AcompanhamentoVD' : 'Dashboard';
+      const perfilLogin = String(usuario?.perfil || '').toLowerCase();
+      const areaLogin = normalizarAreaGestao(usuario?.area_gestao, perfilLogin);
+      const gerenteVDLogin = perfilLogin !== 'admin' && escoposLogin.some((item) => item.area === 'VD');
+      const usuarioSomenteLojaLogin = perfilLogin !== 'admin' && areaLogin === 'LOJA' && !escoposLogin.some((item) => item.area === 'VD');
+      const telaInicialLogin = gerenteVDLogin ? 'AcompanhamentoVD' : (usuarioSomenteLojaLogin ? 'LojaVisaoGeral' : 'Dashboard');
+      const canalInicialLogin = usuarioSomenteLojaLogin ? 'LOJA' : 'VD';
 
       setAcompanhamentoVD({
         carregando: gerenteVDLogin,
@@ -10001,7 +10063,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       });
 
       gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, telaInicialLogin);
-      gravarStorageUsuario(CANAL_ATUAL_STORAGE_KEY, 'VD');
+      gravarStorageUsuario(CANAL_ATUAL_STORAGE_KEY, canalInicialLogin);
       gravarStorageUsuario(VISAO_METAS_STORAGE_KEY, 'estruturas');
       removerStorageUsuario(ESTRUTURA_META_STORAGE_KEY);
 
@@ -10016,13 +10078,17 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       if (cicloLogin) {
         cicloVisualizacaoVDRef.current = cicloLogin;
         setCicloSelecionadoVD(cicloLogin);
+        setCicloSelecionadoLoja(cicloLogin);
+        if (!cicloLoja) setCicloLoja(cicloLogin);
         setFiltrosAtivos({ ...filtroVazio, ciclo: cicloLogin });
         axios.defaults.headers.common['X-Ciclo-VD'] = cicloLogin;
+        axios.defaults.headers.common['X-Ciclo-LOJA'] = cicloLogin;
         gravarStorageUsuario(CICLO_VD_STORAGE_KEY, cicloLogin);
+        gravarStorageUsuario(CICLO_LOJA_STORAGE_KEY, cicloLogin);
         gravarStorageUsuario(CICLO_ATUAL_CONHECIDO_STORAGE_KEY, cicloLogin);
       }
 
-      setCanalAtual('VD');
+      setCanalAtual(canalInicialLogin);
       setTelaAtual(telaInicialLogin);
       setVisaoMetas('estruturas');
       setEstruturaSelecionada('');
