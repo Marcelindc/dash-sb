@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoBrancaLogin from './assets/logo-branca.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
@@ -683,15 +683,16 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
-  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil', 'Solicitações'],
-  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Histórico', 'Revendedores', 'Perfil', 'Solicitações']
+  admin: ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
+  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil', 'Solicitações'],
+  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Histórico', 'Revendedores', 'Perfil', 'Solicitações']
 };
 
 const obterNomeAba = (nome) => ({
   Dashboard: 'Visão Geral',
   AcompanhamentoVD: 'Acompanhamento',
   PrimeiroPedidoCaptacao: '1º Pedido',
+  VendasCidades: 'Vendas Por Cidades',
   Tutoriais: 'Tutoriais e Dúvidas',
   Metas: 'Metas Estruturas',
   N1: 'N1',
@@ -707,7 +708,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'];
+const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -733,6 +734,11 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   // Garante que abas importantes continuem aparecendo mesmo quando as permissões antigas já estavam salvas no banco.
   PERFIS_SISTEMA.forEach((perfil) => {
     if (!normalizadas[perfil].includes('Histórico')) normalizadas[perfil].push('Histórico');
+  });
+
+  // V12: Vendas por Cidades é uma visão operacional VD e entra para todos os perfis VD.
+  PERFIS_SISTEMA.forEach((perfil) => {
+    if (!normalizadas[perfil].includes('VendasCidades')) normalizadas[perfil].push('VendasCidades');
   });
 
 
@@ -4860,6 +4866,11 @@ export default function App() {
   const [gerandoRelatorioMetas, setGerandoRelatorioMetas] = useState(false);
   const [erroRelatorioMetas, setErroRelatorioMetas] = useState('');
   const [dadosComp, setDadosComp] = useState(null); const [loadComp, setLoadComp] = useState(false);
+  const [dadosCidades, setDadosCidades] = useState(null);
+  const [carregandoCidades, setCarregandoCidades] = useState(false);
+  const [erroCidades, setErroCidades] = useState('');
+  const [buscaCidade, setBuscaCidade] = useState('');
+  const [ordenacaoCidades, setOrdenacaoCidades] = useState('valor_desc');
 
   const [permissoesAtivas, setPermissoesAtivas] = useState(permissoesPadrao);
   const [modalPermissoesAberto, setModalPermissoesAberto] = useState(false);
@@ -5241,6 +5252,7 @@ export default function App() {
       'AcompanhamentoVD',
       ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
       ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
+      'VendasCidades',
       'Ações',
       'Tutoriais',
       'Solicitações',
@@ -5337,6 +5349,7 @@ export default function App() {
   const acompanhamentoAbortControllerRef = useRef(null);
   const opcoesAbortControllerRef = useRef(null);
   const comparativoAbortControllerRef = useRef(null);
+  const cidadesAbortControllerRef = useRef(null);
   const detalheMetaAbortControllerRef = useRef(null);
   const [modalEudoraAberto, setModalEudoraAberto] = useState(false);
   const [detalheEudora, setDetalheEudora] = useState(null);
@@ -5610,6 +5623,7 @@ export default function App() {
     { nome: 'Metas', icone: BarChart2 },
     { nome: 'Ranking', icone: Medal },
     { nome: 'Comparativo', icone: Scale },
+    { nome: 'VendasCidades', icone: MapPin },
     { nome: 'Ações', icone: Sparkles },
     { nome: 'Histórico', icone: CalendarDays },
     ...(podeAcessarRevendedoresVD ? [{ nome: 'Revendedores', icone: UserCircle }] : []),
@@ -5624,6 +5638,7 @@ export default function App() {
           ? [{ nome: 'PrimeiroPedidoCaptacao', icone: FileSpreadsheet }]
           : []),
         ...(podeAcessarRevendedoresVD ? [{ nome: 'Revendedores', icone: UserCircle }] : []),
+        { nome: 'VendasCidades', icone: MapPin },
         { nome: 'Ações', icone: Sparkles },
       ]
     : itensMenuTopo;
@@ -5804,7 +5819,7 @@ export default function App() {
   const gerarChaveFiltros = (filtros) => JSON.stringify({ ci: filtros?.ciclo || '', nu: [...(filtros?.nucleos || [])].sort(), un: [...(filtros?.unidades || [])].sort(), es: [...(filtros?.estruturas || [])].sort(), co: [...(filtros?.consultores || [])].sort(), si: [...(filtros?.situacoes || [])].sort(), mc: [...(filtros?.meios_captacao || [])].sort(), mo: [...(filtros?.modelos_comerciais || [])].sort(), cv: [...(filtros?.canais_venda || [])].sort(), di: filtros?.data_inicio || '', df: filtros?.data_fim || '' });
 
   const limparCachesDados = () => {
-    [dadosAbortControllerRef, metasAbortControllerRef, acompanhamentoAbortControllerRef, opcoesAbortControllerRef, comparativoAbortControllerRef, detalheMetaAbortControllerRef].forEach((ref) => {
+    [dadosAbortControllerRef, metasAbortControllerRef, acompanhamentoAbortControllerRef, opcoesAbortControllerRef, comparativoAbortControllerRef, cidadesAbortControllerRef, detalheMetaAbortControllerRef].forEach((ref) => {
       try { ref.current?.abort(); } catch { /* sem ação */ }
       ref.current = null;
     });
@@ -5818,6 +5833,8 @@ export default function App() {
     setCacheDashboard({});
     setCacheMetas(null);
     setCacheDetalheMetas({});
+    setDadosCidades(null);
+    setErroCidades('');
     setOpcoesFiltrosCarregadas(false);
     try { sessionStorage.removeItem(chaveCacheSessaoDashUsuario()); } catch { /* sem ação */ }
   };
@@ -6480,6 +6497,58 @@ export default function App() {
       if (erro?.code !== 'ERR_CANCELED' && erro?.name !== 'CanceledError') console.error('Erro Comparativo:', erro);
     } finally {
       if (comparativoAbortControllerRef.current === controller) setLoadComp(false);
+    }
+  };
+
+  const carregarVendasCidades = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
+    if (!usuarioLogado) return;
+    setCarregandoCidades(true);
+    setErroCidades('');
+    try { cidadesAbortControllerRef.current?.abort(); } catch { /* sem ação */ }
+    const controller = new AbortController();
+    cidadesAbortControllerRef.current = controller;
+    const ciclo = String(
+      filtros?.ciclo
+      || cicloVisualizacaoVDRef.current
+      || cicloSelecionadoVD
+      || obterCicloReferenciaAtual()
+      || ''
+    ).trim();
+    const payload = {
+      ...filtroVazio,
+      ...filtros,
+      ciclo,
+      nucleos: Array.isArray(filtros?.nucleos) ? filtros.nucleos : [],
+      unidades: Array.isArray(filtros?.unidades) ? filtros.unidades : [],
+      estruturas: Array.isArray(filtros?.estruturas) ? filtros.estruturas : [],
+      consultores: Array.isArray(filtros?.consultores) ? filtros.consultores : [],
+      situacoes: Array.isArray(filtros?.situacoes) ? filtros.situacoes : [],
+      meios_captacao: Array.isArray(filtros?.meios_captacao) ? filtros.meios_captacao : [],
+      modelos_comerciais: Array.isArray(filtros?.modelos_comerciais) ? filtros.modelos_comerciais : [],
+      canais_venda: Array.isArray(filtros?.canais_venda) ? filtros.canais_venda : [],
+    };
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/vendas-cidades/resumo`,
+        payload,
+        {
+          headers: {
+            'X-Ciclo-VD': ciclo,
+            ...(forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {}),
+          },
+          signal: controller.signal,
+          timeout: 45000,
+        }
+      );
+      if (String(cicloVisualizacaoVDRef.current || ciclo) !== ciclo) return;
+      setDadosCidades(data || null);
+    } catch (erro) {
+      if (erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError') return;
+      setErroCidades(erro?.response?.data?.detail || erro?.message || 'Não foi possível carregar as vendas por cidades.');
+    } finally {
+      if (cidadesAbortControllerRef.current === controller) {
+        setCarregandoCidades(false);
+      }
     }
   };
 
@@ -9667,6 +9736,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao, false);
     if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
+    if (telaAtual === 'VendasCidades') return carregarVendasCidades(filtros, forcarAtualizacao);
     if (telaAtual === 'Ações') return carregarAcoesCiclo(filtros?.ciclo);
     if (telaAtual === 'Tutoriais') return carregarTutoriais();
     if (telaAtual === 'Histórico') return carregarHistoricoCiclos(filtros?.ciclo);
@@ -10500,6 +10570,8 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       principal = carregarDashboardEMetas(filtrosAtualizacao, true);
     } else if (telaAtual === 'Comparativo') {
       principal = carregarComparativo(filtrosAtualizacao);
+    } else if (telaAtual === 'VendasCidades') {
+      principal = carregarVendasCidades(filtrosAtualizacao, true);
     } else if (telaAtual === 'Ações') {
       principal = carregarAcoesCiclo();
     } else {
@@ -14242,6 +14314,140 @@ const enviarArquivo = async (tipo) => {
     );
   };
 
+  const renderTelaVendasCidades = () => {
+    if (carregandoCidades && !dadosCidades) return <DashboardSkeletons />;
+
+    const resumo = dadosCidades?.resumo || {};
+    const listaBase = Array.isArray(dadosCidades?.cidades) ? dadosCidades.cidades : [];
+    const termo = String(buscaCidade || '').trim().toLocaleLowerCase('pt-BR');
+    const listaFiltrada = listaBase
+      .filter((item) => !termo || String(item?.cidade || '').toLocaleLowerCase('pt-BR').includes(termo))
+      .sort((a, b) => {
+        if (ordenacaoCidades === 'cidade_asc') return String(a?.cidade || '').localeCompare(String(b?.cidade || ''), 'pt-BR');
+        if (ordenacaoCidades === 'ticket_desc') return Number(b?.ticket_medio || 0) - Number(a?.ticket_medio || 0);
+        if (ordenacaoCidades === 'pedidos_desc') return Number(b?.total_pedidos || 0) - Number(a?.total_pedidos || 0);
+        if (ordenacaoCidades === 'revs_desc') return Number(b?.revendedores_ativados || 0) - Number(a?.revendedores_ativados || 0);
+        return Number(b?.valor_comprado || 0) - Number(a?.valor_comprado || 0);
+      });
+    const topCidades = [...listaBase]
+      .sort((a, b) => Number(b?.valor_comprado || 0) - Number(a?.valor_comprado || 0))
+      .slice(0, 12)
+      .reverse();
+
+    const cards = [
+      { titulo: 'FATURAMENTO', valor: formatarMoeda(resumo?.valor_comprado || 0), subtitulo: 'Valor comprado nas cidades' },
+      { titulo: 'CIDADES COM VENDA', valor: Number(resumo?.total_cidades || 0).toLocaleString('pt-BR'), subtitulo: 'Cidades no recorte atual' },
+      { titulo: 'TOTAL DE PEDIDOS', valor: Number(resumo?.total_pedidos || 0).toLocaleString('pt-BR'), subtitulo: 'Pedidos válidos únicos' },
+      { titulo: 'TICKET MÉDIO', valor: formatarMoeda(resumo?.ticket_medio || 0), subtitulo: 'Faturamento ÷ pedidos' },
+      { titulo: "REV'S. ATIVADOS", valor: Number(resumo?.revendedores_ativados || 0).toLocaleString('pt-BR'), subtitulo: 'Compradores únicos' },
+      { titulo: 'CIDADE LÍDER', valor: String(resumo?.cidade_lider || '-'), subtitulo: 'Maior faturamento' },
+    ];
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-7 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-full bg-[#048187] text-white flex items-center justify-center shrink-0"><MapPin size={24} /></div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-700">Vendas Por Cidades</h1>
+              <p className="text-sm text-gray-400">Quanto o VD vende em cada cidade da ConsultaPedidos</p>
+            </div>
+          </div>
+          <div className="shrink-0">
+            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
+          </div>
+        </div>
+
+        {erroCidades && (
+          <div className="bg-red-50 border border-red-100 text-red-600 rounded-xl px-4 py-3 font-semibold text-sm">{erroCidades}</div>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 xl:gap-4">
+          {cards.map((card) => (
+            <div key={card.titulo} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 min-w-0">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide">{card.titulo}</p>
+              <p className={`mt-2 font-black text-[#048187] ${card.titulo === 'CIDADE LÍDER' ? 'text-base truncate' : 'text-xl'}`} title={String(card.valor)}>{card.valor}</p>
+              <p className="mt-1 text-[10px] font-semibold text-gray-400 truncate">{card.subtitulo}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 xl:gap-6">
+          <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 min-w-0">
+            <div className="mb-3">
+              <h3 className="font-bold text-gray-700">Top cidades por faturamento</h3>
+              <p className="text-xs text-gray-400 mt-1">12 maiores cidades no filtro atual</p>
+            </div>
+            <div className="h-[390px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topCidades} layout="vertical" margin={{ top: 5, right: 24, left: 12, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef2f3" />
+                  <XAxis type="number" tickFormatter={formatarTickMoeda} tick={{ fontSize: 10, fill: '#64748b' }} />
+                  <YAxis type="category" dataKey="cidade" width={112} tick={{ fontSize: 10, fill: '#475569', fontWeight: 700 }} />
+                  <Tooltip formatter={(value) => formatarMoeda(value)} labelFormatter={(label) => `Cidade: ${label}`} />
+                  <Bar dataKey="valor_comprado" name="Valor comprado" fill="#048187" radius={[0, 5, 5, 0]} barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-w-0">
+            <div className="p-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-gray-700">Detalhamento por cidade</h3>
+                <p className="text-xs text-gray-400 mt-1">{listaFiltrada.length.toLocaleString('pt-BR')} cidade(s) exibida(s)</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                <div className="relative min-w-0 sm:w-64">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={buscaCidade} onChange={(e) => setBuscaCidade(e.target.value)} placeholder="Buscar cidade..." className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#048187]" />
+                </div>
+                <select value={ordenacaoCidades} onChange={(e) => setOrdenacaoCidades(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-600 outline-none focus:border-[#048187]">
+                  <option value="valor_desc">Maior valor comprado</option>
+                  <option value="ticket_desc">Maior ticket médio</option>
+                  <option value="pedidos_desc">Mais pedidos</option>
+                  <option value="revs_desc">Mais revendedores</option>
+                  <option value="cidade_asc">Cidade A–Z</option>
+                </select>
+              </div>
+            </div>
+            <div className="overflow-auto max-h-[470px]">
+              <table className="w-full min-w-[850px] text-xs">
+                <thead className="sticky top-0 z-10 bg-[#048187] text-white uppercase text-[10px]">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Cidade</th>
+                    <th className="px-4 py-3 text-right">Valor Comprado</th>
+                    <th className="px-4 py-3 text-right">Tck Médio</th>
+                    <th className="px-4 py-3 text-center">Total de Pedidos</th>
+                    <th className="px-4 py-3 text-center">Quant. Rev's. Ativados</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {listaFiltrada.map((item) => (
+                    <tr key={item.cidade} className="hover:bg-[#f5fbfb] transition-colors">
+                      <td className="px-4 py-3.5 font-black text-gray-700">{item.cidade}</td>
+                      <td className="px-4 py-3.5 text-right font-black text-[#048187]">{formatarMoeda(item.valor_comprado)}</td>
+                      <td className="px-4 py-3.5 text-right font-bold text-gray-600">{formatarMoeda(item.ticket_medio)}</td>
+                      <td className="px-4 py-3.5 text-center font-bold text-gray-600">{Number(item.total_pedidos || 0).toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3.5 text-center font-black text-gray-700">{Number(item.revendedores_ativados || 0).toLocaleString('pt-BR')}</td>
+                    </tr>
+                  ))}
+                  {!listaFiltrada.length && (
+                    <tr><td colSpan="5" className="px-4 py-12 text-center text-gray-400 font-semibold">Nenhuma cidade encontrada para os filtros selecionados.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-[#f8fbfb] border border-[#dceff0] rounded-xl px-4 py-3 text-xs text-gray-500">
+          <span className="font-black text-[#048187]">Regra:</span> {dadosCidades?.regra || 'Somente pedidos comerciais válidos do ciclo e filtros selecionados.'}
+        </div>
+      </div>
+    );
+  };
+
   const renderTelaComparativo = () => {
     if (loadComp && !dadosComp) return <DashboardSkeletons />;
 
@@ -14475,6 +14681,19 @@ const enviarArquivo = async (tipo) => {
               `${numeroSeguro(n2?.metas?.cabelo_total_geral).toLocaleString('pt-BR')} ativados`,
               n3?.metas?.percentual_cabelo_total_geral,
               `${numeroSeguro(n3?.metas?.cabelo_total_geral).toLocaleString('pt-BR')} ativados`,
+            )}
+          />
+
+          <CardComparativoNucleos
+            titulo="Penetração MULTIMARCAS"
+            isPerc
+            itens={criarItensComparativo(
+              n1?.metas?.percentual_multimarcas_total_geral,
+              `${numeroSeguro(n1?.metas?.multimarcas_total_geral).toLocaleString('pt-BR')} ativados`,
+              n2?.metas?.percentual_multimarcas_total_geral,
+              `${numeroSeguro(n2?.metas?.multimarcas_total_geral).toLocaleString('pt-BR')} ativados`,
+              n3?.metas?.percentual_multimarcas_total_geral,
+              `${numeroSeguro(n3?.metas?.multimarcas_total_geral).toLocaleString('pt-BR')} ativados`,
             )}
           />
 
@@ -20531,6 +20750,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'N3') return <TelaGestaoNucleo nucleo="N3" />;
     if (telaAtual === 'Ranking') return renderTelaRanking();
     if (telaAtual === 'Comparativo') return renderTelaComparativo();
+    if (telaAtual === 'VendasCidades') return renderTelaVendasCidades();
     if (telaAtual === 'Ações') return renderTelaAcoesCiclo();
     if (telaAtual === 'Tutoriais') return renderTelaTutoriais();
     if (telaAtual === 'Histórico') return renderTelaHistorico();
@@ -21110,7 +21330,7 @@ const enviarArquivo = async (tipo) => {
                   </button>
                 )}
 
-                {(telaAtual === 'Dashboard' || telaAtual === 'PrimeiroPedidoCaptacao' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
+                {(telaAtual === 'Dashboard' || telaAtual === 'PrimeiroPedidoCaptacao' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'VendasCidades' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
                   <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#4a9394] px-3 py-1.5 rounded-full font-medium">
                     <SlidersHorizontal size={18} /><span className="hidden sm:inline">Filtros</span>
                   </button>
@@ -21335,6 +21555,7 @@ const enviarArquivo = async (tipo) => {
                   'Metas',
                   'Ranking',
                   'Comparativo',
+                  'VendasCidades',
                   'Ações',
                   'Histórico',
                   'Revendedores',
