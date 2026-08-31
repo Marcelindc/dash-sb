@@ -14380,10 +14380,10 @@ const enviarArquivo = async (tipo) => {
             </div>
             <div className="h-[390px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={/* V12.2.1_ORDEM_VISUAL_TOP_CIDADES */ [...((topCidades) || [])].sort((a, b) => Number(a?.valor_comprado ?? a?.valorComprado ?? a?.valor ?? a?.value ?? 0) - Number(b?.valor_comprado ?? b?.valorComprado ?? b?.valor ?? b?.value ?? 0))} layout="vertical" margin={{ top: 5, right: 24, left: 12, bottom: 5 }}>
+                <BarChart data={/* V12.2.2_TOP_CIDADES_FINAL */ [...(((/* V12.2.1_ORDEM_VISUAL_TOP_CIDADES */ [...((topCidades) || [])].sort((a, b) => Number(a?.valor_comprado ?? a?.valorComprado ?? a?.valor ?? a?.value ?? 0) - Number(b?.valor_comprado ?? b?.valorComprado ?? b?.valor ?? b?.value ?? 0)))) || [])].sort((a, b) => Number(a?.valor_comprado ?? a?.valorComprado ?? a?.valor ?? a?.value ?? 0) - Number(b?.valor_comprado ?? b?.valorComprado ?? b?.valor ?? b?.value ?? 0))} layout="vertical" margin={{ top: 5, right: 24, left: 12, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef2f3" />
                   <XAxis type="number" tickFormatter={formatarTickMoeda} tick={{ fontSize: 10, fill: '#64748b' }} />
-                  <YAxis type="category" dataKey="cidade" width={112} tick={{ fontSize: 10, fill: '#475569', fontWeight: 700 }} />
+                  <YAxis type="category" dataKey="cidade" width={112} tick={{ fontSize: 10, fill: '#475569', fontWeight: 700 }} reversed={true} />
                   <Tooltip formatter={(value) => formatarMoeda(value)} labelFormatter={(label) => `Cidade: ${label}`} />
                   <Bar dataKey="valor_comprado" name="Valor comprado" fill="#048187" radius={[0, 5, 5, 0]} barSize={18} />
                 </BarChart>
