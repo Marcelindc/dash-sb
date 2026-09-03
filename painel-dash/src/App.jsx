@@ -686,7 +686,10 @@ const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_s
 const permissoesPadrao = {
   admin: ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
   gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Perfil', 'Solicitações'],
-  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Histórico', 'Revendedores', 'Rotas', 'Perfil', 'Solicitações']
+  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Histórico', 'Revendedores', 'Rotas', 'Perfil', 'Solicitações'],
+  // Consultor FV: Visão Geral individual; Revendedores e Rotas da estrutura. O backend
+  // reaplica os dois escopos e não confia somente na navegação do front.
+  consultor: ['Dashboard', 'Revendedores', 'Rotas', 'Tutoriais', 'Perfil', 'Solicitações']
 };
 
 const obterNomeAba = (nome) => ({
@@ -711,7 +714,7 @@ const obterNomeAba = (nome) => ({
 
 
 const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'];
-const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
+const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador', 'consultor'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
   const existeConfiguracaoSalva = permissoes && typeof permissoes === 'object' &&
@@ -721,7 +724,8 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
     return {
       admin: [...permissoesPadrao.admin],
       gestor: [...permissoesPadrao.gestor],
-      visualizador: [...permissoesPadrao.visualizador]
+      visualizador: [...permissoesPadrao.visualizador],
+      consultor: [...permissoesPadrao.consultor]
     };
   }
 
@@ -734,12 +738,12 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   });
 
   // Garante que abas importantes continuem aparecendo mesmo quando as permissões antigas já estavam salvas no banco.
-  PERFIS_SISTEMA.forEach((perfil) => {
+  PERFIS_SISTEMA.filter((perfil) => perfil !== 'consultor').forEach((perfil) => {
     if (!normalizadas[perfil].includes('Histórico')) normalizadas[perfil].push('Histórico');
   });
 
   // V12: Vendas por Cidades é uma visão operacional VD e entra para todos os perfis VD.
-  PERFIS_SISTEMA.forEach((perfil) => {
+  PERFIS_SISTEMA.filter((perfil) => perfil !== 'consultor').forEach((perfil) => {
     if (!normalizadas[perfil].includes('VendasCidades')) normalizadas[perfil].push('VendasCidades');
   });
 
@@ -782,11 +786,18 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
     }
   });
 
+  // O perfil Consultor FV é propositalmente fechado. Mesmo se existir uma
+  // configuração antiga no banco, ele não herda telas gerenciais.
+  normalizadas.consultor = [...permissoesPadrao.consultor];
+
   return normalizadas;
 };
 
 
 const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') => {
+  if (String(perfil || '').toLowerCase() === 'consultor') {
+    return [...permissoesPadrao.consultor];
+  }
   const listaBase = Array.isArray(abas) ? abas : (permissoesPadrao[perfil] || permissoesPadrao.visualizador || []);
   const migradas = listaBase.map((aba) => aba === 'Consultores' ? 'Cadastro' : (aba === 'Acompanhamento' || aba === 'Acompanhamento VD' ? 'AcompanhamentoVD' : aba));
   const normalizadas = Array.from(new Set(migradas.filter((aba) => ABAS_SISTEMA.includes(aba))));
@@ -5337,7 +5348,7 @@ export default function App() {
   }, [usuarioLogado, estruturaSelecionada]);
 
 
-  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'VD', estruturas_permitidas: [] }); const [opcoesEscopoUsuarios, setOpcoesEscopoUsuarios] = useState([]); const [carregandoOpcoesEscopoUsuarios, setCarregandoOpcoesEscopoUsuarios] = useState(false); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
+  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'VD', estruturas_permitidas: [], id_colaborador_vd: '' }); const [opcoesEscopoUsuarios, setOpcoesEscopoUsuarios] = useState([]); const [opcoesConsultoresUsuarios, setOpcoesConsultoresUsuarios] = useState([]); const [carregandoOpcoesEscopoUsuarios, setCarregandoOpcoesEscopoUsuarios] = useState(false); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
   const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' }); const [auditoriaDetalhe, setAuditoriaDetalhe] = useState(null);
   const [modalRelatorioAuditoriaAberto, setModalRelatorioAuditoriaAberto] = useState(false);
   const [gerandoRelatorioAuditoria, setGerandoRelatorioAuditoria] = useState(false);
@@ -5607,7 +5618,9 @@ export default function App() {
   const escoposGerenteLoja = estruturasPermitidasUsuarioLogado.filter((item) => item.area === 'LOJA');
   const perfilUsuarioAtual = String(usuarioLogado?.perfil || '').toLowerCase();
   const areaGestaoUsuarioAtual = String(usuarioLogado?.area_gestao || '').trim().toUpperCase();
+  const modoConsultorVD = perfilUsuarioAtual === 'consultor';
   const modoGerenteVD = perfilUsuarioAtual !== 'admin'
+    && !modoConsultorVD
     && escoposGerenteVD.length > 0;
 
   // REGRA OFICIAL DA ABA "1º PEDIDO":
@@ -5631,7 +5644,7 @@ export default function App() {
     );
 
   const podeAcessarRevendedoresVD = perfilUsuarioAtual === 'admin' || !usuarioSomenteLoja;
-  const podeAcessarRotasVD = perfilUsuarioAtual === 'admin' || !usuarioSomenteLoja;
+  const podeAcessarRotasVD = perfilUsuarioAtual === 'admin' || (!usuarioSomenteLoja && (!modoConsultorVD || escoposGerenteVD.length > 0));
   const podeExportarRelatorioRevendedores = perfilUsuarioAtual === 'admin'
     || (
       perfilUsuarioAtual === 'gestor'
@@ -5656,7 +5669,12 @@ export default function App() {
     { nome: 'Base', icone: Database }
   ];
 
-  const itensMenuVD = modoGerenteVD
+  const itensMenuVD = modoConsultorVD
+    ? [
+        { nome: 'Dashboard', icone: LayoutDashboard },
+        ...(podeAcessarRotasVD ? [{ nome: 'Rotas', icone: Truck }] : []),
+      ]
+    : modoGerenteVD
     ? [
         { nome: 'AcompanhamentoVD', icone: LayoutDashboard },
         ...(podeAcessarPrimeiroPedidoCaptacao
@@ -7575,9 +7593,15 @@ const mapearIdentidadesColaboradores = (lista = []) => {
         setOpcoesEscopoUsuarios(
           normalizarEstruturasPermitidasUsuario(resultadoEscopos.value.data?.todas || [])
         );
+        setOpcoesConsultoresUsuarios(
+          Array.isArray(resultadoEscopos.value.data?.consultores_vd)
+            ? resultadoEscopos.value.data.consultores_vd
+            : []
+        );
       } else {
         setOpcoesEscopoUsuarios([]);
-        setErroUsuarios('Usuários carregados, mas não foi possível carregar as estruturas disponíveis. Clique em Atualizar para tentar novamente.');
+        setOpcoesConsultoresUsuarios([]);
+        setErroUsuarios('Usuários carregados, mas não foi possível carregar as estruturas/consultores disponíveis. Clique em Atualizar para tentar novamente.');
       }
     } catch (erro) {
       setErroUsuarios(erro?.response?.data?.detail || 'Erro ao carregar usuários.');
@@ -10149,7 +10173,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       const escoposLogin = normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas);
       const perfilLogin = String(usuario?.perfil || '').toLowerCase();
       const areaLogin = normalizarAreaGestao(usuario?.area_gestao, perfilLogin);
-      const gerenteVDLogin = perfilLogin !== 'admin' && escoposLogin.some((item) => item.area === 'VD');
+      const gerenteVDLogin = perfilLogin !== 'admin' && perfilLogin !== 'consultor' && escoposLogin.some((item) => item.area === 'VD');
       const usuarioSomenteLojaLogin = perfilLogin !== 'admin' && areaLogin === 'LOJA' && !escoposLogin.some((item) => item.area === 'VD');
       const telaInicialLogin = gerenteVDLogin ? 'AcompanhamentoVD' : (usuarioSomenteLojaLogin ? 'LojaVisaoGeral' : 'Dashboard');
       const canalInicialLogin = usuarioSomenteLojaLogin ? 'LOJA' : 'VD';
@@ -10725,13 +10749,18 @@ const enviarArquivo = async (tipo) => {
       setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
       return;
     }
+    if (perfil === 'consultor' && (!String(novoUsuario.id_colaborador_vd || '').trim() || !estruturasNormalizadas.length)) {
+      setErroUsuarios('Selecione o consultor de Força de Vendas. A estrutura será vinculada automaticamente.');
+      return;
+    }
 
     try {
       await axios.post(`${API_URL}/auth/criar-usuario`, {
         ...novoUsuario,
         perfil,
-        area_gestao: area,
+        area_gestao: perfil === 'consultor' ? 'VD' : area,
         estruturas_permitidas: perfil === 'admin' ? [] : estruturasNormalizadas,
+        id_colaborador_vd: perfil === 'consultor' ? String(novoUsuario.id_colaborador_vd || '').trim() : '',
       });
 
       setMensagemUsuarios('Usuário criado com sucesso.');
@@ -10743,6 +10772,7 @@ const enviarArquivo = async (tipo) => {
         status_usuario: 'ativo',
         area_gestao: 'VD',
         estruturas_permitidas: [],
+        id_colaborador_vd: '',
       });
       await carregarUsuarios();
     } catch (erro) {
@@ -10773,6 +10803,10 @@ const enviarArquivo = async (tipo) => {
       setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
       return;
     }
+    if (perfil === 'consultor' && (!String(usuarioEditando?.id_colaborador_vd || '').trim() || !estruturasNormalizadas.length)) {
+      setErroUsuarios('Selecione o consultor de Força de Vendas. A estrutura será vinculada automaticamente.');
+      return;
+    }
 
     try {
       await axios.put(`${API_URL}/auth/atualizar-usuario`, {
@@ -10780,8 +10814,9 @@ const enviarArquivo = async (tipo) => {
         nome: usuarioEditando.nome,
         perfil,
         status_usuario: usuarioEditando.status_usuario,
-        area_gestao: area,
+        area_gestao: perfil === 'consultor' ? 'VD' : area,
         estruturas_permitidas: perfil === 'admin' ? [] : estruturasNormalizadas,
+        id_colaborador_vd: perfil === 'consultor' ? String(usuarioEditando?.id_colaborador_vd || '').trim() : '',
       });
       setModalEditarUsuarioAberto(false);
       setMensagemUsuarios('Usuário atualizado com sucesso.');
@@ -16441,10 +16476,11 @@ const enviarArquivo = async (tipo) => {
                 perfil,
                 area_gestao: perfil === 'admin'
                   ? 'AMBOS'
-                  : (novoUsuario.area_gestao || 'VD'),
-                estruturas_permitidas: perfil === 'admin'
+                  : (perfil === 'consultor' ? 'VD' : (novoUsuario.area_gestao || 'VD')),
+                estruturas_permitidas: perfil === 'admin' || perfil === 'consultor'
                   ? []
                   : normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas),
+                id_colaborador_vd: '',
               });
             }}
             className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187]"
@@ -16452,6 +16488,7 @@ const enviarArquivo = async (tipo) => {
             <option value="admin">Admin</option>
             <option value="gestor">Gestor</option>
             <option value="visualizador">Visualizador</option>
+            <option value="consultor">Consultor FV</option>
           </select>
           <select
             value={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
@@ -16464,7 +16501,7 @@ const enviarArquivo = async (tipo) => {
                   .filter((item) => area === 'AMBOS' || item.area === area),
               });
             }}
-            disabled={novoUsuario.perfil === 'admin'}
+            disabled={novoUsuario.perfil === 'admin' || novoUsuario.perfil === 'consultor'}
             className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
             title="Define quais notificações de meta este usuário receberá."
           >
@@ -16474,7 +16511,35 @@ const enviarArquivo = async (tipo) => {
               </option>
             ))}
           </select>
-          {novoUsuario.perfil !== 'admin' && (
+          {novoUsuario.perfil === 'consultor' ? (
+            <div className="md:col-span-2 xl:col-span-6 rounded-xl border border-[#d9eff0] bg-[#fbfefe] p-4">
+              <label className="text-xs font-black uppercase text-gray-500 block mb-2">Consultor de Força de Vendas</label>
+              <select
+                value={novoUsuario.id_colaborador_vd || ''}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const consultor = opcoesConsultoresUsuarios.find((item) => String(item.id_colaborador || '') === String(id));
+                  const estrutura = String(consultor?.estrutura || '').trim();
+                  setNovoUsuario({
+                    ...novoUsuario,
+                    id_colaborador_vd: id,
+                    area_gestao: 'VD',
+                    estruturas_permitidas: estrutura ? [{ area: 'VD', codigo: '', estrutura, vinculadas: [estrutura] }] : [],
+                  });
+                }}
+                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] bg-white"
+                required
+              >
+                <option value="">Selecione o consultor...</option>
+                {opcoesConsultoresUsuarios.map((item) => (
+                  <option key={`${item.id_colaborador}-${item.estrutura}`} value={item.id_colaborador}>
+                    {item.nome_exibicao || item.nome || item.id_colaborador} • ID {item.id_colaborador} • {item.estrutura}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs font-bold text-[#048187]">Visão Geral: somente os indicadores desse consultor. Rotas: todos os pedidos da estrutura vinculada.</p>
+            </div>
+          ) : novoUsuario.perfil !== 'admin' && (
             <div className="md:col-span-2 xl:col-span-6">
               <SeletorEscopoUsuario
                 area={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
@@ -23729,7 +23794,7 @@ const enviarArquivo = async (tipo) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {ABAS_SISTEMA.map((aba) => {
                   const perfil = usuarioPermissoesEditando?.perfil || 'visualizador';
-                  const travado = aba === 'Perfil' || (perfil === 'admin' && ['ADM', 'Configurações', 'Perfil'].includes(aba));
+                  const travado = perfil === 'consultor' || aba === 'Perfil' || (perfil === 'admin' && ['ADM', 'Configurações', 'Perfil'].includes(aba));
                   return (
                     <label key={aba} className={`flex items-center gap-3 p-3 rounded-lg border ${travado ? 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-70' : 'bg-white border-gray-200 cursor-pointer hover:border-[#048187]'}`}>
                       <input
@@ -23805,10 +23870,11 @@ const enviarArquivo = async (tipo) => {
                         perfil,
                         area_gestao: perfil === 'admin'
                           ? 'AMBOS'
-                          : (usuarioEditando.area_gestao || 'VD'),
-                        estruturas_permitidas: perfil === 'admin'
+                          : (perfil === 'consultor' ? 'VD' : (usuarioEditando.area_gestao || 'VD')),
+                        estruturas_permitidas: perfil === 'admin' || perfil === 'consultor'
                           ? []
                           : normalizarEstruturasPermitidasUsuario(usuarioEditando.estruturas_permitidas),
+                        id_colaborador_vd: perfil === 'consultor' ? (usuarioEditando.id_colaborador_vd || '') : '',
                       });
                     }}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187]"
@@ -23816,6 +23882,7 @@ const enviarArquivo = async (tipo) => {
                     <option value="admin">Admin</option>
                     <option value="gestor">Gestor</option>
                     <option value="visualizador">Visualizador</option>
+                    <option value="consultor">Consultor FV</option>
                   </select>
                 </div>
 
@@ -23837,7 +23904,7 @@ const enviarArquivo = async (tipo) => {
                           .filter((item) => area === 'AMBOS' || item.area === area),
                       });
                     }}
-                    disabled={usuarioEditando.perfil === 'admin'}
+                    disabled={usuarioEditando.perfil === 'admin' || usuarioEditando.perfil === 'consultor'}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
                   >
                     {AREAS_GESTAO.map((area) => (
@@ -23866,7 +23933,35 @@ const enviarArquivo = async (tipo) => {
                 </div>
               </div>
 
-              {usuarioEditando.perfil !== 'admin' && (
+              {usuarioEditando.perfil === 'consultor' ? (
+                <div className="rounded-xl border border-[#d9eff0] bg-[#fbfefe] p-4">
+                  <label className="text-xs font-black uppercase text-gray-500 block mb-2">Consultor de Força de Vendas</label>
+                  <select
+                    value={usuarioEditando.id_colaborador_vd || ''}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const consultor = opcoesConsultoresUsuarios.find((item) => String(item.id_colaborador || '') === String(id));
+                      const estrutura = String(consultor?.estrutura || '').trim();
+                      setUsuarioEditando({
+                        ...usuarioEditando,
+                        id_colaborador_vd: id,
+                        area_gestao: 'VD',
+                        estruturas_permitidas: estrutura ? [{ area: 'VD', codigo: '', estrutura, vinculadas: [estrutura] }] : [],
+                      });
+                    }}
+                    className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187] bg-white"
+                    required
+                  >
+                    <option value="">Selecione o consultor...</option>
+                    {opcoesConsultoresUsuarios.map((item) => (
+                      <option key={`${item.id_colaborador}-${item.estrutura}`} value={item.id_colaborador}>
+                        {item.nome_exibicao || item.nome || item.id_colaborador} • ID {item.id_colaborador} • {item.estrutura}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs font-bold text-[#048187]">Visão Geral individual • Rotas da estrutura vinculada.</p>
+                </div>
+              ) : usuarioEditando.perfil !== 'admin' && (
                 <SeletorEscopoUsuario
                   area={normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil)}
                   opcoes={opcoesEscopoUsuarios}
@@ -23877,7 +23972,7 @@ const enviarArquivo = async (tipo) => {
               )}
 
               <div className="rounded-xl bg-[#f7fafb] border border-gray-100 px-4 py-3 text-xs text-gray-500 font-normal">
-                Visualizador VD fica limitado às estruturas selecionadas. Visualizador LOJA fica limitado aos PDVs selecionados. Gestor continua respeitando a área e, quando houver estruturas vinculadas, também respeita esse escopo.
+                Visualizador VD fica limitado às estruturas selecionadas. Gestor de unidade respeita o mesmo escopo. Consultor FV vê somente os próprios indicadores na Visão Geral e, em Rotas e Revendedores, somente dados da estrutura vinculada.
               </div>
 
               <div className="flex justify-end gap-3 pt-4">

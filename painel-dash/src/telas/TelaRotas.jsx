@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Download,
   ExternalLink,
   Loader2,
   MapPin,
@@ -112,6 +113,16 @@ export default function TelaRotas({ API_URL }) {
   const [detalhe, setDetalhe] = useState(null);
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
   const [erroDetalhe, setErroDetalhe] = useState('');
+  const [diagnosticoAberto, setDiagnosticoAberto] = useState(false);
+  const [carregandoDiagnostico, setCarregandoDiagnostico] = useState(false);
+  const [erroDiagnostico, setErroDiagnostico] = useState('');
+  const [diagnostico, setDiagnostico] = useState({
+    total: 0,
+    pedido_erp_encontrado: 0,
+    nao_localizados: 0,
+    conciliados_por_zeros_esquerda: 0,
+    itens: [],
+  });
 
   const carregar = async (paginaDesejada = 1, mostrarLoading = true) => {
     if (mostrarLoading) setCarregando(true);
@@ -179,6 +190,67 @@ export default function TelaRotas({ API_URL }) {
     } finally {
       setCarregandoDetalhe(false);
     }
+  };
+
+  const abrirDiagnosticoConciliacao = async () => {
+    setDiagnosticoAberto(true);
+    setCarregandoDiagnostico(true);
+    setErroDiagnostico('');
+    try {
+      const resposta = await axios.get(`${API_URL}/rotas/nao-conciliados`, {
+        params: {
+          motorista: filtros.motorista || undefined,
+          cidade: filtros.cidade || undefined,
+          estrutura: filtros.estrutura || undefined,
+          busca: filtros.busca || undefined,
+        },
+      });
+      const payload = resposta.data || {};
+      setDiagnostico({
+        total: Number(payload.total || 0),
+        pedido_erp_encontrado: Number(payload.pedido_erp_encontrado || 0),
+        nao_localizados: Number(payload.nao_localizados || 0),
+        conciliados_por_zeros_esquerda: Number(payload.conciliados_por_zeros_esquerda || 0),
+        itens: Array.isArray(payload.itens) ? payload.itens : [],
+      });
+    } catch (e) {
+      setErroDiagnostico(e.response?.data?.detail || 'Não foi possível carregar o diagnóstico de conciliação.');
+    } finally {
+      setCarregandoDiagnostico(false);
+    }
+  };
+
+  const baixarNaoConciliados = () => {
+    const itens = Array.isArray(diagnostico.itens) ? diagnostico.itens : [];
+    if (!itens.length) return;
+    const colunas = [
+      ['pedido_original', 'Pedido recebido'],
+      ['pedido_normalizado', 'Chave normalizada'],
+      ['pedido_erp', 'Pedido ERP'],
+      ['data_criacao', 'Data criação'],
+      ['status', 'Status'],
+      ['nome_revendedor', 'Nome revendedor'],
+      ['cidade', 'Cidade'],
+      ['motorista', 'Motorista'],
+      ['motivo', 'Diagnóstico'],
+    ];
+    const escapar = (valor) => {
+      const texto = String(valor ?? '').replace(/"/g, '""');
+      return `"${texto}"`;
+    };
+    const linhas = [
+      colunas.map(([, titulo]) => escapar(titulo)).join(';'),
+      ...itens.map((item) => colunas.map(([chave]) => escapar(item[chave])).join(';')),
+    ];
+    const blob = new Blob([`\ufeff${linhas.join('\r\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `rotas_aguardando_conciliacao_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const resumo = dados.resumo || {};
@@ -285,9 +357,15 @@ export default function TelaRotas({ API_URL }) {
             <p className="text-xs font-bold text-gray-400 mt-0.5">{Number(dados.total_filtrado || 0).toLocaleString('pt-BR')} pedido(s) encontrado(s)</p>
           </div>
           {Number(resumo.nao_conciliados || 0) > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-100 px-3 py-1.5 text-[10px] font-black text-amber-700">
-              <AlertTriangle size={13} /> {Number(resumo.nao_conciliados || 0).toLocaleString('pt-BR')} sem cruzamento na ConsultaPedidos
-            </span>
+            <button
+              type="button"
+              onClick={abrirDiagnosticoConciliacao}
+              className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-100 px-3 py-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100 transition-colors"
+              title="Clique para ver quais pedidos ainda não foram conciliados e o diagnóstico de cada um"
+            >
+              <AlertTriangle size={13} /> {Number(resumo.nao_conciliados || 0).toLocaleString('pt-BR')} aguardando conciliação
+              <ChevronRight size={12} />
+            </button>
           )}
         </div>
 
@@ -343,6 +421,112 @@ export default function TelaRotas({ API_URL }) {
           </div>
         </div>
       </div>
+
+      {diagnosticoAberto && (
+        <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget && !carregandoDiagnostico) setDiagnosticoAberto(false); }}>
+          <div className="w-full max-w-7xl max-h-[88vh] rounded-2xl bg-[#f7fafb] shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-white border-b border-gray-100 px-5 sm:px-6 py-4 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wide text-amber-600">Diagnóstico de conciliação</p>
+                <h2 className="text-lg sm:text-xl font-black text-gray-700 mt-0.5">Pedidos aguardando conciliação</h2>
+                <p className="text-xs font-semibold text-gray-400 mt-1 max-w-4xl">
+                  O DASH já verifica automaticamente pontuação, espaços, sufixo .0, notação científica e equivalência segura de zeros à esquerda antes de considerar um pedido não encontrado.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={baixarNaoConciliados}
+                  disabled={carregandoDiagnostico || !diagnostico.itens?.length}
+                  className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#e6f6f7] text-[#048187] text-xs font-black hover:bg-[#d8f0f1] disabled:opacity-40"
+                >
+                  <Download size={15} /> Baixar CSV
+                </button>
+                <button type="button" onClick={() => setDiagnosticoAberto(false)} className="w-9 h-9 rounded-xl bg-gray-50 text-gray-400 hover:text-gray-600 flex items-center justify-center"><X size={18} /></button>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-5 border-b border-gray-100 bg-white">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+                  <p className="text-[9px] font-black uppercase tracking-wide text-amber-600">Aguardando</p>
+                  <p className="text-xl font-black text-gray-700 mt-1">{Number(diagnostico.total || 0).toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-3">
+                  <p className="text-[9px] font-black uppercase tracking-wide text-violet-600">Pedido ERP encontrado</p>
+                  <p className="text-xl font-black text-gray-700 mt-1">{Number(diagnostico.pedido_erp_encontrado || 0).toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                  <p className="text-[9px] font-black uppercase tracking-wide text-gray-500">Não localizados</p>
+                  <p className="text-xl font-black text-gray-700 mt-1">{Number(diagnostico.nao_localizados || 0).toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="rounded-xl border border-[#cbe8ea] bg-[#f1fbfb] px-4 py-3">
+                  <p className="text-[9px] font-black uppercase tracking-wide text-[#048187]">Corrigidos por zero à esquerda</p>
+                  <p className="text-xl font-black text-gray-700 mt-1">{Number(diagnostico.conciliados_por_zeros_esquerda || 0).toLocaleString('pt-BR')}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={baixarNaoConciliados}
+                disabled={carregandoDiagnostico || !diagnostico.itens?.length}
+                className="sm:hidden mt-3 w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#e6f6f7] text-[#048187] text-xs font-black disabled:opacity-40"
+              >
+                <Download size={15} /> Baixar relação em CSV
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-auto bg-white">
+              {carregandoDiagnostico ? (
+                <div className="py-20 text-center"><Loader2 size={28} className="animate-spin text-[#048187] mx-auto mb-3" /><p className="text-sm font-bold text-gray-400">Verificando as chaves dos pedidos...</p></div>
+              ) : erroDiagnostico ? (
+                <div className="m-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">{erroDiagnostico}</div>
+              ) : !diagnostico.itens?.length ? (
+                <div className="py-20 text-center"><CheckCircle size={28} className="text-[#048187] mx-auto mb-3" /><p className="text-sm font-black text-gray-600">Todos os pedidos foram conciliados.</p></div>
+              ) : (
+                <table className="min-w-[1350px] w-full text-left">
+                  <thead className="sticky top-0 bg-[#f8fbfb] border-b border-gray-100 z-10">
+                    <tr className="text-[9px] uppercase tracking-wide text-gray-400">
+                      <th className="px-4 py-3 font-black">Pedido recebido</th>
+                      <th className="px-4 py-3 font-black">Chave usada</th>
+                      <th className="px-4 py-3 font-black">Pedido ERP</th>
+                      <th className="px-4 py-3 font-black">Data criação</th>
+                      <th className="px-4 py-3 font-black">Status</th>
+                      <th className="px-4 py-3 font-black">Revendedor</th>
+                      <th className="px-4 py-3 font-black">Cidade</th>
+                      <th className="px-4 py-3 font-black">Diagnóstico</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {diagnostico.itens.map((item, indice) => (
+                      <tr key={`${item.pedido_normalizado || item.pedido_original}-${indice}`} className="align-top hover:bg-[#fbfefe]">
+                        <td className="px-4 py-3 text-xs font-bold text-gray-700 max-w-[170px] break-all">{item.pedido_original || '—'}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => { setDiagnosticoAberto(false); void abrirPedido(item.pedido_normalizado); }}
+                            className="text-xs font-black text-[#048187] hover:underline inline-flex items-center gap-1"
+                          >
+                            {item.pedido_normalizado || '—'} <ChevronRight size={13} />
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-xs font-bold text-gray-600 max-w-[170px] break-all">
+                          {item.pedido_erp || '—'}
+                          {item.pedido_erp_encontrado_consulta && <span className="block mt-1 text-[9px] font-black text-violet-600">Existe na ConsultaPedidos</span>}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-semibold text-gray-500 whitespace-nowrap">{item.data_criacao || '—'}</td>
+                        <td className="px-4 py-3"><BadgeStatus status={item.status} /></td>
+                        <td className="px-4 py-3 text-xs font-bold text-gray-600 max-w-[220px]">{item.nome_revendedor || '—'}</td>
+                        <td className="px-4 py-3 text-xs font-bold text-gray-600 max-w-[170px]">{item.cidade || '—'}</td>
+                        <td className="px-4 py-3 text-[11px] font-semibold text-gray-500 max-w-[360px]">{item.motivo || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {(detalhe || carregandoDetalhe) && (
         <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[1px] flex justify-end" onMouseDown={(e) => { if (e.target === e.currentTarget && !carregandoDetalhe) setDetalhe(null); }}>
