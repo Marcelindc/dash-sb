@@ -5344,7 +5344,7 @@ export default function App() {
   const [erroRelatorioAuditoria, setErroRelatorioAuditoria] = useState('');
   const [configRelatorioAuditoria, setConfigRelatorioAuditoria] = useState(() => criarConfigRelatorioAuditoria(7));
 
-  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
+  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [statusBasesVD, setStatusBasesVD] = useState({}); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloSelecionadoVD, setCicloSelecionadoVD] = useState(
@@ -9771,7 +9771,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     if (telaAtual === 'Tutoriais') return carregarTutoriais();
     if (telaAtual === 'Histórico') return carregarHistoricoCiclos(filtros?.ciclo);
     if (telaAtual === 'Revendedores') return carregarRevendedores(filtros, forcarAtualizacao);
-    if (telaAtual === 'Base') return Promise.allSettled([carregarCiclos(), carregarStatusBaseRotas()]);
+    if (telaAtual === 'Base') return Promise.allSettled([carregarCiclos(), carregarStatusBaseRotas(), carregarStatusBasesVD(cicloUploadVD || obterCicloReferenciaAtual())]);
     if (telaAtual === 'Cadastro') return Promise.allSettled([carregarCiclos(), carregarListaConsultores(), carregarEstruturasConfig()]);
     if (telaEhLoja(telaAtual)) return carregarDadosLoja();
     if (telaAtual === 'ADM') return carregarAuditoria();
@@ -10587,6 +10587,44 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     }
   };
 
+  const carregarStatusBasesVD = async (cicloAlvo = '') => {
+    if (!usuarioLogado) {
+      setStatusBasesVD({});
+      return {};
+    }
+    const ciclo = String(cicloAlvo || cicloUploadVD || obterCicloReferenciaAtual() || '').trim();
+    if (!ciclo) {
+      setStatusBasesVD({});
+      return {};
+    }
+    try {
+      const resposta = await axios.get(`${API_URL}/ciclos/${encodeURIComponent(ciclo)}/uploads`, {
+        params: { area: 'VD', _t: Date.now() },
+      });
+      const uploads = Array.isArray(resposta.data?.uploads) ? resposta.data.uploads : [];
+      const maisRecentes = {};
+      uploads.forEach((item) => {
+        const tipo = String(item?.tipo_base || '').trim().toUpperCase();
+        if (!tipo || maisRecentes[tipo]) return;
+        maisRecentes[tipo] = item;
+      });
+      setStatusBasesVD(maisRecentes);
+      return maisRecentes;
+    } catch (erro) {
+      console.error('Erro ao carregar status das bases VD:', erro);
+      setStatusBasesVD({});
+      return {};
+    }
+  };
+
+  const metaStatusBaseVD = (tipoBase, unidade = 'registros') => {
+    const item = statusBasesVD?.[String(tipoBase || '').toUpperCase()];
+    if (!item) return 'Nenhuma atualização registrada para este ciclo.';
+    const total = Number(item.linhas || 0).toLocaleString('pt-BR');
+    const atualizado = item.criado_em ? ` • Atualizado ${formatarDataHoraBR(item.criado_em)}` : '';
+    return `${total} ${unidade}${atualizado}`;
+  };
+
   const atualizarTelasAposMudancaBanco = async () => {
     // Invalida requisições antigas, mas NÃO apaga os dados que já estão na tela.
     // Assim o usuário continua vendo o último estado válido enquanto atualizamos.
@@ -10666,6 +10704,8 @@ const enviarArquivo = async (tipo) => {
       if (tipo === 'rotas') {
         setArquivoRotas(null);
         await carregarStatusBaseRotas();
+      } else {
+        await carregarStatusBasesVD(cicloDestinoUpload);
       }
       await atualizarTelasAposMudancaBanco(); 
     } catch (erro) { setErroUpload(erro.response?.data?.detail || 'Erro.'); } finally { setCarregandoUpload(false); }
@@ -15209,7 +15249,7 @@ const enviarArquivo = async (tipo) => {
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div>
               <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Ciclo de destino</label>
-              <select value={cicloUploadVD || obterCicloReferenciaAtual()} onChange={(e) => { setCicloUploadVD(e.target.value); gravarStorageUsuario(CICLO_UPLOAD_VD_STORAGE_KEY, e.target.value); }} className="border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187] min-w-[190px]">
+              <select value={cicloUploadVD || obterCicloReferenciaAtual()} onChange={(e) => { const novoCiclo = e.target.value; setCicloUploadVD(novoCiclo); gravarStorageUsuario(CICLO_UPLOAD_VD_STORAGE_KEY, novoCiclo); void carregarStatusBasesVD(novoCiclo); }} className="border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187] min-w-[190px]">
                 {ciclos.map((item) => <option key={item.id || item.ciclo} value={item.ciclo}>{item.ciclo}{item.eh_atual ? ' • atual' : ''}{obterStatusCicloArea(item.ciclo, 'VD') === 'fechado' ? ' • fechado' : ' • aberto'}</option>)}
               </select>
             </div>
@@ -15260,15 +15300,15 @@ const enviarArquivo = async (tipo) => {
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 xl:gap-6">
-        <CompUpload titulo="Pedidos" desc="Base principal" arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaPedidos} acaoExtraLoad={carregandoAutomacaoPedidos}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Pedidos" desc="Base principal" meta={metaStatusBaseVD('PEDIDOS', 'registros')} arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaPedidos} acaoExtraLoad={carregandoAutomacaoPedidos}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="Rotas / Logística" desc="Snapshot dos últimos 30 dias • independente do ciclo" meta={statusBaseRotas ? `${statusBaseRotas.total_pedidos || 0} pedidos • ${statusBaseRotas.conciliados || 0} conciliados${statusBaseRotas.ultima_atualizacao ? ` • Atualizado ${formatarDataHoraBR(statusBaseRotas.ultima_atualizacao)}` : ''}` : 'Nenhum snapshot logístico carregado.'} arq={arquivoRotas} setArq={setArquivoRotas} onEnv={() => enviarArquivo('rotas')} icone={Truck} load={carregandoUpload} />
-        <CompUpload titulo="Base Ativa" desc="Base de revendedores." arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
-        <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
-        <CompUpload titulo="SKUS IAF" desc="Abas MAKE e CABELO." arq={arquivoSkusIaf} setArq={setArquivoSkusIaf} onEnv={() => enviarArquivo('skusIaf')} icone={Sparkles} load={carregandoUpload} />
-        <CompUpload titulo="Vendas MAKE" desc="5 planilhas MAKE." arquivos={arquivosVendasMake} setArqs={setArquivosVendasMake} onEnv={() => enviarArquivo('vendasMake')} icone={Upload} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaMake} acaoExtraLoad={carregandoAutomacaoMake}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
-        <CompUpload titulo="Vendas CABELO" desc="Planilhas Cabelo." arquivos={arquivosVendasCabelo} setArqs={setArquivosVendasCabelo} onEnv={() => enviarArquivo('vendasCabelo')} icone={Scissors} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaCabelo} acaoExtraLoad={carregandoAutomacaoCabelo}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
-        <CompUpload titulo="Vendas MULTIMARCAS" desc="Códigos de revendedores do VDI." arq={arquivoVendasMultimarcas} setArq={setArquivoVendasMultimarcas} onEnv={() => enviarArquivo('vendasMultimarcas')} icone={Sparkles} load={carregandoUpload} acaoExtraLabel="Atualizar via VDI" onAcaoExtra={abrirModalAutomacaoMultimarcas} acaoExtraLoad={carregandoAutomacaoMultimarcas}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
-        <CompUpload titulo="Vendas EUDORA" desc="Total Praticado e Código Pedido." arq={arquivoVendasEudora} setArq={setArquivoVendasEudora} onEnv={() => enviarArquivo('vendasEudora')} icone={BadgeDollarSign} load={carregandoUpload} disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Base Ativa" desc="Base de revendedores." meta={metaStatusBaseVD('BASE_ATIVA', 'revendedores')} arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." meta={metaStatusBaseVD('REVENDEDORES', 'revendedores')} arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="SKUS IAF" desc="Abas MAKE e CABELO." meta="Histórico de atualização ainda não disponível para esta base." arq={arquivoSkusIaf} setArq={setArquivoSkusIaf} onEnv={() => enviarArquivo('skusIaf')} icone={Sparkles} load={carregandoUpload} />
+        <CompUpload titulo="Vendas MAKE" desc="5 planilhas MAKE." meta={metaStatusBaseVD('VENDAS_MAKE', 'registros')} arquivos={arquivosVendasMake} setArqs={setArquivosVendasMake} onEnv={() => enviarArquivo('vendasMake')} icone={Upload} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaMake} acaoExtraLoad={carregandoAutomacaoMake}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Vendas CABELO" desc="Planilhas Cabelo." meta={metaStatusBaseVD('VENDAS_CABELO', 'registros')} arquivos={arquivosVendasCabelo} setArqs={setArquivosVendasCabelo} onEnv={() => enviarArquivo('vendasCabelo')} icone={Scissors} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaCabelo} acaoExtraLoad={carregandoAutomacaoCabelo}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Vendas MULTIMARCAS" desc="Códigos de revendedores do VDI." meta={metaStatusBaseVD('VENDAS_MULTIMARCAS', 'revendedores')} arq={arquivoVendasMultimarcas} setArq={setArquivoVendasMultimarcas} onEnv={() => enviarArquivo('vendasMultimarcas')} icone={Sparkles} load={carregandoUpload} acaoExtraLabel="Atualizar via VDI" onAcaoExtra={abrirModalAutomacaoMultimarcas} acaoExtraLoad={carregandoAutomacaoMultimarcas}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Vendas EUDORA" desc="Total Praticado e Código Pedido." meta={metaStatusBaseVD('VENDAS_EUDORA', 'pedidos')} arq={arquivoVendasEudora} setArq={setArquivoVendasEudora} onEnv={() => enviarArquivo('vendasEudora')} icone={BadgeDollarSign} load={carregandoUpload} disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
       </div>
     </div>
   );

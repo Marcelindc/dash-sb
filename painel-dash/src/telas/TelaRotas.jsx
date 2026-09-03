@@ -199,8 +199,7 @@ export default function TelaRotas({ API_URL }) {
             </div>
             <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl font-black text-gray-700">Rotas</h1>
-              <p className="text-sm text-gray-400 font-semibold mt-1">Acompanhe o status logístico dos pedidos de VD e cruze com as informações comerciais.</p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-gray-400">
+              <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-gray-400">
                 <span>Período: <strong className="text-gray-600">{periodoRelatorio}</strong></span>
                 <span>Última atualização: <strong className="text-gray-600">{formatarDataHora(base.ultima_atualizacao)}</strong></span>
                 <span>Conciliados: <strong className="text-[#048187]">{Number(base.conciliados || 0).toLocaleString('pt-BR')}</strong> / {Number(base.linhas || 0).toLocaleString('pt-BR')}</span>
