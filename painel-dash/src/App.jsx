@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoBrancaLogin from './assets/logo-branca.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 import TelaSolicitacoes from './telas/TelaSolicitacoes';
+import TelaRotas from './telas/TelaRotas';
 
 import './dashboard-refinado.css';
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
@@ -683,9 +684,9 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
-  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Perfil', 'Solicitações'],
-  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Histórico', 'Revendedores', 'Perfil', 'Solicitações']
+  admin: ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
+  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Perfil', 'Solicitações'],
+  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Histórico', 'Revendedores', 'Rotas', 'Perfil', 'Solicitações']
 };
 
 const obterNomeAba = (nome) => ({
@@ -693,6 +694,7 @@ const obterNomeAba = (nome) => ({
   AcompanhamentoVD: 'Acompanhamento',
   PrimeiroPedidoCaptacao: '1º Pedido',
   VendasCidades: 'Vendas Por Cidades',
+  Rotas: 'Rotas',
   Tutoriais: 'Tutoriais e Dúvidas',
   Metas: 'Metas Estruturas',
   N1: 'N1',
@@ -708,7 +710,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'];
+const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -739,6 +741,11 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   // V12: Vendas por Cidades é uma visão operacional VD e entra para todos os perfis VD.
   PERFIS_SISTEMA.forEach((perfil) => {
     if (!normalizadas[perfil].includes('VendasCidades')) normalizadas[perfil].push('VendasCidades');
+  });
+
+  // Rotas é uma visão operacional do canal VD. O escopo real continua protegido no backend.
+  PERFIS_SISTEMA.forEach((perfil) => {
+    if (!normalizadas[perfil].includes('Rotas')) normalizadas[perfil].push('Rotas');
   });
 
 
@@ -787,6 +794,7 @@ const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') =>
   if (!normalizadas.includes('Perfil')) normalizadas.push('Perfil');
   if (!normalizadas.includes('Solicitações')) normalizadas.push('Solicitações');
   if (!normalizadas.includes('Tutoriais')) normalizadas.push('Tutoriais');
+  if (!normalizadas.includes('Rotas')) normalizadas.push('Rotas');
 
   if (perfil === 'admin') {
     ['ADM', 'Configurações', 'Perfil'].forEach((abaObrigatoria) => {
@@ -810,6 +818,19 @@ const tutorialFormVazio = {
 
 const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(v || 0));
 const formatarNumeroBR = (v, casas = 0) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+const formatarDataHoraBR = (valor) => {
+  if (!valor) return '-';
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return String(valor);
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Fortaleza',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(data);
+};
 const calcularUpa = (totalItens, atividadeRealizada) => {
   const itens = Number(totalItens || 0);
   const atividade = Number(atividadeRealizada || 0);
@@ -3774,9 +3795,10 @@ const CardTop5 = ({ titulo, dados, propValor, formatter, corValor, propSubValor,
   );
 };
 
-const CompUpload = ({ titulo, desc, arq, arqs, setArq, setArqs, onEnv, icone: Icone, mult, load, acaoExtraLabel, onAcaoExtra, acaoExtraLoad, disabled = false }) => (
+const CompUpload = ({ titulo, desc, meta, arq, arqs, setArq, setArqs, onEnv, icone: Icone, mult, load, acaoExtraLabel, onAcaoExtra, acaoExtraLoad, disabled = false }) => (
   <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
     <div className="flex items-center gap-3 mb-4 min-w-0"><div className="w-11 h-11 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><Icone size={22} /></div><div className="min-w-0"><h3 className="font-bold text-gray-700 truncate">{titulo}</h3><p className="text-xs text-gray-400 truncate">{desc}</p></div></div>
+    {meta && <div className="mb-4 rounded-lg border border-[#dceff0] bg-[#f5fbfb] px-3 py-2 text-[11px] font-bold leading-relaxed text-[#047178]">{meta}</div>}
     <input type="file" accept=".xlsx,.xls,.csv" multiple={mult} disabled={disabled} onChange={(e) => { if (mult) setArqs(Array.from(e.target.files || [])); else setArq(e.target.files[0]); }} className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-600 mb-4 disabled:bg-gray-50 disabled:cursor-not-allowed" />
     {!mult && arq && <p className="text-xs text-gray-500 mb-3 truncate">Arquivo: <strong>{arq.name}</strong></p>}{mult && arqs?.length > 0 && <p className="text-xs text-gray-500 mb-3 truncate"><strong>{arqs.length}</strong> arquivos selecionados</p>}
     <button onClick={onEnv} disabled={disabled || load || acaoExtraLoad} className="w-full bg-[#048187] text-white font-bold py-3 rounded-lg hover:bg-[#036b70] disabled:opacity-60 flex items-center justify-center gap-2"><Upload size={18} />{load ? 'Enviando...' : 'Enviar arquivo'}</button>
@@ -5252,6 +5274,7 @@ export default function App() {
       'AcompanhamentoVD',
       ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
       ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
+      ...(podeAcessarRotasVD ? ['Rotas'] : []),
       'VendasCidades',
       'Ações',
       'Tutoriais',
@@ -5321,7 +5344,7 @@ export default function App() {
   const [erroRelatorioAuditoria, setErroRelatorioAuditoria] = useState('');
   const [configRelatorioAuditoria, setConfigRelatorioAuditoria] = useState(() => criarConfigRelatorioAuditoria(7));
 
-  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
+  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloSelecionadoVD, setCicloSelecionadoVD] = useState(
@@ -5608,6 +5631,7 @@ export default function App() {
     );
 
   const podeAcessarRevendedoresVD = perfilUsuarioAtual === 'admin' || !usuarioSomenteLoja;
+  const podeAcessarRotasVD = perfilUsuarioAtual === 'admin' || !usuarioSomenteLoja;
   const podeExportarRelatorioRevendedores = perfilUsuarioAtual === 'admin'
     || (
       perfilUsuarioAtual === 'gestor'
@@ -5627,6 +5651,7 @@ export default function App() {
     { nome: 'Ações', icone: Sparkles },
     { nome: 'Histórico', icone: CalendarDays },
     ...(podeAcessarRevendedoresVD ? [{ nome: 'Revendedores', icone: UserCircle }] : []),
+    ...(podeAcessarRotasVD ? [{ nome: 'Rotas', icone: Truck }] : []),
     { nome: 'Cadastro', icone: Users },
     { nome: 'Base', icone: Database }
   ];
@@ -5638,6 +5663,7 @@ export default function App() {
           ? [{ nome: 'PrimeiroPedidoCaptacao', icone: FileSpreadsheet }]
           : []),
         ...(podeAcessarRevendedoresVD ? [{ nome: 'Revendedores', icone: UserCircle }] : []),
+        ...(podeAcessarRotasVD ? [{ nome: 'Rotas', icone: Truck }] : []),
         { nome: 'VendasCidades', icone: MapPin },
         { nome: 'Ações', icone: Sparkles },
       ]
@@ -5734,11 +5760,15 @@ export default function App() {
     if (tela === 'Revendedores') {
       return podeAcessarRevendedoresVD;
     }
+    if (tela === 'Rotas') {
+      return podeAcessarRotasVD;
+    }
     if (modoGerenteVD) {
       return [
         'AcompanhamentoVD',
         ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
         ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
+        ...(podeAcessarRotasVD ? ['Rotas'] : []),
         'Ações',
         'Tutoriais',
         'Solicitações',
@@ -9741,7 +9771,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     if (telaAtual === 'Tutoriais') return carregarTutoriais();
     if (telaAtual === 'Histórico') return carregarHistoricoCiclos(filtros?.ciclo);
     if (telaAtual === 'Revendedores') return carregarRevendedores(filtros, forcarAtualizacao);
-    if (telaAtual === 'Base') return carregarCiclos();
+    if (telaAtual === 'Base') return Promise.allSettled([carregarCiclos(), carregarStatusBaseRotas()]);
     if (telaAtual === 'Cadastro') return Promise.allSettled([carregarCiclos(), carregarListaConsultores(), carregarEstruturasConfig()]);
     if (telaEhLoja(telaAtual)) return carregarDadosLoja();
     if (telaAtual === 'ADM') return carregarAuditoria();
@@ -10540,6 +10570,23 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     }, window.location.origin);
   };
 
+  const carregarStatusBaseRotas = async () => {
+    if (!usuarioLogado || !podeAcessarRotasVD) {
+      setStatusBaseRotas(null);
+      return null;
+    }
+    try {
+      const resposta = await axios.get(`${API_URL}/rotas/status-base`, { params: { _t: Date.now() } });
+      const dadosStatus = resposta.data || null;
+      setStatusBaseRotas(dadosStatus);
+      return dadosStatus;
+    } catch (erro) {
+      if (erro?.response?.status !== 403) console.error('Erro ao carregar status da base Rotas:', erro);
+      setStatusBaseRotas(null);
+      return null;
+    }
+  };
+
   const atualizarTelasAposMudancaBanco = async () => {
     // Invalida requisições antigas, mas NÃO apaga os dados que já estão na tela.
     // Assim o usuário continua vendo o último estado válido enquanto atualizamos.
@@ -10592,11 +10639,11 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
   
 const enviarArquivo = async (tipo) => {
     let endpoint = ''; let arquivo = null; let arquivos = null;
-    if (tipo === 'pedidos') { endpoint = '/upload/pedidos'; arquivo = arquivoPedidos; } if (tipo === 'metas') { endpoint = '/upload/metas'; arquivo = arquivoMetas; } if (tipo === 'consultores') { endpoint = '/upload/consultores'; arquivo = arquivoConsultores; } if (tipo === 'baseAtiva') { endpoint = '/upload/base-ativa'; arquivo = arquivoBaseAtiva; } if (tipo === 'revendedores') { endpoint = '/upload/revendedores'; arquivo = arquivoRevendedores; } if (tipo === 'skusIaf') { endpoint = '/upload/skus-iaf'; arquivo = arquivoSkusIaf; } if (tipo === 'vendasMake') { endpoint = '/upload/vendas-make'; arquivos = arquivosVendasMake; } if (tipo === 'vendasCabelo') { endpoint = '/upload/vendas-cabelo'; arquivos = arquivosVendasCabelo; } if (tipo === 'vendasMultimarcas') { endpoint = '/upload/vendas-multimarcas'; arquivo = arquivoVendasMultimarcas; } if (tipo === 'vendasEudora') { endpoint = '/upload/vendas-eudora'; arquivo = arquivoVendasEudora; }
+    if (tipo === 'pedidos') { endpoint = '/upload/pedidos'; arquivo = arquivoPedidos; } if (tipo === 'rotas') { endpoint = '/upload/rotas'; arquivo = arquivoRotas; } if (tipo === 'metas') { endpoint = '/upload/metas'; arquivo = arquivoMetas; } if (tipo === 'consultores') { endpoint = '/upload/consultores'; arquivo = arquivoConsultores; } if (tipo === 'baseAtiva') { endpoint = '/upload/base-ativa'; arquivo = arquivoBaseAtiva; } if (tipo === 'revendedores') { endpoint = '/upload/revendedores'; arquivo = arquivoRevendedores; } if (tipo === 'skusIaf') { endpoint = '/upload/skus-iaf'; arquivo = arquivoSkusIaf; } if (tipo === 'vendasMake') { endpoint = '/upload/vendas-make'; arquivos = arquivosVendasMake; } if (tipo === 'vendasCabelo') { endpoint = '/upload/vendas-cabelo'; arquivos = arquivosVendasCabelo; } if (tipo === 'vendasMultimarcas') { endpoint = '/upload/vendas-multimarcas'; arquivo = arquivoVendasMultimarcas; } if (tipo === 'vendasEudora') { endpoint = '/upload/vendas-eudora'; arquivo = arquivoVendasEudora; }
     if (!arquivo && (!arquivos || arquivos.length === 0)) { setErroUpload('Selecione um arquivo antes de enviar.'); setMensagemUpload(''); return; }
     const formData = new FormData(); if (arquivos?.length > 0) arquivos.forEach((item) => formData.append('arquivos', item)); else formData.append('arquivo', arquivo);
     const cicloDestinoUpload = cicloUploadVD || obterCicloReferenciaAtual();
-    if (tipo !== 'skusIaf' && tipo !== 'consultores') {
+    if (tipo !== 'skusIaf' && tipo !== 'consultores' && tipo !== 'rotas') {
       formData.append('ciclo', cicloDestinoUpload);
     }
     if (tipo === 'vendasMultimarcas' || tipo === 'vendasEudora') {
@@ -10615,6 +10662,10 @@ const enviarArquivo = async (tipo) => {
         setMensagemUpload(`${resposta.data.mensagem || 'Sucesso.'} Total importado: ${formatarMoeda(totalArquivo)}.${complemento}`);
       } else {
         setMensagemUpload(resposta.data.mensagem || 'Sucesso.');
+      }
+      if (tipo === 'rotas') {
+        setArquivoRotas(null);
+        await carregarStatusBaseRotas();
       }
       await atualizarTelasAposMudancaBanco(); 
     } catch (erro) { setErroUpload(erro.response?.data?.detail || 'Erro.'); } finally { setCarregandoUpload(false); }
@@ -15153,7 +15204,7 @@ const enviarArquivo = async (tipo) => {
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Base de dados</h1>
-            <p className="text-sm text-gray-400 font-semibold">Selecione o ciclo de destino antes de enviar as bases de VD.</p>
+            <p className="text-sm text-gray-400 font-semibold">Selecione o ciclo de destino antes de enviar as bases de VD. A base Rotas é um snapshot móvel e independe do ciclo.</p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div>
@@ -15210,6 +15261,7 @@ const enviarArquivo = async (tipo) => {
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 xl:gap-6">
         <CompUpload titulo="Pedidos" desc="Base principal" arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaPedidos} acaoExtraLoad={carregandoAutomacaoPedidos}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Rotas / Logística" desc="Snapshot dos últimos 30 dias • independente do ciclo" meta={statusBaseRotas ? `${statusBaseRotas.total_pedidos || 0} pedidos • ${statusBaseRotas.conciliados || 0} conciliados${statusBaseRotas.ultima_atualizacao ? ` • Atualizado ${formatarDataHoraBR(statusBaseRotas.ultima_atualizacao)}` : ''}` : 'Nenhum snapshot logístico carregado.'} arq={arquivoRotas} setArq={setArquivoRotas} onEnv={() => enviarArquivo('rotas')} icone={Truck} load={carregandoUpload} />
         <CompUpload titulo="Base Ativa" desc="Base de revendedores." arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="SKUS IAF" desc="Abas MAKE e CABELO." arq={arquivoSkusIaf} setArq={setArquivoSkusIaf} onEnv={() => enviarArquivo('skusIaf')} icone={Sparkles} load={carregandoUpload} />
@@ -20755,6 +20807,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'Tutoriais') return renderTelaTutoriais();
     if (telaAtual === 'Histórico') return renderTelaHistorico();
     if (telaAtual === 'Revendedores') return renderTelaRevendedores();
+    if (telaAtual === 'Rotas') return <TelaRotas API_URL={API_URL} />;
     if (telaAtual === 'Base') return renderTelaBase();
     if (telaAtual === 'Cadastro') return renderTelaCadastro();
     if (telaEhLoja(telaAtual)) return renderTelaLoja();
