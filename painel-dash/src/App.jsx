@@ -9424,8 +9424,25 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
 
       fontes.flat().filter(Boolean).forEach((item) => {
         const indice = localizar(item);
-        if (indice >= 0) resultado[indice] = { ...resultado[indice], ...item };
-        else resultado.push({ ...item });
+        if (indice >= 0) {
+          // R9.6: uma resposta secundária de metas nunca pode apagar um
+          // realizado já encontrado no Dashboard para o mesmo consultor.
+          // Isso protege o acesso de gestor quando um vínculo legado de
+          // estrutura deixa o ranking analítico momentaneamente zerado.
+          const anterior = resultado[indice] || {};
+          const mesclado = { ...anterior, ...item };
+          const camposRealizados = [
+            'realizado', 'ValorPraticado', 'atividade_realizada',
+            'make_realizado', 'cabelo_realizado', 'eudora_realizado',
+            'total_itens', 'quantidade_pedidos'
+          ];
+          camposRealizados.forEach((campo) => {
+            const valorNovo = Number(item?.[campo] || 0);
+            const valorAnterior = Number(anterior?.[campo] || 0);
+            if (valorNovo === 0 && valorAnterior > 0) mesclado[campo] = anterior[campo];
+          });
+          resultado[indice] = mesclado;
+        } else resultado.push({ ...item });
       });
 
       return resultado.sort((a, b) => Number(b?.realizado || b?.ValorPraticado || 0) - Number(a?.realizado || a?.ValorPraticado || 0));
@@ -9575,6 +9592,16 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       const rankingMetas = Array.isArray(metasAtualizadas?.ranking_consultores)
         ? metasAtualizadas.ranking_consultores
         : [];
+      const rankingMetasTemResultado = rankingMetas.some((item) =>
+        [
+          item?.realizado, item?.atividade_realizada, item?.make_realizado,
+          item?.cabelo_realizado, item?.eudora_realizado, item?.total_itens,
+          item?.quantidade_pedidos
+        ].some((valor) => Number(valor || 0) > 0)
+      );
+      const dashboardTemConsultorComResultado = consultoresBasicos.some(
+        (item) => Number(item?.realizado || 0) > 0
+      );
 
       // REGRA OFICIAL DO RANKING INDIVIDUAL PARA GESTORES VD:
       // somente consultores efetivamente cadastrados na estrutura podem aparecer.
@@ -9637,7 +9664,10 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       // Só usa a rota de detalhe quando /metas/resumo realmente não conseguiu
       // formar o ranking. Assim mantemos os indicadores oficiais e ainda temos
       // um fallback robusto para cadastros/aliases legados.
-      if (!rankingMetas.length) {
+      // R9.6: lista de consultores com meta, mas todos os realizados em zero,
+      // não é um ranking válido quando o Dashboard já encontrou vendas na
+      // própria estrutura. Nesse caso força o detalhe oficial como fallback.
+      if (!rankingMetas.length || (!rankingMetasTemResultado && dashboardTemConsultorComResultado)) {
         let resultadoConsultores = null;
         let ultimoErroConsultores = null;
         for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
