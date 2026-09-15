@@ -6451,9 +6451,19 @@ export default function App() {
     setCarregandoDetalheMeta(true);
     setErroMetas('');
 
+    // R9.4: a estrutura-alvo já vai na URL. Não enviamos o rótulo visual
+    // novamente como pré-filtro porque aliases como "17325 - EQUIPE EDNA"
+    // e "N1 - EQUIPE EDNA MARCELA" representam o mesmo grupo operacional.
+    const filtrosDetalheEstruturaR94 = {
+      ...filtros,
+      ciclo: cicloSolicitado,
+      estruturas: [],
+      unidades: [],
+    };
+
     const promessa = axios.post(
       `${API_URL}/metas/estrutura/${encodeURIComponent(estrutura)}`,
-      { ...filtros, ciclo: cicloSolicitado },
+      filtrosDetalheEstruturaR94,
       { headers: { 'X-Ciclo-VD': cicloSolicitado }, signal: controller.signal, timeout: 45000 }
     ).then((resposta) => {
       if (String(cicloVisualizacaoVDRef.current || cicloSolicitado) !== cicloSolicitado) return fallback;
