@@ -11407,6 +11407,23 @@ const enviarArquivo = async (tipo) => {
   };
   const obterResumoMetasAtual = () => dadosMetas || cacheMetas || {};
 
+  // R9.3: congela os filtros no instante do clique. Evita que o modal use
+  // um estado anterior enquanto o filtro rápido N1/N2/N3 está atualizando.
+  const snapshotFiltrosDetalheR93 = () => {
+    const atual = filtrosAtivos || {};
+    return {
+      ...atual,
+      nucleos: [...(atual.nucleos || [])],
+      unidades: [...(atual.unidades || [])],
+      estruturas: [...(atual.estruturas || [])],
+      consultores: [...(atual.consultores || [])],
+      situacoes: [...(atual.situacoes || [])],
+      meios_captacao: [...(atual.meios_captacao || [])],
+      modelos_comerciais: [...(atual.modelos_comerciais || [])],
+      canais_venda: [...(atual.canais_venda || [])],
+    };
+  };
+
   const abrirDetAtiv = async (opcoes = {}) => {
     const estruturasForcadas = (
       Array.isArray(opcoes?.estruturas)
@@ -11415,13 +11432,14 @@ const enviarArquivo = async (tipo) => {
     )
       .map((item) => String(item || '').trim())
       .filter(Boolean);
+    const filtrosSnapshotR93 = snapshotFiltrosDetalheR93();
     const filtrosAtividade = estruturasForcadas.length > 0
       ? {
-          ...filtrosAtivos,
+          ...filtrosSnapshotR93,
           estruturas: estruturasForcadas,
           consultores: [],
         }
-      : filtrosAtivos;
+      : filtrosSnapshotR93;
     const tituloModal = String(opcoes?.titulo || '').trim() || 'Atividade Geral';
 
     setModalValorExpandido({
@@ -11500,13 +11518,14 @@ const enviarArquivo = async (tipo) => {
     )
       .map((item) => String(item || '').trim())
       .filter(Boolean);
+    const filtrosSnapshotR93 = snapshotFiltrosDetalheR93();
     const filtrosIndicador = estruturasForcadas.length > 0
       ? {
-          ...filtrosAtivos,
+          ...filtrosSnapshotR93,
           estruturas: estruturasForcadas,
           consultores: [],
         }
-      : filtrosAtivos;
+      : filtrosSnapshotR93;
     const tituloModal = String(opcoes?.titulo || '').trim() || `${indicador} Geral`;
 
     setModalValorExpandido({
@@ -11528,7 +11547,12 @@ const enviarArquivo = async (tipo) => {
       const payload = indicador === 'MULTIMARCAS'
         ? { filtros: filtrosIndicador }
         : { indicador, filtros: filtrosIndicador };
-      const { data } = await axios.post(`${API_URL}${endpoint}`, payload);
+      const cicloDetalheR93 = String(filtrosIndicador?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || '').trim();
+      const { data } = await axios.post(
+        `${API_URL}${endpoint}`,
+        payload,
+        { headers: { 'X-Ciclo-VD': cicloDetalheR93 } }
+      );
 
       const resumo = data?.resumo || {};
       const saldo = Number(resumo?.saldo_meta || 0);
@@ -11583,7 +11607,8 @@ const enviarArquivo = async (tipo) => {
   });
 
   const abrirDetalheEudora = async () => {
-    const ciclo = String(filtrosAtivos?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || '').trim();
+    const filtrosEudoraR93 = snapshotFiltrosDetalheR93();
+    const ciclo = String(filtrosEudoraR93?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || '').trim();
     setModalEudoraAberto(true);
     setCarregandoDetalheEudora(true);
     setErroDetalheEudora('');
@@ -11591,7 +11616,7 @@ const enviarArquivo = async (tipo) => {
     try {
       const { data } = await axios.post(
         `${API_URL}/eudora/detalhe`,
-        { ...filtrosAtivos, ciclo },
+        { ...filtrosEudoraR93, ciclo },
         { headers: { 'X-Ciclo-VD': ciclo } }
       );
       if (String(cicloVisualizacaoVDRef.current || '') !== ciclo) return;
