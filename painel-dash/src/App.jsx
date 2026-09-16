@@ -5355,7 +5355,7 @@ export default function App() {
   const [erroRelatorioAuditoria, setErroRelatorioAuditoria] = useState('');
   const [configRelatorioAuditoria, setConfigRelatorioAuditoria] = useState(() => criarConfigRelatorioAuditoria(7));
 
-  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [statusBasesVD, setStatusBasesVD] = useState({}); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
+  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [carregandoAutomacaoRotas, setCarregandoAutomacaoRotas] = useState(false); const [statusBasesVD, setStatusBasesVD] = useState({}); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloSelecionadoVD, setCicloSelecionadoVD] = useState(
@@ -8327,6 +8327,30 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
         setErroUpload(data.mensagem || 'Falha na atualização automática de pedidos.');
       }
 
+      if (data.acao === 'AUTOMACAO_ROTAS_INICIADA') {
+        setCarregandoAutomacaoRotas(true);
+        setErroUpload('');
+        setMensagemUpload(data.mensagem || 'Automação de Rotas / Logística iniciada. Aguarde a geração e o download do relatório.');
+      }
+
+      if (data.acao === 'UPLOAD_ROTAS_SUCESSO') {
+        setCarregandoAutomacaoRotas(false);
+        setErroUpload('');
+        setMensagemUpload(data.mensagem || 'Rotas / Logística atualizadas automaticamente com sucesso.');
+        try {
+          const resposta = await axios.get(`${API_URL}/rotas/status-base?_t=${Date.now()}`);
+          setStatusBaseRotas(resposta.data || null);
+        } catch (_) {
+          await atualizarTelasAposMudancaBanco();
+        }
+      }
+
+      if (data.acao === 'UPLOAD_ROTAS_ERRO' || data.acao === 'ROTAS_CREDENCIAIS_AUSENTES') {
+        setCarregandoAutomacaoRotas(false);
+        setMensagemUpload('');
+        setErroUpload(data.mensagem || 'Falha na atualização automática de Rotas / Logística.');
+      }
+
       if (data.acao === 'AUTOMACAO_MAKE_INICIADA') {
         setCarregandoAutomacaoMake(true);
         setErroUpload('');
@@ -10548,6 +10572,29 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     }, 12000);
   };
 
+
+
+  const iniciarAtualizacaoAutomaticaRotas = () => {
+    setErroUpload('');
+    setMensagemUpload('Solicitando atualização automática de Rotas / Logística pela extensão...');
+    setCarregandoAutomacaoRotas(true);
+
+    window.postMessage({
+      source: 'DASH_SB',
+      acao: 'INICIAR_EXTRACAO_ROTAS',
+      tokenAuth,
+      apiUrl: API_URL
+    }, '*');
+
+    setTimeout(() => {
+      setCarregandoAutomacaoRotas((atual) => {
+        if (atual) {
+          setMensagemUpload('Se a Plataforma Logística não abriu, verifique se a extensão Rotas / Logística está instalada e recarregada no Chrome.');
+        }
+        return atual;
+      });
+    }, 12000);
+  };
 
   const iniciarAtualizacaoAutomaticaMake = () => {
     setErroUpload('');
@@ -15401,7 +15448,7 @@ const enviarArquivo = async (tipo) => {
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 xl:gap-6">
         <CompUpload titulo="Pedidos" desc="Base principal" meta={metaStatusBaseVD('PEDIDOS', 'registros')} arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaPedidos} acaoExtraLoad={carregandoAutomacaoPedidos}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
-        <CompUpload titulo="Rotas / Logística" desc="Snapshot dos últimos 30 dias • independente do ciclo" meta={statusBaseRotas ? `${statusBaseRotas.total_pedidos || 0} pedidos • ${statusBaseRotas.conciliados || 0} conciliados${statusBaseRotas.ultima_atualizacao ? ` • Atualizado ${formatarDataHoraBR(statusBaseRotas.ultima_atualizacao)}` : ''}` : 'Nenhum snapshot logístico carregado.'} arq={arquivoRotas} setArq={setArquivoRotas} onEnv={() => enviarArquivo('rotas')} icone={Truck} load={carregandoUpload} />
+        <CompUpload titulo="Rotas / Logística" desc="Snapshot dos últimos 30 dias • independente do ciclo" meta={statusBaseRotas ? `${statusBaseRotas.total_pedidos || 0} pedidos • ${statusBaseRotas.conciliados || 0} conciliados${statusBaseRotas.ultima_atualizacao ? ` • Atualizado ${formatarDataHoraBR(statusBaseRotas.ultima_atualizacao)}` : ''}` : 'Nenhum snapshot logístico carregado.'} arq={arquivoRotas} setArq={setArquivoRotas} onEnv={() => enviarArquivo('rotas')} icone={Truck} load={carregandoUpload} acaoExtraLabel="Atualizar via Logística" onAcaoExtra={iniciarAtualizacaoAutomaticaRotas} acaoExtraLoad={carregandoAutomacaoRotas} />
         <CompUpload titulo="Base Ativa" desc="Base de revendedores." meta={metaStatusBaseVD('BASE_ATIVA', 'revendedores')} arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." meta={metaStatusBaseVD('REVENDEDORES', 'revendedores')} arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="SKUS IAF" desc="Abas MAKE e CABELO." meta="Histórico de atualização ainda não disponível para esta base." arq={arquivoSkusIaf} setArq={setArquivoSkusIaf} onEnv={() => enviarArquivo('skusIaf')} icone={Sparkles} load={carregandoUpload} />
