@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
-import logoBrancaLogin from './assets/logo-branca.png';
+import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
 import produtosLoginHero from './assets/login-produtos.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 import TelaSolicitacoes from './telas/TelaSolicitacoes';
@@ -21068,7 +21068,7 @@ const enviarArquivo = async (tipo) => {
                 <img
                   src={produtosLoginHero}
                   alt="Produtos Grupo Monteiro"
-                  className="mx-auto w-full max-w-[620px] drop-shadow-[0_22px_42px_rgba(0,0,0,0.28)]"
+                  className="mx-auto w-full max-w-[690px] drop-shadow-[0_22px_42px_rgba(0,0,0,0.28)]"
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               </div>
@@ -21076,19 +21076,19 @@ const enviarArquivo = async (tipo) => {
           </div>
 
           <div className="relative flex items-center justify-center bg-[#f2f4f6] px-5 py-8 sm:px-8 lg:px-10 xl:px-14">
-            <div className="w-full max-w-[540px]">
-              <div className="rounded-[32px] bg-[linear-gradient(90deg,#020202_0%,#048187_100%)] px-6 py-7 text-white shadow-[0_24px_60px_rgba(2,2,2,0.22)] sm:px-9 sm:py-9">
-                <div className="mb-8 flex justify-center">
+            <div className="w-full max-w-[345px]">
+              <div className="rounded-[24px] bg-[linear-gradient(90deg,#020202_0%,#048187_100%)] px-6 py-7 text-white shadow-[0_22px_52px_rgba(2,2,2,0.20)]">
+                <div className="mb-6 flex justify-center">
                   <img
-                    src={logoBrancaLogin}
+                    src={logoMonteiroBranca}
                     alt="Grupo Monteiro"
-                    className="h-auto w-[210px] max-w-full sm:w-[250px]"
+                    className="h-auto w-[168px] max-w-full"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
                 </div>
 
-                <h1 className="mb-2 text-[2.05rem] font-black leading-none tracking-[-0.02em] text-white sm:text-[2.35rem]">Seja bem-vindo!</h1>
-                <p className="mb-6 text-base leading-relaxed text-white/70 sm:text-[1.08rem]">
+                <h1 className="mb-1.5 text-[1.55rem] font-black leading-none tracking-[-0.02em] text-white">Seja bem-vindo!</h1>
+                <p className="mb-5 text-[13px] leading-relaxed text-white/70">
                   Faça login para acessar o <span className="font-bold text-[#35d7df]">dash comercial</span>
                 </p>
 
@@ -21106,7 +21106,7 @@ const enviarArquivo = async (tipo) => {
                       placeholder="xxxxxxxx@mail.com"
                       value={emailLogin}
                       onChange={(e) => setEmailLogin(e.target.value)}
-                      className="h-14 w-full rounded-full border border-transparent bg-[#f4f3ef] px-5 text-[15px] text-[#545454] outline-none transition-all placeholder:text-[#b8b8b8] focus:border-white/20 focus:ring-4 focus:ring-white/10"
+                      className="h-12 w-full rounded-[16px] border border-transparent bg-[#f4f3ef] px-4 text-[13px] text-[#545454] outline-none transition-all placeholder:text-[#b8b8b8] focus:border-white/20 focus:ring-4 focus:ring-white/10"
                       required
                     />
                   </div>
@@ -21119,13 +21119,13 @@ const enviarArquivo = async (tipo) => {
                         placeholder="************"
                         value={senhaLogin}
                         onChange={(e) => setSenhaLogin(e.target.value)}
-                        className="h-14 w-full rounded-full border border-transparent bg-[#f4f3ef] px-5 pr-14 text-[15px] text-[#545454] outline-none transition-all placeholder:text-[#b8b8b8] focus:border-white/20 focus:ring-4 focus:ring-white/10"
+                        className="h-12 w-full rounded-[16px] border border-transparent bg-[#f4f3ef] px-4 pr-12 text-[13px] text-[#545454] outline-none transition-all placeholder:text-[#b8b8b8] focus:border-white/20 focus:ring-4 focus:ring-white/10"
                         required
                       />
                       <button
                         type="button"
                         onClick={() => setMostrarSenha(!mostrarSenha)}
-                        className="absolute right-5 top-1/2 -translate-y-1/2 text-[#98a19b] transition hover:text-[#048187]"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-[#98a19b] transition hover:text-[#048187]"
                       >
                         {mostrarSenha ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
@@ -21138,7 +21138,7 @@ const enviarArquivo = async (tipo) => {
                           event.stopPropagation();
                           abrirModalRecuperacaoSenha();
                         }}
-                        className="text-[12px] font-semibold text-white/90 transition hover:text-white"
+                        className="text-[10px] font-semibold text-white/90 transition hover:text-white"
                       >
                         Esqueci a senha
                       </button>
@@ -21148,7 +21148,7 @@ const enviarArquivo = async (tipo) => {
                   <button
                     type="submit"
                     disabled={carregandoLogin}
-                    className="mt-2 h-14 w-full rounded-full bg-[#0c95a0] px-6 text-lg font-black text-white transition-all hover:bg-[#0a8892] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-1 h-12 w-full rounded-[16px] bg-[#0c95a0] px-5 text-[15px] font-black text-white transition-all hover:bg-[#0a8892] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {carregandoLogin ? 'Entrando...' : 'Entrar'}
                   </button>
