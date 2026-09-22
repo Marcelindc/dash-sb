@@ -4,6 +4,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoBrancaLogin from './assets/logo-branca.png';
+import produtosLoginHero from './assets/login-produtos.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 import TelaSolicitacoes from './telas/TelaSolicitacoes';
 import TelaRotas from './telas/TelaRotas';
@@ -21058,88 +21059,110 @@ const enviarArquivo = async (tipo) => {
 
   if (!usuarioLogado) {
     return (
-      <div className="min-h-[100dvh] w-full overflow-hidden relative bg-gradient-to-r from-[#63dadd] via-[#1bb5b8] to-[#00636a]">
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <img
-            src={logoBrancaLogin}
-            alt="SB"
-            className="absolute -left-[3vw] top-[9vh] w-[70vw] max-w-[960px] min-w-[650px] opacity-[0.24] select-none"
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-          />
-        </div>
-
-        <div className="relative z-10 min-h-[100dvh] w-full flex items-center justify-end px-6 sm:px-10 lg:pr-[9vw] xl:pr-[11vw]">
-          <div className="w-full max-w-[385px] sm:max-w-[405px]">
-            <div className="bg-white rounded-[26px] shadow-2xl px-8 py-8 sm:px-9 sm:py-9 border border-white/80">
-              <div className="flex justify-center mb-7">
-                <div className="bg-[#048187] text-white rounded-md px-4 py-2 shadow-sm">
-                  <span className="text-base sm:text-lg font-black tracking-[0.10em] uppercase whitespace-nowrap">DASH COMERCIAL SB</span>
-                </div>
+      <div className="min-h-[100dvh] w-full overflow-hidden bg-[#f2f4f6]">
+        <div className="grid min-h-[100dvh] grid-cols-1 lg:grid-cols-[57%_43%]">
+          <div className="relative hidden lg:flex items-center justify-center overflow-hidden bg-[linear-gradient(90deg,#020202_0%,#048187_100%)]">
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-[18%] bg-black/28 blur-3xl" />
+            <div className="relative z-10 flex h-full w-full items-center justify-center px-8 xl:px-12">
+              <div className="w-full max-w-[760px]">
+                <img
+                  src={produtosLoginHero}
+                  alt="Produtos Grupo Monteiro"
+                  className="mx-auto w-full max-w-[620px] drop-shadow-[0_22px_42px_rgba(0,0,0,0.28)]"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
               </div>
+            </div>
+          </div>
 
-              <h1 className="text-2xl font-black text-[#048187] mb-6 tracking-wide">Faça login</h1>
-
-              {erroLogin && (
-                <div className="bg-red-50 border border-red-100 text-red-600 font-bold text-sm rounded-xl p-4 mb-4">
-                  {erroLogin}
-                </div>
-              )}
-
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-600 mb-2">Email</label>
-                  <input
-                    type="email"
-                    placeholder="xxxxxx@mail.com"
-                    value={emailLogin}
-                    onChange={(e) => setEmailLogin(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
-                    required
+          <div className="relative flex items-center justify-center bg-[#f2f4f6] px-5 py-8 sm:px-8 lg:px-10 xl:px-14">
+            <div className="w-full max-w-[540px]">
+              <div className="rounded-[32px] bg-[linear-gradient(90deg,#020202_0%,#048187_100%)] px-6 py-7 text-white shadow-[0_24px_60px_rgba(2,2,2,0.22)] sm:px-9 sm:py-9">
+                <div className="mb-8 flex justify-center">
+                  <img
+                    src={logoBrancaLogin}
+                    alt="Grupo Monteiro"
+                    className="h-auto w-[210px] max-w-full sm:w-[250px]"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-bold text-gray-600">Senha</label>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        abrirModalRecuperacaoSenha();
-                      }}
-                      className="relative z-20 text-sm font-black text-[#048187] hover:text-[#036b70] underline underline-offset-4 cursor-pointer"
-                    >
-                      Esqueci A Senha
-                    </button>
+                <h1 className="mb-2 text-[2.05rem] font-black leading-none tracking-[-0.02em] text-white sm:text-[2.35rem]">Seja bem-vindo!</h1>
+                <p className="mb-6 text-base leading-relaxed text-white/70 sm:text-[1.08rem]">
+                  Faça login para acessar o <span className="font-bold text-[#35d7df]">dash comercial</span>
+                </p>
+
+                {erroLogin && (
+                  <div className="mb-4 rounded-2xl border border-red-300/35 bg-red-500/15 px-4 py-3 text-sm font-semibold text-red-100">
+                    {erroLogin}
                   </div>
-                  <div className="relative">
+                )}
+
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-white">E-mail</label>
                     <input
-                      type={mostrarSenha ? 'text' : 'password'}
-                      placeholder="••••••••••••"
-                      value={senhaLogin}
-                      onChange={(e) => setSenhaLogin(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-4 py-3 pr-12 text-gray-700 outline-none focus:border-[#048187] focus:ring-4 focus:ring-[#048187]/10 transition-all"
+                      type="email"
+                      placeholder="xxxxxxxx@mail.com"
+                      value={emailLogin}
+                      onChange={(e) => setEmailLogin(e.target.value)}
+                      className="h-14 w-full rounded-full border border-transparent bg-[#f4f3ef] px-5 text-[15px] text-[#545454] outline-none transition-all placeholder:text-[#b8b8b8] focus:border-white/20 focus:ring-4 focus:ring-white/10"
                       required
                     />
-                    <button
-                      type="button"
-                      onClick={() => setMostrarSenha(!mostrarSenha)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#048187]"
-                    >
-                      {mostrarSenha ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={carregandoLogin}
-                  className="w-full bg-[#048187] text-white font-black py-3.5 rounded-lg hover:bg-[#036b70] disabled:opacity-60 transition-all shadow-lg shadow-[#048187]/20 mt-6"
-                >
-                  {carregandoLogin ? 'Entrando...' : 'Entrar'}
-                </button>
-              </form>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-white">Senha</label>
+                    <div className="relative">
+                      <input
+                        type={mostrarSenha ? 'text' : 'password'}
+                        placeholder="************"
+                        value={senhaLogin}
+                        onChange={(e) => setSenhaLogin(e.target.value)}
+                        className="h-14 w-full rounded-full border border-transparent bg-[#f4f3ef] px-5 pr-14 text-[15px] text-[#545454] outline-none transition-all placeholder:text-[#b8b8b8] focus:border-white/20 focus:ring-4 focus:ring-white/10"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setMostrarSenha(!mostrarSenha)}
+                        className="absolute right-5 top-1/2 -translate-y-1/2 text-[#98a19b] transition hover:text-[#048187]"
+                      >
+                        {mostrarSenha ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          abrirModalRecuperacaoSenha();
+                        }}
+                        className="text-[12px] font-semibold text-white/90 transition hover:text-white"
+                      >
+                        Esqueci a senha
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={carregandoLogin}
+                    className="mt-2 h-14 w-full rounded-full bg-[#0c95a0] px-6 text-lg font-black text-white transition-all hover:bg-[#0a8892] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {carregandoLogin ? 'Entrando...' : 'Entrar'}
+                  </button>
+                </form>
+              </div>
+
+              <div className="mt-6 flex justify-center lg:hidden">
+                <img
+                  src={produtosLoginHero}
+                  alt="Produtos Grupo Monteiro"
+                  className="w-full max-w-[320px]"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              </div>
             </div>
           </div>
         </div>
