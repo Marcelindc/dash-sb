@@ -3655,7 +3655,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
 
         <div className="flex items-center gap-1.5 min-w-0">
           <p
-            className="text-[1.75rem] sm:text-[1.95rem] lg:text-[2.1rem] font-extrabold tracking-tighter truncate leading-none"
+            className="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tighter truncate leading-tight"
             style={{ color: corDesempenho }}
           >
             {valor}
@@ -3667,7 +3667,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
 
         {percentualDisponivel ? (
           isTendencia ? (
-            <div className="mt-3">
+            <div className="mt-6">
               <p
                 className="text-[9px] font-bold truncate mb-2"
                 style={{ color: corDesempenho }}
@@ -3682,7 +3682,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
               </div>
             </div>
           ) : (
-            <div className="mt-3">
+            <div className="mt-6">
               <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
                 <div
                   className="h-1.5 rounded-full"
@@ -3690,7 +3690,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
                 />
               </div>
               <p
-                className="mt-2 text-[10px] font-bold truncate"
+                className="mt-1.5 text-[10px] font-bold truncate"
                 style={{ color: corDesempenho }}
               >
                 {percentualNumero.toFixed(1)}%{' '}
@@ -3701,7 +3701,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
         ) : null}
       </div>
 
-      <div className="mt-4 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-3">
+      <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-3">
         <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
         <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta}</p>
       </div>
@@ -21680,17 +21680,17 @@ const enviarArquivo = async (tipo) => {
                     type="button"
                     onClick={atualizarTelaAtualAgora}
                     disabled={atualizandoTelaAtual}
-                    className="flex items-center gap-2 hover:bg-[#eef8f8] disabled:opacity-60 px-3 py-2 rounded-full font-semibold text-[#048187] border border-[#e1eaec] bg-white transition-colors"
+                    className="flex items-center gap-1.5 hover:bg-[#eef8f8] disabled:opacity-60 px-3 py-2 rounded-full text-[11px] font-medium text-[#048187] border border-[#e1eaec] bg-white transition-colors"
                     title="Atualizar dados desta aba"
                   >
-                    <RefreshCcw size={18} className={atualizandoTelaAtual ? 'animate-spin' : ''} />
+                    <RefreshCcw size={16} className={atualizandoTelaAtual ? 'animate-spin' : ''} />
                     <span className="hidden sm:inline">Atualizar</span>
                   </button>
                 )}
 
                 {(telaAtual === 'Dashboard' || telaAtual === 'PrimeiroPedidoCaptacao' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'VendasCidades' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
-                  <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#eef8f8] px-3 py-2 rounded-full font-semibold text-[#048187] border border-[#e1eaec] bg-white transition-colors">
-                    <SlidersHorizontal size={18} /><span className="hidden sm:inline">Filtros</span>
+                  <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-1.5 hover:bg-[#eef8f8] px-3 py-2 rounded-full text-[11px] font-medium text-[#048187] border border-[#e1eaec] bg-white transition-colors">
+                    <SlidersHorizontal size={16} /><span className="hidden sm:inline">Filtros</span>
                   </button>
                 )}
 
@@ -21707,10 +21707,10 @@ const enviarArquivo = async (tipo) => {
                           carregarNotificacoesSistema(false);
                         }
                       }}
-                      className="relative flex items-center justify-center w-10 h-10 hover:bg-[#eef8f8] rounded-full text-[#048187] border border-[#e1eaec] bg-white transition-colors"
+                      className="relative flex items-center justify-center w-9 h-9 hover:bg-[#eef8f8] rounded-full text-[#048187] border border-[#e1eaec] bg-white transition-colors"
                       title="Notificações"
                     >
-                      <Bell size={20} />
+                      <Bell size={17} />
                       {notificacoesNaoLidas > 0 && (
                         <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-[#7c1f31] text-white text-[10px] font-black flex items-center justify-center border-2 border-white">
                           {notificacoesNaoLidas > 99
@@ -21886,7 +21886,7 @@ const enviarArquivo = async (tipo) => {
                 <div className="hidden sm:block w-px h-6 bg-[#e1e8ea]" />
                 <button
                   onClick={() => setTelaAtual('Perfil')}
-                  className="flex items-center gap-2.5 hover:bg-[#eef8f8] px-2.5 py-1.5 rounded-full min-w-0 transition-colors border border-[#e1eaec] bg-white"
+                  className="flex items-center gap-2 hover:bg-[#eef8f8] px-2.5 py-1 rounded-full min-w-0 transition-colors border border-[#e1eaec] bg-white"
                   title="Abrir meu perfil"
                 >
                   <AvatarColaborador
@@ -21895,10 +21895,10 @@ const enviarArquivo = async (tipo) => {
                       String(usuarioLogado.id || '')
                     )}
                     nome={usuarioLogado.nome}
-                    tamanho={32}
+                    tamanho={28}
                     borda="#dbe9ea"
                   />
-                  <span className="text-sm font-semibold text-[#048187] truncate max-w-[110px] sm:max-w-[220px]">
+                  <span className="text-[11px] font-medium text-[#048187] truncate max-w-[110px] sm:max-w-[220px]">
                     {usuarioLogado.nome}
                   </span>
                 </button>
