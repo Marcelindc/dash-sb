@@ -113,15 +113,37 @@
 }
 
 .dash-topbar-refinada {
-  min-height:2.9rem !important;
-  border-radius:14px !important;
-  padding-inline:.9rem !important;
+  min-height:3.6rem !important;
+  border-radius:18px !important;
+  padding:.45rem .65rem !important;
   margin-bottom:1rem !important;
-  box-shadow:0 1px 2px rgba(15,23,42,.04) !important;
+  background:#ffffff !important;
+  border:1px solid #e5edef !important;
+  box-shadow:none !important;
 }
 .dash-topbar-refinada button,
 .dash-topbar-refinada select,
 .dash-topbar-refinada span { font-weight:550 !important; }
+
+.dash-filtro-nucleos-topo {
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+}
+.dash-filtro-nucleos-topo::-webkit-scrollbar { display:none; }
+
+.dash-menu-drawer {
+  box-shadow:none !important;
+  overscroll-behavior:contain;
+}
+.dash-menu-drawer nav {
+  scrollbar-width:thin;
+  scrollbar-color:#d6e3e5 transparent;
+}
+.dash-menu-drawer nav::-webkit-scrollbar { width:4px; }
+.dash-menu-drawer nav::-webkit-scrollbar-thumb {
+  background:#d6e3e5;
+  border-radius:999px;
+}
 
 .dash-dashboard-view .font-black { font-weight:700 !important; }
 .dash-dashboard-view .font-extrabold { font-weight:700 !important; }
@@ -154,10 +176,10 @@
     padding-bottom:1.25rem !important;
   }
   .dash-topbar-refinada {
-    min-height:2.65rem !important;
+    min-height:3.45rem !important;
     margin-bottom:.8rem !important;
-    padding-inline:.75rem !important;
-    gap:.6rem !important;
+    padding:.4rem .55rem !important;
+    gap:.5rem !important;
   }
   .dash-topbar-refinada button {
     padding-inline:.55rem !important;
@@ -215,7 +237,11 @@
     padding:.85rem !important;
     padding-bottom:6rem !important;
   }
-  .dash-topbar-refinada { border-radius:12px !important; }
+  .dash-topbar-refinada {
+    border-radius:16px !important;
+    min-height:3.4rem !important;
+    padding:.35rem .45rem !important;
+  }
 }
 
 /* PADRAO_VISUAL_UNIFICADO_VD_LOJA_V4

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
 import produtosLoginHero from './assets/login-produtos.png';
@@ -3867,13 +3867,13 @@ const FiltroRapidoNucleos = ({ filtrosAtivos, onSelecionar, opcoesNucleos = [] }
   ];
 
   return (
-    <div className="flex bg-gray-100 p-1 rounded-lg shrink-0 overflow-x-auto max-w-full">
+    <div className="dash-filtro-nucleos-topo flex bg-[#f4f7f8] p-1 rounded-full shrink-0 overflow-x-auto max-w-full border border-[#e4ecee]">
       {botoes.map((botao) => (
         <button
           key={botao.valor}
           type="button"
           onClick={() => onSelecionar(botao.valor)}
-          className={`px-4 sm:px-5 py-2 rounded-md text-xs font-black transition-colors whitespace-nowrap ${filtroSelecionado === botao.valor ? 'bg-[#048187] text-white shadow' : 'text-[#048187] hover:bg-white hover:text-[#036b70]'}`}
+          className={`px-3 sm:px-4 py-1.5 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${filtroSelecionado === botao.valor ? 'bg-[#048187] text-white' : 'text-[#4b6f72] hover:bg-white hover:text-[#036b70]'}`}
         >
           {botao.label}
         </button>
@@ -4886,7 +4886,7 @@ export default function App() {
   const [menuLojaExpandido, setMenuLojaExpandido] = useState(() => {
     const canalSalvo = lerStorageUsuario(CANAL_ATUAL_STORAGE_KEY);
     return canalSalvo === 'LOJA';
-  }); const [sidebarExpandida, setSidebarExpandida] = useState(() => typeof window === 'undefined' ? true : window.innerWidth >= 1440); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
+  }); const [menuHamburguerAberto, setMenuHamburguerAberto] = useState(false); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   
   const [visaoRanking, setVisaoRanking] = useState('consultores');
@@ -5699,6 +5699,7 @@ export default function App() {
     setMenuLojaExpandido(false);
     if (nomeTela === 'Cadastro') setVisaoCadastro('geral');
     setTelaAtual(nomeTela);
+    setMenuHamburguerAberto(false);
   };
 
   const navegarParaLoja = () => {
@@ -5713,6 +5714,7 @@ export default function App() {
     setMenuLojaExpandido(true);
     setMenuVDExpandido(false);
     setTelaAtual('LojaVisaoGeral');
+    setMenuHamburguerAberto(false);
   };
 
   const alternarCanalVD = () => {
@@ -12393,7 +12395,6 @@ const enviarArquivo = async (tipo) => {
       <div className="dash-dashboard-view space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-2 min-w-0">
-            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
             {filtrosAtivosResumo.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {filtrosAtivosResumo.map((filtro) => (
@@ -13490,12 +13491,6 @@ const enviarArquivo = async (tipo) => {
         {/* METAS_VISUAL_VISAO_GERAL_V1 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-2 min-w-0">
-            <FiltroRapidoNucleos
-              filtrosAtivos={filtrosAtivos}
-              onSelecionar={handleFiltroRapidoNucleo}
-              opcoesNucleos={opcoesFiltros.nucleos}
-            />
-
             {filtrosAtivosResumo.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {filtrosAtivosResumo.map((filtro) => (
@@ -14458,7 +14453,6 @@ const enviarArquivo = async (tipo) => {
             <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 truncate">Ranking e Gamificação</h1><p className="text-sm text-gray-400 truncate">Top 5 de alta performance da equipe</p></div>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
             <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
               <button onClick={() => setVisaoRanking('consultores')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'consultores' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Consultores"><User size={18} /></button>
               <button onClick={() => setVisaoRanking('estruturas')} className={`p-2 px-3 sm:px-4 rounded-md transition-colors ${visaoRanking === 'estruturas' ? 'bg-[#048187] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`} title="Visão Estruturas"><Users size={18} /></button>
@@ -14593,7 +14587,6 @@ const enviarArquivo = async (tipo) => {
             </div>
           </div>
           <div className="shrink-0">
-            <FiltroRapidoNucleos filtrosAtivos={filtrosAtivos} onSelecionar={handleFiltroRapidoNucleo} opcoesNucleos={opcoesFiltros.nucleos} />
           </div>
         </div>
 
@@ -15119,13 +15112,6 @@ const enviarArquivo = async (tipo) => {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            {!modoGerenteVD && (
-              <FiltroRapidoNucleos
-                filtrosAtivos={filtrosAtivos}
-                opcoesNucleos={opcoesFiltros?.nucleos || []}
-                onSelecionar={handleFiltroRapidoNucleo}
-              />
-            )}
             {podeExportarRelatorioRevendedores && (
               <button
                 type="button"
@@ -20848,11 +20834,6 @@ const enviarArquivo = async (tipo) => {
       <div className="space-y-5 pb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-2 min-w-0">
-            <FiltroRapidoNucleos
-              filtrosAtivos={filtrosAtivos}
-              onSelecionar={handleFiltroRapidoNucleo}
-              opcoesNucleos={opcoesFiltros.nucleos}
-            />
             {filtrosAtivosResumo.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {filtrosAtivosResumo.map((filtro) => (
@@ -21046,6 +21027,18 @@ const enviarArquivo = async (tipo) => {
   const estruturasDisponiveisRelatorioMetas = usuarioLogado
     ? obterEstruturasDisponiveisRelatorioMetas(configRelatorioMetas.nucleos)
     : [];
+
+  const telasComFiltroRapidoNucleoTopo = [
+    'Dashboard',
+    'PrimeiroPedidoCaptacao',
+    'Metas',
+    'Ranking',
+    'Comparativo',
+    'VendasCidades',
+    'Revendedores'
+  ];
+  const mostrarFiltroRapidoNucleosTopo = canalAtual === 'VD'
+    && telasComFiltroRapidoNucleoTopo.includes(telaAtual);
 
   const pdvsDisponiveisRelatorioLoja = usuarioLogado
     ? [...(dadosLoja?.unidades || [])].sort((a, b) => (
@@ -21321,41 +21314,59 @@ const enviarArquivo = async (tipo) => {
   return (
     <>
       <div className="dash-shell-refinado h-[100dvh] bg-[#f7fafb] flex overflow-hidden">
-        <aside className={`dash-sidebar-refinado ${sidebarExpandida ? 'w-64' : 'w-20'} hidden md:flex bg-[#111827] text-white transition-all duration-300 flex-col relative shrink-0`}>
-          <button onClick={() => setSidebarExpandida(!sidebarExpandida)} className="dash-sidebar-toggle absolute -right-3 top-9 bg-[#5bb2b4] rounded-full p-1 z-30"><ChevronLeft size={14} className={sidebarExpandida ? '' : 'rotate-180'} /></button>
-          <div className={`dash-sidebar-brand ${sidebarExpandida ? 'justify-start gap-3 px-5' : 'justify-center px-3'} h-28 flex items-center border-b border-white/10`}>
-            <div className={`${sidebarExpandida ? 'w-14 h-14' : 'w-11 h-11'} rounded-2xl bg-white/5 flex items-center justify-center shrink-0 overflow-hidden`}>
-              <img
-                src={logoEmpresa}
-                alt={APP_NAME}
-                className="w-full h-full object-contain p-1"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-            </div>
-            {sidebarExpandida && (
-              <div className="min-w-0 leading-tight">
-                <p className="text-[13px] font-black tracking-[0.12em] text-white truncate">DASH COMERCIAL</p>
-                <p className="text-[18px] font-black tracking-[0.16em] text-[#5bb2b4] truncate">SB</p>
+        {menuHamburguerAberto && (
+          <button
+            type="button"
+            className="fixed inset-0 z-[80] bg-slate-950/35 backdrop-blur-[2px]"
+            onClick={() => setMenuHamburguerAberto(false)}
+            aria-label="Fechar menu"
+          />
+        )}
+
+        <aside
+          className={`dash-menu-drawer fixed left-0 top-0 z-[90] h-[100dvh] w-[min(88vw,340px)] bg-white border-r border-[#e4ecee] transform transition-transform duration-300 flex flex-col ${menuHamburguerAberto ? 'translate-x-0' : '-translate-x-full'}`}
+          aria-hidden={!menuHamburguerAberto}
+        >
+          <div className="px-5 py-5 border-b border-[#e8eef0] bg-[#f7fbfb] flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-[#e8f6f6] flex items-center justify-center overflow-hidden shrink-0">
+                <img
+                  src={logoEmpresa}
+                  alt={APP_NAME}
+                  className="w-full h-full object-contain p-1"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
               </div>
-            )}
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#789093]">Grupo Monteiro</p>
+                <p className="text-sm font-bold text-[#234e51] truncate">DASH COMERCIAL SB</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMenuHamburguerAberto(false)}
+              className="w-9 h-9 rounded-full border border-[#e2eaec] text-[#57777a] hover:bg-[#eef7f7] flex items-center justify-center"
+              aria-label="Fechar menu"
+            >
+              <X size={18} />
+            </button>
           </div>
-          <nav className={`dash-sidebar-nav ${sidebarExpandida ? 'p-4 space-y-2' : 'p-3 space-y-2'} flex-1 overflow-y-auto`}>
-            <div>
+
+          <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            <div className="rounded-2xl border border-[#e7edef] overflow-hidden">
               <button
                 type="button"
                 onClick={alternarCanalVD}
-                title="VD"
-                className={`${sidebarExpandida ? 'w-full justify-between gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-black transition-colors ${canalAtual === 'VD' ? 'bg-[#048187] text-white shadow-lg shadow-[#048187]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                className={`w-full px-4 py-3 flex items-center justify-between gap-3 transition-colors ${canalAtual === 'VD' ? 'bg-[#048187] text-white' : 'bg-white text-[#335f62] hover:bg-[#f2f8f8]'}`}
               >
-                <span className="flex items-center gap-3 min-w-0">
-                  <IconeCanalVD size={sidebarExpandida ? 22 : 24} />
-                  {sidebarExpandida && <span>VD</span>}
+                <span className="flex items-center gap-3 font-bold">
+                  <IconeCanalVD size={20} />
+                  VD
                 </span>
-                {sidebarExpandida && <ChevronRight size={16} className={`${menuVDExpandido ? 'rotate-90' : ''} transition-transform`} />}
+                <ChevronRight size={16} className={`${menuVDExpandido ? 'rotate-90' : ''} transition-transform`} />
               </button>
-
               {menuVDExpandido && (
-                <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
+                <div className="p-2 bg-[#fbfdfd] space-y-1">
                   {itensMenuVD.map((item) => {
                     if (!usuarioPodeAcessar(item.nome)) return null;
                     const Icone = item.icone;
@@ -21363,12 +21374,12 @@ const enviarArquivo = async (tipo) => {
                     return (
                       <button
                         key={item.nome}
+                        type="button"
                         onClick={() => navegarParaTelaVD(item.nome)}
-                        title={obterNomeAba(item.nome)}
-                        className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-2.5 rounded-lg text-sm' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-medium transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${ativo ? 'bg-[#e6f6f7] text-[#048187] font-bold' : 'text-[#566f72] hover:bg-[#f0f6f7] hover:text-[#234e51]'}`}
                       >
-                        <Icone size={sidebarExpandida ? 18 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                        {sidebarExpandida && <span className="tracking-normal">{obterNomeAba(item.nome)}</span>}
+                        <Icone size={18} strokeWidth={1.9} />
+                        <span>{obterNomeAba(item.nome)}</span>
                       </button>
                     );
                   })}
@@ -21377,108 +21388,89 @@ const enviarArquivo = async (tipo) => {
             </div>
 
             {usuarioPodeAcessarLoja() && (
-            <div>
-              <button
-                type="button"
-                onClick={alternarCanalLoja}
-                title="LOJA"
-                className={`${sidebarExpandida ? 'w-full justify-between gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-black transition-colors ${canalAtual === 'LOJA' || telaAtual === 'Loja' ? 'bg-[#048187] text-white shadow-lg shadow-[#048187]/20' : 'text-gray-300 hover:bg-white/10'}`}
-              >
-                <span className="flex items-center gap-3 min-w-0">
-                  <IconeCanalLoja size={sidebarExpandida ? 22 : 24} />
-                  {sidebarExpandida && <span>LOJA</span>}
-                </span>
-                {sidebarExpandida && <ChevronRight size={16} className={`${menuLojaExpandido ? 'rotate-90' : ''} transition-transform`} />}
-              </button>
-
-              {menuLojaExpandido && (
-                <div className={`${sidebarExpandida ? 'mt-2 ml-4 pl-3 space-y-2 border-l border-white/10' : 'mt-2 space-y-2'}`}>
-                  {itensMenuLoja.length > 0 ? (
-                    itensMenuLoja.filter((item) => usuarioPodeAcessar(item.nome)).map((item) => {
+              <div className="rounded-2xl border border-[#e7edef] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={alternarCanalLoja}
+                  className={`w-full px-4 py-3 flex items-center justify-between gap-3 transition-colors ${canalAtual === 'LOJA' || telaAtual === 'Loja' ? 'bg-[#048187] text-white' : 'bg-white text-[#335f62] hover:bg-[#f2f8f8]'}`}
+                >
+                  <span className="flex items-center gap-3 font-bold">
+                    <IconeCanalLoja size={20} />
+                    LOJA
+                  </span>
+                  <ChevronRight size={16} className={`${menuLojaExpandido ? 'rotate-90' : ''} transition-transform`} />
+                </button>
+                {menuLojaExpandido && (
+                  <div className="p-2 bg-[#fbfdfd] space-y-1">
+                    {itensMenuLoja.filter((item) => usuarioPodeAcessar(item.nome)).map((item) => {
                       const Icone = item.icone;
                       const ativo = canalAtual === 'LOJA' && telaAtual === item.nome;
                       return (
                         <button
                           key={item.nome}
-                          onClick={() => { setCanalAtual('LOJA'); setTelaAtual(item.nome); }}
-                          title={obterNomeAba(item.nome)}
-                          className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-2.5 rounded-lg text-sm' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-medium transition-colors ${ativo ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                          type="button"
+                          onClick={() => { setCanalAtual('LOJA'); setTelaAtual(item.nome); setMenuHamburguerAberto(false); }}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${ativo ? 'bg-[#e6f6f7] text-[#048187] font-bold' : 'text-[#566f72] hover:bg-[#f0f6f7] hover:text-[#234e51]'}`}
                         >
-                          <Icone size={sidebarExpandida ? 18 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                          {sidebarExpandida && <span className="tracking-normal">{obterNomeAba(item.nome)}</span>}
+                          <Icone size={18} strokeWidth={1.9} />
+                          <span>{obterNomeAba(item.nome)}</span>
                         </button>
                       );
-                    })
-                  ) : (
-                    sidebarExpandida && (
-                      <div className="px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-[11px] leading-relaxed text-gray-400 font-bold">
-                        Subabas da LOJA serão adicionadas no próximo passo.
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
+                    })}
+                  </div>
+                )}
+              </div>
             )}
           </nav>
-          <div className={`dash-sidebar-footer ${sidebarExpandida ? 'p-4 space-y-3' : 'p-3 space-y-3'} border-t border-white/10`}>
+
+          <div className="p-4 border-t border-[#e8eef0] bg-white space-y-1">
             <button
-              onClick={() => setTelaAtual('Tutoriais')}
-              title="Tutoriais e Dúvidas"
-              className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} relative flex items-center font-bold ${telaAtual === 'Tutoriais' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+              type="button"
+              onClick={() => { setTelaAtual('Tutoriais'); setMenuHamburguerAberto(false); }}
+              className={`w-full relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${telaAtual === 'Tutoriais' ? 'bg-[#e6f6f7] text-[#048187] font-bold' : 'text-[#566f72] hover:bg-[#f0f6f7]'}`}
             >
-              <BookOpen size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-              {sidebarExpandida && <span>Tutoriais e Dúvidas</span>}
-              {tutoriaisNovos > 0 && <span className={`${sidebarExpandida ? 'ml-auto' : 'absolute -top-1 -right-1'} min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-black`}>{tutoriaisNovos > 99 ? '99+' : tutoriaisNovos}</span>}
+              <BookOpen size={18} />
+              <span>Tutoriais e Dúvidas</span>
+              {tutoriaisNovos > 0 && <span className="ml-auto min-w-5 h-5 px-1 rounded-full bg-[#7c1f31] text-white text-[10px] flex items-center justify-center font-bold">{tutoriaisNovos > 99 ? '99+' : tutoriaisNovos}</span>}
             </button>
             <button
-              onClick={() => setTelaAtual('Solicitações')}
-              title="Solicitações"
-              className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'Solicitações' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+              type="button"
+              onClick={() => { setTelaAtual('Solicitações'); setMenuHamburguerAberto(false); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${telaAtual === 'Solicitações' ? 'bg-[#e6f6f7] text-[#048187] font-bold' : 'text-[#566f72] hover:bg-[#f0f6f7]'}`}
             >
-              <LifeBuoy size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-              {sidebarExpandida && <span>Solicitações</span>}
+              <LifeBuoy size={18} />
+              <span>Solicitações</span>
             </button>
-{usuarioPodeAcessar('ADM') && (
+            {usuarioPodeAcessar('ADM') && (
               <button
-                onClick={() => { setCanalAtual('VD'); setTelaAtual('ADM'); }}
-                title="Painel ADM"
-                className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'ADM' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                type="button"
+                onClick={() => { setCanalAtual('VD'); setTelaAtual('ADM'); setMenuHamburguerAberto(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${telaAtual === 'ADM' ? 'bg-[#e6f6f7] text-[#048187] font-bold' : 'text-[#566f72] hover:bg-[#f0f6f7]'}`}
               >
-                <ShieldCheck size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                {sidebarExpandida && <span>Painel ADM</span>}
+                <ShieldCheck size={18} />
+                <span>Painel ADM</span>
               </button>
             )}
             {usuarioPodeAcessar('Configurações') && (
               <button
-                onClick={() => setTelaAtual('Configurações')}
-                title="Configurações"
-                className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold ${telaAtual === 'Configurações' ? 'bg-[#5bb2b4] text-white shadow-lg shadow-[#5bb2b4]/20' : 'text-gray-300 hover:bg-white/10'}`}
+                type="button"
+                onClick={() => { setTelaAtual('Configurações'); setMenuHamburguerAberto(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${telaAtual === 'Configurações' ? 'bg-[#e6f6f7] text-[#048187] font-bold' : 'text-[#566f72] hover:bg-[#f0f6f7]'}`}
               >
-                <Settings size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-                {sidebarExpandida && <span>Configurações</span>}
+                <Settings size={18} />
+                <span>Configurações</span>
               </button>
             )}
             <button
-              onClick={handleLogout}
-              title="Logout"
-              className={`${sidebarExpandida ? 'w-full justify-start gap-3 px-4 py-3 rounded-lg' : 'w-11 h-11 mx-auto justify-center rounded-xl'} flex items-center font-bold text-gray-300 hover:bg-red-500/20 hover:text-red-300`}
+              type="button"
+              onClick={() => { setMenuHamburguerAberto(false); handleLogout(); }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#7c1f31] hover:bg-[#fff1f3]"
             >
-              <LogOut size={sidebarExpandida ? 20 : 22} strokeWidth={sidebarExpandida ? 2 : 2.05} />
-              {sidebarExpandida && <span>Logout</span>}
+              <LogOut size={18} />
+              <span>Logout</span>
             </button>
           </div>
         </aside>
-
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-white/10 z-40 px-2 py-2">
-          <div className="flex items-center justify-around gap-1">
-            {[...itensMenuVD, ...(usuarioPodeAcessarLoja() ? [{ nome: 'LojaVisaoGeral', icone: LayoutDashboard }] : []), { nome: 'Solicitações', icone: LifeBuoy }, { nome: 'ADM', icone: ShieldCheck }].map((item) => {
-              if (!usuarioPodeAcessar(item.nome)) return null;
-              const Icone = item.icone; const ativo = telaAtual === item.nome;
-              return (<button key={item.nome} onClick={() => item.nome === 'Loja' ? navegarParaLoja() : navegarParaTelaVD(item.nome)} className={`flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 min-w-0 flex-1 ${ativo ? 'bg-[#5bb2b4] text-white' : 'text-gray-300'}`}>{item.nome === 'Loja' ? <IconeCanalLoja size={18} /> : <Icone size={18} />}<span className="text-[10px] font-bold truncate max-w-full">{obterNomeAba(item.nome)}</span></button>);
-            })}
-          </div>
-        </div>
 
         <div className={`fixed right-0 top-0 h-[100dvh] w-full sm:w-[28rem] bg-white shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${painelFiltrosAberto ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="p-5 border-b border-gray-100 bg-[#f7fafb] flex items-start justify-between shrink-0">
@@ -21589,33 +21581,55 @@ const enviarArquivo = async (tipo) => {
 
         <main className={`dash-main-refinado flex-1 overflow-y-auto relative transition-all duration-300 z-0 ${painelFiltrosAberto ? 'opacity-50' : 'opacity-100'}`}>
           <div className="dash-content-refinado p-4 sm:p-6 xl:p-8 pb-24 md:pb-8">
-            <header className="dash-topbar-refinada mb-6 xl:mb-8 w-full bg-[#5bb2b4] min-h-12 rounded-full flex justify-between items-center px-4 sm:px-6 text-white shadow-sm gap-4">
-              <div className="relative shrink-0">
-                <select
-                  value={cicloTopoAtual || ''}
-                  onChange={(e) => selecionarCicloVisualizacao(e.target.value, telaEhLoja(telaAtual) ? 'LOJA' : 'VD')}
-                  className="appearance-none bg-white text-[#048187] font-extrabold text-xs sm:text-sm pl-4 pr-9 py-1.5 rounded-full uppercase tracking-wide whitespace-nowrap outline-none cursor-pointer"
-                  title="Selecionar ciclo para consulta"
+            <header className="dash-topbar-refinada sticky top-0 z-30 mb-6 xl:mb-8 w-full bg-white min-h-14 rounded-[18px] flex justify-between items-center px-3 sm:px-4 text-[#4c696c] border border-[#e5edef] gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => { setPainelFiltrosAberto(false); setMenuHamburguerAberto(true); }}
+                  className="w-10 h-10 rounded-full border border-[#dfe9eb] bg-white text-[#048187] hover:bg-[#eef8f8] flex items-center justify-center shrink-0 transition-colors"
+                  title="Abrir menu"
+                  aria-label="Abrir menu"
                 >
-                  {!ciclos.length && cicloTopoAtual && (
-                    <option value={cicloTopoAtual}>{`CICLO ${cicloTopoAtual} • ATUAL`}</option>
-                  )}
-                  {!ciclos.length && !cicloTopoAtual && <option value="">CARREGANDO CICLO...</option>}
-                  {ciclos.map((item) => (
-                    <option key={item.id || item.ciclo} value={item.ciclo}>
-                      {`CICLO ${item.ciclo}${item.eh_atual ? ' • ATUAL' : ''}${obterStatusCicloArea(item.ciclo, telaEhLoja(telaAtual) ? 'LOJA' : 'VD') === 'fechado' ? ' • FECHADO' : ''}`}
-                    </option>
-                  ))}
-                </select>
-                <ChevronRight size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-[#048187]" />
+                  <Menu size={20} strokeWidth={2} />
+                </button>
+
+                <div className="relative shrink-0">
+                  <select
+                    value={cicloTopoAtual || ''}
+                    onChange={(e) => selecionarCicloVisualizacao(e.target.value, telaEhLoja(telaAtual) ? 'LOJA' : 'VD')}
+                    className="appearance-none bg-[#f5f9f9] border border-[#e1eaec] text-[#048187] font-bold text-[11px] sm:text-xs pl-3 sm:pl-4 pr-8 py-2 rounded-full uppercase tracking-wide whitespace-nowrap outline-none cursor-pointer"
+                    title="Selecionar ciclo para consulta"
+                  >
+                    {!ciclos.length && cicloTopoAtual && (
+                      <option value={cicloTopoAtual}>{`CICLO ${cicloTopoAtual} • ATUAL`}</option>
+                    )}
+                    {!ciclos.length && !cicloTopoAtual && <option value="">CARREGANDO CICLO...</option>}
+                    {ciclos.map((item) => (
+                      <option key={item.id || item.ciclo} value={item.ciclo}>
+                        {`CICLO ${item.ciclo}${item.eh_atual ? ' • ATUAL' : ''}${obterStatusCicloArea(item.ciclo, telaEhLoja(telaAtual) ? 'LOJA' : 'VD') === 'fechado' ? ' • FECHADO' : ''}`}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronRight size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 text-[#048187]" />
+                </div>
+
+                {mostrarFiltroRapidoNucleosTopo && (
+                  <div className="min-w-0 overflow-x-auto hidden sm:block">
+                    <FiltroRapidoNucleos
+                      filtrosAtivos={filtrosAtivos}
+                      onSelecionar={handleFiltroRapidoNucleo}
+                      opcoesNucleos={opcoesFiltros.nucleos}
+                    />
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0">
                 {telaAtual !== 'AcompanhamentoVD' && telaAtual !== 'Perfil' && (
                   <button
                     type="button"
                     onClick={atualizarTelaAtualAgora}
                     disabled={atualizandoTelaAtual}
-                    className="flex items-center gap-2 hover:bg-[#4a9394] disabled:opacity-60 px-3 py-1.5 rounded-full font-medium"
+                    className="flex items-center gap-2 hover:bg-[#eef8f8] disabled:opacity-60 px-3 py-2 rounded-full font-medium text-[#4d6f72] border border-transparent hover:border-[#e1eaec]"
                     title="Atualizar dados desta aba"
                   >
                     <RefreshCcw size={18} className={atualizandoTelaAtual ? 'animate-spin' : ''} />
@@ -21624,7 +21638,7 @@ const enviarArquivo = async (tipo) => {
                 )}
 
                 {(telaAtual === 'Dashboard' || telaAtual === 'PrimeiroPedidoCaptacao' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'VendasCidades' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
-                  <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#4a9394] px-3 py-1.5 rounded-full font-medium">
+                  <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#eef8f8] px-3 py-2 rounded-full font-medium text-[#4d6f72] border border-transparent hover:border-[#e1eaec]">
                     <SlidersHorizontal size={18} /><span className="hidden sm:inline">Filtros</span>
                   </button>
                 )}
@@ -21642,12 +21656,12 @@ const enviarArquivo = async (tipo) => {
                           carregarNotificacoesSistema(false);
                         }
                       }}
-                      className="relative flex items-center justify-center w-10 h-10 hover:bg-[#4a9394] rounded-full"
+                      className="relative flex items-center justify-center w-10 h-10 hover:bg-[#eef8f8] rounded-full text-[#4d6f72] border border-transparent hover:border-[#e1eaec]"
                       title="Notificações"
                     >
                       <Bell size={20} />
                       {notificacoesNaoLidas > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-[#7c1f31] text-white text-[10px] font-black flex items-center justify-center border-2 border-[#5bb2b4]">
+                        <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-[#7c1f31] text-white text-[10px] font-black flex items-center justify-center border-2 border-white">
                           {notificacoesNaoLidas > 99
                             ? '99+'
                             : notificacoesNaoLidas}
@@ -21818,10 +21832,10 @@ const enviarArquivo = async (tipo) => {
                   </div>
                 )}
 
-                <div className="hidden sm:block w-px h-6 bg-[#4a9394]" />
+                <div className="hidden sm:block w-px h-6 bg-[#e1e8ea]" />
                 <button
                   onClick={() => setTelaAtual('Perfil')}
-                  className="flex items-center gap-2.5 hover:bg-[#4a9394] px-2.5 py-1 rounded-full min-w-0 transition-colors"
+                  className="flex items-center gap-2.5 hover:bg-[#eef8f8] px-2.5 py-1 rounded-full min-w-0 transition-colors"
                   title="Abrir meu perfil"
                 >
                   <AvatarColaborador
@@ -21831,9 +21845,9 @@ const enviarArquivo = async (tipo) => {
                     )}
                     nome={usuarioLogado.nome}
                     tamanho={32}
-                    borda="rgba(255,255,255,0.92)"
+                    borda="#dbe9ea"
                   />
-                  <span className="text-sm font-medium truncate max-w-[110px] sm:max-w-[220px]">
+                  <span className="text-sm font-medium text-[#345d60] truncate max-w-[110px] sm:max-w-[220px]">
                     {usuarioLogado.nome}
                   </span>
                 </button>
