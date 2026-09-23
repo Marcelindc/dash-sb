@@ -3631,19 +3631,80 @@ const CardMetaNova = ({ titulo, valor, percentual, labelMeta, valorMeta, onClick
 
 const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpandir, isTendencia, tendenciaIcon: TIcon, tendenciaStatus }) => {
   const percentualNumero = Number(percentual || 0);
+  const percentualDisponivel = percentual !== undefined;
   const percFix = Math.min(percentualNumero, 100);
   const corDesempenho = isTendencia
     ? (percentualNumero >= 100 ? '#16a34a' : '#ef4444')
-    : (percentual !== undefined ? corPorFaixaMeta(percentualNumero) : '#048187');
+    : (percentualDisponivel ? corPorFaixaMeta(percentualNumero) : '#048187');
 
   return (
     <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full min-w-0 transition-all hover:shadow-md">
       <div className="min-w-0">
-        <div className="flex items-center justify-between mb-0.5 min-w-0"><h3 className="text-[10px] font-bold uppercase text-gray-500 truncate pr-1">{titulo}</h3>{onClickExpandir && <button type="button" onClick={onClickExpandir} className="text-[#048187] hover:text-[#036b70] shrink-0"><Eye size={14} /></button>}</div>
-        <div className="flex items-center gap-1 min-w-0"><p className="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tighter truncate leading-tight" style={{ color: corDesempenho }}>{valor}</p>{isTendencia && TIcon && <TIcon size={16} className="shrink-0" style={{ color: corDesempenho }} />}</div>
-        {percentual !== undefined && (<div className="mt-1">{isTendencia ? (<p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{tendenciaStatus}</p>) : (<p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span></p>)}<div className="w-full bg-gray-100 h-1 rounded-full"><div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} /></div></div>)}
+        <div className="flex items-center justify-between mb-0.5 min-w-0">
+          <h3 className="text-[10px] font-bold uppercase text-gray-500 truncate pr-1">{titulo}</h3>
+          {onClickExpandir ? (
+            <button
+              type="button"
+              onClick={onClickExpandir}
+              className="text-[#048187] hover:text-[#036b70] shrink-0"
+            >
+              <Eye size={14} />
+            </button>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-1.5 min-w-0">
+          <p
+            className="text-[1.75rem] sm:text-[1.95rem] lg:text-[2.1rem] font-extrabold tracking-tighter truncate leading-none"
+            style={{ color: corDesempenho }}
+          >
+            {valor}
+          </p>
+          {isTendencia && TIcon ? (
+            <TIcon size={18} className="shrink-0" style={{ color: corDesempenho }} />
+          ) : null}
+        </div>
+
+        {percentualDisponivel ? (
+          isTendencia ? (
+            <div className="mt-3">
+              <p
+                className="text-[9px] font-bold truncate mb-2"
+                style={{ color: corDesempenho }}
+              >
+                {tendenciaStatus}
+              </p>
+              <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="h-1.5 rounded-full"
+                  style={{ width: `${percFix}%`, backgroundColor: corDesempenho }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3">
+              <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="h-1.5 rounded-full"
+                  style={{ width: `${percFix}%`, backgroundColor: corDesempenho }}
+                />
+              </div>
+              <p
+                className="mt-2 text-[10px] font-bold truncate"
+                style={{ color: corDesempenho }}
+              >
+                {percentualNumero.toFixed(1)}%{' '}
+                <span className="text-gray-400 font-medium">da meta</span>
+              </p>
+            </div>
+          )
+        ) : null}
       </div>
-      <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-2"><p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p><p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta}</p></div>
+
+      <div className="mt-4 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-3">
+        <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
+        <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta}</p>
+      </div>
     </div>
   );
 };
@@ -12658,7 +12719,6 @@ const enviarArquivo = async (tipo) => {
                 </>
               )}
             </div>
-            <div className="p-4 border-t border-gray-100"><button type="button" onClick={() => setModalEudoraAberto(false)} className="w-full bg-[#048187] text-white font-black py-3 rounded-xl">Fechar</button></div>
           </div>
         </div>
       )}
@@ -17187,7 +17247,7 @@ const enviarArquivo = async (tipo) => {
               <button
                 type="button"
                 onClick={fecharDetalheTutorial}
-                className="p-2 h-fit rounded-full bg-gray-100"
+                className="p-2 h-fit rounded-full bg-[#fff3f5] text-[#7c1f31] hover:bg-[#ffe5eb]"
                 title="Fechar"
               >
                 <X size={18} />
@@ -20676,7 +20736,7 @@ const enviarArquivo = async (tipo) => {
                 <button
                   type="button"
                   onClick={() => setModalServicosLojaAberto(false)}
-                  className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center shrink-0"
+                  className="w-10 h-10 rounded-xl bg-[#fff3f5] text-[#7c1f31] hover:bg-[#ffe5eb] flex items-center justify-center shrink-0"
                   title="Fechar"
                 >
                   <X size={19} />
@@ -20750,15 +20810,6 @@ const enviarArquivo = async (tipo) => {
                 </section>
               </div>
 
-              <div className="px-4 sm:px-6 py-4 border-t border-gray-100 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setModalServicosLojaAberto(false)}
-                  className="w-full bg-[#048187] text-white py-3 rounded-xl font-black hover:bg-[#036b70]"
-                >
-                  Fechar
-                </button>
-              </div>
             </div>
           </div>
         )}
@@ -21338,8 +21389,8 @@ const enviarArquivo = async (tipo) => {
                 />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#789093]">Grupo Monteiro</p>
-                <p className="text-sm font-bold text-[#234e51] truncate">DASH COMERCIAL SB</p>
+                <p className="text-[12px] sm:text-[13px] font-black uppercase tracking-[0.12em] text-[#048187] leading-none truncate">GRUPO SB MONTEIRO</p>
+                <p className="mt-1 text-[13px] font-black text-[#048187] leading-none truncate">DASH COMERCIAL SB</p>
               </div>
             </div>
             <button
@@ -21629,7 +21680,7 @@ const enviarArquivo = async (tipo) => {
                     type="button"
                     onClick={atualizarTelaAtualAgora}
                     disabled={atualizandoTelaAtual}
-                    className="flex items-center gap-2 hover:bg-[#eef8f8] disabled:opacity-60 px-3 py-2 rounded-full font-medium text-[#4d6f72] border border-transparent hover:border-[#e1eaec]"
+                    className="flex items-center gap-2 hover:bg-[#eef8f8] disabled:opacity-60 px-3 py-2 rounded-full font-semibold text-[#048187] border border-[#e1eaec] bg-white transition-colors"
                     title="Atualizar dados desta aba"
                   >
                     <RefreshCcw size={18} className={atualizandoTelaAtual ? 'animate-spin' : ''} />
@@ -21638,7 +21689,7 @@ const enviarArquivo = async (tipo) => {
                 )}
 
                 {(telaAtual === 'Dashboard' || telaAtual === 'PrimeiroPedidoCaptacao' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'VendasCidades' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
-                  <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#eef8f8] px-3 py-2 rounded-full font-medium text-[#4d6f72] border border-transparent hover:border-[#e1eaec]">
+                  <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-2 hover:bg-[#eef8f8] px-3 py-2 rounded-full font-semibold text-[#048187] border border-[#e1eaec] bg-white transition-colors">
                     <SlidersHorizontal size={18} /><span className="hidden sm:inline">Filtros</span>
                   </button>
                 )}
@@ -21656,7 +21707,7 @@ const enviarArquivo = async (tipo) => {
                           carregarNotificacoesSistema(false);
                         }
                       }}
-                      className="relative flex items-center justify-center w-10 h-10 hover:bg-[#eef8f8] rounded-full text-[#4d6f72] border border-transparent hover:border-[#e1eaec]"
+                      className="relative flex items-center justify-center w-10 h-10 hover:bg-[#eef8f8] rounded-full text-[#048187] border border-[#e1eaec] bg-white transition-colors"
                       title="Notificações"
                     >
                       <Bell size={20} />
@@ -21708,7 +21759,7 @@ const enviarArquivo = async (tipo) => {
                               onClick={() => {
                                 setPainelNotificacoesAberto(false);
                               }}
-                              className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                              className="w-9 h-9 rounded-full flex items-center justify-center text-[#7c1f31] hover:text-[#7c1f31] hover:bg-[#fff3f5] transition-colors"
                               title="Fechar notificações"
                               aria-label="Fechar notificações"
                             >
@@ -21835,7 +21886,7 @@ const enviarArquivo = async (tipo) => {
                 <div className="hidden sm:block w-px h-6 bg-[#e1e8ea]" />
                 <button
                   onClick={() => setTelaAtual('Perfil')}
-                  className="flex items-center gap-2.5 hover:bg-[#eef8f8] px-2.5 py-1 rounded-full min-w-0 transition-colors"
+                  className="flex items-center gap-2.5 hover:bg-[#eef8f8] px-2.5 py-1.5 rounded-full min-w-0 transition-colors border border-[#e1eaec] bg-white"
                   title="Abrir meu perfil"
                 >
                   <AvatarColaborador
@@ -21847,7 +21898,7 @@ const enviarArquivo = async (tipo) => {
                     tamanho={32}
                     borda="#dbe9ea"
                   />
-                  <span className="text-sm font-medium text-[#345d60] truncate max-w-[110px] sm:max-w-[220px]">
+                  <span className="text-sm font-semibold text-[#048187] truncate max-w-[110px] sm:max-w-[220px]">
                     {usuarioLogado.nome}
                   </span>
                 </button>
@@ -22185,7 +22236,7 @@ const enviarArquivo = async (tipo) => {
                   ...atual,
                   aberto: false,
                 }))}
-                className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-red-500 flex items-center justify-center shrink-0"
+                className="w-10 h-10 rounded-full bg-[#fff3f5] hover:bg-[#ffe5eb] text-[#7c1f31] hover:text-[#7c1f31] flex items-center justify-center shrink-0"
               >
                 <X size={20} />
               </button>
@@ -22565,18 +22616,6 @@ const enviarArquivo = async (tipo) => {
               )}
             </div>
 
-            <div className="p-5 border-t border-gray-100 bg-white shrink-0">
-              <button
-                type="button"
-                onClick={() => setModalRealizadoDiarioVD((atual) => ({
-                  ...atual,
-                  aberto: false,
-                }))}
-                className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-black py-3"
-              >
-                Fechar
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -22600,7 +22639,7 @@ const enviarArquivo = async (tipo) => {
                   ...atual,
                   aberto: false,
                 }))}
-                className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center shrink-0"
+                className="w-10 h-10 rounded-full bg-[#fff3f5] hover:bg-[#ffe5eb] text-[#7c1f31] hover:text-[#7c1f31] flex items-center justify-center shrink-0"
               >
                 <X size={20} />
               </button>
@@ -22859,18 +22898,6 @@ const enviarArquivo = async (tipo) => {
               </section>
             </div>
 
-            <div className="p-5 border-t border-gray-100 bg-white">
-              <button
-                type="button"
-                onClick={() => setModalVendaDiariaLoja((atual) => ({
-                  ...atual,
-                  aberto: false,
-                }))}
-                className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-black py-3"
-              >
-                Fechar
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -22889,7 +22916,7 @@ const enviarArquivo = async (tipo) => {
               <button
                 type="button"
                 onClick={() => setModalDesempenhoDetalhado((atual) => ({ ...atual, aberto: false }))}
-                className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-red-500 flex items-center justify-center shrink-0"
+                className="w-10 h-10 rounded-full bg-[#fff3f5] hover:bg-[#ffe5eb] text-[#7c1f31] hover:text-[#7c1f31] flex items-center justify-center shrink-0"
               >
                 <X size={20} />
               </button>
@@ -23190,9 +23217,6 @@ const enviarArquivo = async (tipo) => {
               )}
             </div>
 
-            <div className="px-6 pb-6 pt-3 border-t border-gray-100 shrink-0">
-              <button type="button" onClick={fecharModalValExp} className="w-full rounded-xl bg-[#048187] hover:bg-[#036b70] text-white font-bold py-3 transition">Fechar</button>
-            </div>
           </div>
         </div>
       )}
@@ -23207,7 +23231,7 @@ const enviarArquivo = async (tipo) => {
                   <p className="text-sm text-gray-400 mt-1 leading-relaxed">{modalDetalhes.subtitulo}</p>
                 ) : null}
               </div>
-              <button onClick={() => setModalDetalhes(null)} className="text-gray-400 hover:text-red-500 bg-gray-50 rounded-full p-2 shrink-0">
+              <button onClick={() => setModalDetalhes(null)} className="text-[#7c1f31] hover:text-[#7c1f31] bg-[#fff3f5] rounded-full p-2 shrink-0 hover:bg-[#ffe5eb]">
                 <X size={20} />
               </button>
             </div>
@@ -23333,9 +23357,6 @@ const enviarArquivo = async (tipo) => {
               })}
             </div>
 
-            <div className="p-5 sm:p-6 border-t border-gray-100 shrink-0">
-              <button onClick={() => setModalDetalhes(null)} className="w-full bg-[#048187] text-white font-bold py-3 rounded-xl hover:bg-[#036b70]">Fechar</button>
-            </div>
           </div>
         </div>
       )}
