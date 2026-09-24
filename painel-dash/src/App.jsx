@@ -3679,22 +3679,20 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
           </div>
         ) : (
           <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 min-w-0">
-              <div />
+            <p
+              className="w-full text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
+              style={{ color: corDesempenho }}
+            >
+              {valor}
+            </p>
+            {percentualDisponivel ? (
               <p
-                className="justify-self-center text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
+                className="mt-2 w-full pr-1 text-[9px] sm:text-[10px] font-extrabold leading-none text-right truncate"
                 style={{ color: corDesempenho }}
               >
-                {valor}
+                {percentualNumero.toFixed(1)}%
               </p>
-              <div className="justify-self-end min-w-0 text-right">
-                {percentualDisponivel ? (
-                  <p className="text-[9px] sm:text-[10px] font-extrabold leading-none truncate" style={{ color: corDesempenho }}>
-                    {percentualNumero.toFixed(1)}%
-                  </p>
-                ) : null}
-              </div>
-            </div>
+            ) : null}
           </div>
         )}
 
