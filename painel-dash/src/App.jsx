@@ -19308,42 +19308,74 @@ const enviarArquivo = async (tipo) => {
 
     const CardLoja = ({ titulo, valor, meta, percentual, labelMeta, valorMeta, onDetalhes, isTendencia = false, tendenciaIcon: TIcon, tendenciaStatus }) => {
       const percentualNumero = Number(percentual || 0);
-      const percFix = Math.max(0, Math.min(percentualNumero, 100));
+      const percentualDisponivel = percentual !== undefined;
       const corDesempenho = isTendencia
         ? (percentualNumero >= 100 ? '#16a34a' : '#ef4444')
-        : (percentual !== undefined ? corPorFaixaMeta(percentualNumero) : '#048187');
+        : (percentualDisponivel ? corPorFaixaMeta(percentualNumero) : '#048187');
 
       return (
-        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full min-w-0 transition-all hover:shadow-md">
-          <div className="min-w-0">
-            <div className="flex items-center justify-between mb-0.5 min-w-0 gap-2">
-              <h3 className="text-[10px] font-bold uppercase text-gray-500 truncate pr-1 tracking-wide">{titulo}</h3>
-              {onDetalhes && (
-                <button type="button" onClick={onDetalhes} className="text-[#048187] hover:text-[#036b70] shrink-0" title={`Ver detalhes de ${titulo}`}>
-                  <Eye size={14} />
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-1 min-w-0">
-              <p className="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tighter truncate leading-tight" style={{ color: corDesempenho }}>{valor}</p>
-              {isTendencia && TIcon && <TIcon size={16} className="shrink-0" style={{ color: corDesempenho }} />}
-            </div>
-            {percentual !== undefined && (
-              <div className="mt-1.5">
-                {isTendencia ? (
-                  <p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{tendenciaStatus}</p>
-                ) : (
-                  <p className="text-[9px] font-bold truncate mb-1" style={{ color: corDesempenho }}>{formatarNumeroBR(percentualNumero || 0, 1)}% <span className="text-gray-400 font-medium">da meta</span></p>
-                )}
-                <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
-                  <div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} />
+        <div
+          className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2 transition-all hover:shadow-md ${onDetalhes ? 'cursor-pointer' : ''}`}
+          onClick={onDetalhes || undefined}
+          onKeyDown={(e) => { if (onDetalhes && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onDetalhes(); } }}
+          role={onDetalhes ? 'button' : undefined}
+          tabIndex={onDetalhes ? 0 : undefined}
+        >
+          <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 min-w-0">
+            <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate pr-1">{titulo}</h3>
+            {onDetalhes ? (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDetalhes(); }}
+                className="relative z-[3] text-white/90 hover:text-white shrink-0 cursor-pointer"
+                title={`Ver detalhes de ${titulo}`}
+              >
+                <Eye size={13} />
+              </button>
+            ) : null}
+          </div>
+
+          <div className="px-1.5 pt-2 pb-0 flex flex-col flex-1 min-w-0">
+            {isTendencia ? (
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <div className="flex items-center justify-center gap-1 min-w-0">
+                  <p
+                    className="text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
+                    style={{ color: corDesempenho }}
+                  >
+                    {valor}
+                  </p>
+                  {TIcon ? (
+                    <TIcon size={15} className="shrink-0" style={{ color: corDesempenho }} />
+                  ) : null}
                 </div>
+                <p className="mt-2 text-[9px] font-bold text-center truncate" style={{ color: corDesempenho }}>
+                  {tendenciaStatus}
+                </p>
+              </div>
+            ) : (
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <p
+                  className="w-full text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
+                  style={{ color: corDesempenho }}
+                >
+                  {valor}
+                </p>
+                {percentualDisponivel ? (
+                  <p
+                    className="mt-2 w-full pr-1 text-[9px] sm:text-[10px] font-extrabold leading-none text-right truncate"
+                    style={{ color: corDesempenho }}
+                  >
+                    {formatarNumeroBR(percentualNumero || 0, 1)}%
+                  </p>
+                ) : null}
               </div>
             )}
-          </div>
-          <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-2">
-            <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta || 'Meta:'}</p>
-            <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta || meta || '-'}</p>
+
+            <div className="mt-auto pt-2 flex items-center justify-between min-w-0 gap-2 border-t border-gray-100">
+              <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta || 'Meta:'}</p>
+              <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta || meta || '-'}</p>
+            </div>
           </div>
         </div>
       );
