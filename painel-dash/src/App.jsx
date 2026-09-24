@@ -3664,7 +3664,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
           <div className="flex-1 min-w-0 flex flex-col justify-center">
             <div className="flex items-center justify-center gap-1 min-w-0">
               <p
-                className="text-[19px] sm:text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
+                className="text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
                 style={{ color: corDesempenho }}
               >
                 {valor}
@@ -3682,7 +3682,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
             <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 min-w-0">
               <div />
               <p
-                className="justify-self-center text-[19px] sm:text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
+                className="justify-self-center text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
                 style={{ color: corDesempenho }}
               >
                 {valor}
