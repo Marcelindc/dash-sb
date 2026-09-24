@@ -3633,7 +3633,6 @@ const CardMetaNova = ({ titulo, valor, percentual, labelMeta, valorMeta, onClick
 const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpandir, isTendencia, tendenciaIcon: TIcon, tendenciaStatus }) => {
   const percentualNumero = Number(percentual || 0);
   const percentualDisponivel = percentual !== undefined;
-  const percFix = Math.min(percentualNumero, 100);
   const corDesempenho = isTendencia
     ? (percentualNumero >= 100 ? '#16a34a' : '#ef4444')
     : (percentualDisponivel ? corPorFaixaMeta(percentualNumero) : '#048187');
@@ -3661,41 +3660,43 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
       </div>
 
       <div className="px-1.5 pt-2 pb-0 flex flex-col flex-1 min-w-0">
-        <div className="min-w-0 text-center">
-          <div className="flex items-center justify-center gap-1 min-w-0">
-            <p
-              className="text-[17px] sm:text-[18px] font-extrabold tracking-tight leading-none text-center truncate"
-              style={{ color: corDesempenho }}
-            >
-              {valor}
+        {isTendencia ? (
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="flex items-center justify-center gap-1 min-w-0">
+              <p
+                className="text-[19px] sm:text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
+                style={{ color: corDesempenho }}
+              >
+                {valor}
+              </p>
+              {TIcon ? (
+                <TIcon size={15} className="shrink-0" style={{ color: corDesempenho }} />
+              ) : null}
+            </div>
+            <p className="mt-2 text-[9px] font-bold text-center truncate" style={{ color: corDesempenho }}>
+              {tendenciaStatus}
             </p>
-            {isTendencia && TIcon ? (
-              <TIcon size={15} className="shrink-0" style={{ color: corDesempenho }} />
-            ) : null}
           </div>
-
-          {percentualDisponivel ? (
-            isTendencia ? (
-              <div className="mt-2">
-                <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
-                  <div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} />
-                </div>
-                <p className="mt-1 text-[8px] font-bold truncate text-left" style={{ color: corDesempenho }}>
-                  {tendenciaStatus}
-                </p>
+        ) : (
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 min-w-0">
+              <div />
+              <p
+                className="justify-self-center text-[19px] sm:text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
+                style={{ color: corDesempenho }}
+              >
+                {valor}
+              </p>
+              <div className="justify-self-end min-w-0 text-right">
+                {percentualDisponivel ? (
+                  <p className="text-[9px] sm:text-[10px] font-extrabold leading-none truncate" style={{ color: corDesempenho }}>
+                    {percentualNumero.toFixed(1)}%
+                  </p>
+                ) : null}
               </div>
-            ) : (
-              <div className="mt-2">
-                <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
-                  <div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} />
-                </div>
-                <p className="mt-1 text-[8px] font-bold truncate text-left" style={{ color: corDesempenho }}>
-                  {percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span>
-                </p>
-              </div>
-            )
-          ) : null}
-        </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-auto pt-2 flex items-center justify-between min-w-0 gap-2 border-t border-gray-100">
           <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
@@ -12001,7 +12002,7 @@ const enviarArquivo = async (tipo) => {
               <span className="text-sm font-black text-[#7c1f31]">{formatarNumeroBR(dados?.total_cancelados || 0, 0)}</span>
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5 min-h-[142px] overflow-hidden">
             <div className="bg-[#048187] rounded-[14px] px-3 py-2 flex items-center justify-between gap-2 min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</p>
               <button
@@ -12079,17 +12080,17 @@ const enviarArquivo = async (tipo) => {
               ))}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5 min-h-[142px] overflow-hidden">
             <div className="bg-[#048187] rounded-[14px] px-3 py-2 flex items-center justify-between gap-2 min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wide text-white truncate">Desempenho</p>
             </div>
-            <div className="p-2.5 pt-3 space-y-1.5 flex-1">
+            <div className="p-2 pt-2.5 space-y-1 flex-1">
               {[
                 ['RPA', formatarMoeda(rpa), calcPerc(rpa, metaRpa)],
                 ['TKT MÉD.', formatarMoeda(ticket), calcPerc(ticket, metaTicket)],
                 ['UPA', formatarNumeroBR(upa, 1), calcPerc(upa, metaUpa)],
               ].map(([nome, valor, atingimento]) => (
-                <div key={nome} className="rounded border border-gray-100 bg-[#fcfbf7] px-2 py-1 flex items-center justify-between">
+                <div key={nome} className="rounded border border-gray-100 bg-[#fcfbf7] px-2 py-1 flex items-center justify-between min-h-[24px]">
                   <span className="text-[9px] font-black text-gray-600">{nome}</span>
                   <span className="text-[9px] font-black" style={{ color: corPorFaixaMeta(atingimento) }}>{valor}</span>
                 </div>
