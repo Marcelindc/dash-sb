@@ -3623,8 +3623,8 @@ const CardMetaNova = ({ titulo, valor, percentual, labelMeta, valorMeta, onClick
         )}
       </div>
       <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-2">
-        <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
-        <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta}</p>
+        <p className="text-[8px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
+        <p className="text-[9px] font-bold text-gray-700 truncate">{valorMeta}</p>
       </div>
     </div>
   );
@@ -3660,11 +3660,11 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
         ) : null}
       </div>
 
-      <div className="px-1.5 pt-2 pb-0 flex flex-col justify-between h-full min-w-0">
+      <div className="px-1.5 pt-2 pb-0 flex flex-col min-w-0">
         <div className="min-w-0">
           <div className="flex items-center gap-1 min-w-0">
             <p
-              className="text-lg sm:text-xl font-extrabold tracking-tighter truncate leading-tight"
+              className="text-[15px] font-extrabold tracking-tight truncate leading-tight"
               style={{ color: corDesempenho }}
             >
               {valor}
@@ -3676,8 +3676,8 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
 
           {percentualDisponivel ? (
             isTendencia ? (
-              <div className="mt-1.5">
-                <p className="text-[9px] font-bold truncate mb-1.5" style={{ color: corDesempenho }}>
+              <div className="mt-1">
+                <p className="text-[8px] font-bold truncate mb-1" style={{ color: corDesempenho }}>
                   {tendenciaStatus}
                 </p>
                 <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
@@ -3685,11 +3685,11 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
                 </div>
               </div>
             ) : (
-              <div className="mt-1.5">
+              <div className="mt-1">
                 <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
                   <div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} />
                 </div>
-                <p className="mt-1 text-[9px] font-bold truncate" style={{ color: corDesempenho }}>
+                <p className="mt-1 text-[8px] font-bold truncate" style={{ color: corDesempenho }}>
                   {percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span>
                 </p>
               </div>
@@ -3697,7 +3697,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
           ) : null}
         </div>
 
-        <div className="mt-1.5 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-1.5">
+        <div className="mt-1 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-1">
           <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
           <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta}</p>
         </div>

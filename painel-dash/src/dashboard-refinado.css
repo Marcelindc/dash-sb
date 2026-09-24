@@ -578,3 +578,58 @@
     min-height: 138px !important;
   }
 }
+
+
+/* ==========================================================================
+   V1.5.3 — KPIs compactos conforme mockup do Canva
+   ========================================================================== */
+
+/* Reduz a altura da linha superior e elimina o vazio entre progresso e rodapé. */
+.dash-visual-standard .dash-dashboard-kpis {
+  align-items: stretch !important;
+  gap: .55rem !important;
+}
+
+.dash-visual-standard .dash-dashboard-kpis > * {
+  height: 130px !important;
+  min-height: 130px !important;
+  padding: .5rem !important;
+}
+
+/* No mockup, os valores principais usam referência de fonte 15. */
+.dash-visual-standard .dash-dashboard-kpis .text-lg,
+.dash-visual-standard .dash-dashboard-kpis .text-xl,
+.dash-visual-standard .dash-dashboard-kpis .text-2xl,
+.dash-visual-standard .dash-dashboard-kpis .text-3xl {
+  font-size: 15px !important;
+  line-height: 1.05 !important;
+}
+
+/* Cabeçalho compacto sem alterar o padrão verde aprovado. */
+.dash-visual-standard .dash-dashboard-kpis > * > [class*="bg-[#048187]"] {
+  min-height: 28px !important;
+  padding-top: .35rem !important;
+  padding-bottom: .35rem !important;
+}
+
+/* Compacta especificamente o miolo dos quatro cards comerciais. */
+.dash-visual-standard .dash-dashboard-kpis > * > div:nth-child(2) {
+  min-height: 0;
+}
+
+/* Total pedidos / ativados também acompanha a densidade do mockup. */
+.dash-visual-standard .dash-dashboard-kpis > * .p-3 {
+  padding: .55rem !important;
+}
+
+/* Indicadores e Desempenho permanecem íntegros dentro da nova altura. */
+.dash-visual-standard .dash-dashboard-kpis > * .p-2\.5 {
+  padding: .5rem !important;
+}
+
+@media (max-width: 1279px) {
+  .dash-visual-standard .dash-dashboard-kpis > * {
+    height: auto !important;
+    min-height: 122px !important;
+  }
+}
