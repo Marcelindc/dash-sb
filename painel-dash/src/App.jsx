@@ -3638,8 +3638,8 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
     : (percentualDisponivel ? corPorFaixaMeta(percentualNumero) : '#048187');
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 overflow-hidden transition-all hover:shadow-md">
-      <div className="bg-[#048187] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 overflow-hidden transition-all hover:shadow-md min-h-[168px]">
+      <div className="bg-[#048187] px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 min-w-0">
         <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate pr-1">{titulo}</h3>
         {onClickExpandir ? (
           <button
@@ -3648,28 +3648,28 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
             className="text-white/90 hover:text-white shrink-0"
             title={`Ver detalhes de ${titulo}`}
           >
-            <Eye size={14} />
+            <Eye size={13} />
           </button>
         ) : null}
       </div>
 
-      <div className="p-3 sm:p-4 flex flex-col justify-between h-full min-w-0">
+      <div className="px-3 sm:px-4 pt-3 pb-3 flex flex-col justify-between h-full min-w-0">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1 min-w-0">
             <p
-              className="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tighter truncate leading-tight"
+              className="text-[18px] sm:text-[20px] xl:text-[21px] font-extrabold tracking-tight truncate leading-tight"
               style={{ color: corDesempenho }}
             >
               {valor}
             </p>
             {isTendencia && TIcon ? (
-              <TIcon size={18} className="shrink-0" style={{ color: corDesempenho }} />
+              <TIcon size={15} className="shrink-0" style={{ color: corDesempenho }} />
             ) : null}
           </div>
 
           {percentualDisponivel ? (
             isTendencia ? (
-              <div className="mt-7">
+              <div className="mt-6">
                 <p
                   className="text-[9px] font-bold truncate mb-2"
                   style={{ color: corDesempenho }}
@@ -3684,7 +3684,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
                 </div>
               </div>
             ) : (
-              <div className="mt-7">
+              <div className="mt-6">
                 <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
                   <div
                     className="h-1.5 rounded-full"
@@ -3692,7 +3692,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
                   />
                 </div>
                 <p
-                  className="mt-2 text-[10px] font-bold truncate"
+                  className="mt-2 text-[9px] font-bold truncate"
                   style={{ color: corDesempenho }}
                 >
                   {percentualNumero.toFixed(1)}%{' '}
@@ -12480,12 +12480,12 @@ const enviarArquivo = async (tipo) => {
           <CardMini titulo="Realizado Diário" valor={formatarAbrev(dados.realizado_diario || 0)} percentual={pDia} labelMeta="Meta Diária:" valorMeta={formatarAbrev(dados.meta_diaria || 0)} onClickExpandir={abrirDetRealizadoDiario} />
           <CardMini titulo="Realizado Eudora" valor={formatarAbrev(dados.realizado_eudora || 0)} percentual={pEudora} labelMeta={`Meta Eudora (${Number(dados.meta_eudora_percentual || 20).toFixed(1)}%):`} valorMeta={formatarAbrev(dados.meta_eudora || 0)} onClickExpandir={abrirDetalheEudora} />
           <CardMini titulo="Tendência" valor={formatarAbrev(dados.tendencia_ciclo || 0)} percentual={calcPerc(dados.tendencia_ciclo, dados.meta_ciclo || metaFaturamentoDashboard)} labelMeta="Gap Tendência:" valorMeta={formatarAbrev(dados.gap_tendencia || 0)} onClickExpandir={abrirDetTendencia} isTendencia tendenciaIcon={tPos ? TrendingUp : TrendingDown} tendenciaStatus={dados.status_tendencia || 'Sem tendência'} />
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md min-h-[168px]">
             <div className="grid grid-cols-2 flex-1 min-w-0"><div className="p-3 sm:p-4 border-r border-gray-100 min-w-0 flex flex-col justify-center"><h3 className="text-[10px] font-bold uppercase text-gray-500 mb-1 truncate pr-1">Total pedidos</h3><p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-[#048187] tracking-tighter truncate">{Number(dados.total_pedidos || 0).toLocaleString('pt-BR')}</p></div><div className="p-3 sm:p-4 relative min-w-0 flex flex-col justify-center"><button onClick={abrirDetAtiv} className="absolute top-2 right-2 text-[#048187] hover:text-[#036b70] bg-[#e6f6f7] p-1.5 rounded-full z-10"><Eye size={12} /></button><h3 className="text-[10px] font-bold uppercase text-gray-500 mb-1 pr-4 truncate">Ativados</h3><p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-[#048187] tracking-tighter truncate">{Number(dados.revendedores_ativados || 0).toLocaleString('pt-BR')}</p></div></div>
             <div className="p-2 sm:p-3 border-t border-gray-50 bg-gray-50/50 flex items-center justify-between min-w-0 gap-2"><p className="text-[9px] font-bold text-gray-400 uppercase truncate">Cancelados</p><button onClick={abrirDetCancelados} className="text-sm font-bold text-[#712231] hover:underline tracking-tighter flex items-center gap-1 truncate">{Number(dados.total_cancelados || 0).toLocaleString('pt-BR')} <Eye size={14}/></button></div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md">
-            <div className="bg-[#048187] px-3 sm:px-4 py-2">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md min-h-[168px]">
+            <div className="bg-[#048187] px-3 sm:px-4 py-1.5">
               <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</h3>
             </div>
             <div className="p-3 sm:p-4 grid grid-cols-2 gap-1.5 flex-1">
@@ -12495,8 +12495,8 @@ const enviarArquivo = async (tipo) => {
               <button type="button" onClick={abrirDetAtiv} className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corAtividadeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></button>
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md">
-            <div className="bg-[#048187] px-3 sm:px-4 py-2">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md min-h-[168px]">
+            <div className="bg-[#048187] px-3 sm:px-4 py-1.5">
               <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Desempenho</h3>
             </div>
             <div className="p-3 sm:p-4 space-y-1.5 flex-1">
@@ -13639,8 +13639,8 @@ const enviarArquivo = async (tipo) => {
               onClickExpandir={abrirDetalheEudoraGeralMetas}
             />
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-all hover:shadow-md">
-              <div className="bg-[#048187] px-3 sm:px-4 py-2">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-all hover:shadow-md min-h-[168px]">
+              <div className="bg-[#048187] px-3 sm:px-4 py-1.5">
                 <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</h3>
               </div>
               <div className="p-3 sm:p-4 grid grid-cols-2 gap-1.5 flex-1">
@@ -13690,8 +13690,8 @@ const enviarArquivo = async (tipo) => {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-all hover:shadow-md">
-              <div className="bg-[#048187] px-3 sm:px-4 py-2">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-all hover:shadow-md min-h-[168px]">
+              <div className="bg-[#048187] px-3 sm:px-4 py-1.5">
                 <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Desempenho</h3>
               </div>
               <div className="p-3 sm:p-4 space-y-1.5 flex-1">
