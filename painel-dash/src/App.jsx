@@ -712,10 +712,11 @@ const obterNomeAba = (nome) => ({
   LojaRanking: 'Ranking',
   ADM: 'Painel ADM',
   Solicitações: 'Solicitações',
+  CampanhaIncentivo2026: 'Campanha Incentivo 2026',
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'];
+const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações', 'CampanhaIncentivo2026'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador', 'consultor'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -4948,6 +4949,7 @@ export default function App() {
     try { return localStorage.getItem(TEMA_STORAGE_KEY) === 'escuro'; } catch { return false; }
   });
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
+  const [campanhaIncentivo2026, setCampanhaIncentivo2026] = useState({ carregando: false, erro: '', dados: null });
 
   useEffect(() => {
     try { localStorage.setItem(TEMA_STORAGE_KEY, temaEscuro ? 'escuro' : 'claro'); } catch {}
@@ -5346,6 +5348,13 @@ export default function App() {
   useEffect(() => {
     if (!usuarioLogado) return;
 
+    if (telaAtual === 'CampanhaIncentivo2026' && !podeAcessarCampanhaIncentivo2026) {
+      setCanalAtual('VD');
+      setTelaAtual('Dashboard');
+      gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, 'Dashboard');
+      return;
+    }
+
     if (modoGerenteVD && ![
       'AcompanhamentoVD',
       ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
@@ -5683,6 +5692,11 @@ export default function App() {
   const escoposGerenteLoja = estruturasPermitidasUsuarioLogado.filter((item) => item.area === 'LOJA');
   const perfilUsuarioAtual = String(usuarioLogado?.perfil || '').toLowerCase();
   const areaGestaoUsuarioAtual = String(usuarioLogado?.area_gestao || '').trim().toUpperCase();
+  const podeAcessarCampanhaIncentivo2026 = perfilUsuarioAtual === 'admin'
+    && (
+      String(usuarioLogado?.email || '').trim().toLowerCase() === 'marcelodc34@gmail.com'
+      || String(usuarioLogado?.nome || '').trim().toLowerCase() === 'marcelin cabral'
+    );
   const modoConsultorVD = perfilUsuarioAtual === 'consultor';
   const modoGerenteVD = perfilUsuarioAtual !== 'admin'
     && !modoConsultorVD
@@ -5834,6 +5848,7 @@ export default function App() {
 
   const usuarioPodeAcessar = (tela) => {
     if (!usuarioLogado) return false;
+    if (tela === 'CampanhaIncentivo2026') return podeAcessarCampanhaIncentivo2026;
     if (tela === 'Solicitações') return true;
     if (usuarioLogado.perfil === 'admin') return true;
     if (tela === 'AcompanhamentoVD') {
@@ -9913,9 +9928,27 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     }
   };
 
+  const carregarCampanhaIncentivo2026 = async (forcarAtualizacao = false) => {
+    if (!podeAcessarCampanhaIncentivo2026) return;
+    setCampanhaIncentivo2026((atual) => ({ ...atual, carregando: true, erro: '' }));
+    try {
+      const resposta = await axios.get(`${API_URL}/campanha-incentivo-2026/resumo`, {
+        headers: forcarAtualizacao ? { 'X-Force-Refresh': '1' } : undefined,
+      });
+      setCampanhaIncentivo2026({ carregando: false, erro: '', dados: resposta.data || null });
+    } catch (erro) {
+      setCampanhaIncentivo2026((atual) => ({
+        ...atual,
+        carregando: false,
+        erro: erro?.response?.data?.detail || erro?.message || 'Não foi possível carregar a Campanha Incentivo 2026.',
+      }));
+    }
+  };
+
   const carregarTelaAtual = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
 
+    if (telaAtual === 'CampanhaIncentivo2026') return carregarCampanhaIncentivo2026(forcarAtualizacao);
     if (telaAtual === 'AcompanhamentoVD') return carregarAcompanhamentoGerenteVD(filtros, forcarAtualizacao);
     if (telaAtual === 'PrimeiroPedidoCaptacao') return carregarPrimeiroPedidoCaptacao(filtros, forcarAtualizacao);
     if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao, false);
@@ -10239,7 +10272,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     const cicloTela = telaEhLoja(telaAtual)
       ? (cicloSelecionadoLoja || cicloLoja || '')
       : (cicloSelecionadoVD || filtrosAtivos?.ciclo || '');
-    if (!telaEhLoja(telaAtual) && !cicloTela) return;
+    if (telaAtual !== 'CampanhaIncentivo2026' && !telaEhLoja(telaAtual) && !cicloTela) return;
     const usuarioChaveTela = String(
       usuarioLogado?.id || usuarioLogado?.email || usuarioLogado?.nome || 'usuario'
     ).trim();
@@ -21292,7 +21325,123 @@ const enviarArquivo = async (tipo) => {
     );
   };
 
+  const renderTelaCampanhaIncentivo2026 = () => {
+    if (!podeAcessarCampanhaIncentivo2026) return null;
+
+    const payload = campanhaIncentivo2026?.dados || {};
+    const realizado = payload?.realizado || {};
+    const metas = payload?.metas || {};
+    const ciclosCampanha = Array.isArray(payload?.ciclos) ? payload.ciclos : [];
+    const meta106 = Number(metas?.meta_principal || 106000000);
+    const meta109 = Number(metas?.meta_superacao || 109000000);
+    const total = Number(realizado?.total || 0);
+    const totalVD = Number(realizado?.vd || 0);
+    const totalLoja = Number(realizado?.loja || 0);
+    const pct106 = Number(realizado?.percentual_meta_principal || 0);
+    const pct109 = Number(realizado?.percentual_meta_superacao || 0);
+    const falta106 = Number(realizado?.falta_meta_principal || Math.max(meta106 - total, 0));
+    const falta109 = Number(realizado?.falta_meta_superacao || Math.max(meta109 - total, 0));
+    const formatarPctCampanha = (valor) => `${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+    const larguraBarra = (valor) => `${Math.max(0, Math.min(Number(valor || 0), 100))}%`;
+    const atualizadoCampanha = payload?.atualizado_em
+      ? new Date(payload.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+      : 'Aguardando atualização';
+
+    return (
+      <div className="campanha-incentivo-2026 space-y-5 sm:space-y-6">
+        <section className="relative overflow-hidden rounded-[28px] border border-[#d9eeee] bg-gradient-to-br from-[#012f32] via-[#046f74] to-[#0ba0a6] text-white shadow-sm">
+          <div className="absolute -right-16 -top-24 w-72 h-72 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute right-20 bottom-[-100px] w-80 h-52 rounded-[50%] border-[26px] border-white/5 rotate-[-8deg]" />
+          <div className="relative p-6 sm:p-8 xl:p-9 grid grid-cols-1 xl:grid-cols-[1.25fr_.75fr] gap-7 items-center">
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-5">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 border border-white/15 px-3 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-[0.12em]"><ShieldCheck size={14} /> Prévia privada</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#ffdf86]/15 border border-[#ffe39d]/20 px-3 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-[0.12em] text-[#fff2c7]"><Sparkles size={14} /> VD + LOJA</span>
+              </div>
+              <p className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em] text-white/70">Ciclos 14 • 15 • 16 • 17</p>
+              <h1 className="mt-2 text-3xl sm:text-4xl xl:text-5xl font-black tracking-tight">Campanha Incentivo 2026</h1>
+              <p className="mt-3 max-w-3xl text-sm sm:text-base text-white/80 font-medium leading-relaxed">Uma jornada única para acompanhar o resultado combinado dos canais <strong className="text-white">Venda Direta + LOJA</strong>, a conquista da Expedição 106 e a corrida pela Superação 109.</p>
+              <div className="mt-6 flex flex-wrap items-center gap-3 text-xs font-bold text-white/80">
+                <span className="inline-flex items-center gap-2"><MapPin size={15} /> Destino: Santo Amaro • Lençóis Maranhenses</span>
+                <span className="hidden sm:block w-1 h-1 rounded-full bg-white/40" />
+                <span>Última base: {atualizadoCampanha}</span>
+              </div>
+            </div>
+            <div className="rounded-[24px] bg-white/10 backdrop-blur-sm border border-white/15 p-5 sm:p-6">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/60">Resultado combinado 2026 até C17</p>
+              <p className="mt-2 text-3xl sm:text-4xl font-black">{formatarAbrev(total)}</p>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-black/10 p-3.5 border border-white/10"><p className="text-[9px] font-black uppercase tracking-wider text-white/55">Venda Direta</p><p className="mt-1 text-lg font-black">{formatarAbrev(totalVD)}</p></div>
+                <div className="rounded-2xl bg-black/10 p-3.5 border border-white/10"><p className="text-[9px] font-black uppercase tracking-wider text-white/55">LOJA</p><p className="mt-1 text-lg font-black">{formatarAbrev(totalLoja)}</p></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {campanhaIncentivo2026?.erro && <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 flex items-center gap-2"><AlertCircle size={17} /> {campanhaIncentivo2026.erro}</div>}
+
+        {campanhaIncentivo2026?.carregando && !payload?.realizado ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm"><Loader2 className="mx-auto animate-spin text-[#048187]" size={28} /><p className="mt-3 text-sm font-bold text-gray-400">Calculando VD + LOJA e preparando a campanha...</p></div>
+        ) : (
+          <>
+            <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5">
+              <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6 overflow-hidden relative">
+                <div className="absolute right-5 top-5 w-12 h-12 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><MapPin size={24} /></div>
+                <div className="pr-16"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Incentivo 1</p><h2 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Expedição 106</h2><p className="mt-1 text-xs sm:text-sm font-semibold text-gray-400">Meta corporativa somando VD + LOJA</p></div>
+                <div className="mt-6 flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase text-gray-400">Realizado</p><p className="text-2xl sm:text-3xl font-black text-[#048187]">{formatarAbrev(total)}</p></div><div className="text-right"><p className="text-[10px] font-black uppercase text-gray-400">Meta</p><p className="text-xl font-black text-gray-700">{formatarAbrev(meta106)}</p></div></div>
+                <div className="mt-4 h-3 rounded-full bg-[#edf3f4] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#048187] to-[#22a9ad] transition-all duration-500" style={{ width: larguraBarra(pct106) }} /></div>
+                <div className="mt-2 flex justify-between gap-3 text-xs font-black"><span className="text-[#048187]">{formatarPctCampanha(pct106)} conquistado</span><span className="text-gray-400">Faltam {formatarAbrev(falta106)}</span></div>
+                <div className="mt-5 rounded-2xl bg-[#f7fbfb] border border-[#e4f0f1] p-4"><p className="text-sm font-black text-gray-700">🏝 Viagem para Santo Amaro</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Consultores elegíveis precisam cumprir <strong>receita + indicadores individuais</strong> nos quatro ciclos da campanha: C14, C15, C16 e C17.</p></div>
+              </div>
+
+              <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6 overflow-hidden relative">
+                <div className="absolute right-5 top-5 w-12 h-12 rounded-2xl bg-[#fff2e8] text-[#ff6f03] flex items-center justify-center"><BadgeDollarSign size={25} /></div>
+                <div className="pr-16"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#ff6f03]">Incentivo 2</p><h2 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Superação 109</h2><p className="mt-1 text-xs sm:text-sm font-semibold text-gray-400">Pool de R$ 50 mil para elegíveis</p></div>
+                <div className="mt-6 flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase text-gray-400">Realizado</p><p className="text-2xl sm:text-3xl font-black text-[#ff6f03]">{formatarAbrev(total)}</p></div><div className="text-right"><p className="text-[10px] font-black uppercase text-gray-400">Meta</p><p className="text-xl font-black text-gray-700">{formatarAbrev(meta109)}</p></div></div>
+                <div className="mt-4 h-3 rounded-full bg-[#f4efe9] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#ff6f03] to-[#ff9a4f] transition-all duration-500" style={{ width: larguraBarra(pct109) }} /></div>
+                <div className="mt-2 flex justify-between gap-3 text-xs font-black"><span className="text-[#ff6f03]">{formatarPctCampanha(pct109)} conquistado</span><span className="text-gray-400">Faltam {formatarAbrev(falta109)}</span></div>
+                <div className="mt-5 rounded-2xl bg-[#fffaf5] border border-[#f9eadb] p-4"><p className="text-sm font-black text-gray-700">💰 R$ 50.000 de bônus</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Participam da divisão proporcional aqueles que alcançarem <strong>120% da meta individual</strong> nos ciclos 14 a 17 e cumprirem os indicadores IAF aplicáveis.</p></div>
+              </div>
+            </section>
+
+            <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Rota da campanha</p><h2 className="mt-1 text-xl font-black text-gray-800">Quatro ciclos até a conquista</h2><p className="mt-1 text-xs text-gray-400 font-semibold">Os valores exibidos em cada checkpoint já somam VD + LOJA.</p></div><span className="self-start sm:self-auto rounded-full bg-[#f1f7f7] text-[#527679] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide">C14 → C17</span></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                {[14, 15, 16, 17].map((numero, indice) => {
+                  const item = ciclosCampanha.find((c) => String(c?.ciclo || '').startsWith(`${numero}/`)) || { ciclo: `${numero}/2026`, vd: 0, loja: 0, total: 0, tem_dados: false };
+                  return (
+                    <div key={numero} className={`relative rounded-2xl border p-4 ${item.tem_dados ? 'bg-[#f7fbfb] border-[#d9eeee]' : 'bg-[#fbfbfb] border-gray-100'}`}>
+                      <div className="flex items-center justify-between gap-2"><div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm ${item.tem_dados ? 'bg-[#048187] text-white' : 'bg-gray-100 text-gray-400'}`}>{numero}</div><span className={`text-[9px] font-black uppercase tracking-wider ${item.tem_dados ? 'text-[#048187]' : 'text-gray-400'}`}>{item.tem_dados ? 'Em acompanhamento' : 'Aguardando'}</span></div>
+                      <p className="mt-4 text-[10px] font-black uppercase text-gray-400">Resultado combinado</p><p className={`mt-1 text-xl font-black ${item.tem_dados ? 'text-gray-800' : 'text-gray-300'}`}>{formatarAbrev(Number(item.total || 0))}</p>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold"><div className="rounded-xl bg-white border border-gray-100 px-2.5 py-2"><span className="text-gray-400 block">VD</span><span className="text-[#048187]">{formatarAbrev(Number(item.vd || 0))}</span></div><div className="rounded-xl bg-white border border-gray-100 px-2.5 py-2"><span className="text-gray-400 block">LOJA</span><span className="text-[#7c1f31]">{formatarAbrev(Number(item.loja || 0))}</span></div></div>
+                      {indice < 3 && <div className="hidden xl:block absolute -right-3 top-8 w-6 h-px bg-[#cfe4e5] z-10" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_.85fr] gap-4 sm:gap-5">
+              <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                <div className="flex items-center gap-3"><div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Target size={22} /></div><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Qualificação individual</p><h2 className="text-lg font-black text-gray-800">Passaporte da conquista</h2></div></div>
+                <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-2.5">{['Receita', 'Atividade', 'MAKE', 'CABELO', 'Multimarcas', 'IAF aplicáveis'].map((criterio) => <div key={criterio} className="rounded-2xl border border-gray-100 bg-[#fcfbf7] px-3 py-3 flex items-center gap-2.5"><CheckCircle size={16} className="text-[#048187] shrink-0" /><span className="text-xs font-black text-gray-600">{criterio}</span></div>)}</div>
+                <div className="mt-4 rounded-2xl border border-dashed border-[#b9dfe1] bg-[#f5fbfb] p-4 flex items-start gap-3"><Sparkles size={18} className="text-[#048187] shrink-0 mt-0.5" /><div><p className="text-xs font-black text-gray-700">Próxima evolução desta tela</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Conectar a elegibilidade por pessoa, selos C14–C17, ranking da campanha, “quanto falta” por indicador e simulação do bônus proporcional.</p></div></div>
+              </div>
+
+              <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#7c1f31]">Quem pode participar</p><h2 className="mt-1 text-lg font-black text-gray-800">Público da campanha</h2>
+                <div className="mt-5 space-y-2.5">{['Consultores de ERs', 'Força de Vendas e Lojas', 'Promotores de campo', 'Líderes de ER'].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl bg-[#fafafa] border border-gray-100 px-4 py-3"><UsersRound size={17} className="text-[#048187] shrink-0" /><span className="text-sm font-bold text-gray-600">{item}</span></div>)}</div>
+                <div className="mt-4 rounded-2xl bg-[#fff8f8] border border-[#f4e2e5] p-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#7c1f31]">Em definição</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">A fórmula exata da divisão proporcional dos R$ 50 mil ainda não foi parametrizada. A tela não calcula prêmio individual até essa regra ser validada.</p></div>
+              </div>
+            </section>
+          </>
+        )}
+      </div>
+    );
+  };
+
   const renderContent = () => {
+    if (telaAtual === 'CampanhaIncentivo2026') return renderTelaCampanhaIncentivo2026();
     if (telaAtual === 'AcompanhamentoVD') return renderTelaAcompanhamentoVD();
     if (telaAtual === 'PrimeiroPedidoCaptacao') return renderTelaPrimeiroPedidoCaptacao();
     if (telaAtual === 'Dashboard') return renderTelaDashboard();
@@ -21722,6 +21871,30 @@ const enviarArquivo = async (tipo) => {
                 )}
               </div>
             )}
+
+            {podeAcessarCampanhaIncentivo2026 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPainelFiltrosAberto(false);
+                  setTelaAtual('CampanhaIncentivo2026');
+                  setMenuHamburguerAberto(false);
+                }}
+                className={`w-full rounded-2xl border px-4 py-3 flex items-center gap-3 text-left transition-all ${telaAtual === 'CampanhaIncentivo2026' ? 'bg-gradient-to-r from-[#048187] to-[#0a9aa1] text-white border-[#048187] shadow-sm' : 'bg-[#f5fbfb] text-[#24585b] border-[#dcecee] hover:border-[#9fd2d5] hover:bg-[#edf8f8]'}`}
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${telaAtual === 'CampanhaIncentivo2026' ? 'bg-white/15 text-white' : 'bg-[#e0f4f4] text-[#048187]'}`}>
+                  <Trophy size={19} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-black text-sm truncate">Campanha Incentivo 2026</span>
+                    <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${telaAtual === 'CampanhaIncentivo2026' ? 'bg-white/15 text-white' : 'bg-[#7c1f31]/10 text-[#7c1f31]'}`}>Privada</span>
+                  </div>
+                  <p className={`text-[10px] font-semibold mt-0.5 ${telaAtual === 'CampanhaIncentivo2026' ? 'text-white/80' : 'text-[#789093]'}`}>Prévia interna • VD + LOJA</p>
+                </div>
+                <ChevronRight size={17} className="shrink-0" />
+              </button>
+            )}
           </nav>
 
           <div className="p-4 border-t border-[#e8eef0] bg-white space-y-1">
@@ -21894,25 +22067,31 @@ const enviarArquivo = async (tipo) => {
                   <Menu size={20} strokeWidth={2} />
                 </button>
 
-                <div className="relative shrink-0">
-                  <select
-                    value={cicloTopoAtual || ''}
-                    onChange={(e) => selecionarCicloVisualizacao(e.target.value, telaEhLoja(telaAtual) ? 'LOJA' : 'VD')}
-                    className="appearance-none bg-[#f5f9f9] border border-[#e1eaec] text-[#048187] font-bold text-[11px] sm:text-xs pl-3 sm:pl-4 pr-8 py-2 rounded-full uppercase tracking-wide whitespace-nowrap outline-none cursor-pointer"
-                    title="Selecionar ciclo para consulta"
-                  >
-                    {!ciclos.length && cicloTopoAtual && (
-                      <option value={cicloTopoAtual}>{`CICLO ${cicloTopoAtual} • ATUAL`}</option>
-                    )}
-                    {!ciclos.length && !cicloTopoAtual && <option value="">CARREGANDO CICLO...</option>}
-                    {ciclos.map((item) => (
-                      <option key={item.id || item.ciclo} value={item.ciclo}>
-                        {`CICLO ${item.ciclo}${item.eh_atual ? ' • ATUAL' : ''}${obterStatusCicloArea(item.ciclo, telaEhLoja(telaAtual) ? 'LOJA' : 'VD') === 'fechado' ? ' • FECHADO' : ''}`}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronRight size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 text-[#048187]" />
-                </div>
+                {telaAtual === 'CampanhaIncentivo2026' ? (
+                  <div className="shrink-0 inline-flex items-center gap-2 rounded-full bg-[#f1f8f8] border border-[#dcebed] px-3.5 py-2 text-[#048187]">
+                    <Trophy size={15} />
+                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-wide whitespace-nowrap">Campanha Incentivo 2026</span>
+                    <span className="hidden sm:inline text-[8px] font-black uppercase tracking-wider bg-[#7c1f31]/10 text-[#7c1f31] px-2 py-0.5 rounded-full">Privada</span>
+                  </div>
+                ) : (
+                  <div className="relative shrink-0">
+                    <select
+                      value={cicloTopoAtual || ''}
+                      onChange={(e) => selecionarCicloVisualizacao(e.target.value, telaEhLoja(telaAtual) ? 'LOJA' : 'VD')}
+                      className="appearance-none bg-[#f5f9f9] border border-[#e1eaec] text-[#048187] font-bold text-[11px] sm:text-xs pl-3 sm:pl-4 pr-8 py-2 rounded-full uppercase tracking-wide whitespace-nowrap outline-none cursor-pointer"
+                      title="Selecionar ciclo para consulta"
+                    >
+                      {!ciclos.length && cicloTopoAtual && <option value={cicloTopoAtual}>{`CICLO ${cicloTopoAtual} • ATUAL`}</option>}
+                      {!ciclos.length && !cicloTopoAtual && <option value="">CARREGANDO CICLO...</option>}
+                      {ciclos.map((item) => (
+                        <option key={item.id || item.ciclo} value={item.ciclo}>
+                          {`CICLO ${item.ciclo}${item.eh_atual ? ' • ATUAL' : ''}${obterStatusCicloArea(item.ciclo, telaEhLoja(telaAtual) ? 'LOJA' : 'VD') === 'fechado' ? ' • FECHADO' : ''}`}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronRight size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 text-[#048187]" />
+                  </div>
+                )}
 
                 {mostrarFiltroRapidoNucleosTopo && (
                   <div className="min-w-0 overflow-x-auto hidden sm:block">
