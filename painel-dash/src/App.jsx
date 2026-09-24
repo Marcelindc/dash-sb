@@ -3640,13 +3640,13 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
 
   return (
     <div
-      className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5 transition-all hover:shadow-md ${onClickExpandir ? 'cursor-pointer' : ''}`}
+      className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2 transition-all hover:shadow-md ${onClickExpandir ? 'cursor-pointer' : ''}`}
       onClick={onClickExpandir || undefined}
       onKeyDown={(e) => { if (onClickExpandir && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClickExpandir(); } }}
       role={onClickExpandir ? 'button' : undefined}
       tabIndex={onClickExpandir ? 0 : undefined}
     >
-      <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
+      <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 min-w-0">
         <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate pr-1">{titulo}</h3>
         {onClickExpandir ? (
           <button
@@ -3660,7 +3660,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
         ) : null}
       </div>
 
-      <div className="px-1.5 pt-2.5 pb-0.5 flex flex-col justify-between h-full min-w-0">
+      <div className="px-1.5 pt-2 pb-0 flex flex-col justify-between h-full min-w-0">
         <div className="min-w-0">
           <div className="flex items-center gap-1 min-w-0">
             <p
@@ -3676,7 +3676,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
 
           {percentualDisponivel ? (
             isTendencia ? (
-              <div className="mt-4">
+              <div className="mt-1.5">
                 <p className="text-[9px] font-bold truncate mb-1.5" style={{ color: corDesempenho }}>
                   {tendenciaStatus}
                 </p>
@@ -3685,11 +3685,11 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
                 </div>
               </div>
             ) : (
-              <div className="mt-4">
+              <div className="mt-1.5">
                 <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
                   <div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} />
                 </div>
-                <p className="mt-1.5 text-[9px] font-bold truncate" style={{ color: corDesempenho }}>
+                <p className="mt-1 text-[9px] font-bold truncate" style={{ color: corDesempenho }}>
                   {percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span>
                 </p>
               </div>
@@ -3697,7 +3697,7 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
           ) : null}
         </div>
 
-        <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-2.5">
+        <div className="mt-1.5 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-1.5">
           <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
           <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta}</p>
         </div>
@@ -21736,12 +21736,12 @@ const enviarArquivo = async (tipo) => {
                 <button
                   type="button"
                   onClick={() => setTemaEscuro((atual) => !atual)}
-                  className={`dash-theme-toggle h-9 sm:h-10 min-w-[66px] px-2 rounded-full border transition-colors flex items-center ${temaEscuro ? 'bg-[#013f43] border-[#0c666b] justify-end' : 'bg-[#048187] border-[#048187] justify-start'}`}
+                  className={`dash-theme-toggle rounded-full border transition-colors flex items-center px-1.5 ${temaEscuro ? 'bg-[#013f43] border-[#0c666b] justify-end' : 'bg-[#048187] border-[#048187] justify-start'}`}
                   title={temaEscuro ? 'Ativar modo claro' : 'Ativar modo escuro'}
                   aria-label={temaEscuro ? 'Ativar modo claro' : 'Ativar modo escuro'}
                 >
-                  <span className="w-7 h-7 rounded-full bg-white text-[#048187] flex items-center justify-center shadow-sm">
-                    {temaEscuro ? <Moon size={16} /> : <Sun size={16} />}
+                  <span className="w-[26px] h-[26px] rounded-full bg-white text-[#048187] flex items-center justify-center shadow-sm shrink-0">
+                    {temaEscuro ? <Moon size={15} /> : <Sun size={15} />}
                   </span>
                 </button>
 

@@ -488,35 +488,43 @@
 }
 
 /* ========================================================================== 
-   V1.5 — padrão visual consolidado + tema claro/escuro
+   V1.5.1 — correção de altura dos KPIs + tema escuro somente no fundo
    ========================================================================== */
 
-/* Mesma densidade visual dos KPIs para Admin, Gestor Comercial e Gestor de Unidade. */
+/*
+ * Mantém a densidade visual compacta, mas deixa a própria GRID definir a
+ * altura final da linha. Assim nenhum rodapé (Meta / Gap / UPA) escapa do card.
+ * O item mais alto define a linha e os demais esticam para a mesma altura.
+ */
+.dash-visual-standard .dash-dashboard-kpis {
+  align-items: stretch;
+}
+
 .dash-visual-standard .dash-dashboard-kpis > * {
   min-height: 138px !important;
   height: 138px !important;
+  overflow: hidden;
+  padding: .625rem !important;
 }
 
 .dash-visual-standard .dash-dashboard-kpis > * > [class*="bg-[#048187]"] {
-  min-height: 34px;
+  min-height: 30px;
 }
 
-/* O corpo do card fica compacto, como no mockup aprovado. */
+/* O corpo do card continua compacto e igual para todos os perfis. */
 .dash-visual-standard .dash-dashboard-kpis > * p[class*="text-lg"],
 .dash-visual-standard .dash-dashboard-kpis > * p[class*="text-xl"] {
   line-height: 1.05 !important;
 }
 
-/* Modo escuro: deliberadamente restrito ao shell para não afetar a tela de login. */
+/*
+ * Tema escuro V1.5.1:
+ * SOMENTE o fundo geral do DASH muda. Cards, topbar, tabelas, gráficos,
+ * textos e componentes mantêm exatamente as cores do modo claro.
+ */
 .dash-theme-dark {
   --dash-dark-bg: #071417;
-  --dash-dark-surface: #0d2226;
-  --dash-dark-surface-2: #123036;
-  --dash-dark-border: #24464b;
-  --dash-dark-text: #e7f4f4;
-  --dash-dark-muted: #9bb3b7;
   background: var(--dash-dark-bg) !important;
-  color: var(--dash-dark-text) !important;
 }
 
 .dash-theme-dark .dash-main-refinado,
@@ -524,81 +532,22 @@
   background: var(--dash-dark-bg) !important;
 }
 
-.dash-theme-dark .dash-topbar-refinada,
-.dash-theme-dark .dash-visual-standard .bg-white,
-.dash-theme-dark .dash-menu-drawer,
-.dash-theme-dark [class*="bg-white"] {
-  background-color: var(--dash-dark-surface) !important;
-  border-color: var(--dash-dark-border) !important;
-}
-
-.dash-theme-dark [class*="bg-gray-50"],
-.dash-theme-dark [class*="bg-[#fcfbf7]"],
-.dash-theme-dark [class*="bg-[#f7fafb]"],
-.dash-theme-dark [class*="bg-[#f5f9f9]"] {
-  background-color: var(--dash-dark-surface-2) !important;
-}
-
-.dash-theme-dark .text-gray-700,
-.dash-theme-dark .text-gray-600,
-.dash-theme-dark .text-gray-500,
-.dash-theme-dark [class*="text-[#345d60]"],
-.dash-theme-dark [class*="text-[#4c696c]"] {
-  color: var(--dash-dark-text) !important;
-}
-
-.dash-theme-dark .text-gray-400,
-.dash-theme-dark .text-gray-300 {
-  color: var(--dash-dark-muted) !important;
-}
-
-.dash-theme-dark .border-gray-100,
-.dash-theme-dark .border-gray-200,
-.dash-theme-dark [class*="border-[#e"],
-.dash-theme-dark [class*="border-[#d"] {
-  border-color: var(--dash-dark-border) !important;
-}
-
-.dash-theme-dark table,
-.dash-theme-dark thead,
-.dash-theme-dark tbody,
-.dash-theme-dark tr,
-.dash-theme-dark td,
-.dash-theme-dark th {
-  border-color: var(--dash-dark-border) !important;
-}
-
-.dash-theme-dark .recharts-cartesian-grid line {
-  stroke: #28464b !important;
-}
-
-.dash-theme-dark .recharts-cartesian-axis-tick-value,
-.dash-theme-dark .recharts-text,
-.dash-theme-dark .recharts-legend-item-text {
-  fill: #b9cdcf !important;
-  color: #b9cdcf !important;
-}
-
-.dash-theme-dark input,
-.dash-theme-dark select,
-.dash-theme-dark textarea {
-  background-color: var(--dash-dark-surface-2) !important;
-  border-color: var(--dash-dark-border) !important;
-  color: var(--dash-dark-text) !important;
-}
-
-.dash-theme-dark input::placeholder,
-.dash-theme-dark textarea::placeholder {
-  color: #78979b !important;
-}
-
-.dash-theme-dark .dash-theme-toggle {
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+/* Botão claro/escuro com o mesmo envelope visual do botão Atualizar. */
+.dash-theme-toggle {
+  width: 82px;
+  height: 34px;
+  min-width: 82px;
 }
 
 @media (max-width: 767px) {
   .dash-visual-standard .dash-dashboard-kpis > * {
     height: auto !important;
     min-height: 132px !important;
+  }
+
+  .dash-theme-toggle {
+    width: 76px;
+    min-width: 76px;
+    height: 34px;
   }
 }
