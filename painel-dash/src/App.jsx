@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu, Sun, Moon } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
 import produtosLoginHero from './assets/login-produtos.png';
@@ -23,6 +23,7 @@ const CICLO_UPLOAD_LOJA_STORAGE_KEY = 'dashSbCicloUploadLoja';
 const CICLO_ATUAL_CONHECIDO_STORAGE_KEY = 'dashSbCicloAtualConhecido';
 const CICLO_SELECTOR_REPAIR_KEY = 'dashSbCicloSelectorRepairV1';
 const APP_NAME = 'DASH COMERCIAL SB';
+const TEMA_STORAGE_KEY = 'dashSbTemaVisual';
 const CACHE_SESSAO_DASH_KEY = 'dashSbCacheInteracoesV3MetaNucleo';
 const CACHE_SESSAO_TTL_MS = 15 * 60 * 1000;
 const CACHE_SESSAO_LOJA_KEY = 'dashSbCacheLojaPerformanceV9';
@@ -3638,14 +3639,20 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
     : (percentualDisponivel ? corPorFaixaMeta(percentualNumero) : '#048187');
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5 transition-all hover:shadow-md">
+    <div
+      className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5 transition-all hover:shadow-md ${onClickExpandir ? 'cursor-pointer' : ''}`}
+      onClick={onClickExpandir || undefined}
+      onKeyDown={(e) => { if (onClickExpandir && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClickExpandir(); } }}
+      role={onClickExpandir ? 'button' : undefined}
+      tabIndex={onClickExpandir ? 0 : undefined}
+    >
       <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
         <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate pr-1">{titulo}</h3>
         {onClickExpandir ? (
           <button
             type="button"
-            onClick={onClickExpandir}
-            className="text-white/90 hover:text-white shrink-0"
+            onClick={(e) => { e.stopPropagation(); onClickExpandir(); }}
+            className="relative z-[3] text-white/90 hover:text-white shrink-0 cursor-pointer"
             title={`Ver detalhes de ${titulo}`}
           >
             <Eye size={13} />
@@ -4938,7 +4945,14 @@ export default function App() {
     const canalSalvo = lerStorageUsuario(CANAL_ATUAL_STORAGE_KEY);
     return canalSalvo === 'LOJA';
   }); const [menuHamburguerAberto, setMenuHamburguerAberto] = useState(false); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
+  const [temaEscuro, setTemaEscuro] = useState(() => {
+    try { return localStorage.getItem(TEMA_STORAGE_KEY) === 'escuro'; } catch { return false; }
+  });
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
+
+  useEffect(() => {
+    try { localStorage.setItem(TEMA_STORAGE_KEY, temaEscuro ? 'escuro' : 'claro'); } catch {}
+  }, [temaEscuro]);
   
   const [visaoRanking, setVisaoRanking] = useState('consultores');
   const [visaoMetas, setVisaoMetas] = useState(() => {
@@ -11359,7 +11373,16 @@ const enviarArquivo = async (tipo) => {
       cicloVisualizacaoVDRef.current || cicloSelecionadoVD || filtrosAtivos?.ciclo
       || dados?.ciclo_retorno || dados?.ciclo_atual || ''
     ).trim();
-    const filtrosDetalhe = { ...filtrosAtivos, ciclo: cicloDetalhe };
+    const estruturasEscopoDetalhe = modoGerenteVD
+      ? escoposGerenteVD.map((item) => String(item?.estrutura || '').trim()).filter(Boolean)
+      : [];
+    const filtrosDetalhe = {
+      ...filtrosAtivos,
+      ciclo: cicloDetalhe,
+      estruturas: estruturasEscopoDetalhe.length > 0
+        ? estruturasEscopoDetalhe
+        : [...(filtrosAtivos?.estruturas || [])],
+    };
     const realizadoInicial = Number(dados?.realizado_diario || 0);
     const metaInicial = Number(dados?.meta_diaria || 0);
     const resumoInicial = {
@@ -11552,11 +11575,16 @@ const enviarArquivo = async (tipo) => {
   // um estado anterior enquanto o filtro rápido N1/N2/N3 está atualizando.
   const snapshotFiltrosDetalheR93 = () => {
     const atual = filtrosAtivos || {};
+    const estruturasEscopoUsuario = modoGerenteVD
+      ? escoposGerenteVD.map((item) => String(item?.estrutura || '').trim()).filter(Boolean)
+      : [];
     return {
       ...atual,
       nucleos: [...(atual.nucleos || [])],
       unidades: [...(atual.unidades || [])],
-      estruturas: [...(atual.estruturas || [])],
+      estruturas: estruturasEscopoUsuario.length > 0
+        ? estruturasEscopoUsuario
+        : [...(atual.estruturas || [])],
       consultores: [...(atual.consultores || [])],
       situacoes: [...(atual.situacoes || [])],
       meios_captacao: [...(atual.meios_captacao || [])],
@@ -11790,6 +11818,7 @@ const enviarArquivo = async (tipo) => {
     }
 
     const escopoTexto = escoposGerenteVD.map((item) => item.estrutura).filter(Boolean).join(' • ') || 'Minha estrutura';
+    const estruturasEscopoGerenteVD = escoposGerenteVD.map((item) => String(item?.estrutura || '').trim()).filter(Boolean);
     const metaResolvida = acompanhamentoVD.meta_resolvida || {};
     const diarioResumo = acompanhamentoVD.diario?.resumo || {};
     const consultores = Array.isArray(acompanhamentoVD.consultores) ? acompanhamentoVD.consultores : [];
@@ -11908,7 +11937,7 @@ const enviarArquivo = async (tipo) => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+        <div className="dash-dashboard-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-3">
           <CardMini
             titulo="Realizado Total"
             valor={formatarAbrev(realizadoTotal)}
@@ -11963,7 +11992,27 @@ const enviarArquivo = async (tipo) => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5">
             <div className="bg-[#048187] rounded-[14px] px-3 py-2 flex items-center justify-between gap-2 min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</p>
-              <Eye size={14} className="text-white shrink-0" />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  abrirModalValExp(
+                    `Indicadores - ${escopoTexto}`,
+                    `${formatarNumeroBR(pAtividade, 1)}%`,
+                    'Resumo dos indicadores da estrutura vinculada.',
+                    [
+                      { label: 'MAKE', valor: `${formatarNumeroBR(pMake, 1)}%` },
+                      { label: 'CABELO', valor: `${formatarNumeroBR(pCabelo, 1)}%` },
+                      { label: 'MULTI.', valor: `${formatarNumeroBR(pMulti, 1)}%` },
+                      { label: 'ATIV.', valor: `${formatarNumeroBR(pAtividade, 1)}%` },
+                    ]
+                  );
+                }}
+                className="text-white shrink-0 cursor-pointer"
+                title="Ver resumo dos indicadores"
+              >
+                <Eye size={14} />
+              </button>
             </div>
             <div className="p-2.5 pt-3 grid grid-cols-2 gap-2 flex-1">
               {[
@@ -11973,6 +12022,7 @@ const enviarArquivo = async (tipo) => {
                   atingimento: calcPerc(pMake, metaMake),
                   onClick: () => abrirDetIndicadorDashboard('MAKE', {
                     titulo: `MAKE - ${escopoTexto}`,
+                    estruturas: estruturasEscopoGerenteVD,
                   }),
                 },
                 {
@@ -11981,6 +12031,7 @@ const enviarArquivo = async (tipo) => {
                   atingimento: calcPerc(pCabelo, metaCabelo),
                   onClick: () => abrirDetIndicadorDashboard('CABELO', {
                     titulo: `CABELO - ${escopoTexto}`,
+                    estruturas: estruturasEscopoGerenteVD,
                   }),
                 },
                 {
@@ -11989,6 +12040,7 @@ const enviarArquivo = async (tipo) => {
                   atingimento: calcPerc(pMulti, metaMulti),
                   onClick: () => abrirDetIndicadorDashboard('MULTIMARCAS', {
                     titulo: `MULTIMARCAS - ${escopoTexto}`,
+                    estruturas: estruturasEscopoGerenteVD,
                   }),
                 },
                 {
@@ -11997,6 +12049,7 @@ const enviarArquivo = async (tipo) => {
                   atingimento: calcPerc(pAtividade, metaAtividade),
                   onClick: () => abrirDetAtiv({
                     titulo: `Atividade - ${escopoTexto}`,
+                    estruturas: estruturasEscopoGerenteVD,
                   }),
                 },
               ].map(({ nome, valor, atingimento, onClick }) => (
@@ -12004,7 +12057,7 @@ const enviarArquivo = async (tipo) => {
                   key={nome}
                   type="button"
                   onClick={onClick}
-                  className="w-full rounded-lg px-2.5 py-1.5 flex items-center justify-between text-white transition-all hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#048187]/30"
+                  className="relative z-[2] w-full rounded-lg px-2.5 py-1.5 flex items-center justify-between text-white transition-all hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#048187]/30 cursor-pointer"
                   style={{ backgroundColor: corPorFaixaMeta(atingimento) }}
                   title={`Abrir detalhamento de ${nome}`}
                 >
@@ -12053,18 +12106,18 @@ const enviarArquivo = async (tipo) => {
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
             <h3 className="text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2">Modelo de venda</h3>
-            <div className="h-[280px] overflow-visible">
+            <div className="h-[300px] overflow-visible">
               {modelosVenda.length ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={{ top: 18, right: 64, bottom: 38, left: 64 }}>
+                  <PieChart margin={{ top: 8, right: 38, bottom: 28, left: 38 }}>
                     <Pie
                       data={modelosVenda}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
                       cy="45%"
-                      innerRadius={48}
-                      outerRadius={70}
+                      innerRadius={56}
+                      outerRadius={82}
                       paddingAngle={1}
                       labelLine={false}
                       label={renderizarRotuloModeloVenda}
@@ -12532,18 +12585,18 @@ const enviarArquivo = async (tipo) => {
           </div>
           <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">
             <h3 className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase text-center mb-3 border-b border-gray-100 pb-2 leading-tight truncate">MODELO DE VENDA</h3>
-            <div className="h-[260px] sm:h-[300px] overflow-visible">
+            <div className="h-[285px] sm:h-[315px] overflow-visible">
               {rMar.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={{ top: 18, right: 64, bottom: 38, left: 64 }}>
+                  <PieChart margin={{ top: 8, right: 38, bottom: 28, left: 38 }}>
                     <Pie
                       data={rMar}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
                       cy="45%"
-                      innerRadius={48}
-                      outerRadius={70}
+                      innerRadius={56}
+                      outerRadius={82}
                       paddingAngle={1}
                       cursor="pointer"
                       labelLine={false}
@@ -21369,7 +21422,7 @@ const enviarArquivo = async (tipo) => {
 
   return (
     <>
-      <div className="dash-shell-refinado h-[100dvh] bg-[#f7fafb] flex overflow-hidden">
+      <div className={`dash-shell-refinado ${temaEscuro ? 'dash-theme-dark' : 'dash-theme-light'} h-[100dvh] bg-[#f7fafb] flex overflow-hidden`}>
         {menuHamburguerAberto && (
           <button
             type="button"
@@ -21680,6 +21733,18 @@ const enviarArquivo = async (tipo) => {
                 )}
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setTemaEscuro((atual) => !atual)}
+                  className={`dash-theme-toggle h-9 sm:h-10 min-w-[66px] px-2 rounded-full border transition-colors flex items-center ${temaEscuro ? 'bg-[#013f43] border-[#0c666b] justify-end' : 'bg-[#048187] border-[#048187] justify-start'}`}
+                  title={temaEscuro ? 'Ativar modo claro' : 'Ativar modo escuro'}
+                  aria-label={temaEscuro ? 'Ativar modo claro' : 'Ativar modo escuro'}
+                >
+                  <span className="w-7 h-7 rounded-full bg-white text-[#048187] flex items-center justify-center shadow-sm">
+                    {temaEscuro ? <Moon size={16} /> : <Sun size={16} />}
+                  </span>
+                </button>
+
                 {telaAtual !== 'AcompanhamentoVD' && telaAtual !== 'Perfil' && (
                   <button
                     type="button"
