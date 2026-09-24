@@ -3638,8 +3638,8 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
     : (percentualDisponivel ? corPorFaixaMeta(percentualNumero) : '#048187');
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 overflow-hidden transition-all hover:shadow-md min-h-[168px]">
-      <div className="bg-[#048187] px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 min-w-0">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5 transition-all hover:shadow-md">
+      <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
         <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate pr-1">{titulo}</h3>
         {onClickExpandir ? (
           <button
@@ -3653,11 +3653,11 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
         ) : null}
       </div>
 
-      <div className="px-3 sm:px-4 pt-3 pb-3 flex flex-col justify-between h-full min-w-0">
+      <div className="px-1.5 pt-2.5 pb-0.5 flex flex-col justify-between h-full min-w-0">
         <div className="min-w-0">
           <div className="flex items-center gap-1 min-w-0">
             <p
-              className="text-[18px] sm:text-[20px] xl:text-[21px] font-extrabold tracking-tight truncate leading-tight"
+              className="text-lg sm:text-xl font-extrabold tracking-tighter truncate leading-tight"
               style={{ color: corDesempenho }}
             >
               {valor}
@@ -3669,41 +3669,28 @@ const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpa
 
           {percentualDisponivel ? (
             isTendencia ? (
-              <div className="mt-6">
-                <p
-                  className="text-[9px] font-bold truncate mb-2"
-                  style={{ color: corDesempenho }}
-                >
+              <div className="mt-4">
+                <p className="text-[9px] font-bold truncate mb-1.5" style={{ color: corDesempenho }}>
                   {tendenciaStatus}
                 </p>
-                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="h-1.5 rounded-full"
-                    style={{ width: `${percFix}%`, backgroundColor: corDesempenho }}
-                  />
+                <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                  <div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} />
                 </div>
               </div>
             ) : (
-              <div className="mt-6">
-                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="h-1.5 rounded-full"
-                    style={{ width: `${percFix}%`, backgroundColor: corDesempenho }}
-                  />
+              <div className="mt-4">
+                <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                  <div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} />
                 </div>
-                <p
-                  className="mt-2 text-[9px] font-bold truncate"
-                  style={{ color: corDesempenho }}
-                >
-                  {percentualNumero.toFixed(1)}%{' '}
-                  <span className="text-gray-400 font-medium">da meta</span>
+                <p className="mt-1.5 text-[9px] font-bold truncate" style={{ color: corDesempenho }}>
+                  {percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span>
                 </p>
               </div>
             )
           ) : null}
         </div>
 
-        <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-3">
+        <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-2.5">
           <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
           <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta}</p>
         </div>
@@ -11973,11 +11960,12 @@ const enviarArquivo = async (tipo) => {
               <span className="text-sm font-black text-[#7c1f31]">{formatarNumeroBR(dados?.total_cancelados || 0, 0)}</span>
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0">
-            <div className="bg-[#048187] px-3 py-2">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5">
+            <div className="bg-[#048187] rounded-[14px] px-3 py-2 flex items-center justify-between gap-2 min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</p>
+              <Eye size={14} className="text-white shrink-0" />
             </div>
-            <div className="p-3 sm:p-4 grid grid-cols-2 gap-1.5 flex-1">
+            <div className="p-2.5 pt-3 grid grid-cols-2 gap-2 flex-1">
               {[
                 {
                   nome: 'MAKE',
@@ -12016,7 +12004,7 @@ const enviarArquivo = async (tipo) => {
                   key={nome}
                   type="button"
                   onClick={onClick}
-                  className="w-full rounded px-2 py-1.5 flex items-center justify-between text-white transition-all hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#048187]/30"
+                  className="w-full rounded-lg px-2.5 py-1.5 flex items-center justify-between text-white transition-all hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#048187]/30"
                   style={{ backgroundColor: corPorFaixaMeta(atingimento) }}
                   title={`Abrir detalhamento de ${nome}`}
                 >
@@ -12026,11 +12014,11 @@ const enviarArquivo = async (tipo) => {
               ))}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0">
-            <div className="bg-[#048187] px-3 py-2">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5">
+            <div className="bg-[#048187] rounded-[14px] px-3 py-2 flex items-center justify-between gap-2 min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wide text-white truncate">Desempenho</p>
             </div>
-            <div className="p-3 sm:p-4 space-y-1.5 flex-1">
+            <div className="p-2.5 pt-3 space-y-1.5 flex-1">
               {[
                 ['RPA', formatarMoeda(rpa), calcPerc(rpa, metaRpa)],
                 ['TKT MÉD.', formatarMoeda(ticket), calcPerc(ticket, metaTicket)],
@@ -12484,25 +12472,26 @@ const enviarArquivo = async (tipo) => {
             <div className="grid grid-cols-2 flex-1 min-w-0"><div className="p-3 sm:p-4 border-r border-gray-100 min-w-0 flex flex-col justify-center"><h3 className="text-[10px] font-bold uppercase text-gray-500 mb-1 truncate pr-1">Total pedidos</h3><p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-[#048187] tracking-tighter truncate">{Number(dados.total_pedidos || 0).toLocaleString('pt-BR')}</p></div><div className="p-3 sm:p-4 relative min-w-0 flex flex-col justify-center"><button onClick={abrirDetAtiv} className="absolute top-2 right-2 text-[#048187] hover:text-[#036b70] bg-[#e6f6f7] p-1.5 rounded-full z-10"><Eye size={12} /></button><h3 className="text-[10px] font-bold uppercase text-gray-500 mb-1 pr-4 truncate">Ativados</h3><p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-[#048187] tracking-tighter truncate">{Number(dados.revendedores_ativados || 0).toLocaleString('pt-BR')}</p></div></div>
             <div className="p-2 sm:p-3 border-t border-gray-50 bg-gray-50/50 flex items-center justify-between min-w-0 gap-2"><p className="text-[9px] font-bold text-gray-400 uppercase truncate">Cancelados</p><button onClick={abrirDetCancelados} className="text-sm font-bold text-[#712231] hover:underline tracking-tighter flex items-center gap-1 truncate">{Number(dados.total_cancelados || 0).toLocaleString('pt-BR')} <Eye size={14}/></button></div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md min-h-[168px]">
-            <div className="bg-[#048187] px-3 sm:px-4 py-1.5">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 transition-transform hover:shadow-md p-2.5">
+            <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
               <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</h3>
+              <Eye size={14} className="text-white shrink-0" />
             </div>
-            <div className="p-3 sm:p-4 grid grid-cols-2 gap-1.5 flex-1">
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('MAKE')} className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMakeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMk.toFixed(1)}%</span></button>
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('CABELO')} className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corCabeloDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pCb.toFixed(1)}%</span></button>
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('MULTIMARCAS')} className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMultimarcasDashboard }}><span className="text-[8px] sm:text-[9px] font-bold truncate">MULTI.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMulti.toFixed(1)}%</span></button>
-              <button type="button" onClick={abrirDetAtiv} className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corAtividadeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></button>
+            <div className="p-2.5 pt-3 grid grid-cols-2 gap-2 flex-1">
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('MAKE')} className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMakeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMk.toFixed(1)}%</span></button>
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('CABELO')} className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corCabeloDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pCb.toFixed(1)}%</span></button>
+              <button type="button" onClick={() => abrirDetIndicadorDashboard('MULTIMARCAS')} className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMultimarcasDashboard }}><span className="text-[8px] sm:text-[9px] font-bold truncate">MULTI.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMulti.toFixed(1)}%</span></button>
+              <button type="button" onClick={abrirDetAtiv} className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corAtividadeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></button>
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md min-h-[168px]">
-            <div className="bg-[#048187] px-3 sm:px-4 py-1.5">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 transition-transform hover:shadow-md p-2.5">
+            <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
               <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Desempenho</h3>
             </div>
-            <div className="p-3 sm:p-4 space-y-1.5 flex-1">
-              <button type="button" onClick={() => abrirDetDesempenhoDashboard('RPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">RPA</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corRpaDashboard }}>{formatarMoeda(rpaDashboard)}</span></button>
-              <button type="button" onClick={() => abrirDetDesempenhoDashboard('TKT')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">TKT MÉD.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corTktDashboard }}>{formatarMoeda(tktDashboard)}</span></button>
-              <button type="button" onClick={() => abrirDetDesempenhoDashboard('UPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">UPA</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corUpaDashboard }}>{Number(upaDashboard).toFixed(1)}</span></button>
+            <div className="p-2.5 pt-3 space-y-1.5 flex-1">
+              <button type="button" onClick={() => abrirDetDesempenhoDashboard('RPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">RPA</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corRpaDashboard }}>{formatarMoeda(rpaDashboard)}</span></button>
+              <button type="button" onClick={() => abrirDetDesempenhoDashboard('TKT')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">TKT MÉD.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corTktDashboard }}>{formatarMoeda(tktDashboard)}</span></button>
+              <button type="button" onClick={() => abrirDetDesempenhoDashboard('UPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">UPA</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corUpaDashboard }}>{Number(upaDashboard).toFixed(1)}</span></button>
             </div>
           </div>
         </div>
@@ -13639,15 +13628,16 @@ const enviarArquivo = async (tipo) => {
               onClickExpandir={abrirDetalheEudoraGeralMetas}
             />
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-all hover:shadow-md min-h-[168px]">
-              <div className="bg-[#048187] px-3 sm:px-4 py-1.5">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 transition-all hover:shadow-md p-2.5">
+              <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
                 <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</h3>
+                <Eye size={14} className="text-white shrink-0" />
               </div>
-              <div className="p-3 sm:p-4 grid grid-cols-2 gap-1.5 flex-1">
+              <div className="p-2.5 pt-3 grid grid-cols-2 gap-2 flex-1">
                 <button
                   type="button"
                   onClick={() => abrirDetIndicadorDashboard('MAKE')}
-                  className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
+                  className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
                   style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualMakeGeral, metaMakeGeralPercentual)) }}
                   title={`MAKE: ${formatarNumeroBR(percentualMakeGeral, 1)}% | Meta: ${formatarNumeroBR(metaMakeGeralPercentual, 1)}%`}
                 >
@@ -13658,7 +13648,7 @@ const enviarArquivo = async (tipo) => {
                 <button
                   type="button"
                   onClick={() => abrirDetIndicadorDashboard('CABELO')}
-                  className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
+                  className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
                   style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)) }}
                   title={`CABELO: ${formatarNumeroBR(percentualCabeloGeral, 1)}% | Meta: ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%`}
                 >
@@ -13669,7 +13659,7 @@ const enviarArquivo = async (tipo) => {
                 <button
                   type="button"
                   onClick={() => abrirDetIndicadorDashboard('MULTIMARCAS')}
-                  className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
+                  className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
                   style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualMultimarcasGeral, metaMultimarcasGeralPercentual)) }}
                   title={`MULTIMARCAS: ${formatarNumeroBR(percentualMultimarcasGeral, 1)}% | Meta: ${formatarNumeroBR(metaMultimarcasGeralPercentual, 1)}%`}
                 >
@@ -13680,7 +13670,7 @@ const enviarArquivo = async (tipo) => {
                 <button
                   type="button"
                   onClick={abrirDetAtiv}
-                  className="w-full text-white rounded px-2 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
+                  className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
                   style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)) }}
                   title={`ATIVIDADE: ${formatarNumeroBR(percentualAtividadeGeral, 1)}% | Meta: ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%`}
                 >
@@ -13690,15 +13680,15 @@ const enviarArquivo = async (tipo) => {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-all hover:shadow-md min-h-[168px]">
-              <div className="bg-[#048187] px-3 sm:px-4 py-1.5">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 transition-all hover:shadow-md p-2.5">
+              <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
                 <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Desempenho</h3>
               </div>
-              <div className="p-3 sm:p-4 space-y-1.5 flex-1">
+              <div className="p-2.5 pt-3 space-y-1.5 flex-1">
                 <button
                   type="button"
                   onClick={() => abrirDesempenhoDetalhado('RPA')}
-                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
+                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
                   title={`RPA: ${formatarMoeda(rpaGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_rpa_geral)}`}
                 >
                   <span className="text-[9px] sm:text-[10px] font-medium uppercase truncate">RPA</span>
@@ -13713,7 +13703,7 @@ const enviarArquivo = async (tipo) => {
                 <button
                   type="button"
                   onClick={() => abrirDesempenhoDetalhado('TKT')}
-                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
+                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
                   title={`Ticket Médio: ${formatarMoeda(tktGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_tkt_medio_geral)}`}
                 >
                   <span className="text-[9px] sm:text-[10px] font-medium uppercase truncate">TKT MÉD.</span>
@@ -13728,7 +13718,7 @@ const enviarArquivo = async (tipo) => {
                 <button
                   type="button"
                   onClick={() => abrirDesempenhoDetalhado('UPA')}
-                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded px-2 py-1 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
+                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
                   title={`UPA: ${formatarNumeroBR(upaGeral, 1)} | Meta: ${formatarNumeroBR(dadosMetas?.meta_upa_geral, 1)}`}
                 >
                   <span className="text-[9px] sm:text-[10px] font-medium uppercase truncate">UPA</span>
