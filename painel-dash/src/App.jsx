@@ -4010,7 +4010,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   const metaVazia = () => ({
     ciclo: cicloPadrao || '', estrutura_oficial_id: '', variacao_ids: [],
     meta_real: '', meta_atividade: '', meta_make: '', meta_cabelo: '', meta_multimarcas: '',
-    meta_eudora: '20,0', meta_rpa: '', meta_tkt_medio: '', meta_upa: '',
+    meta_eudora: '20,0', meta_rpa: '', meta_tkt_medio: '', meta_upa: '', meta_adicoes: '',
     tem_consultores: '', consultores: []
   });
   const [form, setForm] = useState(metaVazia);
@@ -4118,7 +4118,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
         meta_make: pctInput(meta.meta_make), meta_cabelo: pctInput(meta.meta_cabelo),
         meta_multimarcas: pctInput(meta.meta_multimarcas), meta_eudora: pctInput(meta.meta_eudora || 20),
         meta_rpa: moedaInput(meta.meta_rpa), meta_tkt_medio: moedaInput(meta.meta_tkt_medio),
-        meta_upa: pctInput(meta.meta_upa), tem_consultores: Boolean(meta.tem_consultores), consultores
+        meta_upa: pctInput(meta.meta_upa), meta_adicoes: pctInput(meta.meta_adicoes), tem_consultores: Boolean(meta.tem_consultores), consultores
       });
     } catch (e) { setErro(e.response?.data?.detail || 'Erro ao abrir a meta.'); }
   };
@@ -4147,7 +4147,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       variacao_ids: form.variacao_ids.map(Number), meta_real: metaReceita,
       meta_atividade: numero(form.meta_atividade), meta_make: numero(form.meta_make), meta_cabelo: numero(form.meta_cabelo),
       meta_multimarcas: numero(form.meta_multimarcas), meta_eudora: eudoraPercent,
-      meta_rpa: numero(form.meta_rpa), meta_tkt_medio: numero(form.meta_tkt_medio), meta_upa: numero(form.meta_upa),
+      meta_rpa: numero(form.meta_rpa), meta_tkt_medio: numero(form.meta_tkt_medio), meta_upa: numero(form.meta_upa), meta_adicoes: numero(form.meta_adicoes),
       tem_consultores: Boolean(form.tem_consultores),
       consultores: form.tem_consultores ? form.consultores.map((c) => ({ id_colaborador: c.id_colaborador, meta_receita: numero(c.meta_receita) })) : []
     };
@@ -4345,6 +4345,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
             <CampoMetaIndicador label="Meta RPA (R$)" value={form.meta_rpa} casas={2} placeholder="0,00" onChange={(v)=>setForm(a=>({...a,meta_rpa:v}))}/>
             <CampoMetaIndicador label="Meta Tkt Médio (R$)" value={form.meta_tkt_medio} casas={2} placeholder="0,00" onChange={(v)=>setForm(a=>({...a,meta_tkt_medio:v}))}/>
             <CampoMetaIndicador label="Meta UPA" value={form.meta_upa} casas={1} placeholder="0,0" onChange={(v)=>setForm(a=>({...a,meta_upa:v}))}/>
+            <CampoMetaIndicador label="Meta Adições" value={form.meta_adicoes} casas={0} placeholder="0" onChange={(v)=>setForm(a=>({...a,meta_adicoes:v}))}/>
           </div></div>
 
           <div className="rounded-2xl border border-gray-100 p-4"><p className="text-sm font-bold text-gray-700">A estrutura tem consultores? <span className="text-red-500">*</span></p><div className="flex gap-3 mt-3"><button type="button" onClick={()=>setForm(a=>({...a,tem_consultores:true}))} className={`px-5 py-2.5 rounded-xl font-semibold text-sm border ${form.tem_consultores===true?'bg-[#048187] text-white border-[#048187]':'bg-white text-gray-600 border-gray-200'}`}>Sim</button><button type="button" onClick={()=>setForm(a=>({...a,tem_consultores:false}))} className={`px-5 py-2.5 rounded-xl font-semibold text-sm border ${form.tem_consultores===false?'bg-[#048187] text-white border-[#048187]':'bg-white text-gray-600 border-gray-200'}`}>Não</button></div></div>
@@ -4355,7 +4356,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
         </form>
       )}
 
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"><div className="p-5 border-b border-gray-100"><h3 className="text-lg font-bold text-gray-700">Metas salvas do ciclo</h3><p className="text-sm text-gray-400 mt-1">N1, N2 e N3 separados para facilitar a conferência.</p></div>{carregando?<div className="p-8 text-center text-[#048187] font-semibold">Carregando...</div>:<div className="p-4 space-y-5">{ordemNucleos.map(nucleo=>{const itens=metas.filter(m=>String(m.nucleo||'').toUpperCase()===nucleo);if(!itens.length)return null;return <div key={nucleo} className="border border-gray-100 rounded-2xl overflow-hidden"><div className="bg-[#e6f6f7] px-4 py-3 flex items-center justify-between"><span className="font-bold text-[#048187]">{nucleo.replace('NUCLEO','NÚCLEO')}</span><span className="text-xs font-semibold text-[#048187]">{itens.length} estrutura(s)</span></div><div className="overflow-x-auto"><table className="w-full min-w-[1450px] text-[12px]"><thead className="bg-[#f7fafb] text-[10px] uppercase text-gray-400"><tr><th className="px-3 py-3 text-left">Nome Estrutura</th><th className="px-3 py-3 text-left">Estrutura</th><th className="px-3 py-3 text-left">Canal/Núcleo</th><th className="px-3 py-3">Ciclo</th><th className="px-3 py-3 text-right">Receita</th><th className="px-3 py-3 text-right">Atividade</th><th className="px-3 py-3 text-right">RPA</th><th className="px-3 py-3 text-right">Tkt Médio</th><th className="px-3 py-3 text-right">UPA</th><th className="px-3 py-3 text-right">Pen. Make</th><th className="px-3 py-3 text-right">Pen. Cabelos</th><th className="px-3 py-3 text-right">Pen. Multimarcas</th><th className="px-3 py-3 text-right">Meta Eudora</th><th className="px-3 py-3 text-right">Ações</th></tr></thead><tbody>{itens.map(m=><tr key={m.id} className="border-t border-gray-100 hover:bg-gray-50"><td className="px-3 py-3 font-semibold text-gray-700">{m.nome_estrutura||m.nome_meta}</td><td className="px-3 py-3 text-gray-500 max-w-[260px]">{(m.variacoes||[]).map(v=>v.estrutura).join(' + ')}</td><td className="px-3 py-3 text-gray-500">{m.categoria_canal} / {String(m.nucleo||'').replace('NUCLEO','N')}</td><td className="px-3 py-3 text-center">{m.ciclo}</td><td className="px-3 py-3 text-right font-semibold text-[#048187]">{formatarMoeda(m.meta_real)}</td><td className="px-3 py-3 text-right">{Number(m.meta_atividade||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_rpa)}</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_tkt_medio)}</td><td className="px-3 py-3 text-right">{Number(m.meta_upa||0).toFixed(1)}</td><td className="px-3 py-3 text-right">{Number(m.meta_make||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_cabelo||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_multimarcas||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_eudora||0).toFixed(1)}%</td><td className="px-3 py-3 text-right whitespace-nowrap"><button onClick={()=>editarMeta(m)} className="text-[#048187] mr-3" title="Editar"><Pencil size={16}/></button><button onClick={()=>excluirMeta(m)} className="text-red-500" title="Apagar"><Trash2 size={16}/></button></td></tr>)}</tbody></table></div></div>})}{!metas.length&&<div className="py-10 text-center text-gray-400">Nenhuma meta cadastrada neste ciclo.</div>}</div>}</div>
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"><div className="p-5 border-b border-gray-100"><h3 className="text-lg font-bold text-gray-700">Metas salvas do ciclo</h3><p className="text-sm text-gray-400 mt-1">N1, N2 e N3 separados para facilitar a conferência.</p></div>{carregando?<div className="p-8 text-center text-[#048187] font-semibold">Carregando...</div>:<div className="p-4 space-y-5">{ordemNucleos.map(nucleo=>{const itens=metas.filter(m=>String(m.nucleo||'').toUpperCase()===nucleo);if(!itens.length)return null;return <div key={nucleo} className="border border-gray-100 rounded-2xl overflow-hidden"><div className="bg-[#e6f6f7] px-4 py-3 flex items-center justify-between"><span className="font-bold text-[#048187]">{nucleo.replace('NUCLEO','NÚCLEO')}</span><span className="text-xs font-semibold text-[#048187]">{itens.length} estrutura(s)</span></div><div className="overflow-x-auto"><table className="w-full min-w-[1450px] text-[12px]"><thead className="bg-[#f7fafb] text-[10px] uppercase text-gray-400"><tr><th className="px-3 py-3 text-left">Nome Estrutura</th><th className="px-3 py-3 text-left">Estrutura</th><th className="px-3 py-3 text-left">Canal/Núcleo</th><th className="px-3 py-3">Ciclo</th><th className="px-3 py-3 text-right">Receita</th><th className="px-3 py-3 text-right">Atividade</th><th className="px-3 py-3 text-right">RPA</th><th className="px-3 py-3 text-right">Tkt Médio</th><th className="px-3 py-3 text-right">UPA</th><th className="px-3 py-3 text-right">Adições</th><th className="px-3 py-3 text-right">Pen. Make</th><th className="px-3 py-3 text-right">Pen. Cabelos</th><th className="px-3 py-3 text-right">Pen. Multimarcas</th><th className="px-3 py-3 text-right">Meta Eudora</th><th className="px-3 py-3 text-right">Ações</th></tr></thead><tbody>{itens.map(m=><tr key={m.id} className="border-t border-gray-100 hover:bg-gray-50"><td className="px-3 py-3 font-semibold text-gray-700">{m.nome_estrutura||m.nome_meta}</td><td className="px-3 py-3 text-gray-500 max-w-[260px]">{(m.variacoes||[]).map(v=>v.estrutura).join(' + ')}</td><td className="px-3 py-3 text-gray-500">{m.categoria_canal} / {String(m.nucleo||'').replace('NUCLEO','N')}</td><td className="px-3 py-3 text-center">{m.ciclo}</td><td className="px-3 py-3 text-right font-semibold text-[#048187]">{formatarMoeda(m.meta_real)}</td><td className="px-3 py-3 text-right">{Number(m.meta_atividade||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_rpa)}</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_tkt_medio)}</td><td className="px-3 py-3 text-right">{Number(m.meta_upa||0).toFixed(1)}</td><td className="px-3 py-3 text-right">{Number(m.meta_adicoes||0).toFixed(0)}</td><td className="px-3 py-3 text-right">{Number(m.meta_make||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_cabelo||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_multimarcas||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_eudora||0).toFixed(1)}%</td><td className="px-3 py-3 text-right whitespace-nowrap"><button onClick={()=>editarMeta(m)} className="text-[#048187] mr-3" title="Editar"><Pencil size={16}/></button><button onClick={()=>excluirMeta(m)} className="text-red-500" title="Apagar"><Trash2 size={16}/></button></td></tr>)}</tbody></table></div></div>})}{!metas.length&&<div className="py-10 text-center text-gray-400">Nenhuma meta cadastrada neste ciclo.</div>}</div>}</div>
     </div>
   );
   if (modoInline) return conteudo;
@@ -4955,6 +4956,7 @@ export default function App() {
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   const [campanhaIncentivo2026, setCampanhaIncentivo2026] = useState({ carregando: false, erro: '', dados: null });
   const [adicoesRefreshToken, setAdicoesRefreshToken] = useState(0);
+  const [resumoAdicoesMetas, setResumoAdicoesMetas] = useState({ mapa: {}, totais: null, ciclo: '' });
 
   const [visaoRanking, setVisaoRanking] = useState('consultores');
   const [visaoMetas, setVisaoMetas] = useState(() => {
@@ -6023,6 +6025,43 @@ export default function App() {
     .trim()
     .toLowerCase();
 
+    const carregarResumoAdicoesMetas = async (ciclo, headersExtras = {}, signal = undefined) => {
+    try {
+      const resposta = await axios.get(`${API_URL}/adicoes/resumo`, {
+        params: { ciclo },
+        headers: { 'X-Ciclo-VD': ciclo, ...headersExtras },
+        timeout: 45000,
+        signal,
+      });
+      const mapa = {};
+      (resposta?.data?.estruturas || []).forEach((item) => {
+        const codigo = String(item?.cod_estrutura || '').trim();
+        const nome = normalizarChaveFiltroMeta(item?.estrutura);
+        if (codigo) mapa[`cod::${codigo}`] = item;
+        if (nome) mapa[`nome::${nome}`] = item;
+      });
+      setResumoAdicoesMetas({ mapa, totais: resposta?.data?.totais || null, ciclo: String(ciclo || '') });
+      return resposta?.data || null;
+    } catch (erro) {
+      if (erro?.code !== 'ERR_CANCELED' && erro?.name !== 'CanceledError' && erro?.name !== 'AbortError') {
+        console.warn('Não foi possível carregar o resumo de Adições para Metas.', erro);
+      }
+      return null;
+    }
+  };
+
+  const obterInfoAdicoesEstrutura = (item) => {
+    const codigo = String(item?.cod_estrutura || item?.meta?.cod_estrutura || '').trim();
+    const nome = normalizarChaveFiltroMeta(item?.estrutura || item?.nome_estrutura || '');
+    const registro = resumoAdicoesMetas?.mapa?.[`cod::${codigo}`] || resumoAdicoesMetas?.mapa?.[`nome::${nome}`] || {};
+    return {
+      meta: Number(registro?.meta_adicoes || 0),
+      realizado: Number(registro?.adicoes || 0),
+      percentual: Number(registro?.percentual_meta || calcPerc(Number(registro?.adicoes || 0), Number(registro?.meta_adicoes || 0))),
+      falta: Number(registro?.falta_meta || Math.max(Number(registro?.meta_adicoes || 0) - Number(registro?.adicoes || 0), 0)),
+    };
+  };
+
   const obterEstruturasDaMetaDashboard = (item) => {
     const vinculadas = Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [];
     return vinculadas.length ? vinculadas : [item?.estrutura].filter(Boolean);
@@ -6308,6 +6347,7 @@ export default function App() {
     if (!forcarAtualizacao && cacheDashboard[chaveCache]) {
       const c = cacheDashboard[chaveCache];
       setDadosMetas(c.dados);
+      void carregarResumoAdicoesMetas(String(filtros?.ciclo || cicloVisualizacaoVDRef.current || '').trim());
       if (visaoMetas === 'consultores' && estruturaSelecionada) {
         await carregarDetalheMeta(estruturaSelecionada, filtros, false);
       }
@@ -6344,6 +6384,7 @@ export default function App() {
         setDadosMetas(dadosOrdenados);
         setCacheMetas(dadosOrdenados);
         setCacheDashboard((prev) => ({ ...prev, [chaveCache]: { dados: dadosOrdenados } }));
+        void carregarResumoAdicoesMetas(cicloSolicitado, (forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {}), controller.signal);
 
         if (visaoMetas === 'consultores' && estruturaSelecionada) {
           await carregarDetalheMeta(estruturaSelecionada, filtros, forcarAtualizacao);
@@ -13834,16 +13875,6 @@ const enviarArquivo = async (tipo) => {
                 </button>
               )}
 
-              {visaoMetas === 'estruturas' && podeGerarRelatorioMetas && (
-                <button
-                  type="button"
-                  onClick={abrirModalRelatorioMetas}
-                  className="bg-[#048187] text-white hover:bg-[#036b70] px-4 py-2.5 rounded-xl font-medium text-xs inline-flex items-center gap-2 transition-colors shadow-sm"
-                  title="Gerar relatório dos resultados em imagem PNG"
-                >
-                  <FileSpreadsheet size={17} /> Gerar relatório em imagem
-                </button>
-              )}
             </div>
 
             <p className="text-xs font-medium text-gray-400 text-left sm:text-right">
@@ -13996,7 +14027,7 @@ const enviarArquivo = async (tipo) => {
             <div className="min-w-[1700px] space-y-2">
               <div
                 className="grid gap-0 px-1 text-[9px] font-semibold uppercase tracking-wide text-gray-400"
-                style={{ gridTemplateColumns: '280px 245px 155px 120px 105px 135px 135px 90px 120px 120px 120px 72px' }}
+                style={{ gridTemplateColumns: '280px 245px 155px 120px 105px 135px 135px 90px 120px 120px 120px 135px 72px' }}
               >
                 <div className="px-2 py-2">Estrutura</div>
                 <div className="px-2 py-2">Faturamento e % Receita</div>
@@ -14009,11 +14040,13 @@ const enviarArquivo = async (tipo) => {
                 <div className="px-2 py-2">% Make</div>
                 <div className="px-2 py-2">% Cab.</div>
                 <div className="px-2 py-2">% Multi.</div>
+                <div className="px-2 py-2">Adições</div>
                 <div className="px-2 py-2 text-center">Ação</div>
               </div>
               <div className="max-h-[42rem] overflow-y-auto pr-1 space-y-2">
                 {ests.map((i) => {
                   const ind = calcularIndicadoresLinhaEstrutura(i);
+                  const adicoesLinha = obterInfoAdicoesEstrutura(i);
                   const faltamMakeLinha = Math.max(Number(ind.makeMetaQtd || 0) - Number(ind.makeRealizado || 0), 0);
                   const faltamCabeloLinha = Math.max(Number(ind.cabeloMetaQtd || 0) - Number(ind.cabeloRealizado || 0), 0);
                   const faltamMultimarcasLinha = Math.max(Number(ind.multimarcasMetaQtd || 0) - Number(ind.multimarcasRealizado || 0), 0);
@@ -14022,7 +14055,7 @@ const enviarArquivo = async (tipo) => {
                     <div
                       key={i.estrutura}
                       className={`grid rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}
-                      style={{ gridTemplateColumns: '280px 245px 155px 120px 105px 135px 135px 90px 120px 120px 120px 72px' }}
+                      style={{ gridTemplateColumns: '280px 245px 155px 120px 105px 135px 135px 90px 120px 120px 120px 135px 72px' }}
                     >
                       <ColunaEstruturaMetaRealizado item={i} />
                       <CelulaFaturamentoMetaRealizado
@@ -14159,6 +14192,24 @@ const enviarArquivo = async (tipo) => {
                           ]
                         )}
                       />
+                      <CelulaIndicadorMetaRealizado
+                        titulo="Adições"
+                        meta={formatarNumeroBR(adicoesLinha.meta, 0)}
+                        realizado={formatarNumeroBR(adicoesLinha.realizado, 0)}
+                        percentualAtingimento={adicoesLinha.percentual}
+                        compacto
+                        onClickDetalhe={() => abrirModalValExp(
+                          `${i.estrutura} • ADIÇÕES`,
+                          formatarNumeroBR(adicoesLinha.realizado, 0),
+                          'Indicador calculado por (Inícios + Reinícios) - I6.',
+                          [
+                            { label: 'Meta Adições', valor: formatarNumeroBR(adicoesLinha.meta, 0) },
+                            { label: 'Realizado', valor: formatarNumeroBR(adicoesLinha.realizado, 0) },
+                            { label: '% da meta', valor: `${formatarNumeroBR(adicoesLinha.percentual, 1)}%` },
+                            { label: 'Falta para a meta', valor: adicoesLinha.meta > 0 ? formatarNumeroBR(adicoesLinha.falta, 0) : 'Sem meta cadastrada' },
+                          ]
+                        )}
+                      />
                       <div className="h-full min-h-[104px] bg-white border-l border-gray-100 flex items-center justify-center px-2 rounded-r-2xl">
                         <button
                           type="button"
@@ -14193,62 +14244,12 @@ const enviarArquivo = async (tipo) => {
         {visaoMetas === 'consultores' && detalheMeta && (
           <>
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6 mb-6">
-                <div className="min-w-0">
-                  <button
-                    type="button"
-                    onClick={voltarParaListaMetas}
-                    className="mb-3 bg-[#e6f6f7] text-[#048187] hover:bg-[#d8f0f1] px-4 py-2 rounded-lg font-semibold text-xs inline-flex items-center gap-2 transition-colors"
-                  >
-                    <ChevronLeft size={16} /> Voltar para estruturas
-                  </button>
-                  <h2 className="text-xl sm:text-2xl font-medium text-gray-700 break-words">{detalheMeta.estrutura}</h2>
-                  <p className="text-sm text-gray-400 mt-1">{descricaoResumoDetalhe}</p>
-                </div>
-                <div className="w-full xl:w-[420px] relative">
-                  <label className="block text-[10px] font-semibold uppercase text-gray-400 mb-2 tracking-wide">Filtro rápido de estrutura</label>
-                  <div className="relative">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      value={buscaEstruturaMeta}
-                      onFocus={() => setMostrarListaEstruturaMeta(true)}
-                      onBlur={() => setTimeout(() => setMostrarListaEstruturaMeta(false), 180)}
-                      onChange={(e) => { setBuscaEstruturaMeta(e.target.value); setMostrarListaEstruturaMeta(true); }}
-                      placeholder="Buscar estrutura para consultar..."
-                      className="w-full border border-gray-200 rounded-xl pl-10 pr-10 py-3 text-sm font-medium text-gray-700 outline-none focus:border-[#048187] focus:ring-2 focus:ring-[#048187]/10 bg-white"
-                    />
-                    {buscaEstruturaMeta && (
-                      <button type="button" onClick={() => { setBuscaEstruturaMeta(''); setMostrarListaEstruturaMeta(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <X size={16} />
-                      </button>
-                    )}
-                  </div>
-                  {mostrarListaEstruturaMeta && (
-                  <div className="absolute z-30 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl max-h-72 overflow-y-auto">
-                    {(buscaEstruturaMeta ? estruturasFiltradasBuscaMeta : ests.slice(0, 8)).map((item) => (
-                      <button
-                        key={item.estrutura}
-                        type="button"
-                        onClick={() => abrirDetalheEstruturaMetas(item.estrutura, false)}
-                        className={`w-full text-left px-4 py-3 text-sm border-b border-gray-50 last:border-b-0 hover:bg-[#e6f6f7] transition-colors ${detalheMeta?.estrutura === item.estrutura ? 'bg-[#f4fbfb] text-[#048187] font-medium' : 'text-gray-600 font-medium'}`}
-                      >
-                        <div className="flex items-center justify-between gap-3 min-w-0">
-                          <span className="truncate">{item.estrutura}</span>
-                          <span className="text-[11px] font-semibold text-[#048187] shrink-0">{Number(item.percentual || 0).toFixed(1)}%</span>
-                        </div>
-                        <p className="text-[11px] text-gray-400 mt-0.5 truncate">Realizado: {formatarMoeda(item.realizado)} • Meta: {formatarMoeda(item.receita)}</p>
-                      </button>
-                    ))}
-                    {estruturasFiltradasBuscaMeta.length === 0 && buscaEstruturaMeta && (
-                      <div className="px-4 py-6 text-center text-xs font-medium text-gray-400">Nenhuma estrutura encontrada.</div>
-                    )}
-                  </div>
-                  )}
-                </div>
+              <div className="mb-6">
+                <h2 className="text-xl sm:text-2xl font-medium text-gray-700 break-words">{detalheMeta.estrutura}</h2>
+                <p className="text-sm text-gray-400 mt-1">{descricaoResumoDetalhe}</p>
               </div>
               <div className="overflow-x-auto pb-2 mb-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-                <div className="grid grid-cols-9 gap-4 min-w-[1680px]">
+                <div className="grid grid-cols-10 gap-4 min-w-[1860px]">
                 <CardMetaNova titulo="Faturamento Estrutura" valor={formatarAbrev(detalheMeta.realizado)} percentual={calcPerc(detalheMeta.realizado, detalheMeta.meta?.receita)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(detalheMeta.meta?.receita)} onClickExpandir={abrirDetalheFaturamentoEstruturaMetas} />
                 <CardMetaNova titulo="EUDORA" valor={formatarAbrev(eudoraDetalhe)} percentual={percentualEudoraDetalhe} labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraDetalhePercentual, 1)}%):`} valorMeta={formatarAbrev(metaEudoraDetalheValor)} onClickExpandir={abrirDetalheEudoraEstruturaMetas} />
                 <CardMetaNova titulo="Atividade" valor={`${percentualAtividadeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade', `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%`, 'Atividade = revendedoras ativadas dividido pela base ativa da estrutura.', [{ label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) }, { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedoras necessárias`)} />
@@ -14263,6 +14264,17 @@ const enviarArquivo = async (tipo) => {
                 <CardMetaNova titulo="RPA" valor={formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0)} percentual={calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.rpa)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(detalheMeta.meta?.rpa)} onClickExpandir={abrirDetalheRpaEstruturaMetas} />
                 <CardMetaNova titulo="Ticket Médio" valor={formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0)} percentual={calcPerc(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0, detalheMeta.meta?.tkt_medio)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(detalheMeta.meta?.tkt_medio)} onClickExpandir={abrirDetalheTicketEstruturaMetas} />
                 <CardMetaNova titulo="UPA" valor={upaDetalhe.toFixed(1)} percentual={calcPerc(upaDetalhe, detalheMeta.meta?.upa)} labelMeta="Meta UPA:" valorMeta={Number(detalheMeta.meta?.upa||0).toFixed(1)} onClickExpandir={abrirDetalheUpaEstruturaMetas} />
+                <CardMetaNova titulo="Adições" valor={formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).realizado, 0)} percentual={obterInfoAdicoesEstrutura(detalheMeta).percentual} labelMeta="Meta Adições:" valorMeta={formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).meta, 0)} onClickExpandir={() => abrirModalValExp(
+                  `ADIÇÕES - ${detalheMeta?.estrutura || estruturaSelecionada || 'Estrutura'}`,
+                  formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).realizado, 0),
+                  'Indicador calculado por (Inícios + Reinícios) - I6.',
+                  [
+                    { label: 'Meta Adições', valor: formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).meta, 0) },
+                    { label: 'Realizado', valor: formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).realizado, 0) },
+                    { label: '% da meta', valor: `${formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).percentual, 1)}%` },
+                    { label: 'Falta para a meta', valor: obterInfoAdicoesEstrutura(detalheMeta).meta > 0 ? formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).falta, 0) : 'Sem meta cadastrada' },
+                  ]
+                )} />
                 </div>
               </div>
             </div>
@@ -21279,32 +21291,6 @@ const enviarArquivo = async (tipo) => {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-5 py-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center">
-                <FileSpreadsheet size={22} />
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-gray-700">Meio de Captação do 1º Pedido</h2>
-                <p className="text-sm text-gray-400 mt-1">Primeiro pedido válido de cada revendedor no ciclo {primeiroPedidoCaptacao?.ciclo || cicloSelecionadoVD || '-'}.</p>
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => carregarPrimeiroPedidoCaptacao({
-              ...filtrosAtivos,
-              ciclo: primeiroPedidoCaptacao?.ciclo || cicloSelecionadoVD || filtrosAtivos?.ciclo || '',
-            }, true)}
-            disabled={primeiroPedidoCaptacao?.carregando}
-            className="inline-flex items-center justify-center gap-2 bg-[#048187] text-white px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-60"
-          >
-            <RefreshCcw size={16} className={primeiroPedidoCaptacao?.carregando ? 'animate-spin' : ''} />
-            Atualizar
-          </button>
-        </div>
-
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 min-h-[108px] flex flex-col justify-between">
             <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Revendedores únicos</p>
@@ -22230,6 +22216,18 @@ const enviarArquivo = async (tipo) => {
                       <span className="hidden xl:inline">Gerar relatório PDF</span>
                     </button>
                   </>
+                )}
+
+                {telaAtual === 'Metas' && visaoMetas === 'estruturas' && podeGerarRelatorioMetas && (
+                  <button
+                    type="button"
+                    onClick={abrirModalRelatorioMetas}
+                    className="flex items-center gap-1.5 hover:bg-[#036b70] px-3 py-2 rounded-full text-[11px] font-medium text-white border border-[#048187] bg-[#048187] transition-colors"
+                    title="Gerar relatório dos resultados em imagem PNG"
+                  >
+                    <FileSpreadsheet size={16} />
+                    <span className="hidden xl:inline">Gerar relatório em imagem</span>
+                  </button>
                 )}
 
                 {telaAtual !== 'AcompanhamentoVD' && telaAtual !== 'Perfil' && (
