@@ -4956,7 +4956,8 @@ export default function App() {
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   const [campanhaIncentivo2026, setCampanhaIncentivo2026] = useState({ carregando: false, erro: '', dados: null });
   const [adicoesRefreshToken, setAdicoesRefreshToken] = useState(0);
-  const [resumoAdicoesMetas, setResumoAdicoesMetas] = useState({ mapa: {}, totais: null, ciclo: '' });
+  const [resumoAdicoesMetas, setResumoAdicoesMetas] = useState({ mapa: {}, estruturas: [], totais: null, ciclo: '' });
+  const [detalheAdicoesGerente, setDetalheAdicoesGerente] = useState({ aberto: false, carregando: false, erro: '', dados: null });
 
   const [visaoRanking, setVisaoRanking] = useState('consultores');
   const [visaoMetas, setVisaoMetas] = useState(() => {
@@ -5363,7 +5364,6 @@ export default function App() {
       ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
       ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
       ...(podeAcessarRotasVD ? ['Rotas'] : []),
-      'Adições',
       'VendasCidades',
       'Ações',
       'Tutoriais',
@@ -5765,7 +5765,6 @@ export default function App() {
           ? [{ nome: 'PrimeiroPedidoCaptacao', icone: FileSpreadsheet }]
           : []),
         ...(podeAcessarRevendedoresVD ? [{ nome: 'Revendedores', icone: UserCircle }] : []),
-        { nome: 'Adições', icone: UsersRound },
         ...(podeAcessarRotasVD ? [{ nome: 'Rotas', icone: Truck }] : []),
         { nome: 'VendasCidades', icone: MapPin },
         { nome: 'Ações', icone: Sparkles },
@@ -5875,7 +5874,6 @@ export default function App() {
         ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
         ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
         ...(podeAcessarRotasVD ? ['Rotas'] : []),
-        'Adições',
         'Ações',
         'Tutoriais',
         'Solicitações',
@@ -6040,7 +6038,7 @@ export default function App() {
         if (codigo) mapa[`cod::${codigo}`] = item;
         if (nome) mapa[`nome::${nome}`] = item;
       });
-      setResumoAdicoesMetas({ mapa, totais: resposta?.data?.totais || null, ciclo: String(ciclo || '') });
+      setResumoAdicoesMetas({ mapa, estruturas: resposta?.data?.estruturas || [], totais: resposta?.data?.totais || null, ciclo: String(ciclo || '') });
       return resposta?.data || null;
     } catch (erro) {
       if (erro?.code !== 'ERR_CANCELED' && erro?.name !== 'CanceledError' && erro?.name !== 'AbortError') {
@@ -6060,6 +6058,30 @@ export default function App() {
       percentual: Number(registro?.percentual_meta || calcPerc(Number(registro?.adicoes || 0), Number(registro?.meta_adicoes || 0))),
       falta: Number(registro?.falta_meta || Math.max(Number(registro?.meta_adicoes || 0) - Number(registro?.adicoes || 0), 0)),
     };
+  };
+
+  const abrirDetalheAdicoesGerente = async (item) => {
+    const ciclo = String(resumoAdicoesMetas?.ciclo || cicloSelecionadoVD || filtrosAtivos?.ciclo || '').trim();
+    setDetalheAdicoesGerente({ aberto: true, carregando: true, erro: '', dados: null });
+    try {
+      const params = { ciclo };
+      if (item?.meta_id) params.meta_id = Number(item.meta_id);
+      else if (item?.cod_estrutura) params.cod_estrutura = String(item.cod_estrutura);
+      else params.estrutura = String(item?.estrutura || '');
+      const resposta = await axios.get(`${API_URL}/adicoes/detalhe`, {
+        params,
+        headers: { 'X-Ciclo-VD': ciclo },
+        timeout: 45000,
+      });
+      setDetalheAdicoesGerente({ aberto: true, carregando: false, erro: '', dados: resposta?.data || null });
+    } catch (erro) {
+      setDetalheAdicoesGerente({
+        aberto: true,
+        carregando: false,
+        erro: erro?.response?.data?.detail || 'Não foi possível carregar os revendedores da estrutura.',
+        dados: null,
+      });
+    }
   };
 
   const obterEstruturasDaMetaDashboard = (item) => {
@@ -9650,6 +9672,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
           },
           atualizado_em: cacheAcompanhamento.atualizado_em || new Date().toISOString(),
         });
+        void carregarResumoAdicoesMetas(ciclo);
         return;
       }
 
@@ -9708,6 +9731,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
 
       setDados(dadosAtualizados);
       setMetaFaturamentoDashboard(metaDashboard);
+      void carregarResumoAdicoesMetas(ciclo, (forcarAtualizacao ? { 'X-Force-Refresh': '1' } : {}), controller.signal);
       setAcompanhamentoVD({
         carregando: false,
         carregandoConsultores: true,
@@ -11905,6 +11929,7 @@ const enviarArquivo = async (tipo) => {
     const diarioResumo = acompanhamentoVD.diario?.resumo || {};
     const consultores = Array.isArray(acompanhamentoVD.consultores) ? acompanhamentoVD.consultores : [];
     const diarioConsultores = Array.isArray(acompanhamentoVD.diario?.consultores) ? acompanhamentoVD.diario.consultores : [];
+    const adicoesEstruturasGerente = Array.isArray(resumoAdicoesMetas?.estruturas) ? resumoAdicoesMetas.estruturas : [];
 
     const metaTotal = Number(
       dadosMetas?.meta_total_geral
@@ -12276,6 +12301,106 @@ const enviarArquivo = async (tipo) => {
             </div>
           </div>
         </div>
+
+        {adicoesEstruturasGerente.length > 0 && (
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 pt-3 pb-2 text-center text-[10px] font-black uppercase tracking-wide text-gray-400 border-b border-gray-50">Adições:</div>
+            <div className="divide-y divide-gray-100">
+              {adicoesEstruturasGerente.map((item, indice) => {
+                const percentual = Number(item?.percentual_meta || 0);
+                const cor = corPorFaixaMeta(percentual);
+                return (
+                  <div key={`${item?.meta_id || item?.cod_estrutura || item?.estrutura || indice}`} className="grid grid-cols-[minmax(230px,2.4fr)_repeat(9,minmax(70px,1fr))_58px] items-stretch min-w-[1080px]">
+                    <div className="px-5 py-4 flex flex-col justify-center min-w-0">
+                      <p className="text-sm font-black text-gray-700 truncate">{item?.estrutura || 'Estrutura'}</p>
+                      <p className="mt-1 text-[10px] font-bold text-gray-400 truncate">Cód. {item?.cod_estrutura || '-'}{Number(item?.qtd_estruturas_vinculadas || 0) > 1 ? ` • ${item.qtd_estruturas_vinculadas} vinculadas` : ''}</p>
+                    </div>
+                    {[
+                      ['BT', item?.bt, '#334155'],
+                      ['BA', item?.ba, '#048187'],
+                      ['I', item?.inicios, '#334155'],
+                      ['R', item?.reinicios, '#334155'],
+                      ['I6', item?.i6, '#7c1f31'],
+                      ['ADIÇÕES', item?.adicoes, Number(item?.adicoes || 0) < 0 ? '#7c1f31' : '#048187'],
+                      ['META', item?.meta_adicoes, '#334155'],
+                      ['% META', `${formatarNumeroBR(percentual, 1)}%`, cor],
+                      ['FALTA', item?.falta_meta, '#334155'],
+                    ].map(([rotulo, valor, corValor]) => (
+                      <div key={rotulo} className="border-l border-gray-50 px-2 py-3 flex flex-col items-center justify-center text-center min-w-0">
+                        <span className="text-[8px] font-black uppercase tracking-wide text-gray-400">{rotulo}</span>
+                        <span className="mt-1 text-[12px] font-black truncate max-w-full" style={{ color: corValor }}>
+                          {typeof valor === 'string' ? valor : formatarNumeroBR(Number(valor || 0), 0)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="border-l border-gray-50 flex items-center justify-center px-2">
+                      <button
+                        type="button"
+                        onClick={() => abrirDetalheAdicoesGerente(item)}
+                        className="w-9 h-9 rounded-xl bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] inline-flex items-center justify-center"
+                        title="Ver revendedores da estrutura"
+                      >
+                        <Eye size={15} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {detalheAdicoesGerente.aberto && (
+          <div className="fixed inset-0 z-[120] bg-black/35 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setDetalheAdicoesGerente({ aberto: false, carregando: false, erro: '', dados: null }); }}>
+            <div className="w-full max-w-5xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+              <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">Detalhamento de Adições</p>
+                  <h3 className="mt-1 text-xl font-black text-gray-700">{detalheAdicoesGerente.dados?.estrutura?.estrutura || 'Estrutura'}</h3>
+                  <p className="text-xs font-bold text-gray-400 mt-1">Cód. {detalheAdicoesGerente.dados?.estrutura?.cod_estrutura || '-'}</p>
+                </div>
+                <button type="button" onClick={() => setDetalheAdicoesGerente({ aberto: false, carregando: false, erro: '', dados: null })} className="w-9 h-9 rounded-xl bg-[#fff3f5] text-[#7c1f31] flex items-center justify-center"><X size={18} /></button>
+              </div>
+              {detalheAdicoesGerente.carregando ? (
+                <div className="p-12 text-center text-[#048187] font-black"><Loader2 size={22} className="animate-spin inline mr-2" />Carregando revendedores...</div>
+              ) : detalheAdicoesGerente.erro ? (
+                <div className="p-8 text-center text-red-600 font-bold">{detalheAdicoesGerente.erro}</div>
+              ) : (
+                <div className="p-5 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      ['Adições', detalheAdicoesGerente.dados?.estrutura?.adicoes],
+                      ['Meta', detalheAdicoesGerente.dados?.estrutura?.meta_adicoes],
+                      ['% Meta', `${formatarNumeroBR(detalheAdicoesGerente.dados?.estrutura?.percentual_meta || 0, 1)}%`],
+                      ['Falta', detalheAdicoesGerente.dados?.estrutura?.falta_meta],
+                    ].map(([rotulo, valor]) => (
+                      <div key={rotulo} className="rounded-2xl border border-gray-100 bg-[#f9fbfb] p-4">
+                        <p className="text-[9px] font-black uppercase text-gray-400">{rotulo}</p>
+                        <p className="mt-1 text-xl font-black text-gray-700">{typeof valor === 'string' ? valor : formatarNumeroBR(Number(valor || 0), 0)}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="px-4 py-3 bg-[#f7fafb] border-b border-gray-100">
+                      <h4 className="text-sm font-black text-gray-700">Revendedores da estrutura</h4>
+                      <p className="mt-1 text-xs font-semibold text-gray-400">Código do Revendedor, Nome e Atividade.</p>
+                    </div>
+                    <div className="max-h-[430px] overflow-auto">
+                      {(detalheAdicoesGerente.dados?.revendedores || []).length ? (
+                        <table className="w-full min-w-[720px] text-[12px]">
+                          <thead className="sticky top-0 bg-white text-[10px] uppercase text-gray-400"><tr><th className="px-4 py-3 text-left">Cód. Revendedor</th><th className="px-4 py-3 text-left">Nome</th><th className="px-4 py-3 text-left">Atividade</th></tr></thead>
+                          <tbody>{(detalheAdicoesGerente.dados?.revendedores || []).map((rev, idx) => (
+                            <tr key={`${rev?.cod_revendedor || idx}-${idx}`} className="border-t border-gray-100"><td className="px-4 py-3 font-black text-gray-700">{rev?.cod_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-700">{rev?.nome_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-600">{rev?.atividade || '-'}</td></tr>
+                          ))}</tbody>
+                        </table>
+                      ) : <div className="p-8 text-center text-sm font-bold text-gray-400">Nenhum revendedor encontrado.</div>}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <h2 className="text-lg font-black text-gray-700 text-center border-b border-gray-100 pb-3">Ranking individual</h2>
