@@ -8,6 +8,7 @@ import produtosLoginHero from './assets/login-produtos.png';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 import TelaSolicitacoes from './telas/TelaSolicitacoes';
 import TelaRotas from './telas/TelaRotas';
+import TelaAdicoes from './telas/TelaAdicoes';
 
 import './dashboard-refinado.css';
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
@@ -685,9 +686,9 @@ const IconeCanalLoja = ({ size = 22, className = '' }) => (
 const obterNomeExibicaoConsultor = (item) => item?.nome_exibicao || item?.nome_social || item?.nome || '-';
 
 const permissoesPadrao = {
-  admin: ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
-  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Perfil', 'Solicitações'],
-  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Histórico', 'Revendedores', 'Rotas', 'Perfil', 'Solicitações'],
+  admin: ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'Adições', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações'],
+  gestor: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'Adições', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Perfil', 'Solicitações'],
+  visualizador: ['Dashboard', 'AcompanhamentoVD', 'Metas', 'Adições', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Histórico', 'Revendedores', 'Rotas', 'Perfil', 'Solicitações'],
   // Consultor FV: Visão Geral individual; Revendedores e Rotas da estrutura. O backend
   // reaplica os dois escopos e não confia somente na navegação do front.
   consultor: ['Dashboard', 'Revendedores', 'Rotas', 'Tutoriais', 'Perfil', 'Solicitações']
@@ -701,6 +702,7 @@ const obterNomeAba = (nome) => ({
   Rotas: 'Rotas',
   Tutoriais: 'Tutoriais e Dúvidas',
   Metas: 'Metas Estruturas',
+  'Adições': 'Adições',
   N1: 'N1',
   N2: 'N2',
   Loja: 'LOJA',
@@ -715,7 +717,7 @@ const obterNomeAba = (nome) => ({
 }[nome] || nome);
 
 
-const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações', 'CampanhaIncentivo2026'];
+const ABAS_SISTEMA = ['Dashboard', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Metas', 'Adições', 'N1', 'N2', 'N3', 'Ranking', 'Comparativo', 'VendasCidades', 'Ações', 'Tutoriais', 'Histórico', 'Revendedores', 'Rotas', 'Cadastro', 'Base', 'Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking', 'ADM', 'Configurações', 'Perfil', 'Solicitações', 'CampanhaIncentivo2026'];
 const PERFIS_SISTEMA = ['admin', 'gestor', 'visualizador', 'consultor'];
 
 const normalizarPermissoesSistema = (permissoes = {}) => {
@@ -747,6 +749,11 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
   // V12: Vendas por Cidades é uma visão operacional VD e entra para todos os perfis VD.
   PERFIS_SISTEMA.filter((perfil) => perfil !== 'consultor').forEach((perfil) => {
     if (!normalizadas[perfil].includes('VendasCidades')) normalizadas[perfil].push('VendasCidades');
+  });
+
+  // ADICOES_V1_PERMISSOES: nova visão operacional por estrutura.
+  PERFIS_SISTEMA.filter((perfil) => perfil !== 'consultor').forEach((perfil) => {
+    if (!normalizadas[perfil].includes('Adições')) normalizadas[perfil].push('Adições');
   });
 
   // Rotas é uma visão operacional do canal VD. O escopo real continua protegido no backend.
@@ -808,6 +815,7 @@ const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') =>
   if (!normalizadas.includes('Solicitações')) normalizadas.push('Solicitações');
   if (!normalizadas.includes('Tutoriais')) normalizadas.push('Tutoriais');
   if (!normalizadas.includes('Rotas')) normalizadas.push('Rotas');
+  if (!normalizadas.includes('Adições')) normalizadas.push('Adições');
 
   if (perfil === 'admin') {
     ['ADM', 'Configurações', 'Perfil'].forEach((abaObrigatoria) => {
@@ -4946,6 +4954,7 @@ export default function App() {
   }); const [menuHamburguerAberto, setMenuHamburguerAberto] = useState(false); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   const [campanhaIncentivo2026, setCampanhaIncentivo2026] = useState({ carregando: false, erro: '', dados: null });
+  const [adicoesRefreshToken, setAdicoesRefreshToken] = useState(0);
 
   const [visaoRanking, setVisaoRanking] = useState('consultores');
   const [visaoMetas, setVisaoMetas] = useState(() => {
@@ -5352,6 +5361,7 @@ export default function App() {
       ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
       ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
       ...(podeAcessarRotasVD ? ['Rotas'] : []),
+      'Adições',
       'VendasCidades',
       'Ações',
       'Tutoriais',
@@ -5729,6 +5739,7 @@ export default function App() {
       ? [{ nome: 'PrimeiroPedidoCaptacao', icone: FileSpreadsheet }]
       : []),
     { nome: 'Metas', icone: BarChart2 },
+    { nome: 'Adições', icone: UsersRound },
     { nome: 'Ranking', icone: Medal },
     { nome: 'Comparativo', icone: Scale },
     { nome: 'VendasCidades', icone: MapPin },
@@ -5752,6 +5763,7 @@ export default function App() {
           ? [{ nome: 'PrimeiroPedidoCaptacao', icone: FileSpreadsheet }]
           : []),
         ...(podeAcessarRevendedoresVD ? [{ nome: 'Revendedores', icone: UserCircle }] : []),
+        { nome: 'Adições', icone: UsersRound },
         ...(podeAcessarRotasVD ? [{ nome: 'Rotas', icone: Truck }] : []),
         { nome: 'VendasCidades', icone: MapPin },
         { nome: 'Ações', icone: Sparkles },
@@ -5861,6 +5873,7 @@ export default function App() {
         ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
         ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
         ...(podeAcessarRotasVD ? ['Rotas'] : []),
+        'Adições',
         'Ações',
         'Tutoriais',
         'Solicitações',
@@ -9945,6 +9958,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     if (telaAtual === 'PrimeiroPedidoCaptacao') return carregarPrimeiroPedidoCaptacao(filtros, forcarAtualizacao);
     if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao, false);
     if (telaAtual === 'Metas' || telaAtual === 'Ranking') return carregarDashboardEMetas(filtros, forcarAtualizacao);
+    if (telaAtual === 'Adições') { setAdicoesRefreshToken((valor) => valor + 1); return Promise.resolve(); }
     if (telaAtual === 'Comparativo') return carregarComparativo(filtros);
     if (telaAtual === 'VendasCidades') return carregarVendasCidades(filtros, forcarAtualizacao);
     if (telaAtual === 'Ações') return carregarAcoesCiclo(filtros?.ciclo);
@@ -10854,6 +10868,9 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     let principal;
     if (telaAtual === 'Dashboard') {
       principal = carregarDashboard(filtrosAtualizacao, true);
+    } else if (telaAtual === 'Adições') {
+      setAdicoesRefreshToken((valor) => valor + 1);
+      principal = Promise.resolve();
     } else if (telaAtual === 'AcompanhamentoVD' || telaAtual === 'Metas' || telaAtual === 'Ranking') {
       principal = carregarDashboardEMetas(filtrosAtualizacao, true);
     } else if (telaAtual === 'Comparativo') {
@@ -21523,6 +21540,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'PrimeiroPedidoCaptacao') return renderTelaPrimeiroPedidoCaptacao();
     if (telaAtual === 'Dashboard') return renderTelaDashboard();
     if (telaAtual === 'Metas') return renderTelaMetas();
+    if (telaAtual === 'Adições') return <TelaAdicoes apiUrl={API_URL} ciclo={cicloSelecionadoVD || filtrosAtivos?.ciclo || obterCicloReferenciaAtual()} perfil={perfilUsuarioAtual} nucleos={filtrosAtivos?.nucleos || []} refreshToken={adicoesRefreshToken} />;
     if (telaAtual === 'N1') return <TelaGestaoNucleo nucleo="N1" />;
     if (telaAtual === 'N2') return <TelaGestaoNucleo nucleo="N2" />;
     if (telaAtual === 'N3') return <TelaGestaoNucleo nucleo="N3" />;
@@ -22227,7 +22245,7 @@ const enviarArquivo = async (tipo) => {
                   </button>
                 )}
 
-                {(telaAtual === 'Dashboard' || telaAtual === 'PrimeiroPedidoCaptacao' || telaAtual === 'Metas' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'VendasCidades' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
+                {(telaAtual === 'Dashboard' || telaAtual === 'PrimeiroPedidoCaptacao' || telaAtual === 'Metas' || telaAtual === 'Adições' || telaAtual === 'Ranking' || telaAtual === 'Comparativo' || telaAtual === 'VendasCidades' || telaAtual === 'Revendedores' || telaEhLoja(telaAtual)) && (
                   <button onClick={() => setPainelFiltrosAberto(true)} className="flex items-center gap-1.5 hover:bg-[#eef8f8] px-3 py-2 rounded-full text-[11px] font-medium text-[#048187] border border-[#e1eaec] bg-white transition-colors">
                     <SlidersHorizontal size={16} /><span className="hidden sm:inline">Filtros</span>
                   </button>
