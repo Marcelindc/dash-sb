@@ -69,6 +69,7 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken 
     setErro('');
     try {
       const params = { ciclo: dados?.ciclo || ciclo || '' };
+      if (item?.meta_id) params.meta_id = Number(item.meta_id);
       if (item?.cod_estrutura) params.cod_estrutura = String(item.cod_estrutura);
       else params.estrutura = String(item?.estrutura || '');
       const resposta = await axios.get(`${apiUrl}/adicoes/detalhe`, { params });
