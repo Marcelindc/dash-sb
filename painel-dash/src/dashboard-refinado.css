@@ -488,7 +488,7 @@
 }
 
 /* ========================================================================== 
-   V1.5.2 — correção dos cards + dark mode mais elegante
+   V1.5.2 — correção estrutural dos cards
    ========================================================================== */
 
 /*
@@ -527,49 +527,6 @@
 .dash-visual-standard .dash-dashboard-kpis > * button span:last-child {
   margin-left: auto;
   text-align: right;
-}
-
-/* Dark mode: muda somente o fundo geral, mantendo cards/tabelas/gráficos claros. */
-.dash-theme-dark {
-  --dash-dark-bg: #0a171b;
-  background:
-    radial-gradient(circle at top left, rgba(4, 129, 135, 0.20), transparent 28%),
-    radial-gradient(circle at top right, rgba(3, 107, 112, 0.12), transparent 22%),
-    linear-gradient(180deg, #081419 0%, #0b1a20 38%, #0d1d23 100%) !important;
-}
-
-.dash-theme-dark .dash-main-refinado,
-.dash-theme-dark .dash-content-refinado {
-  background: transparent !important;
-}
-
-.dash-theme-dark .dash-content-refinado::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
-}
-
-/* Mantém a topbar clara e profissional para contrastar com o fundo escuro. */
-.dash-theme-dark .dash-topbar-refinada {
-  background: rgba(255, 255, 255, 0.96) !important;
-  border-color: #dfe9eb !important;
-  box-shadow: 0 10px 30px rgba(3, 20, 24, 0.18) !important;
-}
-
-/* Textos fora dos cards ficam legíveis sobre o fundo escuro. */
-.dash-theme-dark .dash-dashboard-view > .flex p.text-gray-400,
-.dash-theme-dark .dash-dashboard-view > .flex p.text-gray-500,
-.dash-theme-dark .dash-dashboard-view > .flex span.text-gray-400,
-.dash-theme-dark .dash-dashboard-view > .flex span.text-gray-500 {
-  color: #d4e2e4 !important;
-}
-
-/* Botão claro/escuro com o mesmo tamanho visual do botão Atualizar. */
-.dash-theme-toggle {
-  min-height: 34px;
-  min-width: 42px;
 }
 
 @media (max-width: 767px) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu, Sun, Moon } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu } from 'lucide-react';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
 import produtosLoginHero from './assets/login-produtos.png';
@@ -23,7 +23,6 @@ const CICLO_UPLOAD_LOJA_STORAGE_KEY = 'dashSbCicloUploadLoja';
 const CICLO_ATUAL_CONHECIDO_STORAGE_KEY = 'dashSbCicloAtualConhecido';
 const CICLO_SELECTOR_REPAIR_KEY = 'dashSbCicloSelectorRepairV1';
 const APP_NAME = 'DASH COMERCIAL SB';
-const TEMA_STORAGE_KEY = 'dashSbTemaVisual';
 const CACHE_SESSAO_DASH_KEY = 'dashSbCacheInteracoesV3MetaNucleo';
 const CACHE_SESSAO_TTL_MS = 15 * 60 * 1000;
 const CACHE_SESSAO_LOJA_KEY = 'dashSbCacheLojaPerformanceV9';
@@ -4945,16 +4944,9 @@ export default function App() {
     const canalSalvo = lerStorageUsuario(CANAL_ATUAL_STORAGE_KEY);
     return canalSalvo === 'LOJA';
   }); const [menuHamburguerAberto, setMenuHamburguerAberto] = useState(false); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
-  const [temaEscuro, setTemaEscuro] = useState(() => {
-    try { return localStorage.getItem(TEMA_STORAGE_KEY) === 'escuro'; } catch { return false; }
-  });
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   const [campanhaIncentivo2026, setCampanhaIncentivo2026] = useState({ carregando: false, erro: '', dados: null });
 
-  useEffect(() => {
-    try { localStorage.setItem(TEMA_STORAGE_KEY, temaEscuro ? 'escuro' : 'claro'); } catch {}
-  }, [temaEscuro]);
-  
   const [visaoRanking, setVisaoRanking] = useState('consultores');
   const [visaoMetas, setVisaoMetas] = useState(() => {
     const visaoSalva = lerStorageUsuario(VISAO_METAS_STORAGE_KEY);
@@ -16819,23 +16811,108 @@ const enviarArquivo = async (tipo) => {
       { id: 'erros', label: 'Erros', dados: dadosAuditoria?.erros_recentes || [] },
     ];
     const abaAtual = abas.find((item) => item.id === aba) || abas[0];
+    const telasMaisUsadas = (dadosAuditoria?.uso_por_tela || []).slice(0, 8).map((item) => ({
+      ...item,
+      nome: String(item.modulo || 'Sistema').toUpperCase(),
+      acessos: Number(item.acessos || 0),
+    }));
+    const rankingAcesso = [...(dadosAuditoria?.usuarios_ativos || [])]
+      .sort((a, b) => Number(b?.eventos || 0) - Number(a?.eventos || 0))
+      .slice(0, 8)
+      .map((item) => ({
+        ...item,
+        nome: String(item.usuario_nome || item.usuario_email || '-').split(' ')[0].toUpperCase(),
+        acessos: Number(item.eventos || 0),
+      }));
+    const usuariosRecentes = dadosAuditoria?.usuarios_ativos || [];
+
+    const GraficoRankingAuditoria = ({ dados, dataKeyNome = 'nome', vazio = 'Sem dados no período.' }) => (
+      <div className="h-[360px] w-full">
+        {dados.length ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={dados} layout="vertical" margin={{ top: 8, right: 20, bottom: 8, left: 10 }}>
+              <CartesianGrid stroke="#e8eef0" strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" tick={{ fill: '#55666a', fontSize: 10, fontWeight: 700 }} axisLine={{ stroke: '#b8c7ca' }} tickLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey={dataKeyNome} width={118} tick={{ fill: '#313a3d', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                cursor={{ fill: '#f2f8f8' }}
+                contentStyle={{ borderRadius: 12, border: '1px solid #dce8ea', boxShadow: '0 8px 24px rgba(0,0,0,.08)', fontSize: 12 }}
+                formatter={(valor) => [Number(valor || 0).toLocaleString('pt-BR'), 'Acessos']}
+              />
+              <Bar dataKey="acessos" fill="#048187" radius={[0, 7, 7, 0]} barSize={38}>
+                <LabelList dataKey="acessos" position="insideRight" fill="#fff" fontSize={11} fontWeight={800} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full flex items-center justify-center text-sm font-bold text-gray-400">{vazio}</div>
+        )}
+      </div>
+    );
+
     return (
-      <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div><h1 className="text-2xl font-black text-gray-700">Painel ADM</h1><p className="text-gray-400 font-semibold mt-1">Acompanhe acessos, uploads, alterações, erros e uso das telas do Dash.</p></div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <select value={filtrosAuditoria.dias} onChange={(e) => { const dias = Number(e.target.value); setFiltrosAuditoria((atual) => ({ ...atual, dias })); carregarAuditoria(dias); }} className="border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#048187]"><option value={1}>Últimas 24h</option><option value={7}>Últimos 7 dias</option><option value={15}>Últimos 15 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select>
-              <button onClick={abrirModalRelatorioAuditoria} className="border border-[#b9dfe1] bg-[#e6f6f7] text-[#048187] font-black px-5 py-3 rounded-xl hover:bg-[#d5f0f1] inline-flex items-center justify-center gap-2"><FileSpreadsheet size={18} /> Gerar relatório PDF</button>
-              <button onClick={() => carregarAuditoria()} className="bg-[#048187] text-white font-black px-5 py-3 rounded-xl hover:brightness-110 inline-flex items-center justify-center gap-2"><RefreshCcw size={18} /> Atualizar</button>
+      <div className="space-y-5 animate-fade-in">
+        {(erroAuditoria || carregandoAuditoria) && (
+          <div className={`rounded-xl px-4 py-3 font-bold text-sm ${erroAuditoria ? 'bg-red-50 text-red-600' : 'bg-[#e6f6f7] text-[#048187]'}`}>
+            {erroAuditoria || 'Carregando auditoria...'}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          <CardAuditoria titulo="Usuários ativos" valor={resumo.usuarios_ativos_24h || 0} subtitulo="últimas 24h" icone={Users} destaque onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'acessos' }))} />
+          <CardAuditoria titulo="Logins" valor={resumo.logins_24h || 0} subtitulo="últimas 24h" icone={UserCircle} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'acessos' }))} />
+          <CardAuditoria titulo="Uploads" valor={resumo.uploads_24h || 0} subtitulo="bases atualizadas" icone={Upload} destaque onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'uploads' }))} />
+          <CardAuditoria titulo="Ações" valor={resumo.acoes_24h || 0} subtitulo="cadastros/edições" icone={Pencil} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'acoes' }))} />
+          <CardAuditoria titulo="Erros" valor={resumo.erros_24h || 0} subtitulo="últimas 24h" icone={AlertCircle} perigo={Number(resumo.erros_24h || 0) > 0} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'erros' }))} />
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[1.22fr_1.06fr_.82fr] gap-5 items-stretch">
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 min-w-0">
+            <h3 className="text-base sm:text-lg font-black text-[#404446] text-center uppercase tracking-wide mb-4">Telas mais usadas:</h3>
+            <GraficoRankingAuditoria dados={telasMaisUsadas} />
+          </div>
+
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 min-w-0">
+            <h3 className="text-base sm:text-lg font-black text-[#404446] text-center uppercase tracking-wide mb-4">Ranking de acesso:</h3>
+            <GraficoRankingAuditoria dados={rankingAcesso} />
+          </div>
+
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 min-w-0 flex flex-col">
+            <h3 className="text-base sm:text-lg font-black text-[#404446] text-center uppercase tracking-wide mb-4">Ranking de acesso:</h3>
+            <div className="space-y-1 max-h-[360px] overflow-y-auto pr-2">
+              {usuariosRecentes.map((u) => (
+                <div key={u.usuario_email} className="flex items-center justify-between gap-3 border-b border-gray-50 py-2.5 last:border-b-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-gray-700 truncate text-sm">{u.usuario_nome || '-'}</p>
+                    <p className="text-[10px] text-gray-400 font-bold truncate mt-0.5">{u.usuario_email}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase ${String(u.perfil || '').toLowerCase() === 'admin' ? 'bg-[#dff4f4] text-[#048187]' : String(u.perfil || '').toLowerCase().includes('gestor') ? 'bg-[#e8f5f3] text-[#04746f]' : 'bg-[#edf8f8] text-[#048187]'}`}>
+                      {u.perfil || '-'}
+                    </span>
+                    <p className="text-[9px] text-gray-400 font-bold mt-1 whitespace-nowrap">{formatarDataHoraAuditoria(u.ultimo_evento)}</p>
+                  </div>
+                </div>
+              ))}
+              {!usuariosRecentes.length && <div className="py-12 text-center text-sm font-bold text-gray-400">Nenhum usuário recente.</div>}
             </div>
           </div>
-          {erroAuditoria && <div className="mt-4 bg-red-50 text-red-600 p-4 rounded-xl font-bold">{erroAuditoria}</div>}
-          {carregandoAuditoria && <div className="mt-4 bg-[#e6f6f7] text-[#048187] p-4 rounded-xl font-bold">Carregando auditoria...</div>}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"><CardAuditoria titulo="Usuários ativos" valor={resumo.usuarios_ativos_24h || 0} subtitulo="últimas 24h" icone={Users} destaque onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'acessos' }))} /><CardAuditoria titulo="Logins" valor={resumo.logins_24h || 0} subtitulo="últimas 24h" icone={UserCircle} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'acessos' }))} /><CardAuditoria titulo="Uploads" valor={resumo.uploads_24h || 0} subtitulo="bases atualizadas" icone={Upload} destaque onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'uploads' }))} /><CardAuditoria titulo="Ações" valor={resumo.acoes_24h || 0} subtitulo="cadastros/edições" icone={Pencil} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'acoes' }))} /><CardAuditoria titulo="Erros" valor={resumo.erros_24h || 0} subtitulo="últimas 24h" icone={AlertCircle} perigo={Number(resumo.erros_24h || 0) > 0} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'erros' }))} /></div>
-        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_.8fr] gap-6"><div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5"><div className="flex items-center justify-between gap-3 mb-4"><h3 className="text-lg font-black text-gray-700">Telas mais usadas</h3><span className="text-xs font-black text-[#048187] bg-[#e6f6f7] px-3 py-1.5 rounded-full">{dadosAuditoria?.periodo_dias || filtrosAuditoria.dias} dias</span></div><div className="space-y-3">{(dadosAuditoria?.uso_por_tela || []).slice(0, 8).map((item, index) => (<div key={item.modulo} className="flex items-center gap-3"><div className="w-7 h-7 rounded-full bg-[#e6f6f7] text-[#048187] font-black flex items-center justify-center text-xs">{index + 1}</div><div className="flex-1 min-w-0"><div className="flex items-center justify-between gap-3"><p className="font-black text-gray-700 truncate">{item.modulo}</p><p className="font-black text-[#048187]">{item.acessos}</p></div><div className="h-2 bg-gray-100 rounded-full mt-1 overflow-hidden"><div className="h-full bg-[#048187] rounded-full" style={{ width: `${Math.min(100, Number(item.acessos || 0) * 6)}%` }} /></div><p className="text-[11px] text-gray-400 font-bold mt-1">{item.usuarios} usuário(s)</p></div></div>))}{!(dadosAuditoria?.uso_por_tela || []).length && <p className="text-gray-400 font-bold text-sm">Ainda não há uso registrado.</p>}</div></div><div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5"><h3 className="text-lg font-black text-gray-700 mb-4">Usuários recentes</h3><div className="space-y-3 max-h-[360px] overflow-y-auto pr-2">{(dadosAuditoria?.usuarios_ativos || []).map((u) => (<div key={u.usuario_email} className="flex items-center justify-between gap-3 border-b border-gray-50 pb-3"><div className="min-w-0"><p className="font-black text-gray-700 truncate">{u.usuario_nome || '-'}</p><p className="text-xs text-gray-400 font-bold truncate">{u.usuario_email}</p></div><div className="text-right shrink-0"><span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-black uppercase">{u.perfil || '-'}</span><p className="text-[11px] text-gray-400 font-bold mt-1">{formatarDataHoraAuditoria(u.ultimo_evento)}</p></div></div>))}{!(dadosAuditoria?.usuarios_ativos || []).length && <p className="text-gray-400 font-bold text-sm">Nenhum usuário recente.</p>}</div></div></div>
-        <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm"><div className="flex flex-wrap gap-2">{abas.map((item) => (<button key={item.id} onClick={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: item.id }))} className={`px-4 py-2.5 rounded-xl font-black text-sm transition-colors ${aba === item.id ? 'bg-[#048187] text-white' : 'bg-[#f7fafb] text-gray-500 hover:bg-[#e6f6f7] hover:text-[#048187]'}`}>{item.label} <span className={aba === item.id ? 'text-white/80' : 'text-gray-400'}>({item.dados.length})</span></button>))}</div></div>
+
+        <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm">
+          <div className="flex flex-wrap gap-2">
+            {abas.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: item.id }))}
+                className={`px-4 py-2.5 rounded-xl font-black text-sm transition-colors ${aba === item.id ? 'bg-[#048187] text-white shadow-sm' : 'bg-[#f7fafb] text-gray-500 hover:bg-[#e6f6f7] hover:text-[#048187]'}`}
+              >
+                {item.label} <span className={aba === item.id ? 'text-white/80' : 'text-gray-400'}>({item.dados.length})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <TabelaLogsAuditoria titulo={abaAtual.label} dados={abaAtual.dados} vazio={`Nenhum registro em ${abaAtual.label.toLowerCase()}.`} />
         <ModalDetalheAuditoria />
         <ModalRelatorioAuditoria />
@@ -21763,7 +21840,7 @@ const enviarArquivo = async (tipo) => {
 
   return (
     <>
-      <div className={`dash-shell-refinado ${temaEscuro ? 'dash-theme-dark' : 'dash-theme-light'} h-[100dvh] bg-[#f7fafb] flex overflow-hidden`}>
+      <div className="dash-shell-refinado h-[100dvh] bg-[#f7fafb] flex overflow-hidden">
         {menuHamburguerAberto && (
           <button
             type="button"
@@ -22104,15 +22181,38 @@ const enviarArquivo = async (tipo) => {
                 )}
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setTemaEscuro((atual) => !atual)}
-                  className={`dash-theme-toggle flex items-center justify-center hover:bg-[#eef8f8] px-3 py-2 rounded-full text-[11px] font-medium border transition-colors ${temaEscuro ? 'bg-white border-[#e1eaec] text-[#048187]' : 'bg-white border-[#e1eaec] text-[#048187]'}`}
-                  title={temaEscuro ? 'Ativar modo claro' : 'Ativar modo escuro'}
-                  aria-label={temaEscuro ? 'Ativar modo claro' : 'Ativar modo escuro'}
-                >
-                  {temaEscuro ? <Moon size={16} /> : <Sun size={16} />}
-                </button>
+                {telaAtual === 'ADM' && (
+                  <>
+                    <div className="relative hidden sm:block">
+                      <select
+                        value={filtrosAuditoria.dias}
+                        onChange={(e) => {
+                          const dias = Number(e.target.value);
+                          setFiltrosAuditoria((atual) => ({ ...atual, dias }));
+                          carregarAuditoria(dias);
+                        }}
+                        className="appearance-none bg-white border border-[#b9dfe1] text-[#048187] font-bold text-[11px] pl-4 pr-8 py-2 rounded-full outline-none cursor-pointer"
+                        title="Período da auditoria"
+                      >
+                        <option value={1}>Últimas 24h</option>
+                        <option value={7}>Últimos 7 dias</option>
+                        <option value={15}>Últimos 15 dias</option>
+                        <option value={30}>Últimos 30 dias</option>
+                        <option value={90}>Últimos 90 dias</option>
+                      </select>
+                      <ChevronRight size={12} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 text-[#048187]" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={abrirModalRelatorioAuditoria}
+                      className="inline-flex items-center gap-1.5 hover:bg-[#eef8f8] px-3 py-2 rounded-full text-[11px] font-medium text-[#048187] border border-[#b9dfe1] bg-white transition-colors"
+                      title="Gerar relatório PDF da auditoria"
+                    >
+                      <FileSpreadsheet size={15} />
+                      <span className="hidden xl:inline">Gerar relatório PDF</span>
+                    </button>
+                  </>
+                )}
 
                 {telaAtual !== 'AcompanhamentoVD' && telaAtual !== 'Perfil' && (
                   <button
