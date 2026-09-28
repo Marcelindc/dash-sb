@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu } from 'lucide-react';
@@ -5857,6 +5857,23 @@ export default function App() {
 
   const usuarioPodeAcessar = (tela) => {
     if (!usuarioLogado) return false;
+
+    // REGRA_GESTOR_UNIDADE_SEM_METAS_VD
+    // Qualquer conta nao-admin vinculada a estrutura VD restrita e tratada
+    // como Gestor de Unidade para esta regra e nao pode acessar a tela Metas.
+    if (tela === 'Metas') {
+      const escoposUsuario = normalizarEstruturasPermitidasUsuario(
+        usuarioLogado?.estruturas_permitidas
+      );
+      const temEscopoVDRestrito = escoposUsuario.some(
+        (item) => String(item?.area || '').toUpperCase() === 'VD'
+      );
+      const perfilAtual = String(usuarioLogado?.perfil || '').toLowerCase();
+
+      if (perfilAtual !== 'admin' && temEscopoVDRestrito) {
+        return false;
+      }
+    }
     if (tela === 'CampanhaIncentivo2026') return podeAcessarCampanhaIncentivo2026;
     if (tela === 'Solicitações') return true;
     if (usuarioLogado.perfil === 'admin') return true;
@@ -5891,6 +5908,31 @@ export default function App() {
 
   const usuarioPodeAcessarLoja = () => usuarioPodeAcessar('Loja') || usuarioPodeAcessar('LojaVisaoGeral') || usuarioPodeAcessar('LojaCadastro') || usuarioPodeAcessar('LojaUnidades') || usuarioPodeAcessar('LojaConsultoras') || usuarioPodeAcessar('LojaRanking');
 
+
+  // REGRA_GESTOR_UNIDADE_REDIRECIONA_METAS
+  useEffect(() => {
+    if (!usuarioLogado || telaAtual !== 'Metas') return;
+
+    const escoposUsuario = normalizarEstruturasPermitidasUsuario(
+      usuarioLogado?.estruturas_permitidas
+    );
+    const temEscopoVDRestrito = escoposUsuario.some(
+      (item) => String(item?.area || '').toUpperCase() === 'VD'
+    );
+    const perfilAtual = String(usuarioLogado?.perfil || '').toLowerCase();
+
+    if (perfilAtual === 'admin' || !temEscopoVDRestrito) return;
+
+    setCanalAtual('VD');
+    setMenuVDExpandido(true);
+    setMenuLojaExpandido(false);
+    setTelaAtual('AcompanhamentoVD');
+  }, [
+    telaAtual,
+    usuarioLogado?.id,
+    usuarioLogado?.perfil,
+    usuarioLogado?.estruturas_permitidas,
+  ]);
   const podeGerarRelatorioMetas = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
   const podeGerarRelatorioLoja = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
   const podeGerenciarAcoesCiclo = String(usuarioLogado?.perfil || '').toLowerCase() === 'admin';
@@ -24922,6 +24964,7 @@ const enviarArquivo = async (tipo) => {
     </>
   );
 }
+
 
 
 
