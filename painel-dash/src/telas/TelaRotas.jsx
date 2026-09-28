@@ -529,8 +529,43 @@ export default function TelaRotas({ API_URL }) {
       )}
 
       {(detalhe || carregandoDetalhe) && (
-        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[1px] flex justify-end" onMouseDown={(e) => { if (e.target === e.currentTarget && !carregandoDetalhe) setDetalhe(null); }}>
-          <div className="h-full w-full max-w-3xl bg-[#f7fafb] shadow-2xl flex flex-col">
+        <div className={`fixed inset-0 z-[9999] ${detalhe?.resumo_logistico?.rastreio ? 'bg-[#eef3f4]' : 'bg-black/40 backdrop-blur-[1px]'} flex`} onMouseDown={(e) => { if (e.target === e.currentTarget && !carregandoDetalhe) setDetalhe(null); }}>
+          {/* DASH_SB_ROTAS_RASTREIO_EMBUTIDO_V1 */}
+          {detalhe?.resumo_logistico?.rastreio && (
+            <section className="hidden lg:flex h-full flex-1 min-w-0 bg-white border-r border-gray-200 flex-col">
+              <div className="shrink-0 bg-white border-b border-gray-100 px-5 xl:px-7 py-4 flex items-center justify-between gap-5">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-[#048187]">Rastreio oficial</p>
+                  <h2 className="mt-0.5 text-lg xl:text-xl font-black text-gray-700 truncate">Acompanhamento do pedido {detalhe?.pedido || detalhe?.dados_comerciais?.pedido || ''}</h2>
+                  <p className="mt-1 text-[11px] font-semibold text-gray-400">Atualização carregada automaticamente direto do portal de rastreio do Grupo Boticário.</p>
+                </div>
+                <a
+                  href={detalhe.resumo_logistico.rastreio}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[#cbe8ea] bg-[#f1fbfb] text-[#048187] text-xs font-black hover:bg-[#e6f6f7]"
+                >
+                  Abrir em nova guia <ExternalLink size={14} />
+                </a>
+              </div>
+              <div className="relative flex-1 min-h-0 bg-white">
+                <iframe
+                  key={detalhe.resumo_logistico.rastreio}
+                  src={detalhe.resumo_logistico.rastreio}
+                  title={`Rastreio oficial do pedido ${detalhe?.pedido || detalhe?.dados_comerciais?.pedido || ''}`}
+                  className="absolute inset-0 h-full w-full border-0 bg-white"
+                  loading="eager"
+                />
+              </div>
+              <div className="shrink-0 border-t border-gray-100 bg-[#f8fbfb] px-5 py-2.5 flex items-center justify-between gap-4">
+                <p className="text-[10px] font-semibold text-gray-400">O rastreio é aberto automaticamente. Se o portal bloquear a exibição incorporada, use “Abrir em nova guia”.</p>
+                <span className="text-[9px] font-black uppercase tracking-wide text-[#048187] whitespace-nowrap">Grupo Boticário</span>
+              </div>
+            </section>
+          )}
+          <div
+            className={`h-full w-full ${detalhe?.resumo_logistico?.rastreio ? 'lg:w-[42%] xl:w-[40%]' : 'lg:max-w-3xl lg:ml-auto'} bg-[#f7fafb] shadow-2xl flex flex-col shrink-0`}
+          >
             <div className="bg-white border-b border-gray-100 px-5 sm:px-6 py-4 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-wide text-[#048187]">Detalhe completo</p>
@@ -554,7 +589,7 @@ export default function TelaRotas({ API_URL }) {
                       </div>
                       {detalhe.resumo_logistico?.rastreio && (
                         <a href={detalhe.resumo_logistico.rastreio} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#048187] text-white text-xs font-black whitespace-nowrap">
-                          Abrir rastreio <ExternalLink size={14} />
+                          Abrir em nova guia <ExternalLink size={14} />
                         </a>
                       )}
                     </div>
