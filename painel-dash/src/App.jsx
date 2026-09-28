@@ -5362,7 +5362,6 @@ export default function App() {
     if (modoGerenteVD && ![
       'AcompanhamentoVD',
       'Adições',
-      'Cadastro',
       ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
       ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
       ...(podeAcessarRotasVD ? ['Rotas'] : []),
@@ -5764,7 +5763,6 @@ export default function App() {
     ? [
         { nome: 'AcompanhamentoVD', icone: LayoutDashboard },
         { nome: 'Adições', icone: UsersRound },
-        { nome: 'Cadastro', icone: Target, rotulo: 'Metas da Estrutura' },
         ...(podeAcessarPrimeiroPedidoCaptacao
           ? [{ nome: 'PrimeiroPedidoCaptacao', icone: FileSpreadsheet }]
           : []),
@@ -5781,10 +5779,20 @@ export default function App() {
   ];
 
   const navegarParaTelaVD = (nomeTela) => {
+    // REGRA_GESTOR_UNIDADE_SEM_METAS_ESTRUTURA_V5
+    if (modoGerenteVD && nomeTela === 'Cadastro') {
+      setCanalAtual('VD');
+      setMenuVDExpandido(true);
+      setMenuLojaExpandido(false);
+      setTelaAtual('AcompanhamentoVD');
+      setMenuHamburguerAberto(false);
+      gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, 'AcompanhamentoVD');
+      return;
+    }
     setCanalAtual('VD');
     setMenuVDExpandido(true);
     setMenuLojaExpandido(false);
-    if (nomeTela === 'Cadastro') setVisaoCadastro(modoGerenteVD ? 'metas' : 'geral');
+    if (nomeTela === 'Cadastro') setVisaoCadastro('geral');
     setTelaAtual(nomeTela);
     setMenuHamburguerAberto(false);
   };
@@ -5893,7 +5901,6 @@ export default function App() {
       return [
         'AcompanhamentoVD',
         'Adições',
-        'Cadastro',
         ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
         ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
         ...(podeAcessarRotasVD ? ['Rotas'] : []),
