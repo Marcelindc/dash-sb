@@ -39,7 +39,7 @@ const CardNumero = ({ titulo, valor, destaque = '#048187', subtitulo = '' }) => 
   </div>
 );
 
-export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken = 0 }) {
+export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], estruturas = [], refreshToken = 0 }) {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
@@ -86,16 +86,36 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken 
 
   const estruturasFiltradas = useMemo(() => {
     const termo = normalizar(busca);
-    const filtrosNucleo = (nucleos || []).map((n) => String(n || '').toUpperCase()).filter(Boolean);
+    const normalizarNucleoFiltro = (valor) => {
+      const texto = normalizar(valor);
+      const match = texto.match(/(\d+)/);
+      return match ? `N${match[1]}` : texto;
+    };
+    const filtrosNucleo = (nucleos || []).map(normalizarNucleoFiltro).filter(Boolean);
+    const filtrosEstrutura = (estruturas || []).map(normalizar).filter(Boolean);
+
+    const estruturaCorresponde = (item) => {
+      if (!filtrosEstrutura.length) return true;
+      const candidatos = [
+        item?.estrutura,
+        item?.cod_estrutura,
+        ...(Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : []),
+        ...(Array.isArray(item?.codigos_vinculados) ? item.codigos_vinculados : []),
+      ].map(normalizar).filter(Boolean);
+      return filtrosEstrutura.some((filtro) => candidatos.some((candidato) => (
+        candidato === filtro || candidato.includes(filtro) || filtro.includes(candidato)
+      )));
+    };
+
     return (dados?.estruturas || []).filter((item) => {
       const estrutura = String(item.estrutura || '');
       const bateBusca = !termo || normalizar(estrutura).includes(termo) || normalizar(item.cod_estrutura).includes(termo);
-      const nucleoApi = normalizar(item?.nucleo).replace('NUCLEO ', 'N');
+      const nucleoApi = normalizarNucleoFiltro(item?.nucleo);
       const nucleo = ['N1', 'N2', 'N3'].includes(nucleoApi) ? nucleoApi : inferirNucleo(estrutura);
       const bateNucleo = !filtrosNucleo.length || filtrosNucleo.includes(nucleo);
-      return bateBusca && bateNucleo;
+      return bateBusca && bateNucleo && estruturaCorresponde(item);
     });
-  }, [dados, busca, nucleos]);
+  }, [dados, busca, nucleos, estruturas]);
 
   const totais = useMemo(() => {
     const base = estruturasFiltradas.reduce((acc, item) => {

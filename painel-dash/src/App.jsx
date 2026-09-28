@@ -21680,7 +21680,7 @@ const enviarArquivo = async (tipo) => {
     if (telaAtual === 'PrimeiroPedidoCaptacao') return renderTelaPrimeiroPedidoCaptacao();
     if (telaAtual === 'Dashboard') return renderTelaDashboard();
     if (telaAtual === 'Metas') return renderTelaMetas();
-    if (telaAtual === 'Adições') return <TelaAdicoes apiUrl={API_URL} ciclo={cicloSelecionadoVD || filtrosAtivos?.ciclo || obterCicloReferenciaAtual()} perfil={perfilUsuarioAtual} nucleos={filtrosAtivos?.nucleos || []} refreshToken={adicoesRefreshToken} />;
+    if (telaAtual === 'Adições') return <TelaAdicoes apiUrl={API_URL} ciclo={cicloSelecionadoVD || filtrosAtivos?.ciclo || obterCicloReferenciaAtual()} perfil={perfilUsuarioAtual} nucleos={filtrosAtivos?.nucleos || []} estruturas={filtrosAtivos?.estruturas || []} refreshToken={adicoesRefreshToken} />;
     if (telaAtual === 'N1') return <TelaGestaoNucleo nucleo="N1" />;
     if (telaAtual === 'N2') return <TelaGestaoNucleo nucleo="N2" />;
     if (telaAtual === 'N3') return <TelaGestaoNucleo nucleo="N3" />;
