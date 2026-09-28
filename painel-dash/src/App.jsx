@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu } from 'lucide-react';
@@ -21658,11 +21658,17 @@ const enviarArquivo = async (tipo) => {
 
   const renderTelaCampanhaIncentivo2026 = () => {
     if (!podeAcessarCampanhaIncentivo2026) return null;
-
     const payload = campanhaIncentivo2026?.dados || {};
     const realizado = payload?.realizado || {};
     const metas = payload?.metas || {};
     const ciclosCampanha = Array.isArray(payload?.ciclos) ? payload.ciclos : [];
+    const rankingIndividual = Array.isArray(payload?.resultado_individual)
+      ? payload.resultado_individual
+      : Array.isArray(payload?.ranking_individual)
+        ? payload.ranking_individual
+        : Array.isArray(payload?.individuais)
+          ? payload.individuais
+          : [];
     const meta106 = Number(metas?.meta_principal || 106000000);
     const meta109 = Number(metas?.meta_superacao || 109000000);
     const total = Number(realizado?.total || 0);
@@ -21678,20 +21684,177 @@ const enviarArquivo = async (tipo) => {
       ? new Date(payload.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
       : 'Aguardando atualização';
 
+    const slidesLencois = [
+      {
+        src: '/campanha-incentivo-2026/lencois-01.jpg',
+        titulo: 'Santo Amaro • Lençóis Maranhenses',
+        legenda: 'O destino da campanha traduz conquista, energia e orgulho de chegar mais longe juntos.',
+      },
+      {
+        src: '/campanha-incentivo-2026/lencois-02.jpg',
+        titulo: 'Beleza que inspira resultado',
+        legenda: 'A Visão Geral agora explica a jornada com uma experiência mais imersiva e motivadora.',
+      },
+      {
+        src: '/campanha-incentivo-2026/lencois-03.jpg',
+        titulo: 'Campanha com foco no que vale',
+        legenda: 'Somente as duas ações ativas são destaque nesta tela: Expedição 106 e Superação 109.',
+      },
+      {
+        src: '/campanha-incentivo-2026/lencois-04.jpg',
+        titulo: 'Rota clara até a meta',
+        legenda: 'Os ciclos 14, 15, 16 e 17 seguem como checkpoints oficiais para acompanhar o avanço da campanha.',
+      },
+      {
+        src: '/campanha-incentivo-2026/lencois-05.jpg',
+        titulo: 'Reconhecimento que dá gás',
+        legenda: 'Uma comunicação mais bonita, objetiva e corporativa para engajar a equipe na reta final.',
+      },
+    ];
+
+    const participantes = [
+      'Consultores de ERs',
+      'Força de Vendas e Lojas',
+      'Promotores de campo',
+      'Líderes de ER',
+    ];
+
+    const passosVisaoGeral = [
+      {
+        titulo: 'Ação 1 • Expedição 106',
+        descricao: 'Se o CP atingir R$ 106 milhões, a campanha habilita a viagem para Santo Amaro. Para participar, cada elegível precisa cumprir receita + indicadores nos ciclos 14, 15, 16 e 17.',
+      },
+      {
+        titulo: 'Ação 2 • Superação 109',
+        descricao: 'Se o CP atingir R$ 109 milhões/ano, entra em jogo o bônus de R$ 50 mil dividido proporcionalmente entre quem alcançar 120% da meta individual do C14 ao C17 + indicadores IAF aplicáveis.',
+      },
+      {
+        titulo: 'Acompanhamento claro',
+        descricao: 'A nova tela separa Visão Geral, Resultado Geral e Resultado Individual para facilitar a leitura da campanha sem confundir a equipe.',
+      },
+    ];
+
+    const notasAnimadas = [
+      { left: '4%', delay: '0s', duration: '4.3s', rotate: '-18deg', scale: 0.78 },
+      { left: '15%', delay: '.18s', duration: '4.1s', rotate: '14deg', scale: 0.86 },
+      { left: '26%', delay: '.32s', duration: '4.5s', rotate: '-10deg', scale: 0.9 },
+      { left: '38%', delay: '.08s', duration: '4.0s', rotate: '8deg', scale: 0.82 },
+      { left: '49%', delay: '.28s', duration: '4.2s', rotate: '-22deg', scale: 0.88 },
+      { left: '61%', delay: '.12s', duration: '4.6s', rotate: '18deg', scale: 0.84 },
+      { left: '73%', delay: '.36s', duration: '4.1s', rotate: '-8deg', scale: 0.8 },
+      { left: '85%', delay: '.2s', duration: '4.4s', rotate: '12deg', scale: 0.92 },
+    ];
+
+    const obterNomeIndividual = (item) => item?.nome || item?.consultor || item?.usuario || item?.lider || item?.colaborador || '-';
+    const obterEstruturaIndividual = (item) => item?.estrutura || item?.equipe || item?.nucleo || item?.rotulo || '-';
+    const obterReceitaIndividual = (item) => Number(item?.receita || item?.realizado || item?.valor || item?.total || 0);
+    const obterPercentualIndividual = (item) => Number(item?.percentual || item?.percentual_meta || item?.atingimento || item?.pct || 0);
+    const obterStatus106 = (item) => item?.elegivel_106 || item?.expedicao_106 || item?.apto_viagem ? 'Apto' : 'Em acompanhamento';
+    const obterStatus109 = (item) => item?.elegivel_109 || item?.superacao_109 || item?.apto_bonus ? 'Apto' : 'Em acompanhamento';
+
     return (
       <div className="campanha-incentivo-2026 space-y-5 sm:space-y-6">
+        <style>{`
+          .campanha-incentivo-2026 .campanha-tabs input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+          .campanha-incentivo-2026 .campanha-tab-panel { display: none; }
+          #campanha-tab-visao-geral:checked ~ .campanha-tab-labels label[for="campanha-tab-visao-geral"],
+          #campanha-tab-resultado-geral:checked ~ .campanha-tab-labels label[for="campanha-tab-resultado-geral"],
+          #campanha-tab-resultado-individual:checked ~ .campanha-tab-labels label[for="campanha-tab-resultado-individual"] {
+            background: linear-gradient(135deg, #048187, #059aa0);
+            color: #ffffff;
+            border-color: transparent;
+            box-shadow: 0 16px 32px rgba(4,129,135,.18);
+          }
+          #campanha-tab-visao-geral:checked ~ .campanha-tab-panels .campanha-tab-panel--visao-geral,
+          #campanha-tab-resultado-geral:checked ~ .campanha-tab-panels .campanha-tab-panel--resultado-geral,
+          #campanha-tab-resultado-individual:checked ~ .campanha-tab-panels .campanha-tab-panel--resultado-individual {
+            display: block;
+          }
+          .campanha-incentivo-2026 .campanha-slider-track {
+            display: flex;
+            width: 500%;
+            animation: campanhaSlides 28s ease-in-out infinite;
+          }
+          .campanha-incentivo-2026 .campanha-slide {
+            width: 20%;
+            position: relative;
+            overflow: hidden;
+          }
+          .campanha-incentivo-2026 .campanha-slide::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(1,40,44,0.03), rgba(1,28,31,0.68));
+          }
+          .campanha-incentivo-2026 .campanha-slide img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          }
+          .campanha-incentivo-2026 .campanha-money-rain {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 3;
+          }
+          .campanha-incentivo-2026 .campanha-money-note {
+            position: absolute;
+            top: -110px;
+            width: clamp(58px, 5vw, 92px);
+            opacity: 0;
+            filter: drop-shadow(0 12px 24px rgba(0,0,0,.16));
+            animation-name: campanhaMoneyRain;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards;
+          }
+          .campanha-incentivo-2026 .campanha-badge-dot::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: currentColor;
+            display: inline-block;
+          }
+          @keyframes campanhaSlides {
+            0%, 16% { transform: translateX(0); }
+            20%, 36% { transform: translateX(-20%); }
+            40%, 56% { transform: translateX(-40%); }
+            60%, 76% { transform: translateX(-60%); }
+            80%, 96% { transform: translateX(-80%); }
+            100% { transform: translateX(0); }
+          }
+          @keyframes campanhaMoneyRain {
+            0% { transform: translate3d(0,-120px,0) rotate(0deg) scale(.78); opacity: 0; }
+            12% { opacity: .96; }
+            78% { opacity: .96; }
+            100% { transform: translate3d(24px, 380px, 0) rotate(18deg) scale(1.02); opacity: 0; }
+          }
+        `}</style>
         <section className="relative overflow-hidden rounded-[28px] border border-[#d9eeee] bg-gradient-to-br from-[#012f32] via-[#046f74] to-[#0ba0a6] text-white shadow-sm">
           <div className="absolute -right-16 -top-24 w-72 h-72 rounded-full bg-white/10 blur-2xl" />
           <div className="absolute right-20 bottom-[-100px] w-80 h-52 rounded-[50%] border-[26px] border-white/5 rotate-[-8deg]" />
-          <div className="relative p-6 sm:p-8 xl:p-9 grid grid-cols-1 xl:grid-cols-[1.25fr_.75fr] gap-7 items-center">
+          <div className="campanha-money-rain" aria-hidden="true">
+            {notasAnimadas.map((nota, indice) => (
+              <img
+                key={`nota-${indice}`}
+                src="/campanha-incentivo-2026/cedula-100-gm.png"
+                alt=""
+                className="campanha-money-note"
+                style={{ left: nota.left, animationDelay: nota.delay, animationDuration: nota.duration, transform: `rotate(${nota.rotate}) scale(${nota.scale})` }}
+              />
+            ))}
+          </div>
+          <div className="relative z-[2] p-6 sm:p-8 xl:p-9 grid grid-cols-1 xl:grid-cols-[1.2fr_.8fr] gap-7 items-center">
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-5">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 border border-white/15 px-3 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-[0.12em]"><ShieldCheck size={14} /> Prévia privada</span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#ffdf86]/15 border border-[#ffe39d]/20 px-3 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-[0.12em] text-[#fff2c7]"><Sparkles size={14} /> VD + LOJA</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#ffdf86]/15 border border-[#ffe39d]/20 px-3 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-[0.12em] text-[#fff2c7]"><Sparkles size={14} /> Ações válidas: 106 + 109</span>
               </div>
               <p className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em] text-white/70">Ciclos 14 • 15 • 16 • 17</p>
               <h1 className="mt-2 text-3xl sm:text-4xl xl:text-5xl font-black tracking-tight">Campanha Incentivo 2026</h1>
-              <p className="mt-3 max-w-3xl text-sm sm:text-base text-white/80 font-medium leading-relaxed">Uma jornada única para acompanhar o resultado combinado dos canais <strong className="text-white">Venda Direta + LOJA</strong>, a conquista da Expedição 106 e a corrida pela Superação 109.</p>
+              <p className="mt-3 max-w-3xl text-sm sm:text-base text-white/85 font-medium leading-relaxed">Uma jornada única para acompanhar o resultado combinado dos canais <strong className="text-white">Venda Direta + LOJA</strong>, explicar com clareza as duas ações ativas da campanha e energizar a equipe rumo aos <strong className="text-white">R$ 106 MM</strong> e <strong className="text-white">R$ 109 MM</strong>.</p>
               <div className="mt-6 flex flex-wrap items-center gap-3 text-xs font-bold text-white/80">
                 <span className="inline-flex items-center gap-2"><MapPin size={15} /> Destino: Santo Amaro • Lençóis Maranhenses</span>
                 <span className="hidden sm:block w-1 h-1 rounded-full bg-white/40" />
@@ -21705,67 +21868,257 @@ const enviarArquivo = async (tipo) => {
                 <div className="rounded-2xl bg-black/10 p-3.5 border border-white/10"><p className="text-[9px] font-black uppercase tracking-wider text-white/55">Venda Direta</p><p className="mt-1 text-lg font-black">{formatarAbrev(totalVD)}</p></div>
                 <div className="rounded-2xl bg-black/10 p-3.5 border border-white/10"><p className="text-[9px] font-black uppercase tracking-wider text-white/55">LOJA</p><p className="mt-1 text-lg font-black">{formatarAbrev(totalLoja)}</p></div>
               </div>
+              <div className="mt-5 grid grid-cols-2 gap-3 text-xs font-black">
+                <div className="rounded-2xl bg-white/10 px-3.5 py-3 border border-white/10"><p className="text-white/55 uppercase text-[9px] tracking-wide">Expedição 106</p><p className="mt-1 text-[#bff8f8]">{formatarPctCampanha(pct106)}</p></div>
+                <div className="rounded-2xl bg-white/10 px-3.5 py-3 border border-white/10"><p className="text-white/55 uppercase text-[9px] tracking-wide">Superação 109</p><p className="mt-1 text-[#ffe0c5]">{formatarPctCampanha(pct109)}</p></div>
+              </div>
             </div>
           </div>
         </section>
-
         {campanhaIncentivo2026?.erro && <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 flex items-center gap-2"><AlertCircle size={17} /> {campanhaIncentivo2026.erro}</div>}
-
         {campanhaIncentivo2026?.carregando && !payload?.realizado ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm"><Loader2 className="mx-auto animate-spin text-[#048187]" size={28} /><p className="mt-3 text-sm font-bold text-gray-400">Calculando VD + LOJA e preparando a campanha...</p></div>
         ) : (
-          <>
-            <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5">
-              <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6 overflow-hidden relative">
-                <div className="absolute right-5 top-5 w-12 h-12 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><MapPin size={24} /></div>
-                <div className="pr-16"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Incentivo 1</p><h2 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Expedição 106</h2><p className="mt-1 text-xs sm:text-sm font-semibold text-gray-400">Meta corporativa somando VD + LOJA</p></div>
-                <div className="mt-6 flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase text-gray-400">Realizado</p><p className="text-2xl sm:text-3xl font-black text-[#048187]">{formatarAbrev(total)}</p></div><div className="text-right"><p className="text-[10px] font-black uppercase text-gray-400">Meta</p><p className="text-xl font-black text-gray-700">{formatarAbrev(meta106)}</p></div></div>
-                <div className="mt-4 h-3 rounded-full bg-[#edf3f4] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#048187] to-[#22a9ad] transition-all duration-500" style={{ width: larguraBarra(pct106) }} /></div>
-                <div className="mt-2 flex justify-between gap-3 text-xs font-black"><span className="text-[#048187]">{formatarPctCampanha(pct106)} conquistado</span><span className="text-gray-400">Faltam {formatarAbrev(falta106)}</span></div>
-                <div className="mt-5 rounded-2xl bg-[#f7fbfb] border border-[#e4f0f1] p-4"><p className="text-sm font-black text-gray-700">🏝 Viagem para Santo Amaro</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Consultores elegíveis precisam cumprir <strong>receita + indicadores individuais</strong> nos quatro ciclos da campanha: C14, C15, C16 e C17.</p></div>
+          <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-4 sm:p-5 xl:p-6 campanha-tabs relative overflow-hidden">
+            <input defaultChecked type="radio" id="campanha-tab-visao-geral" name="campanha-incentivo-tab" />
+            <input type="radio" id="campanha-tab-resultado-geral" name="campanha-incentivo-tab" />
+            <input type="radio" id="campanha-tab-resultado-individual" name="campanha-incentivo-tab" />
+            <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 mb-5">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Nova navegação da campanha</p>
+                <h2 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Visão clara, bonita e motivadora</h2>
+                <p className="mt-1 text-xs sm:text-sm text-gray-400 font-semibold max-w-3xl">A tela foi organizada em três frentes: uma Visão Geral explicativa, um Resultado Geral da campanha e um Resultado Individual para a leitura por pessoa.</p>
               </div>
-
-              <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6 overflow-hidden relative">
-                <div className="absolute right-5 top-5 w-12 h-12 rounded-2xl bg-[#fff2e8] text-[#ff6f03] flex items-center justify-center"><BadgeDollarSign size={25} /></div>
-                <div className="pr-16"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#ff6f03]">Incentivo 2</p><h2 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Superação 109</h2><p className="mt-1 text-xs sm:text-sm font-semibold text-gray-400">Pool de R$ 50 mil para elegíveis</p></div>
-                <div className="mt-6 flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase text-gray-400">Realizado</p><p className="text-2xl sm:text-3xl font-black text-[#ff6f03]">{formatarAbrev(total)}</p></div><div className="text-right"><p className="text-[10px] font-black uppercase text-gray-400">Meta</p><p className="text-xl font-black text-gray-700">{formatarAbrev(meta109)}</p></div></div>
-                <div className="mt-4 h-3 rounded-full bg-[#f4efe9] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#ff6f03] to-[#ff9a4f] transition-all duration-500" style={{ width: larguraBarra(pct109) }} /></div>
-                <div className="mt-2 flex justify-between gap-3 text-xs font-black"><span className="text-[#ff6f03]">{formatarPctCampanha(pct109)} conquistado</span><span className="text-gray-400">Faltam {formatarAbrev(falta109)}</span></div>
-                <div className="mt-5 rounded-2xl bg-[#fffaf5] border border-[#f9eadb] p-4"><p className="text-sm font-black text-gray-700">💰 R$ 50.000 de bônus</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Participam da divisão proporcional aqueles que alcançarem <strong>120% da meta individual</strong> nos ciclos 14 a 17 e cumprirem os indicadores IAF aplicáveis.</p></div>
+              <div className="rounded-2xl bg-[#f7fbfb] border border-[#dfeff0] px-4 py-3 text-xs font-bold text-gray-500">
+                <span className="text-[#048187] font-black">Importante:</span> nesta campanha, o foco oficial da comunicação fica nas ações <strong className="text-gray-700">R$ 106 MM</strong> e <strong className="text-gray-700">R$ 109 MM</strong>.
               </div>
-            </section>
-
-            <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Rota da campanha</p><h2 className="mt-1 text-xl font-black text-gray-800">Quatro ciclos até a conquista</h2><p className="mt-1 text-xs text-gray-400 font-semibold">Os valores exibidos em cada checkpoint já somam VD + LOJA.</p></div><span className="self-start sm:self-auto rounded-full bg-[#f1f7f7] text-[#527679] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide">C14 → C17</span></div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                {[14, 15, 16, 17].map((numero, indice) => {
-                  const item = ciclosCampanha.find((c) => String(c?.ciclo || '').startsWith(`${numero}/`)) || { ciclo: `${numero}/2026`, vd: 0, loja: 0, total: 0, tem_dados: false };
-                  return (
-                    <div key={numero} className={`relative rounded-2xl border p-4 ${item.tem_dados ? 'bg-[#f7fbfb] border-[#d9eeee]' : 'bg-[#fbfbfb] border-gray-100'}`}>
-                      <div className="flex items-center justify-between gap-2"><div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm ${item.tem_dados ? 'bg-[#048187] text-white' : 'bg-gray-100 text-gray-400'}`}>{numero}</div><span className={`text-[9px] font-black uppercase tracking-wider ${item.tem_dados ? 'text-[#048187]' : 'text-gray-400'}`}>{item.tem_dados ? 'Em acompanhamento' : 'Aguardando'}</span></div>
-                      <p className="mt-4 text-[10px] font-black uppercase text-gray-400">Resultado combinado</p><p className={`mt-1 text-xl font-black ${item.tem_dados ? 'text-gray-800' : 'text-gray-300'}`}>{formatarAbrev(Number(item.total || 0))}</p>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold"><div className="rounded-xl bg-white border border-gray-100 px-2.5 py-2"><span className="text-gray-400 block">VD</span><span className="text-[#048187]">{formatarAbrev(Number(item.vd || 0))}</span></div><div className="rounded-xl bg-white border border-gray-100 px-2.5 py-2"><span className="text-gray-400 block">LOJA</span><span className="text-[#7c1f31]">{formatarAbrev(Number(item.loja || 0))}</span></div></div>
-                      {indice < 3 && <div className="hidden xl:block absolute -right-3 top-8 w-6 h-px bg-[#cfe4e5] z-10" />}
+            </div>
+            <div className="campanha-tab-labels flex flex-wrap gap-2.5 mb-6">
+              <label htmlFor="campanha-tab-visao-geral" className="cursor-pointer rounded-2xl border border-[#dce8e9] bg-[#f8fbfb] px-4 py-3 text-sm font-black text-gray-600 transition-all">Visão Geral</label>
+              <label htmlFor="campanha-tab-resultado-geral" className="cursor-pointer rounded-2xl border border-[#dce8e9] bg-[#f8fbfb] px-4 py-3 text-sm font-black text-gray-600 transition-all">Resultado Geral</label>
+              <label htmlFor="campanha-tab-resultado-individual" className="cursor-pointer rounded-2xl border border-[#dce8e9] bg-[#f8fbfb] px-4 py-3 text-sm font-black text-gray-600 transition-all">Resultado Individual</label>
+            </div>
+            <div className="campanha-tab-panels">
+              <div className="campanha-tab-panel campanha-tab-panel--visao-geral space-y-5 sm:space-y-6">
+                <section className="grid grid-cols-1 xl:grid-cols-[1.16fr_.84fr] gap-4 sm:gap-5">
+                  <div className="overflow-hidden rounded-[24px] border border-gray-100 shadow-sm bg-[#032b2d] min-h-[330px] flex flex-col">
+                    <div className="campanha-slider-track flex-1">
+                      {slidesLencois.map((slide) => (
+                        <div key={slide.src} className="campanha-slide">
+                          <img src={slide.src} alt={slide.titulo} />
+                          <div className="absolute inset-x-0 bottom-0 z-[2] p-5 sm:p-6 text-white">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/70">Lençóis Maranhenses</p>
+                            <h3 className="mt-1 text-xl sm:text-2xl font-black">{slide.titulo}</h3>
+                            <p className="mt-2 max-w-xl text-sm text-white/80 leading-relaxed">{slide.legenda}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })}
+                    <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-white/10 text-white/75 text-xs font-bold bg-[#022325]">
+                      <span className="inline-flex items-center gap-2"><PlayCircle size={14} /> apresentação automática</span>
+                      <span>Campanha • inspiração • resultado</span>
+                    </div>
+                  </div>
+                  <div className="bg-[#f8fbfb] rounded-[24px] border border-[#dceff0] shadow-sm p-5 sm:p-6">
+                    <div className="flex items-center gap-3 mb-4"><div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Sparkles size={21} /></div><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Como vai funcionar</p><h3 className="text-lg font-black text-gray-800">Resumo rápido para a equipe</h3></div></div>
+                    <div className="space-y-3.5">
+                      {passosVisaoGeral.map((item, indice) => (
+                        <div key={item.titulo} className="rounded-2xl bg-white border border-[#e4efef] p-4">
+                          <div className="flex items-start gap-3"><span className="w-8 h-8 shrink-0 rounded-full bg-[#048187] text-white flex items-center justify-center text-xs font-black">{indice + 1}</span><div><p className="text-sm font-black text-gray-700">{item.titulo}</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">{item.descricao}</p></div></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+                <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5">
+                  <div className="relative overflow-hidden rounded-[24px] border border-[#d9eeee] bg-gradient-to-br from-[#ffffff] via-[#f8fbfb] to-[#eef8f8] p-5 sm:p-6 shadow-sm">
+                    <div className="absolute -right-8 -bottom-8 w-48 h-48 rounded-full bg-[#d8f0f0]/70 blur-2xl" />
+                    <div className="relative z-[1] flex flex-col sm:flex-row gap-5 items-center sm:items-start">
+                      <img src="/campanha-incentivo-2026/mascotes-lencois.png" alt="Mascotes nos Lençóis Maranhenses" className="w-full max-w-[320px] drop-shadow-xl" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Ação 1 • Expedição 106</p>
+                        <h3 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Viagem para Santo Amaro</h3>
+                        <p className="mt-3 text-sm text-gray-500 leading-relaxed">Os consultores elegíveis precisam bater as metas completas de <strong className="text-gray-700">receita + indicadores</strong> nos ciclos <strong className="text-gray-700">14, 15, 16 e 17</strong>. A ação é habilitada quando o CP alcançar <strong className="text-[#048187]">R$ 106 milhões</strong>.</p>
+                        <div className="mt-4 flex flex-wrap gap-2.5 text-[11px] font-black">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-[#e6f6f7] px-3 py-1.5 text-[#048187] campanha-badge-dot">Receita + indicadores</span>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-[#f3f7f8] px-3 py-1.5 text-gray-500 campanha-badge-dot">Meta corporativa 106 MM</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative overflow-hidden rounded-[24px] border border-[#f7e4d5] bg-gradient-to-br from-[#fffdfb] via-[#fff7f0] to-[#fff0e0] p-5 sm:p-6 shadow-sm">
+                    <div className="absolute -right-10 -bottom-10 w-48 h-48 rounded-full bg-[#ffe4cc] blur-2xl" />
+                    <div className="relative z-[1] flex flex-col sm:flex-row gap-5 items-center sm:items-start">
+                      <img src="/campanha-incentivo-2026/mascotes-premio.png" alt="Mascotes com prêmio em dinheiro" className="w-full max-w-[300px] drop-shadow-xl" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#ff6f03]">Ação 2 • Superação 109</p>
+                        <h3 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Bônus de R$ 50 mil</h3>
+                        <p className="mt-3 text-sm text-gray-500 leading-relaxed">O pool de <strong className="text-gray-700">R$ 50.000</strong> será dividido proporcionalmente entre os elegíveis que alcançarem <strong className="text-gray-700">120% da meta individual</strong> do C14 ao C17 e cumprirem os indicadores <strong className="text-gray-700">IAF aplicáveis</strong>. A ação é habilitada quando o CP atingir <strong className="text-[#ff6f03]">R$ 109 milhões</strong>.</p>
+                        <div className="mt-4 flex flex-wrap gap-2.5 text-[11px] font-black">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-[#fff1e6] px-3 py-1.5 text-[#ff6f03] campanha-badge-dot">120% da meta individual</span>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-[#fff7f0] px-3 py-1.5 text-[#a6662d] campanha-badge-dot">Meta corporativa 109 MM</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+                <section className="grid grid-cols-1 xl:grid-cols-[1.12fr_.88fr] gap-4 sm:gap-5">
+                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                    <div className="flex items-center gap-3"><div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Target size={22} /></div><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Jornada da equipe</p><h3 className="text-lg font-black text-gray-800">O que a Visão Geral precisa deixar claro</h3></div></div>
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        'Somente duas ações válidas: R$ 106 MM e R$ 109 MM.',
+                        'A Expedição 106 depende do CP bater R$ 106 MM e de cada elegível cumprir receita + indicadores.',
+                        'A Superação 109 depende do CP bater R$ 109 MM e do participante atingir 120% da meta individual.',
+                        'Os ciclos oficiais da campanha são C14, C15, C16 e C17.',
+                      ].map((item) => (
+                        <div key={item} className="rounded-2xl border border-gray-100 bg-[#fcfdfd] p-4 flex items-start gap-3"><CheckCircle size={17} className="text-[#048187] shrink-0 mt-0.5" /><span className="text-sm font-bold text-gray-600 leading-relaxed">{item}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#7c1f31]">Quem pode participar</p>
+                    <h3 className="mt-1 text-lg font-black text-gray-800">Público elegível</h3>
+                    <div className="mt-5 space-y-2.5">
+                      {participantes.map((item) => (
+                        <div key={item} className="flex items-center gap-3 rounded-2xl bg-[#fafafa] border border-gray-100 px-4 py-3"><UsersRound size={17} className="text-[#048187] shrink-0" /><span className="text-sm font-bold text-gray-600">{item}</span></div>
+                      ))}
+                    </div>
+                    <div className="mt-4 rounded-2xl bg-[#f7fbfb] border border-[#dceff0] p-4">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">Mensagem para o time</p>
+                      <p className="mt-1 text-sm text-gray-500 leading-relaxed">A campanha foi pensada para ser bonita, clara e motivadora: comunicar com simplicidade o objetivo, mostrar a rota de evolução e reforçar que a reta final pode levar a equipe a um grande reconhecimento.</p>
+                    </div>
+                  </div>
+                </section>
               </div>
-            </section>
 
-            <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_.85fr] gap-4 sm:gap-5">
-              <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
-                <div className="flex items-center gap-3"><div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Target size={22} /></div><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Qualificação individual</p><h2 className="text-lg font-black text-gray-800">Passaporte da conquista</h2></div></div>
-                <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-2.5">{['Receita', 'Atividade', 'MAKE', 'CABELO', 'Multimarcas', 'IAF aplicáveis'].map((criterio) => <div key={criterio} className="rounded-2xl border border-gray-100 bg-[#fcfbf7] px-3 py-3 flex items-center gap-2.5"><CheckCircle size={16} className="text-[#048187] shrink-0" /><span className="text-xs font-black text-gray-600">{criterio}</span></div>)}</div>
-                <div className="mt-4 rounded-2xl border border-dashed border-[#b9dfe1] bg-[#f5fbfb] p-4 flex items-start gap-3"><Sparkles size={18} className="text-[#048187] shrink-0 mt-0.5" /><div><p className="text-xs font-black text-gray-700">Próxima evolução desta tela</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Conectar a elegibilidade por pessoa, selos C14–C17, ranking da campanha, “quanto falta” por indicador e simulação do bônus proporcional.</p></div></div>
+              <div className="campanha-tab-panel campanha-tab-panel--resultado-geral space-y-5 sm:space-y-6">
+                <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5">
+                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6 overflow-hidden relative">
+                    <div className="absolute right-5 top-5 w-12 h-12 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><MapPin size={24} /></div>
+                    <div className="pr-16"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Incentivo 1</p><h2 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Expedição 106</h2><p className="mt-1 text-xs sm:text-sm font-semibold text-gray-400">Meta corporativa somando VD + LOJA</p></div>
+                    <div className="mt-6 flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase text-gray-400">Realizado</p><p className="text-2xl sm:text-3xl font-black text-[#048187]">{formatarAbrev(total)}</p></div><div className="text-right"><p className="text-[10px] font-black uppercase text-gray-400">Meta</p><p className="text-xl font-black text-gray-700">{formatarAbrev(meta106)}</p></div></div>
+                    <div className="mt-4 h-3 rounded-full bg-[#edf3f4] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#048187] to-[#22a9ad] transition-all duration-500" style={{ width: larguraBarra(pct106) }} /></div>
+                    <div className="mt-2 flex justify-between gap-3 text-xs font-black"><span className="text-[#048187]">{formatarPctCampanha(pct106)} conquistado</span><span className="text-gray-400">Faltam {formatarAbrev(falta106)}</span></div>
+                    <div className="mt-5 rounded-2xl bg-[#f7fbfb] border border-[#e4f0f1] p-4"><p className="text-sm font-black text-gray-700">🏝 Viagem para Santo Amaro</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Consultores elegíveis precisam cumprir <strong>receita + indicadores individuais</strong> nos quatro ciclos da campanha: C14, C15, C16 e C17.</p></div>
+                  </div>
+                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6 overflow-hidden relative">
+                    <div className="absolute right-5 top-5 w-12 h-12 rounded-2xl bg-[#fff2e8] text-[#ff6f03] flex items-center justify-center"><BadgeDollarSign size={25} /></div>
+                    <div className="pr-16"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#ff6f03]">Incentivo 2</p><h2 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Superação 109</h2><p className="mt-1 text-xs sm:text-sm font-semibold text-gray-400">Pool de R$ 50 mil para elegíveis</p></div>
+                    <div className="mt-6 flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase text-gray-400">Realizado</p><p className="text-2xl sm:text-3xl font-black text-[#ff6f03]">{formatarAbrev(total)}</p></div><div className="text-right"><p className="text-[10px] font-black uppercase text-gray-400">Meta</p><p className="text-xl font-black text-gray-700">{formatarAbrev(meta109)}</p></div></div>
+                    <div className="mt-4 h-3 rounded-full bg-[#f4efe9] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#ff6f03] to-[#ff9a4f] transition-all duration-500" style={{ width: larguraBarra(pct109) }} /></div>
+                    <div className="mt-2 flex justify-between gap-3 text-xs font-black"><span className="text-[#ff6f03]">{formatarPctCampanha(pct109)} conquistado</span><span className="text-gray-400">Faltam {formatarAbrev(falta109)}</span></div>
+                    <div className="mt-5 rounded-2xl bg-[#fffaf5] border border-[#f9eadb] p-4"><p className="text-sm font-black text-gray-700">💰 R$ 50.000 de bônus</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Participam da divisão proporcional aqueles que alcançarem <strong>120% da meta individual</strong> nos ciclos 14 a 17 e cumprirem os indicadores IAF aplicáveis.</p></div>
+                  </div>
+                </section>
+                <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Rota da campanha</p><h2 className="mt-1 text-xl font-black text-gray-800">Quatro ciclos até a conquista</h2><p className="mt-1 text-xs text-gray-400 font-semibold">Os valores exibidos em cada checkpoint já somam VD + LOJA.</p></div><span className="self-start sm:self-auto rounded-full bg-[#f1f7f7] text-[#527679] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide">C14 → C17</span></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                    {[14, 15, 16, 17].map((numero, indice) => {
+                      const item = ciclosCampanha.find((c) => String(c?.ciclo || '').startsWith(`${numero}/`)) || { ciclo: `${numero}/2026`, vd: 0, loja: 0, total: 0, tem_dados: false };
+                      return (
+                        <div key={numero} className={`relative rounded-2xl border p-4 ${item.tem_dados ? 'bg-[#f7fbfb] border-[#d9eeee]' : 'bg-[#fbfbfb] border-gray-100'}`}>
+                          <div className="flex items-center justify-between gap-2"><div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm ${item.tem_dados ? 'bg-[#048187] text-white' : 'bg-gray-100 text-gray-400'}`}>{numero}</div><span className={`text-[9px] font-black uppercase tracking-wider ${item.tem_dados ? 'text-[#048187]' : 'text-gray-400'}`}>{item.tem_dados ? 'Em acompanhamento' : 'Aguardando'}</span></div>
+                          <p className="mt-4 text-[10px] font-black uppercase text-gray-400">Resultado combinado</p><p className={`mt-1 text-xl font-black ${item.tem_dados ? 'text-gray-800' : 'text-gray-300'}`}>{formatarAbrev(Number(item.total || 0))}</p>
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold"><div className="rounded-xl bg-white border border-gray-100 px-2.5 py-2"><span className="text-gray-400 block">VD</span><span className="text-[#048187]">{formatarAbrev(Number(item.vd || 0))}</span></div><div className="rounded-xl bg-white border border-gray-100 px-2.5 py-2"><span className="text-gray-400 block">LOJA</span><span className="text-[#7c1f31]">{formatarAbrev(Number(item.loja || 0))}</span></div></div>
+                          {indice < 3 && <div className="hidden xl:block absolute -right-3 top-8 w-6 h-px bg-[#cfe4e5] z-10" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+                <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_.85fr] gap-4 sm:gap-5">
+                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                    <div className="flex items-center gap-3"><div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Target size={22} /></div><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Qualificação individual</p><h2 className="text-lg font-black text-gray-800">Passaporte da conquista</h2></div></div>
+                    <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-2.5">{['Receita', 'Atividade', 'MAKE', 'CABELO', 'Multimarcas', 'IAF aplicáveis'].map((criterio) => <div key={criterio} className="rounded-2xl border border-gray-100 bg-[#fcfbf7] px-3 py-3 flex items-center gap-2.5"><CheckCircle size={16} className="text-[#048187] shrink-0" /><span className="text-xs font-black text-gray-600">{criterio}</span></div>)}</div>
+                    <div className="mt-4 rounded-2xl border border-dashed border-[#b9dfe1] bg-[#f5fbfb] p-4 flex items-start gap-3"><Sparkles size={18} className="text-[#048187] shrink-0 mt-0.5" /><div><p className="text-xs font-black text-gray-700">Leitura simplificada</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">O Resultado Geral consolida a meta corporativa, a rota por ciclo e as condições que habilitam cada ação da campanha.</p></div></div>
+                  </div>
+                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#7c1f31]">Quem pode participar</p><h2 className="mt-1 text-lg font-black text-gray-800">Público da campanha</h2>
+                    <div className="mt-5 space-y-2.5">{participantes.map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl bg-[#fafafa] border border-gray-100 px-4 py-3"><UsersRound size={17} className="text-[#048187] shrink-0" /><span className="text-sm font-bold text-gray-600">{item}</span></div>)}</div>
+                    <div className="mt-4 rounded-2xl bg-[#fff8f8] border border-[#f4e2e5] p-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#7c1f31]">Escopo atual da tela</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">O painel corporativo foi reorganizado para reforçar apenas as ações vigentes da campanha: a meta de <strong>R$ 106 milhões</strong> e a meta de <strong>R$ 109 milhões</strong>.</p></div>
+                  </div>
+                </section>
               </div>
 
-              <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#7c1f31]">Quem pode participar</p><h2 className="mt-1 text-lg font-black text-gray-800">Público da campanha</h2>
-                <div className="mt-5 space-y-2.5">{['Consultores de ERs', 'Força de Vendas e Lojas', 'Promotores de campo', 'Líderes de ER'].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl bg-[#fafafa] border border-gray-100 px-4 py-3"><UsersRound size={17} className="text-[#048187] shrink-0" /><span className="text-sm font-bold text-gray-600">{item}</span></div>)}</div>
-                <div className="mt-4 rounded-2xl bg-[#fff8f8] border border-[#f4e2e5] p-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#7c1f31]">Em definição</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">A fórmula exata da divisão proporcional dos R$ 50 mil ainda não foi parametrizada. A tela não calcula prêmio individual até essa regra ser validada.</p></div>
+              <div className="campanha-tab-panel campanha-tab-panel--resultado-individual space-y-5 sm:space-y-6">
+                <section className="grid grid-cols-1 xl:grid-cols-[1fr_.85fr] gap-4 sm:gap-5">
+                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                    <div className="flex items-center gap-3"><div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Trophy size={22} /></div><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Resultado individual</p><h2 className="text-lg font-black text-gray-800">O que cada pessoa precisa acompanhar</h2></div></div>
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        { titulo: 'Para a Expedição 106', desc: 'Cumprir receita + indicadores completos em C14, C15, C16 e C17.' },
+                        { titulo: 'Para a Superação 109', desc: 'Atingir 120% da meta individual do C14 ao C17 + indicadores IAF aplicáveis.' },
+                        { titulo: 'Painel individual', desc: 'Serve para explicar ao colaborador quais são as regras e, quando a base estiver conectada, mostrar seu status nominal.' },
+                        { titulo: 'Leitura mais simples', desc: 'Tudo separado em uma aba exclusiva para evitar confusão entre meta corporativa e elegibilidade individual.' },
+                      ].map((item) => (
+                        <div key={item.titulo} className="rounded-2xl border border-gray-100 bg-[#fcfdfd] p-4"><p className="text-sm font-black text-gray-700">{item.titulo}</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">{item.desc}</p></div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-gradient-to-br from-[#013f43] via-[#046f74] to-[#0b9da3] rounded-[24px] border border-[#0c8f95] shadow-sm p-5 sm:p-6 text-white overflow-hidden relative">
+                    <div className="absolute -right-10 -bottom-12 w-44 h-44 rounded-full bg-white/10 blur-2xl" />
+                    <div className="relative z-[1]">
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/60">Mensagem para o consultor</p>
+                      <h3 className="mt-1 text-2xl font-black">Cada detalhe conta</h3>
+                      <p className="mt-3 text-sm text-white/85 leading-relaxed">Aqui a equipe entende exatamente o que precisa entregar para se manter elegível em cada ação. A ideia é transformar regra em clareza, clareza em foco e foco em resultado.</p>
+                      <img src="/campanha-incentivo-2026/cedula-100-gm.png" alt="Cédula ilustrativa da campanha" className="mt-5 w-full max-w-[280px] drop-shadow-2xl" />
+                    </div>
+                  </div>
+                </section>
+                {rankingIndividual.length ? (
+                  <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Base individual conectada</p><h2 className="mt-1 text-xl font-black text-gray-800">Acompanhamento nominal</h2></div><span className="rounded-full bg-[#f1f7f7] text-[#527679] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide">{rankingIndividual.length} registro(s)</span></div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[860px] text-sm">
+                        <thead className="bg-[#048187] text-white">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-[11px] uppercase tracking-wide">Nome</th>
+                            <th className="px-4 py-3 text-left text-[11px] uppercase tracking-wide">Estrutura</th>
+                            <th className="px-4 py-3 text-right text-[11px] uppercase tracking-wide">Receita</th>
+                            <th className="px-4 py-3 text-right text-[11px] uppercase tracking-wide">% Meta</th>
+                            <th className="px-4 py-3 text-center text-[11px] uppercase tracking-wide">106</th>
+                            <th className="px-4 py-3 text-center text-[11px] uppercase tracking-wide">109</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rankingIndividual.map((item, indice) => {
+                            const percentual = obterPercentualIndividual(item);
+                            const status106 = obterStatus106(item);
+                            const status109 = obterStatus109(item);
+                            return (
+                              <tr key={`${obterNomeIndividual(item)}-${indice}`} className="border-t border-gray-100 hover:bg-[#f7fbfb]">
+                                <td className="px-4 py-3 font-black text-gray-700">{obterNomeIndividual(item)}</td>
+                                <td className="px-4 py-3 text-gray-500 font-semibold">{obterEstruturaIndividual(item)}</td>
+                                <td className="px-4 py-3 text-right font-black text-gray-700">{formatarMoeda(obterReceitaIndividual(item))}</td>
+                                <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarPctCampanha(percentual)}</td>
+                                <td className="px-4 py-3 text-center"><span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black ${status106 === 'Apto' ? 'bg-[#e6f6f7] text-[#048187]' : 'bg-gray-100 text-gray-500'}`}>{status106}</span></td>
+                                <td className="px-4 py-3 text-center"><span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black ${status109 === 'Apto' ? 'bg-[#fff1e6] text-[#ff6f03]' : 'bg-gray-100 text-gray-500'}`}>{status109}</span></td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                ) : (
+                  <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
+                    <div className="rounded-[24px] border border-dashed border-[#b9dfe1] bg-[#f5fbfb] p-5 sm:p-6 flex flex-col xl:flex-row gap-5 xl:items-center xl:justify-between">
+                      <div className="max-w-2xl">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Em evolução</p>
+                        <h3 className="mt-1 text-lg font-black text-gray-800">Resultado Individual preparado para receber a base nominal</h3>
+                        <p className="mt-2 text-sm text-gray-500 leading-relaxed">A aba já nasce pronta para a comunicação individual. Se a API ainda não retornar uma lista nominal, ela continua explicando as regras e serve como espaço oficial para plugar o acompanhamento por colaborador posteriormente, sem mudar a experiência visual da campanha.</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 min-w-[280px]">
+                        <div className="rounded-2xl bg-white border border-[#dceff0] p-4"><p className="text-[10px] font-black uppercase tracking-wide text-[#048187]">Regra 106</p><p className="mt-1 text-sm font-black text-gray-700">Receita + indicadores</p></div>
+                        <div className="rounded-2xl bg-white border border-[#fde4cf] p-4"><p className="text-[10px] font-black uppercase tracking-wide text-[#ff6f03]">Regra 109</p><p className="mt-1 text-sm font-black text-gray-700">120% + IAF</p></div>
+                      </div>
+                    </div>
+                  </section>
+                )}
               </div>
-            </section>
-          </>
+            </div>
+          </section>
         )}
       </div>
     );
