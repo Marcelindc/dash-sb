@@ -4,7 +4,6 @@ import {
   Database,
   Eye,
   Search,
-  UsersRound,
   X,
 } from 'lucide-react';
 
@@ -91,13 +90,28 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken 
     return (dados?.estruturas || []).filter((item) => {
       const estrutura = String(item.estrutura || '');
       const bateBusca = !termo || normalizar(estrutura).includes(termo) || normalizar(item.cod_estrutura).includes(termo);
-      const nucleo = inferirNucleo(estrutura);
+      const nucleoApi = normalizar(item?.nucleo).replace('NUCLEO ', 'N');
+      const nucleo = ['N1', 'N2', 'N3'].includes(nucleoApi) ? nucleoApi : inferirNucleo(estrutura);
       const bateNucleo = !filtrosNucleo.length || filtrosNucleo.includes(nucleo);
       return bateBusca && bateNucleo;
     });
   }, [dados, busca, nucleos]);
 
-  const totais = dados?.totais || {};
+  const totais = useMemo(() => {
+    const base = estruturasFiltradas.reduce((acc, item) => {
+      acc.bt += Number(item?.bt || 0);
+      acc.ba += Number(item?.ba || 0);
+      acc.inicios += Number(item?.inicios || 0);
+      acc.reinicios += Number(item?.reinicios || 0);
+      acc.i6 += Number(item?.i6 || 0);
+      acc.adicoes += Number(item?.adicoes || 0);
+      acc.meta_adicoes += Number(item?.meta_adicoes || 0);
+      return acc;
+    }, { bt: 0, ba: 0, inicios: 0, reinicios: 0, i6: 0, adicoes: 0, meta_adicoes: 0 });
+    base.percentual_meta = base.meta_adicoes > 0 ? (base.adicoes / base.meta_adicoes) * 100 : 0;
+    base.falta_meta = base.meta_adicoes > 0 ? Math.max(base.meta_adicoes - base.adicoes, 0) : 0;
+    return base;
+  }, [estruturasFiltradas]);
   const corAdicoes = Number(totais.adicoes || 0) < 0 ? '#7c1f31' : '#048187';
   const corMeta = corFaixa(totais.percentual_meta || 0);
   const detalheEstrutura = detalhe?.estrutura || {};
@@ -105,23 +119,6 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken 
 
   return (
     <div className="space-y-4">
-      <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><UsersRound size={22} /></div>
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-gray-700">Adições</h2>
-                <p className="text-xs sm:text-sm font-semibold text-gray-400 mt-0.5">Acompanhamento de Base Total, Base Ativa, Inícios e Reinícios por estrutura.</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#f2f7f8] px-3 py-2 text-[11px] font-black text-[#567174]">Ciclo {dados?.ciclo || ciclo || '-'}</span>
-          </div>
-        </div>
-      </section>
-
       {erro ? <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{erro}</div> : null}
       {mensagem ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{mensagem}</div> : null}
 
@@ -144,7 +141,7 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken 
         <div className="p-4 sm:p-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>
             <h3 className="text-lg font-black text-gray-700">Adições por estrutura</h3>
-            <p className="mt-1 text-xs font-semibold text-gray-400">Fonte: {dados?.fonte || 'Base de Revendedores'} • Atualização automática junto da Consulta Pedidos.</p>
+            <p className="mt-1 text-xs font-semibold text-gray-400">Base inicial do ciclo + Consulta Pedidos • Quem possui pedido válido é acompanhado como A0 sem precisar reenviar a base.</p>
           </div>
           <div className="relative w-full lg:w-[320px]">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -188,7 +185,7 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken 
                     <tr key={`${cod}-${item.estrutura}`} className="border-t border-gray-100 hover:bg-[#fbfefe]">
                       <td className="px-4 py-3">
                         <p className="font-black text-gray-700">{item.estrutura}</p>
-                        <p className="text-[10px] font-bold text-gray-400">Cód. {cod} • {inferirNucleo(item.estrutura)}</p>
+                        <p className="text-[10px] font-bold text-gray-400">Cód. {cod} • {(['N1','N2','N3'].includes(normalizar(item?.nucleo).replace('NUCLEO ', 'N')) ? normalizar(item?.nucleo).replace('NUCLEO ', 'N') : inferirNucleo(item.estrutura))}</p>
                       </td>
                       <td className="px-3 py-3 text-center font-black text-gray-700">{formatarInteiro(item.bt)}</td>
                       <td className="px-3 py-3 text-center font-black text-[#048187]">{formatarInteiro(item.ba)}</td>
@@ -262,7 +259,7 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken 
                 <div className="rounded-2xl border border-gray-100 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100 bg-[#f9fbfb]">
                     <h4 className="text-sm font-black text-gray-700">Revendedores da estrutura</h4>
-                    <p className="mt-1 text-xs font-semibold text-gray-400">Listagem baseada nas colunas Código do Revendedor, Nome do Revendedor e Atividade da Base Ativa.</p>
+                    <p className="mt-1 text-xs font-semibold text-gray-400">A atividade base vem da planilha inicial. A atividade atual considera os pedidos válidos do ciclo.</p>
                   </div>
                   {revendedoresDetalhe.length === 0 ? (
                     <div className="px-4 py-8 text-center text-sm font-bold text-gray-400">Nenhum revendedor encontrado para esta estrutura.</div>
@@ -273,7 +270,8 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken 
                           <tr>
                             <th className="px-4 py-3 text-left">Cód. Revendedor</th>
                             <th className="px-4 py-3 text-left">Nome</th>
-                            <th className="px-4 py-3 text-left">Atividade</th>
+                            <th className="px-4 py-3 text-left">Atividade Base</th>
+                            <th className="px-4 py-3 text-left">Atividade Atual</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -281,7 +279,12 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], refreshToken 
                             <tr key={`${rev.cod_revendedor || 'rev'}-${idx}`} className="border-t border-gray-100 hover:bg-[#fbfefe]">
                               <td className="px-4 py-3 font-black text-gray-700">{rev.cod_revendedor || '-'}</td>
                               <td className="px-4 py-3 font-semibold text-gray-700">{rev.nome_revendedor || '-'}</td>
-                              <td className="px-4 py-3 font-semibold text-gray-600">{rev.atividade || '-'}</td>
+                              <td className="px-4 py-3 font-semibold text-gray-500">{rev.atividade_base || rev.atividade || '-'}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-1 font-black ${rev.ativou_no_ciclo && rev.atividade === 'A0' ? 'bg-[#e6f6f7] text-[#048187]' : 'bg-gray-100 text-gray-600'}`}>
+                                  {rev.atividade || '-'}
+                                </span>
+                              </td>
                             </tr>
                           ))}
                         </tbody>

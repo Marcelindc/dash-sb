@@ -4006,7 +4006,7 @@ const CampoMetaIndicador = ({ label, value, onChange, placeholder = '0,00', casa
   </div>
 );
 
-function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao, modoInline = false }) {
+function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualizacao, modoInline = false, escopoGestor = false }) {
   const metaVazia = () => ({
     ciclo: cicloPadrao || '', estrutura_oficial_id: '', variacao_ids: [],
     meta_real: '', meta_atividade: '', meta_make: '', meta_cabelo: '', meta_multimarcas: '',
@@ -4257,7 +4257,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
           <select value={cicloAtualForm} onChange={(e) => trocarCiclo(e.target.value)} className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none focus:border-[#048187]">
             <option value="">Selecione o ciclo</option>{ciclosMeta.map((c) => <option key={c.ciclo} value={c.ciclo}>{c.ciclo}{c.eh_atual ? ' • atual' : ''}</option>)}
           </select>
-          <button type="button" onClick={abrirEdicaoMassa} disabled={!metas.length} className="bg-white border border-[#b9dfe1] text-[#048187] px-4 py-2.5 rounded-xl font-semibold text-sm inline-flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"><SlidersHorizontal size={16}/> Edição em massa</button>
+          {!escopoGestor && <button type="button" onClick={abrirEdicaoMassa} disabled={!metas.length} className="bg-white border border-[#b9dfe1] text-[#048187] px-4 py-2.5 rounded-xl font-semibold text-sm inline-flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"><SlidersHorizontal size={16}/> Edição em massa</button>}
           <button type="button" onClick={abrirNovaMeta} className="bg-[#048187] text-white px-4 py-2.5 rounded-xl font-semibold text-sm inline-flex items-center gap-2"><Plus size={16}/> Cadastrar meta</button>
         </div>
       </div>
@@ -4356,7 +4356,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
         </form>
       )}
 
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"><div className="p-5 border-b border-gray-100"><h3 className="text-lg font-bold text-gray-700">Metas salvas do ciclo</h3><p className="text-sm text-gray-400 mt-1">N1, N2 e N3 separados para facilitar a conferência.</p></div>{carregando?<div className="p-8 text-center text-[#048187] font-semibold">Carregando...</div>:<div className="p-4 space-y-5">{ordemNucleos.map(nucleo=>{const itens=metas.filter(m=>String(m.nucleo||'').toUpperCase()===nucleo);if(!itens.length)return null;return <div key={nucleo} className="border border-gray-100 rounded-2xl overflow-hidden"><div className="bg-[#e6f6f7] px-4 py-3 flex items-center justify-between"><span className="font-bold text-[#048187]">{nucleo.replace('NUCLEO','NÚCLEO')}</span><span className="text-xs font-semibold text-[#048187]">{itens.length} estrutura(s)</span></div><div className="overflow-x-auto"><table className="w-full min-w-[1450px] text-[12px]"><thead className="bg-[#f7fafb] text-[10px] uppercase text-gray-400"><tr><th className="px-3 py-3 text-left">Nome Estrutura</th><th className="px-3 py-3 text-left">Estrutura</th><th className="px-3 py-3 text-left">Canal/Núcleo</th><th className="px-3 py-3">Ciclo</th><th className="px-3 py-3 text-right">Receita</th><th className="px-3 py-3 text-right">Atividade</th><th className="px-3 py-3 text-right">RPA</th><th className="px-3 py-3 text-right">Tkt Médio</th><th className="px-3 py-3 text-right">UPA</th><th className="px-3 py-3 text-right">Adições</th><th className="px-3 py-3 text-right">Pen. Make</th><th className="px-3 py-3 text-right">Pen. Cabelos</th><th className="px-3 py-3 text-right">Pen. Multimarcas</th><th className="px-3 py-3 text-right">Meta Eudora</th><th className="px-3 py-3 text-right">Ações</th></tr></thead><tbody>{itens.map(m=><tr key={m.id} className="border-t border-gray-100 hover:bg-gray-50"><td className="px-3 py-3 font-semibold text-gray-700">{m.nome_estrutura||m.nome_meta}</td><td className="px-3 py-3 text-gray-500 max-w-[260px]">{(m.variacoes||[]).map(v=>v.estrutura).join(' + ')}</td><td className="px-3 py-3 text-gray-500">{m.categoria_canal} / {String(m.nucleo||'').replace('NUCLEO','N')}</td><td className="px-3 py-3 text-center">{m.ciclo}</td><td className="px-3 py-3 text-right font-semibold text-[#048187]">{formatarMoeda(m.meta_real)}</td><td className="px-3 py-3 text-right">{Number(m.meta_atividade||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_rpa)}</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_tkt_medio)}</td><td className="px-3 py-3 text-right">{Number(m.meta_upa||0).toFixed(1)}</td><td className="px-3 py-3 text-right">{Number(m.meta_adicoes||0).toFixed(0)}</td><td className="px-3 py-3 text-right">{Number(m.meta_make||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_cabelo||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_multimarcas||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_eudora||0).toFixed(1)}%</td><td className="px-3 py-3 text-right whitespace-nowrap"><button onClick={()=>editarMeta(m)} className="text-[#048187] mr-3" title="Editar"><Pencil size={16}/></button><button onClick={()=>excluirMeta(m)} className="text-red-500" title="Apagar"><Trash2 size={16}/></button></td></tr>)}</tbody></table></div></div>})}{!metas.length&&<div className="py-10 text-center text-gray-400">Nenhuma meta cadastrada neste ciclo.</div>}</div>}</div>
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"><div className="p-5 border-b border-gray-100"><h3 className="text-lg font-bold text-gray-700">Metas salvas do ciclo</h3><p className="text-sm text-gray-400 mt-1">N1, N2 e N3 separados para facilitar a conferência.</p></div>{carregando?<div className="p-8 text-center text-[#048187] font-semibold">Carregando...</div>:<div className="p-4 space-y-5">{ordemNucleos.map(nucleo=>{const itens=metas.filter(m=>String(m.nucleo||'').toUpperCase()===nucleo);if(!itens.length)return null;return <div key={nucleo} className="border border-gray-100 rounded-2xl overflow-hidden"><div className="bg-[#e6f6f7] px-4 py-3 flex items-center justify-between"><span className="font-bold text-[#048187]">{nucleo.replace('NUCLEO','NÚCLEO')}</span><span className="text-xs font-semibold text-[#048187]">{itens.length} estrutura(s)</span></div><div className="overflow-x-auto"><table className="w-full min-w-[1450px] text-[12px]"><thead className="bg-[#f7fafb] text-[10px] uppercase text-gray-400"><tr><th className="px-3 py-3 text-left">Nome Estrutura</th><th className="px-3 py-3 text-left">Estrutura</th><th className="px-3 py-3 text-left">Canal/Núcleo</th><th className="px-3 py-3">Ciclo</th><th className="px-3 py-3 text-right">Receita</th><th className="px-3 py-3 text-right">Atividade</th><th className="px-3 py-3 text-right">RPA</th><th className="px-3 py-3 text-right">Tkt Médio</th><th className="px-3 py-3 text-right">UPA</th><th className="px-3 py-3 text-right">Adições</th><th className="px-3 py-3 text-right">Pen. Make</th><th className="px-3 py-3 text-right">Pen. Cabelos</th><th className="px-3 py-3 text-right">Pen. Multimarcas</th><th className="px-3 py-3 text-right">Meta Eudora</th><th className="px-3 py-3 text-right">Ações</th></tr></thead><tbody>{itens.map(m=><tr key={m.id} className="border-t border-gray-100 hover:bg-gray-50"><td className="px-3 py-3 font-semibold text-gray-700">{m.nome_estrutura||m.nome_meta}</td><td className="px-3 py-3 text-gray-500 max-w-[260px]">{(m.variacoes||[]).map(v=>v.estrutura).join(' + ')}</td><td className="px-3 py-3 text-gray-500">{m.categoria_canal} / {String(m.nucleo||'').replace('NUCLEO','N')}</td><td className="px-3 py-3 text-center">{m.ciclo}</td><td className="px-3 py-3 text-right font-semibold text-[#048187]">{formatarMoeda(m.meta_real)}</td><td className="px-3 py-3 text-right">{Number(m.meta_atividade||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_rpa)}</td><td className="px-3 py-3 text-right">{formatarMoeda(m.meta_tkt_medio)}</td><td className="px-3 py-3 text-right">{Number(m.meta_upa||0).toFixed(1)}</td><td className="px-3 py-3 text-right">{Number(m.meta_adicoes||0).toFixed(0)}</td><td className="px-3 py-3 text-right">{Number(m.meta_make||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_cabelo||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_multimarcas||0).toFixed(1)}%</td><td className="px-3 py-3 text-right">{Number(m.meta_eudora||0).toFixed(1)}%</td><td className="px-3 py-3 text-right whitespace-nowrap"><button onClick={()=>editarMeta(m)} className="text-[#048187] mr-3" title="Editar"><Pencil size={16}/></button>{!escopoGestor && <button onClick={()=>excluirMeta(m)} className="text-red-500" title="Apagar"><Trash2 size={16}/></button>}</td></tr>)}</tbody></table></div></div>})}{!metas.length&&<div className="py-10 text-center text-gray-400">Nenhuma meta cadastrada neste ciclo.</div>}</div>}</div>
     </div>
   );
   if (modoInline) return conteudo;
@@ -5361,6 +5361,8 @@ export default function App() {
 
     if (modoGerenteVD && ![
       'AcompanhamentoVD',
+      'Adições',
+      'Cadastro',
       ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
       ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
       ...(podeAcessarRotasVD ? ['Rotas'] : []),
@@ -5761,6 +5763,8 @@ export default function App() {
     : modoGerenteVD
     ? [
         { nome: 'AcompanhamentoVD', icone: LayoutDashboard },
+        { nome: 'Adições', icone: UsersRound },
+        { nome: 'Cadastro', icone: Target, rotulo: 'Metas da Estrutura' },
         ...(podeAcessarPrimeiroPedidoCaptacao
           ? [{ nome: 'PrimeiroPedidoCaptacao', icone: FileSpreadsheet }]
           : []),
@@ -5780,7 +5784,7 @@ export default function App() {
     setCanalAtual('VD');
     setMenuVDExpandido(true);
     setMenuLojaExpandido(false);
-    if (nomeTela === 'Cadastro') setVisaoCadastro('geral');
+    if (nomeTela === 'Cadastro') setVisaoCadastro(modoGerenteVD ? 'metas' : 'geral');
     setTelaAtual(nomeTela);
     setMenuHamburguerAberto(false);
   };
@@ -5871,6 +5875,8 @@ export default function App() {
     if (modoGerenteVD) {
       return [
         'AcompanhamentoVD',
+        'Adições',
+        'Cadastro',
         ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
         ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
         ...(podeAcessarRotasVD ? ['Rotas'] : []),
@@ -12383,14 +12389,14 @@ const enviarArquivo = async (tipo) => {
                   <div className="rounded-2xl border border-gray-100 overflow-hidden">
                     <div className="px-4 py-3 bg-[#f7fafb] border-b border-gray-100">
                       <h4 className="text-sm font-black text-gray-700">Revendedores da estrutura</h4>
-                      <p className="mt-1 text-xs font-semibold text-gray-400">Código do Revendedor, Nome e Atividade.</p>
+                      <p className="mt-1 text-xs font-semibold text-gray-400">Atividade base da planilha inicial e atividade atual considerando pedidos válidos do ciclo.</p>
                     </div>
                     <div className="max-h-[430px] overflow-auto">
                       {(detalheAdicoesGerente.dados?.revendedores || []).length ? (
                         <table className="w-full min-w-[720px] text-[12px]">
-                          <thead className="sticky top-0 bg-white text-[10px] uppercase text-gray-400"><tr><th className="px-4 py-3 text-left">Cód. Revendedor</th><th className="px-4 py-3 text-left">Nome</th><th className="px-4 py-3 text-left">Atividade</th></tr></thead>
+                          <thead className="sticky top-0 bg-white text-[10px] uppercase text-gray-400"><tr><th className="px-4 py-3 text-left">Cód. Revendedor</th><th className="px-4 py-3 text-left">Nome</th><th className="px-4 py-3 text-left">Atividade Base</th><th className="px-4 py-3 text-left">Atividade Atual</th></tr></thead>
                           <tbody>{(detalheAdicoesGerente.dados?.revendedores || []).map((rev, idx) => (
-                            <tr key={`${rev?.cod_revendedor || idx}-${idx}`} className="border-t border-gray-100"><td className="px-4 py-3 font-black text-gray-700">{rev?.cod_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-700">{rev?.nome_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-600">{rev?.atividade || '-'}</td></tr>
+                            <tr key={`${rev?.cod_revendedor || idx}-${idx}`} className="border-t border-gray-100"><td className="px-4 py-3 font-black text-gray-700">{rev?.cod_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-700">{rev?.nome_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-500">{rev?.atividade_base || rev?.atividade || '-'}</td><td className="px-4 py-3 font-semibold text-[#048187]">{rev?.atividade || '-'}</td></tr>
                           ))}</tbody>
                         </table>
                       ) : <div className="p-8 text-center text-sm font-bold text-gray-400">Nenhum revendedor encontrado.</div>}
@@ -16105,6 +16111,28 @@ const enviarArquivo = async (tipo) => {
   );
 
   const renderTelaCadastro = () => {
+    if (modoGerenteVD) {
+      return (
+        <div className="space-y-6 animate-fade-in">
+          <div className="flex items-center px-1 sm:px-4">
+            <div className="inline-flex items-center gap-2 text-[11px] sm:text-xs font-black uppercase text-gray-500">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#e6f6f7] text-[#048187]"><Target size={16} /></span>
+              <span>Metas da Estrutura</span>
+            </div>
+          </div>
+          <ModalMetasReais
+            aberto={true}
+            onClose={() => {}}
+            apiUrl={API_URL}
+            cicloPadrao={cicloSelecionadoVD || filtrosAtivos?.ciclo || dados?.ciclo_atual || cicloAtualPelaData() || ''}
+            onAtualizacao={atualizarTelasAposMudancaBanco}
+            modoInline
+            escopoGestor
+          />
+        </div>
+      );
+    }
+
     if (visaoCadastro === 'ciclos') {
       return (
         <div className="space-y-5 animate-fade-in">
@@ -21688,6 +21716,7 @@ const enviarArquivo = async (tipo) => {
     'Dashboard',
     'PrimeiroPedidoCaptacao',
     'Metas',
+    'Adições',
     'Ranking',
     'Comparativo',
     'VendasCidades',
@@ -22035,7 +22064,7 @@ const enviarArquivo = async (tipo) => {
                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${ativo ? 'bg-[#e6f6f7] text-[#048187] font-bold' : 'text-[#566f72] hover:bg-[#f0f6f7] hover:text-[#234e51]'}`}
                       >
                         <Icone size={18} strokeWidth={1.9} />
-                        <span>{obterNomeAba(item.nome)}</span>
+                        <span>{item.rotulo || obterNomeAba(item.nome)}</span>
                       </button>
                     );
                   })}
