@@ -5013,7 +5013,9 @@ export default function App() {
       consultores_ok: false,
     },
   });
-  const [modalValorExpandido, setModalValorExpandido] = useState({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null });
+  const [modalValorExpandido, setModalValorExpandido] = useState({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null, relatorioIaf: null });
+  const [baixandoRelatorioIaf, setBaixandoRelatorioIaf] = useState(false);
+  const [erroRelatorioIaf, setErroRelatorioIaf] = useState('');
   const [modalDesempenhoDetalhado, setModalDesempenhoDetalhado] = useState({ aberto: false, indicador: 'RPA', visao: 'estruturas' });
 
   const [acompanhamentoVD, setAcompanhamentoVD] = useState({
@@ -11243,7 +11245,59 @@ const enviarArquivo = async (tipo) => {
   const confirmarExclusaoConsultor = async () => { if (!consultorParaExcluir) return; setErroGestaoConsultor(''); setMensagemConsultor(''); try { await axios.delete(`${API_URL}/consultores/${consultorParaExcluir.id}`); setModalExcluirConsultorAberto(false); setConsultorParaExcluir(null); setMensagemConsultor('Excluído.'); limparCachesDados(); await carregarListaConsultores(); } catch (erro) { setErroGestaoConsultor(erro.response?.data?.detail || 'Erro.'); } };
 
   const abrirModalValExp = (tit, valStr, desc, detalhes = [], formula = '') => setModalValorExpandido({ aberto: true, titulo: tit, valorTexto: valStr, descricao: desc, detalhes, formula });
-  const fecharModalValExp = () => setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null });
+  const fecharModalValExp = () => {
+    setErroRelatorioIaf('');
+    setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null, relatorioIaf: null });
+  };
+
+  // Planilha com todas as revendedoras que formam o resultado do modal
+  // MAKE/CABELO (mesmos filtros e mesma regra do /indicadores-iaf/detalhe).
+  const baixarRelatorioIaf = async () => {
+    const contexto = modalValorExpandido?.relatorioIaf;
+    if (!contexto || baixandoRelatorioIaf) return;
+    setBaixandoRelatorioIaf(true);
+    setErroRelatorioIaf('');
+    try {
+      const resposta = await axios.post(
+        `${API_URL}/indicadores-iaf/relatorio`,
+        { indicador: contexto.indicador, filtros: contexto.filtros },
+        {
+          responseType: 'blob',
+          headers: { 'X-Ciclo-VD': contexto.ciclo },
+          timeout: 120000,
+        }
+      );
+      const url = window.URL.createObjectURL(new Blob([resposta.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }));
+      const link = document.createElement('a');
+      const tituloArquivo = String(modalValorExpandido?.titulo || contexto.indicador)
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^0-9A-Za-z_-]+/g, '_').replace(/^_+|_+$/g, '');
+      const cicloArquivo = String(contexto.ciclo || 'ciclo').replace(/[^0-9A-Za-z_-]+/g, '-');
+      link.href = url;
+      link.download = `Relatorio_${tituloArquivo}_${cicloArquivo}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (erro) {
+      let mensagem = 'Não foi possível gerar o relatório.';
+      try {
+        if (erro?.response?.data instanceof Blob) {
+          const json = JSON.parse(await erro.response.data.text());
+          mensagem = json?.detail || mensagem;
+        } else {
+          mensagem = erro?.response?.data?.detail || erro?.message || mensagem;
+        }
+      } catch {
+        // mantém a mensagem padrão
+      }
+      setErroRelatorioIaf(mensagem);
+    } finally {
+      setBaixandoRelatorioIaf(false);
+    }
+  };
   
   const abrirDetRealizadoTotal = () => {
     const realizado = Number(dados?.valor_total || 0);
@@ -11958,7 +12012,11 @@ const enviarArquivo = async (tipo) => {
         carregando: false,
         erro: '',
         indicadorIaf: data,
+        relatorioIaf: indicador === 'MAKE' || indicador === 'CABELO'
+          ? { indicador, filtros: filtrosIndicador, ciclo: cicloDetalheR93 }
+          : null,
       });
+      setErroRelatorioIaf('');
     } catch (erro) {
       setModalValorExpandido({
         aberto: true,
@@ -24201,7 +24259,24 @@ const enviarArquivo = async (tipo) => {
                 )}
                 {modalValorExpandido.descricao && (<p className="mt-1 text-sm text-gray-400">{modalValorExpandido.descricao}</p>)}
               </div>
-              <button type="button" onClick={fecharModalValExp} className="w-10 h-10 rounded-full hover:bg-gray-50 text-gray-400 flex items-center justify-center"><X size={20} /></button>
+              <div className="flex items-center gap-3 shrink-0">
+                {modalValorExpandido.relatorioIaf && !modalValorExpandido.carregando && !modalValorExpandido.erro && (
+                  <div className="flex flex-col items-end">
+                    <button
+                      type="button"
+                      onClick={baixarRelatorioIaf}
+                      disabled={baixandoRelatorioIaf}
+                      title="Baixar a planilha com todas as revendedoras desta contagem: quem ativou e quem fez o 1º pedido do indicador"
+                      className="px-4 py-2.5 rounded-xl bg-[#048187] hover:bg-[#036b70] text-white text-sm font-black inline-flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-wait"
+                    >
+                      {baixandoRelatorioIaf ? <Loader2 size={17} className="animate-spin" /> : <FileSpreadsheet size={17} />}
+                      <span className="hidden sm:inline">{baixandoRelatorioIaf ? 'Gerando...' : 'Gerar relatório'}</span>
+                    </button>
+                    {erroRelatorioIaf && (<p className="mt-1 max-w-xs text-right text-xs font-bold text-red-600">{erroRelatorioIaf}</p>)}
+                  </div>
+                )}
+                <button type="button" onClick={fecharModalValExp} className="w-10 h-10 rounded-full hover:bg-gray-50 text-gray-400 flex items-center justify-center"><X size={20} /></button>
+              </div>
             </div>
 
             <div className="p-6 space-y-5 overflow-y-auto">
