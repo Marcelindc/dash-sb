@@ -5436,7 +5436,7 @@ export default function App() {
   const [erroRelatorioAuditoria, setErroRelatorioAuditoria] = useState('');
   const [configRelatorioAuditoria, setConfigRelatorioAuditoria] = useState(() => criarConfigRelatorioAuditoria(7));
 
-  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [carregandoAutomacaoRotas, setCarregandoAutomacaoRotas] = useState(false); const [statusBasesVD, setStatusBasesVD] = useState({}); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoBaseAdicoes, setArquivoBaseAdicoes] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoEudora, setCarregandoAutomacaoEudora] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
+  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [carregandoAutomacaoRotas, setCarregandoAutomacaoRotas] = useState(false); const [statusBasesVD, setStatusBasesVD] = useState({}); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoBaseAdicoes, setArquivoBaseAdicoes] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoEudora, setCarregandoAutomacaoEudora] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [statusRoboVd, setStatusRoboVd] = useState(null); const [ligandoRoboVd, setLigandoRoboVd] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloSelecionadoVD, setCicloSelecionadoVD] = useState(
@@ -8653,6 +8653,31 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     return () => window.removeEventListener('message', receberMensagemAutomacao);
   }, [filtrosAtivos, telaAtual]);
 
+  // Extensão "Robô VD": estado do robô (a cada 5 s) e resposta do botão "Ligar Robô VD".
+  useEffect(() => {
+    const receberRoboVd = (event) => {
+      if (event.source !== window) return;
+      const data = event.data || {};
+      if (data.source !== 'BOT_VENDAS_EXTENSAO') return;
+      if (data.acao === 'ROBO_VD_STATUS') {
+        setStatusRoboVd(data.estado || null);
+        return;
+      }
+      if (data.acao === 'AUTOMACAO_ROBO_VD_INICIADA') {
+        setLigandoRoboVd(false);
+        setErroUpload('');
+        setMensagemUpload(data.mensagem || 'Robô VD ligado.');
+      }
+      if (data.acao === 'UPLOAD_ROBO_VD_ERRO') {
+        setLigandoRoboVd(false);
+        setMensagemUpload('');
+        setErroUpload(data.mensagem || 'Não foi possível ligar o Robô VD.');
+      }
+    };
+    window.addEventListener('message', receberRoboVd);
+    return () => window.removeEventListener('message', receberRoboVd);
+  }, []);
+
 
   useEffect(() => {
     const receberMultimarcas = (event) => {
@@ -10803,114 +10828,27 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     .filter(([categoria, valor]) => Array.isArray(valor) && valor.length > 0)
     .flatMap(([categoria, valores]) => valores.map((valor) => ({ categoria, valor, label: rotuloFiltroInterativo(categoria, valor) })));
 
-  const iniciarAtualizacaoAutomaticaPedidos = () => {
+  // Um botão liga o Robô VD do dia: Pedidos de hora em hora; MAKE, CABELO e EUDORA em fila no SGI; Rotas em paralelo.
+  const ligarRoboVd = () => {
     setErroUpload('');
-    setMensagemUpload('Solicitando atualização automática de pedidos pela extensão...');
-    setCarregandoAutomacaoPedidos(true);
+    setMensagemUpload('Ligando o Robô VD...');
+    setLigandoRoboVd(true);
 
     window.postMessage({
       source: 'DASH_SB',
-      acao: 'INICIAR_EXTRACAO_PEDIDOS',
-      tokenAuth,
-      ciclo: cicloUploadVD || obterCicloReferenciaAtual()
-    }, '*');
-
-    setTimeout(() => {
-      setCarregandoAutomacaoPedidos((atual) => {
-        if (atual) {
-          setMensagemUpload('Se a aba do SGI não abriu, verifique se a extensão Bot de Vendas está instalada e recarregada no Chrome.');
-        }
-        return atual;
-      });
-    }, 12000);
-  };
-
-
-
-  const iniciarAtualizacaoAutomaticaRotas = () => {
-    setErroUpload('');
-    setMensagemUpload('Solicitando atualização automática de Rotas / Logística pela extensão...');
-    setCarregandoAutomacaoRotas(true);
-
-    window.postMessage({
-      source: 'DASH_SB',
-      acao: 'INICIAR_EXTRACAO_ROTAS',
-      tokenAuth,
-      apiUrl: API_URL
-    }, '*');
-
-    setTimeout(() => {
-      setCarregandoAutomacaoRotas((atual) => {
-        if (atual) {
-          setMensagemUpload('Se a Plataforma Logística não abriu, verifique se a extensão Rotas / Logística está instalada e recarregada no Chrome.');
-        }
-        return atual;
-      });
-    }, 12000);
-  };
-
-  const iniciarAtualizacaoAutomaticaMake = () => {
-    setErroUpload('');
-    setMensagemUpload('Solicitando atualização automática dos 5 relatórios de Vendas MAKE pela extensão...');
-    setCarregandoAutomacaoMake(true);
-
-    window.postMessage({
-      source: 'DASH_SB',
-      acao: 'INICIAR_EXTRACAO_MAKE',
-      ciclo: cicloUploadVD || obterCicloReferenciaAtual()
-    }, '*');
-
-    setTimeout(() => {
-      setCarregandoAutomacaoMake((atual) => {
-        if (atual) {
-          setMensagemUpload('Se a aba do SGI não abriu, verifique se a extensão Bot Vendas MAKE está instalada e recarregada no Chrome.');
-        }
-        return atual;
-      });
-    }, 12000);
-  };
-
-
-  const iniciarAtualizacaoAutomaticaCabelo = () => {
-    setErroUpload('');
-    setMensagemUpload('Solicitando atualização automática dos 2 relatórios de Vendas CABELO pela extensão...');
-    setCarregandoAutomacaoCabelo(true);
-
-    window.postMessage({
-      source: 'DASH_SB',
-      acao: 'INICIAR_EXTRACAO_CABELO',
-      ciclo: cicloUploadVD || obterCicloReferenciaAtual()
-    }, '*');
-
-    setTimeout(() => {
-      setCarregandoAutomacaoCabelo((atual) => {
-        if (atual) {
-          setMensagemUpload('Se a aba do SGI não abriu, verifique se a extensão Bot Vendas CABELO está instalada e recarregada no Chrome.');
-        }
-        return atual;
-      });
-    }, 12000);
-  };
-
-  const iniciarAtualizacaoAutomaticaEudora = () => {
-    setErroUpload('');
-    setMensagemUpload('Solicitando atualização automática de Vendas EUDORA pela extensão...');
-    setCarregandoAutomacaoEudora(true);
-
-    window.postMessage({
-      source: 'DASH_SB',
-      acao: 'INICIAR_EXTRACAO_EUDORA',
+      acao: 'INICIAR_ROBO_VD',
       tokenAuth,
       ciclo: cicloUploadVD || obterCicloReferenciaAtual(),
       apiUrl: API_URL
     }, '*');
 
     setTimeout(() => {
-      setCarregandoAutomacaoEudora((atual) => {
+      setLigandoRoboVd((atual) => {
         if (atual) {
-          setMensagemUpload('A automação EUDORA foi solicitada. Se o SGI não abrir, confirme se a extensão EUDORA V2 está instalada e recarregada no Chrome.');
+          setMensagemUpload('');
+          setErroUpload('A extensão Robô VD não respondeu. Confira se ela está instalada e ativa no Chrome e aperte F5 nesta página.');
         }
-        return atual;
+        return false;
       });
     }, 12000);
   };
@@ -15999,6 +15937,35 @@ const enviarArquivo = async (tipo) => {
             <p className="text-sm text-gray-400 font-semibold">Selecione o ciclo de destino antes de enviar as bases de VD. A base Rotas é um snapshot móvel e independe do ciclo.</p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {(() => {
+              const ligado = Boolean(statusRoboVd?.ativa);
+              const rodando = statusRoboVd?.rodando;
+              const detalhe = statusRoboVd?.recarregar
+                ? 'A extensão foi recarregada: aperte F5.'
+                : !statusRoboVd
+                  ? 'Extensão Robô VD não detectada neste Chrome.'
+                  : rodando
+                    ? `${rodando.rotulo}${rodando.etapa ? ` — ${rodando.etapa}` : ''}`
+                    : ligado
+                      ? `Ligado hoje${statusRoboVd.proximaPedidosEm ? ` • próximo Pedidos às ${new Date(statusRoboVd.proximaPedidosEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}`
+                      : 'Pedidos, MAKE, CABELO, EUDORA e Rotas.';
+              return (
+                <div className="sm:w-[240px]">
+                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Robô VD</label>
+                  <button
+                    type="button"
+                    onClick={ligarRoboVd}
+                    disabled={ligandoRoboVd || ligado || !cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')}
+                    title={detalhe}
+                    className={`w-full px-4 py-3 rounded-lg font-black inline-flex items-center justify-center gap-2 disabled:cursor-default ${ligado ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-[#048187] text-white hover:bg-[#036b70] disabled:opacity-60'}`}
+                  >
+                    {ligado && !rodando ? <CheckCircle size={16} /> : <RefreshCcw size={16} className={rodando || ligandoRoboVd ? 'animate-spin' : ''} />}
+                    {ligandoRoboVd ? 'Ligando...' : rodando ? 'Robô VD rodando' : ligado ? 'Robô VD ligado' : 'Ligar Robô VD'}
+                  </button>
+                  <p className="text-[10px] font-bold text-gray-400 mt-1 truncate" title={detalhe}>{detalhe}</p>
+                </div>
+              );
+            })()}
             <div>
               <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Ciclo de destino</label>
               <select value={cicloUploadVD || obterCicloReferenciaAtual()} onChange={(e) => { const novoCiclo = e.target.value; setCicloUploadVD(novoCiclo); gravarStorageUsuario(CICLO_UPLOAD_VD_STORAGE_KEY, novoCiclo); void carregarStatusBasesVD(novoCiclo); }} className="border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187] min-w-[190px]">
@@ -16052,16 +16019,16 @@ const enviarArquivo = async (tipo) => {
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 xl:gap-6">
-        <CompUpload titulo="Pedidos" desc="Base principal" meta={metaStatusBaseVD('PEDIDOS', 'registros')} arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaPedidos} acaoExtraLoad={carregandoAutomacaoPedidos}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
-        <CompUpload titulo="Rotas / Logística" desc="Snapshot dos últimos 30 dias • independente do ciclo" meta={statusBaseRotas ? `${statusBaseRotas.total_pedidos || 0} pedidos • ${statusBaseRotas.conciliados || 0} conciliados${statusBaseRotas.ultima_atualizacao ? ` • Atualizado ${formatarDataHoraBR(statusBaseRotas.ultima_atualizacao)}` : ''}` : 'Nenhum snapshot logístico carregado.'} arq={arquivoRotas} setArq={setArquivoRotas} onEnv={() => enviarArquivo('rotas')} icone={Truck} load={carregandoUpload} acaoExtraLabel="Atualizar via Logística" onAcaoExtra={iniciarAtualizacaoAutomaticaRotas} acaoExtraLoad={carregandoAutomacaoRotas} />
+        <CompUpload titulo="Pedidos" desc="Base principal" meta={metaStatusBaseVD('PEDIDOS', 'registros')} arq={arquivoPedidos} setArq={setArquivoPedidos} onEnv={() => enviarArquivo('pedidos')} icone={Database} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Rotas / Logística" desc="Snapshot dos últimos 30 dias • independente do ciclo" meta={statusBaseRotas ? `${statusBaseRotas.total_pedidos || 0} pedidos • ${statusBaseRotas.conciliados || 0} conciliados${statusBaseRotas.ultima_atualizacao ? ` • Atualizado ${formatarDataHoraBR(statusBaseRotas.ultima_atualizacao)}` : ''}` : 'Nenhum snapshot logístico carregado.'} arq={arquivoRotas} setArq={setArquivoRotas} onEnv={() => enviarArquivo('rotas')} icone={Truck} load={carregandoUpload} />
         <CompUpload titulo="Base Ativa" desc="Base de revendedores." meta={metaStatusBaseVD('BASE_ATIVA', 'revendedores')} arq={arquivoBaseAtiva} setArq={setArquivoBaseAtiva} onEnv={() => enviarArquivo('baseAtiva')} icone={Target} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="Base Adições" desc="Fotografia inicial do ciclo • Nome Estrutura, Cod Revendedor e Atividade. Envie uma vez no início do ciclo." meta={metaStatusBaseVD('BASE_ADICOES', 'revendedores')} arq={arquivoBaseAdicoes} setArq={setArquivoBaseAdicoes} onEnv={() => enviarArquivo('baseAdicoes')} icone={UsersRound} load={carregandoUpload} disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="Revendedores" desc="Visão Geral - Detalhe Revendedor." meta={metaStatusBaseVD('REVENDEDORES', 'revendedores')} arq={arquivoRevendedores} setArq={setArquivoRevendedores} onEnv={() => enviarArquivo('revendedores')} icone={UserCircle} load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="SKUS IAF" desc="Abas MAKE e CABELO." meta="Histórico de atualização ainda não disponível para esta base." arq={arquivoSkusIaf} setArq={setArquivoSkusIaf} onEnv={() => enviarArquivo('skusIaf')} icone={Sparkles} load={carregandoUpload} />
-        <CompUpload titulo="Vendas MAKE" desc="5 planilhas MAKE." meta={metaStatusBaseVD('VENDAS_MAKE', 'registros')} arquivos={arquivosVendasMake} setArqs={setArquivosVendasMake} onEnv={() => enviarArquivo('vendasMake')} icone={Upload} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaMake} acaoExtraLoad={carregandoAutomacaoMake}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
-        <CompUpload titulo="Vendas CABELO" desc="Planilhas Cabelo." meta={metaStatusBaseVD('VENDAS_CABELO', 'registros')} arquivos={arquivosVendasCabelo} setArqs={setArquivosVendasCabelo} onEnv={() => enviarArquivo('vendasCabelo')} icone={Scissors} mult load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaCabelo} acaoExtraLoad={carregandoAutomacaoCabelo}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Vendas MAKE" desc="5 planilhas MAKE." meta={metaStatusBaseVD('VENDAS_MAKE', 'registros')} arquivos={arquivosVendasMake} setArqs={setArquivosVendasMake} onEnv={() => enviarArquivo('vendasMake')} icone={Upload} mult load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Vendas CABELO" desc="Planilhas Cabelo." meta={metaStatusBaseVD('VENDAS_CABELO', 'registros')} arquivos={arquivosVendasCabelo} setArqs={setArquivosVendasCabelo} onEnv={() => enviarArquivo('vendasCabelo')} icone={Scissors} mult load={carregandoUpload}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
         <CompUpload titulo="Vendas MULTIMARCAS" desc="Códigos de revendedores do VDI." meta={metaStatusBaseVD('VENDAS_MULTIMARCAS', 'revendedores')} arq={arquivoVendasMultimarcas} setArq={setArquivoVendasMultimarcas} onEnv={() => enviarArquivo('vendasMultimarcas')} icone={Sparkles} load={carregandoUpload} acaoExtraLabel="Atualizar via VDI" onAcaoExtra={abrirModalAutomacaoMultimarcas} acaoExtraLoad={carregandoAutomacaoMultimarcas}  disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
-        <CompUpload titulo="Vendas EUDORA" desc="Total Praticado e Código Pedido." meta={metaStatusBaseVD('VENDAS_EUDORA', 'pedidos')} arq={arquivoVendasEudora} setArq={setArquivoVendasEudora} onEnv={() => enviarArquivo('vendasEudora')} icone={BadgeDollarSign} load={carregandoUpload} acaoExtraLabel="Atualizar via SGI" onAcaoExtra={iniciarAtualizacaoAutomaticaEudora} acaoExtraLoad={carregandoAutomacaoEudora} disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
+        <CompUpload titulo="Vendas EUDORA" desc="Total Praticado e Código Pedido." meta={metaStatusBaseVD('VENDAS_EUDORA', 'pedidos')} arq={arquivoVendasEudora} setArq={setArquivoVendasEudora} onEnv={() => enviarArquivo('vendasEudora')} icone={BadgeDollarSign} load={carregandoUpload} disabled={!cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')} />
       </div>
     </div>
   );
