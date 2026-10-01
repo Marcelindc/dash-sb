@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, MapPin, Pause, Play, CheckCircle, CalendarDa
 
 const PASTA = '/campanha-incentivo-2026/web';
 
-export const SLIDES_LENCOIS = [
+const SLIDES_LENCOIS = [
   { src: `${PASTA}/mascotes-lencois.webp`, titulo: 'Santo Amaro te espera', legenda: 'A Expedição 106 leva quem bater a meta para os Lençóis Maranhenses.' },
   { src: `${PASTA}/lencois-01.webp`, titulo: 'Lagoas entre as dunas', legenda: 'Os Lençóis Maranhenses vistos do alto.' },
   { src: `${PASTA}/lencois-02.webp`, titulo: 'Dunas brancas, água cristalina', legenda: 'Um cenário que só existe no Maranhão.' },
@@ -33,7 +33,7 @@ const emPercentual = (valor) => `${Number(valor || 0).toLocaleString('pt-BR', { 
 const limitar = (valor) => Math.max(0, Math.min(Number(valor || 0), 100));
 
 function prefereMenosMovimento() {
-  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; }
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
 }
 
 function SliderLencois({ slides, intervaloMs = 5500 }) {
@@ -195,7 +195,7 @@ function Selo({ children, destaque = false }) {
   );
 }
 
-export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atualizadoEm = null, carregando = false }) {
+export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atualizadoEm = null, carregando = false, acumuladoAnterior = null, campanhaC14C17 = null, aoLancar = null }) {
   const total = Number(realizado?.total || 0);
   const vd = Number(realizado?.vd || 0);
   const loja = Number(realizado?.loja || 0);
@@ -256,7 +256,23 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
                 <p className="mt-1.5 text-[10px] font-bold text-[#047c81]/80">{emPercentual(partLoja)} do resultado</p>
               </div>
             </div>
-            {atualizado && <p className="mt-4 text-[11px] font-semibold text-white/60">Atualizado em {atualizado}</p>}
+            {acumuladoAnterior && campanhaC14C17 && (
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-white/70">
+                <span>C01–C13: <span className="text-white tabular-nums">{emMilhoes(acumuladoAnterior.total)}</span></span>
+                <span className="w-1 h-1 rounded-full bg-white/40" />
+                <span>C14–C17: <span className="text-white tabular-nums">{emMilhoes(campanhaC14C17.total)}</span></span>
+              </div>
+            )}
+            {acumuladoAnterior?.ciclos_faltando?.length > 0 && (
+              <button
+                type="button"
+                onClick={() => aoLancar?.()}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#ffd9a8]/20 border border-[#ffd9a8]/40 px-3 py-1.5 text-[11px] font-black text-[#ffe7c7] hover:bg-[#ffd9a8]/30"
+              >
+                {acumuladoAnterior.ciclos_faltando.length} ciclo(s) do C01 ao C13 sem resultado — lançar
+              </button>
+            )}
+            {atualizado && <p className="mt-3 text-[11px] font-semibold text-white/60">Atualizado em {atualizado}</p>}
           </div>
         </div>
       </section>

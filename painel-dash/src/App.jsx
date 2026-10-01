@@ -3,6 +3,7 @@ import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu } from 'lucide-react';
 import VisaoGeralCampanha2026 from './campanha/VisaoGeralCampanha2026';
+import LancamentosCampanha2026 from './campanha/LancamentosCampanha2026';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
 import produtosLoginHero from './assets/login-produtos.png';
@@ -21823,6 +21824,7 @@ const enviarArquivo = async (tipo) => {
       { id: 'visao', rotulo: 'Visão Geral', icone: Sparkles },
       { id: 'geral', rotulo: 'Resultado Geral', icone: BarChart2 },
       { id: 'individual', rotulo: 'Resultado Individual', icone: Trophy },
+      { id: 'lancamentos', rotulo: 'Lançamentos C01–C13', icone: Pencil },
     ];
 
     return (
@@ -21846,9 +21848,12 @@ const enviarArquivo = async (tipo) => {
         </nav>
         {campanhaIncentivo2026?.erro && <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 flex items-center gap-2"><AlertCircle size={17} /> {campanhaIncentivo2026.erro}</div>}
         {abaCampanhaIncentivo === 'visao' && (
-          <VisaoGeralCampanha2026 realizado={realizado} metas={metas} atualizadoEm={payload?.atualizado_em} carregando={campanhaIncentivo2026?.carregando} />
+          <VisaoGeralCampanha2026 realizado={realizado} metas={metas} atualizadoEm={payload?.atualizado_em} carregando={campanhaIncentivo2026?.carregando} acumuladoAnterior={payload?.acumulado_anterior} campanhaC14C17={payload?.campanha_c14_c17} aoLancar={() => setAbaCampanhaIncentivo('lancamentos')} />
         )}
-        {abaCampanhaIncentivo !== 'visao' && (campanhaIncentivo2026?.carregando && !payload?.realizado ? (
+        {abaCampanhaIncentivo === 'lancamentos' && (
+          <LancamentosCampanha2026 apiUrl={API_URL} aoSalvar={() => carregarCampanhaIncentivo2026(true)} />
+        )}
+        {(abaCampanhaIncentivo === 'geral' || abaCampanhaIncentivo === 'individual') && (campanhaIncentivo2026?.carregando && !payload?.realizado ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm"><Loader2 className="mx-auto animate-spin text-[#048187]" size={28} /><p className="mt-3 text-sm font-bold text-gray-400">Calculando VD + LOJA e preparando a campanha...</p></div>
         ) : abaCampanhaIncentivo === 'geral' ? (
               <div className="space-y-5 sm:space-y-6">
