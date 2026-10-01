@@ -5605,6 +5605,9 @@ export default function App() {
   const [carregandoLoja, setCarregandoLoja] = useState(false);
   const [erroLoja, setErroLoja] = useState('');
   const [mensagemLoja, setMensagemLoja] = useState('');
+  const [statusRoboLoja, setStatusRoboLoja] = useState(null);
+  const [ligandoRoboLoja, setLigandoRoboLoja] = useState(false);
+  const recarregarLojaRef = useRef(null);
   const [cicloLoja, setCicloLoja] = useState('');
   // PERFORMANCE_GLOBAL_V9: cache visual e cancelamento de respostas obsoletas da LOJA.
   const cacheLojaRef = useRef(carregarCacheSessaoLoja());
@@ -8678,6 +8681,39 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     return () => window.removeEventListener('message', receberRoboVd);
   }, []);
 
+  // Extensão "Robô LOJA": estado do robô (a cada 5 s), resposta do botão e chegada de cada relatório.
+  useEffect(() => {
+    const receberRoboLoja = (event) => {
+      if (event.source !== window) return;
+      const data = event.data || {};
+      if (data.source !== 'ROBO_LOJA_EXTENSAO') return;
+      if (data.acao === 'ROBO_LOJA_STATUS') {
+        setStatusRoboLoja(data.estado || null);
+        return;
+      }
+      if (data.acao === 'ROBO_LOJA_INICIADO') {
+        setLigandoRoboLoja(false);
+        setErroLoja('');
+        setMensagemLoja(data.mensagem || 'Robô LOJA ligado.');
+      }
+      if (data.acao === 'ROBO_LOJA_ERRO') {
+        setLigandoRoboLoja(false);
+        setMensagemLoja('');
+        setErroLoja(data.mensagem || 'Não foi possível ligar o Robô LOJA.');
+      }
+      if (data.acao === 'LOJA_SUCESSO') {
+        setErroLoja('');
+        setMensagemLoja(data.mensagem || 'Relatório da LOJA atualizado.');
+        try { recarregarLojaRef.current?.(); } catch (_) {}
+      }
+      if (data.acao === 'LOJA_ERRO') {
+        setErroLoja(data.mensagem || 'Falha em um relatório do Robô LOJA.');
+      }
+    };
+    window.addEventListener('message', receberRoboLoja);
+    return () => window.removeEventListener('message', receberRoboLoja);
+  }, []);
+
 
   useEffect(() => {
     const receberMultimarcas = (event) => {
@@ -10852,6 +10888,38 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       });
     }, 12000);
   };
+
+  // Um botão liga o Robô LOJA do dia: venda diária, venda total e Skin, de hora em hora até 18:00.
+  const ligarRoboLoja = () => {
+    const ciclo = cicloUploadLoja || cicloLojaSelecionado();
+    const cicloInfo = ciclos.find((c) => String(c.ciclo || '') === String(ciclo || '')) || {};
+    setErroLoja('');
+    setMensagemLoja('Ligando o Robô LOJA...');
+    setLigandoRoboLoja(true);
+
+    window.postMessage({
+      source: 'DASH_SB',
+      acao: 'INICIAR_ROBO_LOJA',
+      tokenAuth,
+      ciclo,
+      dataInicioCiclo: cicloInfo.data_inicio || dadosLoja?.resumo?.data_inicio || '',
+      dataFimCiclo: cicloInfo.data_fim || dadosLoja?.resumo?.data_fim || '',
+      apiUrl: API_URL
+    }, '*');
+
+    setTimeout(() => {
+      setLigandoRoboLoja((atual) => {
+        if (atual) {
+          setMensagemLoja('');
+          setErroLoja('A extensão Robô LOJA não respondeu. Confira se ela está instalada e ativa no Chrome e aperte F5 nesta página.');
+        }
+        return false;
+      });
+    }, 12000);
+  };
+
+  // Usado pelo aviso do Robô LOJA para recarregar a tela quando um relatório chega ao banco.
+  recarregarLojaRef.current = () => carregarDadosLoja(cicloLojaSelecionado(), '', true);
 
 
   const abrirModalAutomacaoMultimarcas = () => {
@@ -20594,6 +20662,35 @@ const enviarArquivo = async (tipo) => {
                     {ciclos.map((item) => <option key={item.id || item.ciclo} value={item.ciclo}>{item.ciclo}{item.eh_atual ? ' • atual' : ''}{obterStatusCicloArea(item.ciclo, 'LOJA') === 'fechado' ? ' • fechado' : ' • aberto'}</option>)}
                   </select>
                 </div>
+                {(() => {
+                  const ligado = Boolean(statusRoboLoja?.ativa);
+                  const rodando = statusRoboLoja?.rodando;
+                  const detalhe = statusRoboLoja?.recarregar
+                    ? 'A extensão foi recarregada: aperte F5.'
+                    : !statusRoboLoja
+                      ? 'Extensão Robô LOJA não detectada neste Chrome.'
+                      : rodando
+                        ? `${rodando.rotulo}${rodando.etapa ? ` — ${rodando.etapa}` : ''}`
+                        : ligado
+                          ? `Ligado hoje${statusRoboLoja.proximaRodadaEm ? ` • próxima rodada às ${new Date(statusRoboLoja.proximaRodadaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}`
+                          : 'Venda diária, venda total e Skin.';
+                  return (
+                    <div className="w-full xl:w-[260px]">
+                      <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Robô LOJA</label>
+                      <button
+                        type="button"
+                        onClick={ligarRoboLoja}
+                        disabled={ligandoRoboLoja || ligado || !cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA')}
+                        title={detalhe}
+                        className={`w-full px-4 py-3 rounded-lg font-black inline-flex items-center justify-center gap-2 disabled:cursor-default ${ligado ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-[#048187] text-white hover:bg-[#036b70] disabled:opacity-60'}`}
+                      >
+                        {ligado && !rodando ? <CheckCircle size={16} /> : <RefreshCcw size={16} className={rodando || ligandoRoboLoja ? 'animate-spin' : ''} />}
+                        {ligandoRoboLoja ? 'Ligando...' : rodando ? 'Robô LOJA rodando' : ligado ? 'Robô LOJA ligado' : 'Ligar Robô LOJA'}
+                      </button>
+                      <p className="text-[10px] font-bold text-gray-400 mt-1 truncate" title={detalhe}>{detalhe}</p>
+                    </div>
+                  );
+                })()}
                 <div className="flex gap-2">
                   {cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA') ? (
                     perfilPodeFecharCiclo && <button type="button" disabled={alterandoStatusCiclo} onClick={() => atualizarStatusOperacionalCiclo('LOJA', 'fechar')} className="bg-[#712231] text-white px-4 py-3 rounded-lg font-black disabled:opacity-50"><Save size={16} className="inline mr-2" />Fechar ciclo</button>
@@ -20640,7 +20737,6 @@ const enviarArquivo = async (tipo) => {
                 endpoint="/loja/upload-gerencial"
                 usaCiclo
                 substituir
-                permiteSgi
               />
 
               <ModuloUploadLoja
@@ -20662,8 +20758,6 @@ const enviarArquivo = async (tipo) => {
                 endpoint="/loja/upload-skin"
                 usaCiclo
                 substituir
-                permiteSgi
-                tipoSgi="skin"
               />
 
               <ModuloUploadLoja
