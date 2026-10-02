@@ -4,6 +4,8 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu } from 'lucide-react';
 import VisaoGeralCampanha2026 from './campanha/VisaoGeralCampanha2026';
 import LancamentosCampanha2026 from './campanha/LancamentosCampanha2026';
+import ResultadoGeralCampanha2026 from './campanha/ResultadoGeralCampanha2026';
+import ResultadoIndividualCampanha2026 from './campanha/ResultadoIndividualCampanha2026';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
 import produtosLoginHero from './assets/login-produtos.png';
@@ -21783,42 +21785,9 @@ const enviarArquivo = async (tipo) => {
     const payload = campanhaIncentivo2026?.dados || {};
     const realizado = payload?.realizado || {};
     const metas = payload?.metas || {};
-    const ciclosCampanha = Array.isArray(payload?.ciclos) ? payload.ciclos : [];
-    const rankingIndividual = Array.isArray(payload?.resultado_individual)
-      ? payload.resultado_individual
-      : Array.isArray(payload?.ranking_individual)
-        ? payload.ranking_individual
-        : Array.isArray(payload?.individuais)
-          ? payload.individuais
-          : [];
-    const meta106 = Number(metas?.meta_principal || 106000000);
-    const meta109 = Number(metas?.meta_superacao || 109000000);
-    const total = Number(realizado?.total || 0);
-    const totalVD = Number(realizado?.vd || 0);
-    const totalLoja = Number(realizado?.loja || 0);
-    const pct106 = Number(realizado?.percentual_meta_principal || 0);
-    const pct109 = Number(realizado?.percentual_meta_superacao || 0);
-    const falta106 = Number(realizado?.falta_meta_principal || Math.max(meta106 - total, 0));
-    const falta109 = Number(realizado?.falta_meta_superacao || Math.max(meta109 - total, 0));
-    const formatarPctCampanha = (valor) => `${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
-    const larguraBarra = (valor) => `${Math.max(0, Math.min(Number(valor || 0), 100))}%`;
     const atualizadoCampanha = payload?.atualizado_em
       ? new Date(payload.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
       : 'Aguardando atualização';
-
-    const participantes = [
-      'Consultores de ERs',
-      'Força de Vendas e Lojas',
-      'Promotores de campo',
-      'Líderes de ER',
-    ];
-
-    const obterNomeIndividual = (item) => item?.nome || item?.consultor || item?.usuario || item?.lider || item?.colaborador || '-';
-    const obterEstruturaIndividual = (item) => item?.estrutura || item?.equipe || item?.nucleo || item?.rotulo || '-';
-    const obterReceitaIndividual = (item) => Number(item?.receita || item?.realizado || item?.valor || item?.total || 0);
-    const obterPercentualIndividual = (item) => Number(item?.percentual || item?.percentual_meta || item?.atingimento || item?.pct || 0);
-    const obterStatus106 = (item) => item?.elegivel_106 || item?.expedicao_106 || item?.apto_viagem ? 'Apto' : 'Em acompanhamento';
-    const obterStatus109 = (item) => item?.elegivel_109 || item?.superacao_109 || item?.apto_bonus ? 'Apto' : 'Em acompanhamento';
 
     const abasCampanha = [
       { id: 'visao', rotulo: 'Visão Geral', icone: Sparkles },
@@ -21853,135 +21822,12 @@ const enviarArquivo = async (tipo) => {
         {abaCampanhaIncentivo === 'lancamentos' && (
           <LancamentosCampanha2026 apiUrl={API_URL} aoSalvar={() => carregarCampanhaIncentivo2026(true)} />
         )}
-        {(abaCampanhaIncentivo === 'geral' || abaCampanhaIncentivo === 'individual') && (campanhaIncentivo2026?.carregando && !payload?.realizado ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm"><Loader2 className="mx-auto animate-spin text-[#048187]" size={28} /><p className="mt-3 text-sm font-bold text-gray-400">Calculando VD + LOJA e preparando a campanha...</p></div>
-        ) : abaCampanhaIncentivo === 'geral' ? (
-              <div className="space-y-5 sm:space-y-6">
-                <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5">
-                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6 overflow-hidden relative">
-                    <div className="absolute right-5 top-5 w-12 h-12 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><MapPin size={24} /></div>
-                    <div className="pr-16"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Incentivo 1</p><h2 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Expedição 106</h2><p className="mt-1 text-xs sm:text-sm font-semibold text-gray-400">Meta corporativa somando VD + LOJA</p></div>
-                    <div className="mt-6 flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase text-gray-400">Realizado</p><p className="text-2xl sm:text-3xl font-black text-[#048187]">{formatarAbrev(total)}</p></div><div className="text-right"><p className="text-[10px] font-black uppercase text-gray-400">Meta</p><p className="text-xl font-black text-gray-700">{formatarAbrev(meta106)}</p></div></div>
-                    <div className="mt-4 h-3 rounded-full bg-[#edf3f4] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#048187] to-[#22a9ad] transition-all duration-500" style={{ width: larguraBarra(pct106) }} /></div>
-                    <div className="mt-2 flex justify-between gap-3 text-xs font-black"><span className="text-[#048187]">{formatarPctCampanha(pct106)} conquistado</span><span className="text-gray-400">Faltam {formatarAbrev(falta106)}</span></div>
-                    <div className="mt-5 rounded-2xl bg-[#f7fbfb] border border-[#e4f0f1] p-4"><p className="text-sm font-black text-gray-700">🏝 Viagem para Santo Amaro</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Consultores elegíveis precisam cumprir <strong>receita + indicadores individuais</strong> nos quatro ciclos da campanha: C14, C15, C16 e C17.</p></div>
-                  </div>
-                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6 overflow-hidden relative">
-                    <div className="absolute right-5 top-5 w-12 h-12 rounded-2xl bg-[#fff2e8] text-[#ff6f03] flex items-center justify-center"><BadgeDollarSign size={25} /></div>
-                    <div className="pr-16"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#ff6f03]">Incentivo 2</p><h2 className="mt-1 text-xl sm:text-2xl font-black text-gray-800">Superação 109</h2><p className="mt-1 text-xs sm:text-sm font-semibold text-gray-400">Pool de R$ 50 mil para elegíveis</p></div>
-                    <div className="mt-6 flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase text-gray-400">Realizado</p><p className="text-2xl sm:text-3xl font-black text-[#ff6f03]">{formatarAbrev(total)}</p></div><div className="text-right"><p className="text-[10px] font-black uppercase text-gray-400">Meta</p><p className="text-xl font-black text-gray-700">{formatarAbrev(meta109)}</p></div></div>
-                    <div className="mt-4 h-3 rounded-full bg-[#f4efe9] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#ff6f03] to-[#ff9a4f] transition-all duration-500" style={{ width: larguraBarra(pct109) }} /></div>
-                    <div className="mt-2 flex justify-between gap-3 text-xs font-black"><span className="text-[#ff6f03]">{formatarPctCampanha(pct109)} conquistado</span><span className="text-gray-400">Faltam {formatarAbrev(falta109)}</span></div>
-                    <div className="mt-5 rounded-2xl bg-[#fffaf5] border border-[#f9eadb] p-4"><p className="text-sm font-black text-gray-700">💰 R$ 50.000 de bônus</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">Participam da divisão proporcional aqueles que alcançarem <strong>120% da meta individual</strong> nos ciclos 14 a 17 e cumprirem os indicadores IAF aplicáveis.</p></div>
-                  </div>
-                </section>
-                <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Rota da campanha</p><h2 className="mt-1 text-xl font-black text-gray-800">Quatro ciclos até a conquista</h2><p className="mt-1 text-xs text-gray-400 font-semibold">Os valores exibidos em cada checkpoint já somam VD + LOJA.</p></div><span className="self-start sm:self-auto rounded-full bg-[#f1f7f7] text-[#527679] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide">C14 → C17</span></div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                    {[14, 15, 16, 17].map((numero, indice) => {
-                      const item = ciclosCampanha.find((c) => String(c?.ciclo || '').startsWith(`${numero}/`)) || { ciclo: `${numero}/2026`, vd: 0, loja: 0, total: 0, tem_dados: false };
-                      return (
-                        <div key={numero} className={`relative rounded-2xl border p-4 ${item.tem_dados ? 'bg-[#f7fbfb] border-[#d9eeee]' : 'bg-[#fbfbfb] border-gray-100'}`}>
-                          <div className="flex items-center justify-between gap-2"><div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm ${item.tem_dados ? 'bg-[#048187] text-white' : 'bg-gray-100 text-gray-400'}`}>{numero}</div><span className={`text-[9px] font-black uppercase tracking-wider ${item.tem_dados ? 'text-[#048187]' : 'text-gray-400'}`}>{item.tem_dados ? 'Em acompanhamento' : 'Aguardando'}</span></div>
-                          <p className="mt-4 text-[10px] font-black uppercase text-gray-400">Resultado combinado</p><p className={`mt-1 text-xl font-black ${item.tem_dados ? 'text-gray-800' : 'text-gray-300'}`}>{formatarAbrev(Number(item.total || 0))}</p>
-                          <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold"><div className="rounded-xl bg-white border border-gray-100 px-2.5 py-2"><span className="text-gray-400 block">VD</span><span className="text-[#048187]">{formatarAbrev(Number(item.vd || 0))}</span></div><div className="rounded-xl bg-white border border-gray-100 px-2.5 py-2"><span className="text-gray-400 block">LOJA</span><span className="text-[#7c1f31]">{formatarAbrev(Number(item.loja || 0))}</span></div></div>
-                          {indice < 3 && <div className="hidden xl:block absolute -right-3 top-8 w-6 h-px bg-[#cfe4e5] z-10" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-                <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_.85fr] gap-4 sm:gap-5">
-                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
-                    <div className="flex items-center gap-3"><div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Target size={22} /></div><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Qualificação individual</p><h2 className="text-lg font-black text-gray-800">Passaporte da conquista</h2></div></div>
-                    <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-2.5">{['Receita', 'Atividade', 'MAKE', 'CABELO', 'Multimarcas', 'IAF aplicáveis'].map((criterio) => <div key={criterio} className="rounded-2xl border border-gray-100 bg-[#fcfbf7] px-3 py-3 flex items-center gap-2.5"><CheckCircle size={16} className="text-[#048187] shrink-0" /><span className="text-xs font-black text-gray-600">{criterio}</span></div>)}</div>
-                    <div className="mt-4 rounded-2xl border border-dashed border-[#b9dfe1] bg-[#f5fbfb] p-4 flex items-start gap-3"><Sparkles size={18} className="text-[#048187] shrink-0 mt-0.5" /><div><p className="text-xs font-black text-gray-700">Leitura simplificada</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">O Resultado Geral consolida a meta corporativa, a rota por ciclo e as condições que habilitam cada ação da campanha.</p></div></div>
-                  </div>
-                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#7c1f31]">Quem pode participar</p><h2 className="mt-1 text-lg font-black text-gray-800">Público da campanha</h2>
-                    <div className="mt-5 space-y-2.5">{participantes.map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl bg-[#fafafa] border border-gray-100 px-4 py-3"><UsersRound size={17} className="text-[#048187] shrink-0" /><span className="text-sm font-bold text-gray-600">{item}</span></div>)}</div>
-                    <div className="mt-4 rounded-2xl bg-[#fff8f8] border border-[#f4e2e5] p-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#7c1f31]">Escopo atual da tela</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">O painel corporativo foi reorganizado para reforçar apenas as ações vigentes da campanha: a meta de <strong>R$ 106 milhões</strong> e a meta de <strong>R$ 109 milhões</strong>.</p></div>
-                  </div>
-                </section>
-              </div>
-        ) : (
-              <div className="space-y-5 sm:space-y-6">
-                <section className="grid grid-cols-1 xl:grid-cols-[1fr_.85fr] gap-4 sm:gap-5">
-                  <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
-                    <div className="flex items-center gap-3"><div className="w-11 h-11 rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Trophy size={22} /></div><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Resultado individual</p><h2 className="text-lg font-black text-gray-800">O que cada pessoa precisa acompanhar</h2></div></div>
-                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {[
-                        { titulo: 'Para a Expedição 106', desc: 'Cumprir receita + indicadores completos em C14, C15, C16 e C17.' },
-                        { titulo: 'Para a Superação 109', desc: 'Atingir 120% da meta individual do C14 ao C17 + indicadores IAF aplicáveis.' },
-                        { titulo: 'Painel individual', desc: 'Serve para explicar ao colaborador quais são as regras e, quando a base estiver conectada, mostrar seu status nominal.' },
-                        { titulo: 'Leitura mais simples', desc: 'Tudo separado em uma aba exclusiva para evitar confusão entre meta corporativa e elegibilidade individual.' },
-                      ].map((item) => (
-                        <div key={item.titulo} className="rounded-2xl border border-gray-100 bg-[#fcfdfd] p-4"><p className="text-sm font-black text-gray-700">{item.titulo}</p><p className="mt-1 text-xs text-gray-500 leading-relaxed">{item.desc}</p></div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-gradient-to-br from-[#013f43] via-[#046f74] to-[#0b9da3] rounded-[24px] border border-[#0c8f95] shadow-sm p-5 sm:p-6 text-white overflow-hidden relative">
-                    <div className="absolute -right-10 -bottom-12 w-44 h-44 rounded-full bg-white/10 blur-2xl" />
-                    <div className="relative z-[1]">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/60">Mensagem para o consultor</p>
-                      <h3 className="mt-1 text-2xl font-black">Cada detalhe conta</h3>
-                      <p className="mt-3 text-sm text-white/85 leading-relaxed">Aqui a equipe entende exatamente o que precisa entregar para se manter elegível em cada ação. A ideia é transformar regra em clareza, clareza em foco e foco em resultado.</p>
-                      <img src="/campanha-incentivo-2026/cedula-100-gm.png" alt="Cédula ilustrativa da campanha" className="mt-5 w-full max-w-[280px] drop-shadow-2xl" />
-                    </div>
-                  </div>
-                </section>
-                {rankingIndividual.length ? (
-                  <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
-                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Base individual conectada</p><h2 className="mt-1 text-xl font-black text-gray-800">Acompanhamento nominal</h2></div><span className="rounded-full bg-[#f1f7f7] text-[#527679] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide">{rankingIndividual.length} registro(s)</span></div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[860px] text-sm">
-                        <thead className="bg-[#048187] text-white">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-[11px] uppercase tracking-wide">Nome</th>
-                            <th className="px-4 py-3 text-left text-[11px] uppercase tracking-wide">Estrutura</th>
-                            <th className="px-4 py-3 text-right text-[11px] uppercase tracking-wide">Receita</th>
-                            <th className="px-4 py-3 text-right text-[11px] uppercase tracking-wide">% Meta</th>
-                            <th className="px-4 py-3 text-center text-[11px] uppercase tracking-wide">106</th>
-                            <th className="px-4 py-3 text-center text-[11px] uppercase tracking-wide">109</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rankingIndividual.map((item, indice) => {
-                            const percentual = obterPercentualIndividual(item);
-                            const status106 = obterStatus106(item);
-                            const status109 = obterStatus109(item);
-                            return (
-                              <tr key={`${obterNomeIndividual(item)}-${indice}`} className="border-t border-gray-100 hover:bg-[#f7fbfb]">
-                                <td className="px-4 py-3 font-black text-gray-700">{obterNomeIndividual(item)}</td>
-                                <td className="px-4 py-3 text-gray-500 font-semibold">{obterEstruturaIndividual(item)}</td>
-                                <td className="px-4 py-3 text-right font-black text-gray-700">{formatarMoeda(obterReceitaIndividual(item))}</td>
-                                <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarPctCampanha(percentual)}</td>
-                                <td className="px-4 py-3 text-center"><span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black ${status106 === 'Apto' ? 'bg-[#e6f6f7] text-[#048187]' : 'bg-gray-100 text-gray-500'}`}>{status106}</span></td>
-                                <td className="px-4 py-3 text-center"><span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black ${status109 === 'Apto' ? 'bg-[#fff1e6] text-[#ff6f03]' : 'bg-gray-100 text-gray-500'}`}>{status109}</span></td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                ) : (
-                  <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 sm:p-6">
-                    <div className="rounded-[24px] border border-dashed border-[#b9dfe1] bg-[#f5fbfb] p-5 sm:p-6 flex flex-col xl:flex-row gap-5 xl:items-center xl:justify-between">
-                      <div className="max-w-2xl">
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Em evolução</p>
-                        <h3 className="mt-1 text-lg font-black text-gray-800">Resultado Individual preparado para receber a base nominal</h3>
-                        <p className="mt-2 text-sm text-gray-500 leading-relaxed">A aba já nasce pronta para a comunicação individual. Se a API ainda não retornar uma lista nominal, ela continua explicando as regras e serve como espaço oficial para plugar o acompanhamento por colaborador posteriormente, sem mudar a experiência visual da campanha.</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 min-w-[280px]">
-                        <div className="rounded-2xl bg-white border border-[#dceff0] p-4"><p className="text-[10px] font-black uppercase tracking-wide text-[#048187]">Regra 106</p><p className="mt-1 text-sm font-black text-gray-700">Receita + indicadores</p></div>
-                        <div className="rounded-2xl bg-white border border-[#fde4cf] p-4"><p className="text-[10px] font-black uppercase tracking-wide text-[#ff6f03]">Regra 109</p><p className="mt-1 text-sm font-black text-gray-700">120% + IAF</p></div>
-                      </div>
-                    </div>
-                  </section>
-                )}
-              </div>
-        ))}
+        {abaCampanhaIncentivo === 'geral' && (
+          <ResultadoGeralCampanha2026 ciclosAno={payload?.ciclos_ano || []} calendario={payload?.calendario || []} metas={metas} carregando={campanhaIncentivo2026?.carregando} aoLancar={() => setAbaCampanhaIncentivo('lancamentos')} />
+        )}
+        {abaCampanhaIncentivo === 'individual' && (
+          <ResultadoIndividualCampanha2026 apiUrl={API_URL} totalCp={Number(realizado?.total || 0)} meta109={Number(metas?.meta_superacao || 109000000)} />
+        )}
       </div>
     );
   };
