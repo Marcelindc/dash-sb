@@ -263,7 +263,7 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
                 <span>C14–C17: <span className="text-white tabular-nums">{emMilhoes(campanhaC14C17.total)}</span></span>
               </div>
             )}
-            {acumuladoAnterior?.ciclos_faltando?.length > 0 && (
+            {aoLancar && acumuladoAnterior?.ciclos_faltando?.length > 0 && (
               <button
                 type="button"
                 onClick={() => aoLancar?.()}

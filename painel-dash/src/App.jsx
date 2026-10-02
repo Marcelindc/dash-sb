@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu, LockKeyhole, Unlock } from 'lucide-react';
 import VisaoGeralCampanha2026 from './campanha/VisaoGeralCampanha2026';
 import LancamentosCampanha2026 from './campanha/LancamentosCampanha2026';
 import ResultadoGeralCampanha2026 from './campanha/ResultadoGeralCampanha2026';
@@ -4959,6 +4959,10 @@ export default function App() {
   }); const [menuHamburguerAberto, setMenuHamburguerAberto] = useState(false); const [painelFiltrosAberto, setPainelFiltrosAberto] = useState(false);
   const [dados, setDados] = useState(null); const [dadosMetas, setDadosMetas] = useState(null); const [detalheMeta, setDetalheMeta] = useState(null); const [estruturaSelecionada, setEstruturaSelecionada] = useState(() => lerStorageUsuario(ESTRUTURA_META_STORAGE_KEY) || ''); const [metaFaturamentoDashboard, setMetaFaturamentoDashboard] = useState(0);
   const [campanhaIncentivo2026, setCampanhaIncentivo2026] = useState({ carregando: false, erro: '', dados: null });
+  // Acesso à campanha vem do backend: o dono sempre vê; os demais só depois de liberada,
+  // cada um no seu nível (total, unidade ou consultor).
+  const [acessoCampanha2026, setAcessoCampanha2026] = useState({ carregado: false, dados: null });
+  const [liberandoCampanha2026, setLiberandoCampanha2026] = useState(false);
   const [abaCampanhaIncentivo, setAbaCampanhaIncentivo] = useState('visao');
   const [adicoesRefreshToken, setAdicoesRefreshToken] = useState(0);
   const [resumoAdicoesMetas, setResumoAdicoesMetas] = useState({ mapa: {}, estruturas: [], totais: null, ciclo: '' });
@@ -5359,7 +5363,7 @@ export default function App() {
   useEffect(() => {
     if (!usuarioLogado) return;
 
-    if (telaAtual === 'CampanhaIncentivo2026' && !podeAcessarCampanhaIncentivo2026) {
+    if (telaAtual === 'CampanhaIncentivo2026' && !podeAcessarCampanhaIncentivo2026 && acessoCampanha2026.carregado) {
       setCanalAtual('VD');
       setTelaAtual('Dashboard');
       gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, 'Dashboard');
@@ -5377,6 +5381,7 @@ export default function App() {
       'Tutoriais',
       'Solicitações',
       'Perfil',
+      ...(podeAcessarCampanhaIncentivo2026 ? ['CampanhaIncentivo2026'] : []),
     ].includes(telaAtual)) {
       setCanalAtual('VD');
       setMenuLojaExpandido(false);
@@ -5399,7 +5404,16 @@ export default function App() {
       gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, telaAtual);
       registrarUsoTela(telaAtual);
     }
-  }, [usuarioLogado, telaAtual, permissoesAtivas]);
+  }, [usuarioLogado, telaAtual, permissoesAtivas, acessoCampanha2026]);
+
+  useEffect(() => {
+    if (!usuarioLogado?.id && !usuarioLogado?.email) return undefined;
+    let ativo = true;
+    axios.get(`${API_URL}/campanha-incentivo-2026/acesso`, { params: { _t: Date.now() } })
+      .then((r) => { if (ativo) setAcessoCampanha2026({ carregado: true, dados: r.data || null }); })
+      .catch(() => { if (ativo) setAcessoCampanha2026({ carregado: true, dados: null }); });
+    return () => { ativo = false; };
+  }, [usuarioLogado?.id, usuarioLogado?.email]);
 
   useEffect(() => {
     if (!usuarioLogado) return;
@@ -5707,11 +5721,13 @@ export default function App() {
   const escoposGerenteLoja = estruturasPermitidasUsuarioLogado.filter((item) => item.area === 'LOJA');
   const perfilUsuarioAtual = String(usuarioLogado?.perfil || '').toLowerCase();
   const areaGestaoUsuarioAtual = String(usuarioLogado?.area_gestao || '').trim().toUpperCase();
-  const podeAcessarCampanhaIncentivo2026 = perfilUsuarioAtual === 'admin'
+  const donoCampanhaIncentivo2026 = perfilUsuarioAtual === 'admin'
     && (
       String(usuarioLogado?.email || '').trim().toLowerCase() === 'marcelodc34@gmail.com'
       || String(usuarioLogado?.nome || '').trim().toLowerCase() === 'marcelin cabral'
     );
+  const podeAcessarCampanhaIncentivo2026 = donoCampanhaIncentivo2026 || Boolean(acessoCampanha2026.dados?.pode_ver);
+  const campanhaIncentivo2026Liberada = Boolean(acessoCampanha2026.dados?.liberada);
   const modoConsultorVD = perfilUsuarioAtual === 'consultor';
   const modoGerenteVD = perfilUsuarioAtual !== 'admin'
     && !modoConsultorVD
@@ -21793,14 +21809,31 @@ const enviarArquivo = async (tipo) => {
       { id: 'visao', rotulo: 'Visão Geral', icone: Sparkles },
       { id: 'geral', rotulo: 'Resultado Geral', icone: BarChart2 },
       { id: 'individual', rotulo: 'Resultado Individual', icone: Trophy },
-      { id: 'lancamentos', rotulo: 'Lançamentos C01–C13', icone: Pencil },
+      ...(donoCampanhaIncentivo2026 ? [{ id: 'lancamentos', rotulo: 'Lançamentos C01–C13', icone: Pencil }] : []),
     ];
+    const abaCampanhaAtiva = abasCampanha.some((aba) => aba.id === abaCampanhaIncentivo) ? abaCampanhaIncentivo : 'visao';
+    const alternarLiberacaoCampanha = async () => {
+      const liberar = !campanhaIncentivo2026Liberada;
+      const pergunta = liberar
+        ? 'Liberar a Campanha Incentivo 2026 para a equipe?\n\nGestores verão tudo, gestores de unidade só a sua unidade e consultores só o próprio resultado e o da sua unidade.'
+        : 'Voltar a campanha para prévia privada? Só você continuará vendo.';
+      if (!window.confirm(pergunta)) return;
+      setLiberandoCampanha2026(true);
+      try {
+        const resposta = await axios.put(`${API_URL}/campanha-incentivo-2026/liberacao`, { liberada: liberar });
+        setAcessoCampanha2026((atual) => ({ carregado: true, dados: { ...(atual.dados || {}), liberada: Boolean(resposta.data?.liberacao?.liberada), liberacao: resposta.data?.liberacao } }));
+      } catch (erro) {
+        window.alert(erro?.response?.data?.detail || erro?.message || 'Não foi possível alterar a liberação.');
+      } finally {
+        setLiberandoCampanha2026(false);
+      }
+    };
 
     return (
       <div className="campanha-incentivo-2026 space-y-5 sm:space-y-6">
         <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1" aria-label="Abas da Campanha Incentivo 2026">
           {abasCampanha.map(({ id, rotulo, icone: Icone }) => {
-            const ativa = abaCampanhaIncentivo === id;
+            const ativa = abaCampanhaAtiva === id;
             return (
               <button
                 key={id}
@@ -21813,19 +21846,32 @@ const enviarArquivo = async (tipo) => {
               </button>
             );
           })}
-          <span className="ml-auto hidden md:inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-400"><ShieldCheck size={14} className="text-[#048187]" /> Prévia privada • {atualizadoCampanha}</span>
+          {donoCampanhaIncentivo2026 ? (
+            <button
+              type="button"
+              onClick={alternarLiberacaoCampanha}
+              disabled={liberandoCampanha2026}
+              title={campanhaIncentivo2026Liberada ? 'Clique para voltar a ser só sua' : 'Clique para liberar para gestores, gestores de unidade e consultores'}
+              className={`ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-2xl border px-3.5 py-2.5 text-xs font-black transition-colors disabled:opacity-60 ${campanhaIncentivo2026Liberada ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-white border-[#f1d9de] text-[#7c1f31] hover:bg-[#fbf3f5]'}`}
+            >
+              {liberandoCampanha2026 ? <Loader2 size={14} className="animate-spin" /> : campanhaIncentivo2026Liberada ? <Unlock size={14} /> : <LockKeyhole size={14} />}
+              {campanhaIncentivo2026Liberada ? 'Liberada para a equipe' : 'Privada • liberar para a equipe'}
+            </button>
+          ) : (
+            <span className="ml-auto hidden md:inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-400"><ShieldCheck size={14} className="text-[#048187]" /> Atualizado em {atualizadoCampanha}</span>
+          )}
         </nav>
         {campanhaIncentivo2026?.erro && <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 flex items-center gap-2"><AlertCircle size={17} /> {campanhaIncentivo2026.erro}</div>}
-        {abaCampanhaIncentivo === 'visao' && (
-          <VisaoGeralCampanha2026 realizado={realizado} metas={metas} atualizadoEm={payload?.atualizado_em} carregando={campanhaIncentivo2026?.carregando} acumuladoAnterior={payload?.acumulado_anterior} campanhaC14C17={payload?.campanha_c14_c17} aoLancar={() => setAbaCampanhaIncentivo('lancamentos')} />
+        {abaCampanhaAtiva === 'visao' && (
+          <VisaoGeralCampanha2026 realizado={realizado} metas={metas} atualizadoEm={payload?.atualizado_em} carregando={campanhaIncentivo2026?.carregando} acumuladoAnterior={payload?.acumulado_anterior} campanhaC14C17={payload?.campanha_c14_c17} aoLancar={donoCampanhaIncentivo2026 ? () => setAbaCampanhaIncentivo('lancamentos') : null} />
         )}
-        {abaCampanhaIncentivo === 'lancamentos' && (
+        {abaCampanhaAtiva === 'lancamentos' && donoCampanhaIncentivo2026 && (
           <LancamentosCampanha2026 apiUrl={API_URL} aoSalvar={() => carregarCampanhaIncentivo2026(true)} />
         )}
-        {abaCampanhaIncentivo === 'geral' && (
-          <ResultadoGeralCampanha2026 ciclosAno={payload?.ciclos_ano || []} calendario={payload?.calendario || []} metas={metas} carregando={campanhaIncentivo2026?.carregando} aoLancar={() => setAbaCampanhaIncentivo('lancamentos')} />
+        {abaCampanhaAtiva === 'geral' && (
+          <ResultadoGeralCampanha2026 ciclosAno={payload?.ciclos_ano || []} calendario={payload?.calendario || []} metas={metas} carregando={campanhaIncentivo2026?.carregando} aoLancar={donoCampanhaIncentivo2026 ? () => setAbaCampanhaIncentivo('lancamentos') : null} />
         )}
-        {abaCampanhaIncentivo === 'individual' && (
+        {abaCampanhaAtiva === 'individual' && (
           <ResultadoIndividualCampanha2026 apiUrl={API_URL} totalCp={Number(realizado?.total || 0)} meta109={Number(metas?.meta_superacao || 109000000)} />
         )}
       </div>
@@ -22282,9 +22328,9 @@ const enviarArquivo = async (tipo) => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-black text-sm truncate">Campanha Incentivo 2026</span>
-                    <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${telaAtual === 'CampanhaIncentivo2026' ? 'bg-white/15 text-white' : 'bg-[#7c1f31]/10 text-[#7c1f31]'}`}>Privada</span>
+                    {donoCampanhaIncentivo2026 && !campanhaIncentivo2026Liberada && <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${telaAtual === 'CampanhaIncentivo2026' ? 'bg-white/15 text-white' : 'bg-[#7c1f31]/10 text-[#7c1f31]'}`}>Privada</span>}
                   </div>
-                  <p className={`text-[10px] font-semibold mt-0.5 ${telaAtual === 'CampanhaIncentivo2026' ? 'text-white/80' : 'text-[#789093]'}`}>Prévia interna • VD + LOJA</p>
+                  <p className={`text-[10px] font-semibold mt-0.5 ${telaAtual === 'CampanhaIncentivo2026' ? 'text-white/80' : 'text-[#789093]'}`}>{donoCampanhaIncentivo2026 && !campanhaIncentivo2026Liberada ? 'Prévia interna • VD + LOJA' : 'Viagem 106 • Bônus 109 • VD + LOJA'}</p>
                 </div>
                 <ChevronRight size={17} className="shrink-0" />
               </button>
@@ -22465,7 +22511,7 @@ const enviarArquivo = async (tipo) => {
                   <div className="shrink-0 inline-flex items-center gap-2 rounded-full bg-[#f1f8f8] border border-[#dcebed] px-3.5 py-2 text-[#048187]">
                     <Trophy size={15} />
                     <span className="text-[10px] sm:text-xs font-black uppercase tracking-wide whitespace-nowrap">Campanha Incentivo 2026</span>
-                    <span className="hidden sm:inline text-[8px] font-black uppercase tracking-wider bg-[#7c1f31]/10 text-[#7c1f31] px-2 py-0.5 rounded-full">Privada</span>
+                    {donoCampanhaIncentivo2026 && !campanhaIncentivo2026Liberada && <span className="hidden sm:inline text-[8px] font-black uppercase tracking-wider bg-[#7c1f31]/10 text-[#7c1f31] px-2 py-0.5 rounded-full">Privada</span>}
                   </div>
                 ) : (
                   <div className="relative shrink-0">
