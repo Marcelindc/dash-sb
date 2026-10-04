@@ -180,7 +180,7 @@ function AndamentoMeta({ realizado, meta, cor, rotulo }) {
         <div className="h-full rounded-full transition-[width] duration-1000 ease-out" style={{ width: `${limitar(percentual)}%`, background: cor }} />
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-xs font-semibold text-gray-500">
-        <span>{emMilhoes(realizado)} de {emMilhoes(meta)}</span>
+        <span><span className="whitespace-nowrap">{emMilhoes(realizado)}</span> de <span className="whitespace-nowrap">{emMilhoes(meta)}</span></span>
         <span className="tabular-nums" style={{ color: cor }}>{emPercentual(percentual)}</span>
       </div>
     </div>
@@ -238,7 +238,7 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
       <section className="relative overflow-hidden rounded-[28px] sm:rounded-[32px] bg-[linear-gradient(115deg,#010d0e_0%,#033c3f_38%,#05767b_72%,#13a7ad_100%)] text-white shadow-[0_30px_70px_-35px_rgba(1,40,44,.8)]">
         <div className="pointer-events-none absolute -left-24 -top-24 w-80 h-80 rounded-full bg-[#0aa3a9]/20 blur-3xl" />
         <div className="pointer-events-none absolute right-[-120px] bottom-[-160px] w-[420px] h-[420px] rounded-full bg-white/10 blur-3xl" />
-        <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(340px,440px)] items-center gap-6 xl:gap-4 p-6 sm:p-9 xl:p-10">
+        <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(340px,440px)] items-center gap-6 xl:gap-4 p-5 sm:p-9 xl:p-10">
           <div className="text-center xl:text-left">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] text-white/80">
               <CalendarDays size={13} /> Ciclos 14 • 15 • 16 • 17
@@ -255,24 +255,26 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
             <img
               src={`${PASTA}/mascotes-premio.webp`}
               alt="Mascotes da campanha comemorando com uma mala de dinheiro"
-              className="vg-flutuar w-full max-w-[340px] sm:max-w-[420px] xl:max-w-[460px] drop-shadow-[0_30px_40px_rgba(0,0,0,.35)]"
+              className="vg-flutuar w-full max-w-[260px] min-[400px]:max-w-[320px] sm:max-w-[420px] xl:max-w-[460px] drop-shadow-[0_30px_40px_rgba(0,0,0,.35)]"
               decoding="async"
             />
           </div>
 
-          <div className="rounded-[26px] bg-white/[0.14] backdrop-blur-md border border-white/25 p-5 sm:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,.25)]">
+          <div className="rounded-[26px] bg-white/[0.14] backdrop-blur-md border border-white/25 p-4 min-[400px]:p-5 sm:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,.25)]">
             <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.06em] text-[#bff3f2]">Resultado combinado 2026 até C17</p>
-            <p className="mt-2 text-4xl sm:text-5xl font-bold tracking-tight tabular-nums">{valor(emMilhoes(total))}</p>
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            {/* O tamanho acompanha a largura da tela para o valor nunca quebrar a linha ("Mi" sozinho embaixo). */}
+            <p className="mt-2 text-[clamp(1.75rem,8.5vw,2.5rem)] sm:text-5xl font-bold tracking-tight tabular-nums whitespace-nowrap">{valor(emMilhoes(total))}</p>
+            {/* Abaixo de 400 px os dois cartões não cabem lado a lado: um embaixo do outro. */}
+            <div className="mt-5 grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
               <div className="rounded-2xl bg-[#04676b] border border-white/10 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-white/70">Venda Direta</p>
-                <p className="mt-1.5 text-base sm:text-2xl font-bold tabular-nums whitespace-nowrap">{valor(emMilhoes(vd))}</p>
+                <p className="mt-1.5 text-xl min-[400px]:text-lg sm:text-2xl font-bold tabular-nums whitespace-nowrap">{valor(emMilhoes(vd))}</p>
                 <div className="mt-3 h-2 rounded-full bg-white/20 overflow-hidden"><div className="h-full rounded-full bg-white transition-[width] duration-1000 ease-out" style={{ width: `${limitar(partVD)}%` }} /></div>
                 <p className="mt-1.5 text-[10px] font-semibold text-white/65">{emPercentual(partVD)} do resultado</p>
               </div>
               <div className="rounded-2xl bg-white/85 border border-white/40 p-4 text-[#035f63]">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#047c81]">Loja</p>
-                <p className="mt-1.5 text-base sm:text-2xl font-bold tabular-nums whitespace-nowrap">{valor(emMilhoes(loja))}</p>
+                <p className="mt-1.5 text-xl min-[400px]:text-lg sm:text-2xl font-bold tabular-nums whitespace-nowrap">{valor(emMilhoes(loja))}</p>
                 <div className="mt-3 h-2 rounded-full bg-[#048187]/15 overflow-hidden"><div className="h-full rounded-full bg-[#048187] transition-[width] duration-1000 ease-out" style={{ width: `${limitar(partLoja)}%` }} /></div>
                 <p className="mt-1.5 text-[10px] font-semibold text-[#047c81]/80">{emPercentual(partLoja)} do resultado</p>
               </div>
@@ -345,7 +347,7 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
               alt="Mascotes da campanha com o bônus em dinheiro"
               loading="lazy"
               decoding="async"
-              className="vg-flutuar w-full max-w-[360px] sm:max-w-[520px] drop-shadow-[0_30px_40px_rgba(0,0,0,.35)]"
+              className="vg-flutuar w-full max-w-[260px] min-[400px]:max-w-[340px] sm:max-w-[520px] drop-shadow-[0_30px_40px_rgba(0,0,0,.35)]"
             />
           </div>
         </div>

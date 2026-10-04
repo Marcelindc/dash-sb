@@ -53,7 +53,7 @@ const STATUS_BONUS = {
   abaixo: 'Abaixo de 120%',
 };
 
-const GRADE_LINHA = 'lg:grid-cols-[minmax(0,1.5fr)_auto_minmax(0,0.75fr)_minmax(0,1fr)_28px]';
+const GRADE_LINHA = 'xl:grid-cols-[minmax(0,1.5fr)_auto_minmax(0,0.75fr)_minmax(0,1fr)_28px]';
 
 function iniciais(nome) {
   const partes = String(nome || '').trim().split(/\s+/).filter(Boolean);
@@ -132,35 +132,37 @@ function CardIndicador({ criterio: c, encerrado = false, extra = '' }) {
     }
   }
   return (
-    <div className={`rounded-xl border bg-white p-3 flex flex-col ${c.ok ? 'border-green-100' : 'border-slate-100'}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-medium text-slate-500 truncate" title={c.rotulo}>{c.chave === 'receita_120' ? 'Receita ≥ 120%' : c.rotulo}</p>
+    <div className={`rounded-xl border bg-white p-2.5 sm:p-3 flex flex-col ${c.ok ? 'border-green-100' : 'border-slate-100'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-medium leading-tight text-slate-500 line-clamp-2" title={c.rotulo}>{c.chave === 'receita_120' ? 'Receita ≥ 120%' : c.rotulo}</p>
         {!c.sem_meta && (
           <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${c.ok ? 'bg-green-50 text-green-600' : encerrado ? 'bg-red-50 text-red-600' : 'bg-[#fff6e8] text-[#b86a00]'}`}>
             {c.ok ? <Check size={12} strokeWidth={2.5} /> : encerrado ? <X size={12} strokeWidth={2.5} /> : <Clock size={11} strokeWidth={2.5} />}
           </span>
         )}
       </div>
-      <p className="mt-1 text-lg font-bold tabular-nums text-slate-800 leading-tight">{emValor(valor, c.formato)}</p>
+      <p className="mt-1 text-base sm:text-lg font-bold tabular-nums text-slate-800 leading-tight whitespace-nowrap">{emValor(valor, c.formato)}</p>
       <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${progresso}%`, background: cor }} /></div>
-      <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11px] leading-tight">
-        <div>
-          <p className="text-slate-400">Meta</p>
-          <p className="mt-0.5 font-semibold tabular-nums text-slate-600">{c.sem_meta ? 'sem meta' : emValor(meta, c.formato)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-slate-400">{c.sem_meta ? 'Situação' : c.ok ? 'Acima' : 'Falta'}</p>
-          <p className={`mt-0.5 font-semibold tabular-nums ${c.sem_meta ? 'text-slate-400' : c.ok ? 'text-green-700' : 'text-slate-700'}`}>
+      {/* Uma linha para a meta e outra para a diferença: em cartão estreito (celular) os valores não quebram. */}
+      <div className="mt-2.5 space-y-1 text-[11px] leading-tight">
+        <p className="flex items-baseline justify-between gap-2">
+          <span className="text-slate-400">Meta</span>
+          <span className="font-semibold tabular-nums text-slate-600 text-right whitespace-nowrap">{c.sem_meta ? 'sem meta' : emValor(meta, c.formato)}</span>
+        </p>
+        <p className="flex items-baseline justify-between gap-2">
+          <span className="text-slate-400">{c.sem_meta ? 'Situação' : c.ok ? 'Acima' : 'Falta'}</span>
+          <span className={`font-semibold tabular-nums text-right whitespace-nowrap ${c.sem_meta ? 'text-slate-400' : c.ok ? 'text-green-700' : 'text-slate-700'}`}>
             {c.sem_meta ? 'não conta' : c.ok ? `+${diferenca(valor - meta, c.formato)}` : falta}
-          </p>
-        </div>
+          </span>
+        </p>
       </div>
       {detalhe && <p className="mt-2 rounded-lg bg-slate-50 px-2 py-1.5 text-[10px] font-medium text-slate-500">Faltam {detalhe}</p>}
     </div>
   );
 }
 
-const GRADE_CARDS = 'grid gap-2 grid-cols-[repeat(auto-fill,minmax(150px,1fr))]';
+// 124 px cabe dois cartões por linha num celular de 320 px; do sm em diante, cartões um pouco mais largos.
+const GRADE_CARDS = 'grid gap-2 grid-cols-[repeat(auto-fill,minmax(124px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]';
 
 function PainelIndicadores({ ciclos, titulo, cor = '#048187', Icone = Plane }) {
   const lista = ciclos || [];
@@ -238,24 +240,34 @@ function LinhaPessoa({ pessoa, aberta, aoAlternar, recuo = false }) {
   return (
     <li className="border-t border-gray-100 first:border-t-0">
       <button type="button" onClick={aoAlternar} aria-expanded={aberta}
-        className={`w-full text-left py-3 grid grid-cols-1 ${GRADE_LINHA} gap-3 lg:gap-4 items-center hover:bg-[#f9fcfc] transition-colors ${recuo ? 'pl-4 sm:pl-10 pr-4 sm:pr-5' : 'px-4 sm:px-5'}`}>
+        className={`w-full text-left py-3 grid grid-cols-1 ${GRADE_LINHA} gap-2.5 xl:gap-4 items-center hover:bg-[#f9fcfc] transition-colors ${recuo ? 'pl-4 sm:pl-10 pr-4 sm:pr-5' : 'px-4 sm:px-5'}`}>
         <div className="flex items-center gap-3 min-w-0">
           <span className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-[11px] font-semibold ${pessoa.canal === 'LOJA' ? 'bg-[#e6f6f7] text-[#2a9aa0]' : 'bg-[#048187] text-white'}`}>{iniciais(pessoa.nome)}</span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-800 truncate">{pessoa.nome}</p>
-            <p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold text-gray-400 min-w-0"><SeloCanal canal={pessoa.canal} /> <span className="truncate">{pessoa.unidade}</span></p>
+          <div className="min-w-0 flex-1">
+            {/* No celular o nome inteiro aparece em até duas linhas; na tabela larga, uma linha só. */}
+            <p className="text-sm font-semibold text-gray-800 line-clamp-2 break-words xl:line-clamp-none xl:truncate">{pessoa.nome}</p>
+            <p className="mt-0.5 flex flex-wrap xl:flex-nowrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-semibold text-gray-400 min-w-0"><SeloCanal canal={pessoa.canal} /> <span className="min-w-0 break-words xl:truncate">{pessoa.unidade}</span></p>
+          </div>
+          <ChevronDown size={18} className={`xl:hidden shrink-0 text-gray-400 transition-transform ${aberta ? 'rotate-180' : ''}`} />
+        </div>
+        {/* Sem o cabeçalho da tabela (celular), cada bloco ganha um rótulo e a situação vai junto dos ciclos. */}
+        <div className="min-w-0">
+          <p className="xl:hidden mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">Viagem • metas completas por ciclo</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(pessoa.ciclos || []).map((c) => <PilulaCiclo key={c.numero} ciclo={c} />)}
+            <span className={`xl:hidden inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${viagem.classe}`}>{viagem.texto}</span>
           </div>
         </div>
-        <div className="flex gap-1.5">{(pessoa.ciclos || []).map((c) => <PilulaCiclo key={c.numero} ciclo={c} />)}</div>
-        <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${viagem.classe}`}>{viagem.texto}</span></div>
+        <div className="hidden xl:block"><span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${viagem.classe}`}>{viagem.texto}</span></div>
         <div className="min-w-0">
+          <p className="xl:hidden mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">Bônus • receita desde o C14 (meta 120%)</p>
           <div className="flex items-baseline justify-between gap-2">
             <span className={`text-sm font-semibold tabular-nums ${sup.ok ? 'text-green-700' : 'text-gray-700'}`}>{emPercentual(sup.percentual)}</span>
             <span className="text-[10px] font-semibold text-gray-400 truncate">{sup.ok && sup.parte_estimada ? `≈ ${emReais(sup.parte_estimada)}` : STATUS_BONUS[pessoa.status_109] || ''}</span>
           </div>
           <BarraReceita superacao={sup} comBonus />
         </div>
-        <ChevronDown size={18} className={`hidden lg:block text-gray-400 transition-transform ${aberta ? 'rotate-180' : ''}`} />
+        <ChevronDown size={18} className={`hidden xl:block text-gray-400 transition-transform ${aberta ? 'rotate-180' : ''}`} />
       </button>
       {aberta && <DetalhePessoa pessoa={pessoa} />}
     </li>
@@ -271,11 +283,11 @@ function CartaoUnidade({ unidade, pessoas, aberta, aoAlternar, pessoasAbertas, a
   return (
     <li className={`rounded-2xl border bg-white overflow-hidden transition-shadow ${aberta ? 'border-[#bfe0e2] shadow-[0_14px_34px_-24px_rgba(4,129,135,.7)]' : 'border-gray-100'}`}>
       <button type="button" onClick={aoAlternar} aria-expanded={aberta}
-        className={`w-full text-left px-4 sm:px-5 py-4 grid grid-cols-1 ${GRADE_LINHA} gap-3 lg:gap-4 items-center ${aberta ? 'bg-[#f6fbfb]' : 'hover:bg-[#fafcfc]'} transition-colors`}>
+        className={`w-full text-left px-4 sm:px-5 py-4 grid grid-cols-1 ${GRADE_LINHA} gap-3 xl:gap-4 items-center ${aberta ? 'bg-[#f6fbfb]' : 'hover:bg-[#fafcfc]'} transition-colors`}>
         <div className="flex items-center gap-3 min-w-0">
           <span className={`w-11 h-11 shrink-0 rounded-2xl flex items-center justify-center ${unidade.canal === 'LOJA' ? 'bg-[#eef8f8] text-[#2a9aa0]' : 'bg-[#e3f3f3] text-[#048187]'}`}><IconeUnidade size={20} /></span>
-          <div className="min-w-0">
-            <p className="text-sm sm:text-[15px] font-semibold text-gray-800 truncate">{unidade.nome}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm sm:text-[15px] font-semibold text-gray-800 line-clamp-2 break-words xl:line-clamp-none xl:truncate">{unidade.nome}</p>
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-gray-400">
               <SeloCanal canal={unidade.canal} />
               {unidade.unidade && <span>{unidade.unidade}</span>}
@@ -283,11 +295,16 @@ function CartaoUnidade({ unidade, pessoas, aberta, aoAlternar, pessoasAbertas, a
               {mostrarPessoas && <span className="inline-flex items-center gap-1">• <UserRound size={11} /> {equipe.total || 0} consultor{(equipe.total || 0) === 1 ? '' : 'es'}{equipe.total ? ` • ${equipe.na_disputa} na disputa` : ''}</span>}
             </p>
           </div>
+          <ChevronDown size={18} className={`xl:hidden shrink-0 text-gray-400 transition-transform ${aberta ? 'rotate-180' : ''}`} />
         </div>
-        <div className="flex gap-1.5">
-          {semResultado ? <span className="text-[11px] font-semibold text-gray-400 lg:w-[208px]">Sem meta própria</span> : (unidade.ciclos || []).map((c) => <PilulaCiclo key={c.numero} ciclo={c} />)}
+        <div className="min-w-0">
+          {!semResultado && <p className="xl:hidden mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">Metas completas por ciclo</p>}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {semResultado ? <span className="text-[11px] font-semibold text-gray-400 xl:w-[208px]">Sem meta própria</span> : (unidade.ciclos || []).map((c) => <PilulaCiclo key={c.numero} ciclo={c} />)}
+            {!semResultado && <span className={`xl:hidden inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${status.classe}`}>{status.texto}</span>}
+          </div>
         </div>
-        <div>{!semResultado && <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${status.classe}`}>{status.texto}</span>}</div>
+        <div className="hidden xl:block">{!semResultado && <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${status.classe}`}>{status.texto}</span>}</div>
         <div className="min-w-0">
           {!semResultado && (
             <>
@@ -299,7 +316,7 @@ function CartaoUnidade({ unidade, pessoas, aberta, aoAlternar, pessoasAbertas, a
             </>
           )}
         </div>
-        <ChevronDown size={18} className={`hidden lg:block text-gray-400 transition-transform ${aberta ? 'rotate-180' : ''}`} />
+        <ChevronDown size={18} className={`hidden xl:block text-gray-400 transition-transform ${aberta ? 'rotate-180' : ''}`} />
       </button>
       {aberta && (
         <div className="border-t border-gray-100">
@@ -655,7 +672,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
           <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-1 pb-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-gray-800">{nivel === 'unidade' ? 'Sua unidade e os consultores dela' : 'Unidades e consultores'}</p>
-              <p className="text-[11px] font-semibold text-gray-400">Clique numa unidade para ver os consultores que pertencem a ela.</p>
+              <p className="text-[11px] font-semibold text-gray-400">Abra uma unidade para ver os consultores que pertencem a ela.</p>
             </div>
             {unidades.some((u) => u.canal === 'LOJA') && unidades.some((u) => u.canal === 'VD') && (
               <div className="inline-flex rounded-xl bg-white border border-gray-100 p-1 self-start">
@@ -669,7 +686,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
               <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar unidade ou consultor" className="w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 py-2 text-sm font-semibold text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#048187]/25" />
             </label>
           </div>
-          <div className={`hidden lg:grid ${GRADE_LINHA} gap-4 px-5 py-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400`}>
+          <div className={`hidden xl:grid ${GRADE_LINHA} gap-4 px-5 py-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400`}>
             <span>Unidade</span><span className="w-[208px]">Ciclos (metas completas)</span><span>Situação</span><span>Receita • Bônus (meta 120%)</span><span />
           </div>
           {unidadesVisiveis.length ? (

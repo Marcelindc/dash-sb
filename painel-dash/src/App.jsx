@@ -21831,11 +21831,11 @@ const enviarArquivo = async (tipo) => {
       : 'Aguardando atualização';
 
     const abasCampanha = [
-      { id: 'visao', rotulo: 'Visão Geral', icone: Sparkles },
-      { id: 'geral', rotulo: 'Resultado Geral', icone: BarChart2 },
-      { id: 'individual', rotulo: 'Resultado Individual', icone: Trophy },
-      ...(donoCampanhaIncentivo2026 ? [{ id: 'lancamentos', rotulo: 'Lançamentos C01–C13', icone: Pencil }] : []),
-      ...(donoCampanhaIncentivo2026 ? [{ id: 'acessos', rotulo: 'Acessos', icone: KeyRound }] : []),
+      { id: 'visao', rotulo: 'Visão Geral', curto: 'Visão geral', icone: Sparkles },
+      { id: 'geral', rotulo: 'Resultado Geral', curto: 'Geral', icone: BarChart2 },
+      { id: 'individual', rotulo: 'Resultado Individual', curto: 'Individual', icone: Trophy },
+      ...(donoCampanhaIncentivo2026 ? [{ id: 'lancamentos', rotulo: 'Lançamentos C01–C13', curto: 'Lançar', icone: Pencil }] : []),
+      ...(donoCampanhaIncentivo2026 ? [{ id: 'acessos', rotulo: 'Acessos', curto: 'Acessos', icone: KeyRound }] : []),
     ];
     const abaCampanhaAtiva = abasCampanha.some((aba) => aba.id === abaCampanhaIncentivo) ? abaCampanhaIncentivo : 'visao';
     const alternarLiberacaoCampanha = async () => {
@@ -21858,9 +21858,10 @@ const enviarArquivo = async (tipo) => {
     return (
       <div className="campanha-incentivo-2026 space-y-5 sm:space-y-6">
         <nav className="flex flex-wrap items-center gap-2 sm:gap-3" aria-label="Abas da Campanha Incentivo 2026">
-          <div className="max-w-full overflow-x-auto">
-            <div className="inline-flex items-center gap-0.5 rounded-xl bg-white border border-[#e8eef0] p-1 shadow-[0_1px_2px_rgba(15,23,42,.04)]">
-              {abasCampanha.map(({ id, rotulo, icone: Icone }) => {
+          {/* No celular todas as abas ficam visíveis lado a lado (ícone + nome curto); do sm em diante, a fileira de sempre. */}
+          <div className="w-full sm:w-auto sm:max-w-full sm:overflow-x-auto">
+            <div className="grid grid-flow-col auto-cols-fr gap-1 sm:inline-flex sm:items-center sm:gap-0.5 rounded-xl bg-white border border-[#e8eef0] p-1 shadow-[0_1px_2px_rgba(15,23,42,.04)]">
+              {abasCampanha.map(({ id, rotulo, curto, icone: Icone }) => {
                 const ativa = abaCampanhaAtiva === id;
                 return (
                   <button
@@ -21868,9 +21869,12 @@ const enviarArquivo = async (tipo) => {
                     type="button"
                     onClick={() => setAbaCampanhaIncentivo(id)}
                     aria-current={ativa ? 'page' : undefined}
-                    className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-3.5 py-1.5 sm:py-2 text-[13px] font-medium transition-colors ${ativa ? 'bg-[#048187] text-white shadow-sm' : 'text-slate-500 hover:text-[#048187] hover:bg-[#f2f8f8]'}`}
+                    aria-label={rotulo}
+                    className={`min-w-0 flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] leading-tight font-medium transition-colors sm:shrink-0 sm:flex-row sm:gap-1.5 sm:px-3.5 sm:text-[13px] ${ativa ? 'bg-[#048187] text-white shadow-sm' : 'text-slate-500 hover:text-[#048187] hover:bg-[#f2f8f8]'}`}
                   >
-                    <Icone size={15} strokeWidth={ativa ? 2.2 : 1.8} /> {rotulo}
+                    <Icone size={16} strokeWidth={ativa ? 2.2 : 1.8} className="shrink-0" />
+                    <span className="sm:hidden text-center">{curto}</span>
+                    <span className="hidden sm:inline whitespace-nowrap">{rotulo}</span>
                   </button>
                 );
               })}
@@ -22543,9 +22547,13 @@ const enviarArquivo = async (tipo) => {
                 </button>
 
                 {telaAtual === 'CampanhaIncentivo2026' ? (
-                  <div className="shrink-0 inline-flex items-center gap-2 rounded-full bg-[#f1f8f8] border border-[#dcebed] px-3.5 py-2 text-[#048187]">
-                    <Trophy size={15} />
-                    <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide whitespace-nowrap">Campanha Incentivo 2026</span>
+                  <div className="min-w-0 inline-flex items-center gap-2 rounded-full bg-[#f1f8f8] border border-[#dcebed] px-3 sm:px-3.5 py-2 text-[#048187]" title="Campanha Incentivo 2026">
+                    <Trophy size={15} className="shrink-0" />
+                    {/* Abaixo de 360 px não cabe ao lado dos botões: fica só o troféu (o título aparece logo abaixo). */}
+                    <span className="hidden min-[360px]:inline text-[10px] sm:text-xs font-semibold uppercase tracking-wide whitespace-nowrap truncate">
+                      <span className="sm:hidden">Incentivo 2026</span>
+                      <span className="hidden sm:inline">Campanha Incentivo 2026</span>
+                    </span>
                     {donoCampanhaIncentivo2026 && !campanhaIncentivo2026Liberada && <span className="hidden sm:inline text-[8px] font-semibold uppercase tracking-wider bg-[#7c1f31]/10 text-[#7c1f31] px-2 py-0.5 rounded-full">Privada</span>}
                   </div>
                 ) : (
@@ -22835,8 +22843,9 @@ const enviarArquivo = async (tipo) => {
                 <div className="hidden sm:block w-px h-6 bg-[#e1e8ea]" />
                 <button
                   onClick={() => setTelaAtual('Perfil')}
-                  className="flex items-center gap-2 hover:bg-[#eef8f8] px-2.5 py-1 rounded-full min-w-0 transition-colors border border-[#e1eaec] bg-white"
+                  className="flex items-center gap-2 hover:bg-[#eef8f8] p-1 sm:px-2.5 sm:py-1 rounded-full min-w-0 transition-colors border border-[#e1eaec] bg-white"
                   title="Abrir meu perfil"
+                  aria-label={`Abrir meu perfil (${usuarioLogado.nome || ''})`}
                 >
                   <AvatarColaborador
                     src={obterFotoColaborador(
@@ -22847,7 +22856,8 @@ const enviarArquivo = async (tipo) => {
                     tamanho={28}
                     borda="#dbe9ea"
                   />
-                  <span className="text-[11px] font-medium text-[#048187] truncate max-w-[110px] sm:max-w-[220px]">
+                  {/* No celular fica só a foto/iniciais: o nome tirava o espaço do título da tela. */}
+                  <span className="hidden sm:inline text-[11px] font-medium text-[#048187] truncate max-w-[220px]">
                     {usuarioLogado.nome}
                   </span>
                 </button>

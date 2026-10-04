@@ -297,9 +297,10 @@ export default function ResultadoGeralCampanha2026({ ciclosAno = [], calendario 
                   <div style={{ width: `${pVd}%`, background: COR_VD }} />
                   <div style={{ width: `${soma > 0 ? 100 - pVd : 0}%`, background: COR_LOJA }} />
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-semibold">
-                  <p className="flex items-center gap-1.5 text-gray-500"><Users size={13} className="text-[#048187]" /> VD <span className="text-gray-800 tabular-nums">{emMilhoes(linha.vd)}</span> <span className="text-gray-400">({emPercentual(pVd)})</span></p>
-                  <p className="flex items-center gap-1.5 text-gray-500 justify-end"><Store size={13} className="text-[#2a9aa0]" /> Loja <span className="text-gray-800 tabular-nums">{emMilhoes(linha.loja)}</span> <span className="text-gray-400">({emPercentual(soma > 0 ? 100 - pVd : 0)})</span></p>
+                {/* No celular, uma linha por canal; lado a lado só quando há espaço para os valores inteiros. */}
+                <div className="mt-2 grid grid-cols-1 min-[420px]:grid-cols-2 gap-1.5 min-[420px]:gap-2 text-[11px] font-semibold">
+                  <p className="flex items-center gap-1.5 text-gray-500 whitespace-nowrap"><Users size={13} className="shrink-0 text-[#048187]" /> VD <span className="text-gray-800 tabular-nums">{emMilhoes(linha.vd)}</span> <span className="text-gray-400">({emPercentual(pVd)})</span></p>
+                  <p className="flex items-center gap-1.5 text-gray-500 whitespace-nowrap min-[420px]:justify-end"><Store size={13} className="shrink-0 text-[#2a9aa0]" /> Loja <span className="text-gray-800 tabular-nums">{emMilhoes(linha.loja)}</span> <span className="text-gray-400">({emPercentual(soma > 0 ? 100 - pVd : 0)})</span></p>
                 </div>
               </div>
             );
