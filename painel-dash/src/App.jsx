@@ -9,7 +9,7 @@ import ResultadoIndividualCampanha2026 from './campanha/ResultadoIndividualCampa
 import AcessosCampanha2026 from './campanha/AcessosCampanha2026';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
-import produtosLoginHero from './assets/login-produtos.png';
+import produtosLoginHero from './assets/login-produtos.webp';
 import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 import TelaSolicitacoes from './telas/TelaSolicitacoes';
 import TelaRotas from './telas/TelaRotas';
