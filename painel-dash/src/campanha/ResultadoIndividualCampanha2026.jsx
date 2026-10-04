@@ -104,82 +104,129 @@ function CartaoResumo({ Icone, cor, titulo, valor, detalhe }) {
   );
 }
 
-function TabelaCiclos({ ciclos, titulo, cor = '#048187', Icone = Plane }) {
-  const chaves = [];
-  for (const ciclo of ciclos || []) for (const criterio of ciclo.criterios || []) if (!chaves.find((c) => c.chave === criterio.chave)) chaves.push({ chave: criterio.chave, rotulo: criterio.rotulo });
+const FRASES_FALTA = {
+  atividade: (n) => `${n} ${n === 1 ? 'ativação' : 'ativações'}`,
+  make: (n) => `${n} revendedora${n === 1 ? '' : 's'} com MAKE`,
+  cabelo: (n) => `${n} revendedora${n === 1 ? '' : 's'} com CABELO`,
+  multimarcas: (n) => `${n} revendedora${n === 1 ? '' : 's'} multimarcas`,
+};
+
+function diferenca(valor, formato) {
+  const n = Math.abs(Number(valor || 0));
+  if (formato === 'percentual') return `${n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} p.p.`;
+  return emValor(n, formato);
+}
+
+function CardIndicador({ criterio: c, encerrado = false, extra = '' }) {
+  const valor = Number(c.valor || 0);
+  const meta = Number(c.meta || 0);
+  const progresso = meta > 0 ? limitar((valor / meta) * 100) : 0;
+  const cor = c.sem_meta ? '#cbd5e1' : c.ok ? '#16a34a' : encerrado ? '#dc2626' : '#048187';
+  let falta = '';
+  let detalhe = extra;
+  if (!c.sem_meta && !c.ok) {
+    falta = diferenca(meta - valor, c.formato);
+    if (!detalhe && c.formato === 'percentual' && Number(c.den) > 0 && FRASES_FALTA[c.chave]) {
+      const quantos = Math.max(Math.ceil((meta / 100) * Number(c.den) - Number(c.num || 0) - 1e-9), 0);
+      if (quantos > 0) detalhe = FRASES_FALTA[c.chave](quantos);
+    }
+  }
+  return (
+    <div className={`rounded-xl border bg-white p-3 flex flex-col ${c.ok ? 'border-green-100' : 'border-slate-100'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-slate-500 truncate" title={c.rotulo}>{c.chave === 'receita_120' ? 'Receita ≥ 120%' : c.rotulo}</p>
+        {!c.sem_meta && (
+          <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${c.ok ? 'bg-green-50 text-green-600' : encerrado ? 'bg-red-50 text-red-600' : 'bg-[#fff6e8] text-[#b86a00]'}`}>
+            {c.ok ? <Check size={12} strokeWidth={2.5} /> : encerrado ? <X size={12} strokeWidth={2.5} /> : <Clock size={11} strokeWidth={2.5} />}
+          </span>
+        )}
+      </div>
+      <p className="mt-1 text-lg font-bold tabular-nums text-slate-800 leading-tight">{emValor(valor, c.formato)}</p>
+      <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${progresso}%`, background: cor }} /></div>
+      <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11px] leading-tight">
+        <div>
+          <p className="text-slate-400">Meta</p>
+          <p className="mt-0.5 font-semibold tabular-nums text-slate-600">{c.sem_meta ? 'sem meta' : emValor(meta, c.formato)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-slate-400">{c.sem_meta ? 'Situação' : c.ok ? 'Acima' : 'Falta'}</p>
+          <p className={`mt-0.5 font-semibold tabular-nums ${c.sem_meta ? 'text-slate-400' : c.ok ? 'text-green-700' : 'text-slate-700'}`}>
+            {c.sem_meta ? 'não conta' : c.ok ? `+${diferenca(valor - meta, c.formato)}` : falta}
+          </p>
+        </div>
+      </div>
+      {detalhe && <p className="mt-2 rounded-lg bg-slate-50 px-2 py-1.5 text-[10px] font-medium text-slate-500">Faltam {detalhe}</p>}
+    </div>
+  );
+}
+
+const GRADE_CARDS = 'grid gap-2 grid-cols-[repeat(auto-fill,minmax(150px,1fr))]';
+
+function PainelIndicadores({ ciclos, titulo, cor = '#048187', Icone = Plane }) {
+  const lista = ciclos || [];
+  const comDados = lista.filter((c) => (c.criterios || []).length);
+  const padrao = (comDados.find((c) => c.situacao_ciclo === 'em_andamento') || comDados[comDados.length - 1])?.numero;
+  const [escolhido, setEscolhido] = useState(null);
+  const numero = comDados.some((c) => c.numero === escolhido) ? escolhido : padrao;
+  const ciclo = comDados.find((c) => c.numero === numero);
+  const encerrado = ciclo?.situacao_ciclo === 'encerrado';
+  const total = ciclo?.criterios?.length || 0;
+  const batidas = total - (ciclo?.faltam || 0);
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.06em] flex items-center gap-1.5" style={{ color: cor }}><Icone size={13} /> {titulo}</p>
-      {chaves.length ? (
-        <div className="mt-2 overflow-x-auto rounded-xl border border-gray-100 bg-white">
-          <table className="w-full min-w-[460px] text-[11px]">
-            <thead>
-              <tr className="bg-[#f5f9f9] text-gray-500">
-                <th className="px-3 py-2 text-left font-semibold">Meta</th>
-                {ciclos.map((c) => <th key={c.numero} className="px-2 py-2 text-center font-semibold">{rotuloCiclo(c.numero)}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {chaves.map(({ chave, rotulo }) => (
-                <tr key={chave} className="border-t border-gray-100">
-                  <td className="px-3 py-2 font-semibold text-gray-700 whitespace-nowrap">{rotulo}</td>
-                  {ciclos.map((c) => {
-                    const criterio = (c.criterios || []).find((x) => x.chave === chave);
-                    if (!criterio) return <td key={c.numero} className="px-2 py-2 text-center text-gray-300">—</td>;
-                    const fechado = c.situacao_ciclo === 'encerrado';
-                    return (
-                      <td key={c.numero} className="px-2 py-2 text-center">
-                        <span className={`inline-flex items-center gap-1 font-semibold tabular-nums ${criterio.ok ? 'text-green-700' : fechado ? 'text-[#b42335]' : 'text-[#a65f00]'}`}>
-                          {criterio.ok ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}
-                          {emValor(criterio.valor, criterio.formato)}
-                        </span>
-                        <span className="block text-[10px] font-semibold text-gray-400">{criterio.sem_meta ? 'sem meta' : `meta ${emValor(criterio.meta, criterio.formato)}`}</span>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : <p className="mt-2 text-xs font-semibold text-gray-400">Ainda sem ciclo com resultado.</p>}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] flex items-center gap-1.5" style={{ color: cor }}><Icone size={13} /> {titulo}</p>
+        {lista.length > 0 && (
+          <div className="inline-flex items-center gap-0.5 rounded-lg bg-white border border-slate-100 p-0.5">
+            {lista.map((c) => {
+              const tem = comDados.some((x) => x.numero === c.numero);
+              const ativo = c.numero === numero;
+              return (
+                <button key={c.numero} type="button" disabled={!tem} onClick={() => setEscolhido(c.numero)}
+                  className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium tabular-nums transition-colors ${ativo ? 'bg-[#048187] text-white' : tem ? 'text-slate-500 hover:text-[#048187]' : 'text-slate-300 cursor-not-allowed'}`}>
+                  {rotuloCiclo(c.numero)}
+                  {c.situacao_ciclo === 'em_andamento' && <span className={`w-1.5 h-1.5 rounded-full ${ativo ? 'bg-white/80' : 'bg-[#e8a33d]'}`} />}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {ciclo ? (
+        <>
+          <p className="mt-1.5 text-[11px] text-slate-400">
+            {encerrado
+              ? (ciclo.status === 'bateu' ? 'Ciclo encerrado: bateu todas as metas.' : `Ciclo encerrado: bateu ${batidas} de ${total} metas.`)
+              : `Ciclo em andamento: ${batidas} de ${total} metas batidas até agora.`}
+          </p>
+          <div className={`mt-2.5 ${GRADE_CARDS}`}>
+            {ciclo.criterios.map((c) => <CardIndicador key={c.chave} criterio={c} encerrado={encerrado} />)}
+          </div>
+        </>
+      ) : <p className="mt-2 text-xs font-medium text-slate-400">Ainda sem ciclo com resultado.</p>}
     </div>
   );
 }
 
 function DetalhePessoa({ pessoa }) {
   const sup = pessoa.superacao || {};
+  const faltaReceita = Math.max(1.2 * Number(sup.meta || 0) - Number(sup.receita || 0), 0);
   return (
-    <div className="border-t border-gray-100 bg-[#fbfcfc] px-3 sm:px-5 py-4 grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4">
+    <div className="border-t border-gray-100 bg-[#fbfcfc] px-3 sm:px-5 py-4 space-y-5">
+      <PainelIndicadores ciclos={pessoa.ciclos || []} titulo="Viagem • metas do ciclo" />
       <div className="min-w-0">
-        <TabelaCiclos ciclos={pessoa.ciclos || []} titulo="Viagem • metas de cada ciclo" />
-        <p className="mt-2 text-[10px] font-semibold text-gray-400">Verde: meta batida. Laranja: ainda não bateu, ciclo em andamento. Vermelho: ciclo fechado sem bater.</p>
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#7c1f31] flex items-center gap-1.5"><BadgeDollarSign size={13} /> Bônus • C14 até agora</p>
-        <div className="mt-2 rounded-xl border border-gray-100 bg-white p-3.5">
-          <div className="flex items-baseline justify-between gap-2">
-            <p className="text-xs font-semibold text-gray-500">Receita do período</p>
-            <p className="text-sm font-semibold tabular-nums text-gray-800">{emValor(sup.receita, 'moeda')} <span className="text-gray-400 font-semibold">de {emValor(sup.meta, 'moeda')}</span></p>
-          </div>
-          <BarraReceita superacao={sup} comBonus />
-          <p className="mt-1.5 text-[10px] font-semibold text-gray-400">{emPercentual(sup.percentual)} da meta • precisa de 120% (marca na barra)</p>
-          <ul className="mt-3 space-y-1.5">
-            {(sup.criterios || []).map((c) => (
-              <li key={c.chave} className="flex items-center justify-between gap-2 text-[11px]">
-                <span className={`inline-flex items-center gap-1.5 font-semibold ${c.ok ? 'text-green-700' : 'text-gray-500'}`}>
-                  {c.ok ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />} {c.rotulo}
-                </span>
-                <span className="font-semibold tabular-nums text-gray-500">{c.chave === 'receita_120' ? emPercentual(c.valor) : `${emValor(c.valor, c.formato)} / ${c.sem_meta ? 'sem meta' : emValor(c.meta, c.formato)}`}</span>
-              </li>
-            ))}
-          </ul>
-          {sup.ok && (
-            <p className="mt-3 rounded-lg bg-green-50 border border-green-100 px-2.5 py-2 text-[11px] font-semibold text-green-800">
-              Parte estimada do bônus: <strong className="tabular-nums">{emReais(sup.parte_estimada)}</strong> (se a campanha terminasse hoje e o CP chegar a 109 MM)
-            </p>
-          )}
+        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#7c1f31] flex items-center gap-1.5"><BadgeDollarSign size={13} /> Bônus • somando C14 até agora</p>
+        <p className="mt-1.5 text-[11px] text-slate-400">Receita do período: {emValor(sup.receita, 'moeda')} de {emValor(sup.meta, 'moeda')} ({emPercentual(sup.percentual)} da meta). Para o bônus precisa de 120%.</p>
+        <div className={`mt-2.5 ${GRADE_CARDS}`}>
+          {(sup.criterios || []).map((c) => (
+            <CardIndicador key={c.chave} criterio={c} extra={c.chave === 'receita_120' && !c.ok && faltaReceita > 0 ? `${emValor(faltaReceita, 'moeda')} de receita` : ''} />
+          ))}
         </div>
+        {sup.ok && (
+          <p className="mt-3 rounded-lg bg-green-50 border border-green-100 px-3 py-2 text-[11px] font-medium text-green-800">
+            Parte estimada do bônus: <strong className="tabular-nums">{emReais(sup.parte_estimada)}</strong> (se a campanha terminasse hoje e o CP chegar a 109 MM)
+          </p>
+        )}
       </div>
     </div>
   );
@@ -258,7 +305,7 @@ function CartaoUnidade({ unidade, pessoas, aberta, aoAlternar, pessoasAbertas, a
         <div className="border-t border-gray-100">
           {!semResultado && (
             <div className="px-3 sm:px-5 py-4 bg-[#fbfcfc]">
-              <TabelaCiclos ciclos={unidade.ciclos || []} titulo={`Metas da ${unidade.canal === 'LOJA' ? 'loja' : 'unidade'} em cada ciclo`} cor="#036b70" Icone={Target} />
+              <PainelIndicadores ciclos={unidade.ciclos || []} titulo={`Metas da ${unidade.canal === 'LOJA' ? 'loja' : 'unidade'} no ciclo`} cor="#036b70" Icone={Target} />
             </div>
           )}
           {mostrarPessoas && (
@@ -554,7 +601,8 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
         </section>
       )}
 
-      {/* Regras */}
+      {/* Regras: só o dono vê (e some no "Ver como", para mostrar a tela como os outros veem) */}
+      {acesso.pode_editar && !acesso.simulando ? (
       <section className="rounded-[24px] bg-white border border-gray-100 shadow-sm p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -578,6 +626,15 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
           </p>
         )}
       </section>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white border border-gray-100 px-4 py-2.5">
+          <p className="text-[11px] font-medium text-slate-400">{calculadoEm ? `Atualizado em ${calculadoEm}.` : 'Resultado da campanha.'}</p>
+          <button type="button" onClick={() => carregar({ forcar: true })} disabled={atualizando} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-[#048187] hover:text-[#048187] disabled:opacity-60">
+            <RefreshCw size={13} className={atualizando ? 'animate-spin' : ''} /> {atualizando ? 'Atualizando...' : 'Atualizar'}
+          </button>
+          {erro && <p className="w-full text-xs font-medium text-[#b42335] flex items-center gap-1.5"><AlertCircle size={14} /> {erro}</p>}
+        </div>
+      )}
 
       {/* Unidades e consultores */}
       {nivel === 'consultor' ? (
