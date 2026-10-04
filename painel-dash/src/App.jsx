@@ -6,6 +6,7 @@ import VisaoGeralCampanha2026 from './campanha/VisaoGeralCampanha2026';
 import LancamentosCampanha2026 from './campanha/LancamentosCampanha2026';
 import ResultadoGeralCampanha2026 from './campanha/ResultadoGeralCampanha2026';
 import ResultadoIndividualCampanha2026 from './campanha/ResultadoIndividualCampanha2026';
+import AcessosCampanha2026 from './campanha/AcessosCampanha2026';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
 import produtosLoginHero from './assets/login-produtos.png';
@@ -808,6 +809,7 @@ const normalizarPermissoesSistema = (permissoes = {}) => {
 
 
 const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') => {
+  if (String(perfil || '').toLowerCase() === 'campanha') return ['Perfil'];
   if (String(perfil || '').toLowerCase() === 'consultor') {
     return [...permissoesPadrao.consultor];
   }
@@ -5363,6 +5365,14 @@ export default function App() {
   useEffect(() => {
     if (!usuarioLogado) return;
 
+    if (modoCampanha) {
+      if (!['CampanhaIncentivo2026', 'Perfil'].includes(telaAtual)) {
+        setTelaAtual('CampanhaIncentivo2026');
+        gravarStorageUsuario(TELA_ATUAL_STORAGE_KEY, 'CampanhaIncentivo2026');
+      }
+      return;
+    }
+
     if (telaAtual === 'CampanhaIncentivo2026' && !podeAcessarCampanhaIncentivo2026 && acessoCampanha2026.carregado) {
       setCanalAtual('VD');
       setTelaAtual('Dashboard');
@@ -5426,6 +5436,7 @@ export default function App() {
     // PERFORMANCE_LOGIN_V8: fotos/aliases nao sao necessarios para liberar os
     // cards. Em login frio essa rota concorria com /dashboard/dados no mesmo
     // backend/DB. Carregamos depois que a tela principal ja teve tempo de abrir.
+    if (String(usuarioLogado?.perfil || '').toLowerCase() === 'campanha') return undefined;
     const timerIdentidades = window.setTimeout(() => {
       void carregarIdentidadesColaboradores();
     }, 8000);
@@ -5726,6 +5737,8 @@ export default function App() {
       String(usuarioLogado?.email || '').trim().toLowerCase() === 'marcelodc34@gmail.com'
       || String(usuarioLogado?.nome || '').trim().toLowerCase() === 'marcelin cabral'
     );
+  // Consultor da campanha (ER, LOJA...): entra no DASH só para ver a Campanha Incentivo 2026.
+  const modoCampanha = perfilUsuarioAtual === 'campanha';
   const podeAcessarCampanhaIncentivo2026 = donoCampanhaIncentivo2026 || Boolean(acessoCampanha2026.dados?.pode_ver);
   const campanhaIncentivo2026Liberada = Boolean(acessoCampanha2026.dados?.liberada);
   const modoConsultorVD = perfilUsuarioAtual === 'consultor';
@@ -5908,6 +5921,7 @@ export default function App() {
         return false;
       }
     }
+    if (modoCampanha) return tela === 'CampanhaIncentivo2026' || tela === 'Perfil';
     if (tela === 'CampanhaIncentivo2026') return podeAcessarCampanhaIncentivo2026;
     if (tela === 'Solicitações') return true;
     if (usuarioLogado.perfil === 'admin') return true;
@@ -10181,6 +10195,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
 
   const carregarTelaAtual = async (filtros = filtrosAtivos, forcarAtualizacao = false) => {
     if (!usuarioLogado) return;
+    if (modoCampanha && telaAtual !== 'CampanhaIncentivo2026') return;
 
     if (telaAtual === 'CampanhaIncentivo2026') return carregarCampanhaIncentivo2026(forcarAtualizacao);
     if (telaAtual === 'AcompanhamentoVD') return carregarAcompanhamentoGerenteVD(filtros, forcarAtualizacao);
@@ -10574,8 +10589,9 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       const areaLogin = normalizarAreaGestao(usuario?.area_gestao, perfilLogin);
       const gerenteVDLogin = perfilLogin !== 'admin' && perfilLogin !== 'consultor' && escoposLogin.some((item) => item.area === 'VD');
       const usuarioSomenteLojaLogin = perfilLogin !== 'admin' && areaLogin === 'LOJA' && !escoposLogin.some((item) => item.area === 'VD');
-      const telaInicialLogin = gerenteVDLogin ? 'AcompanhamentoVD' : (usuarioSomenteLojaLogin ? 'LojaVisaoGeral' : 'Dashboard');
-      const canalInicialLogin = usuarioSomenteLojaLogin ? 'LOJA' : 'VD';
+      const campanhaLogin = perfilLogin === 'campanha';
+      const telaInicialLogin = campanhaLogin ? 'CampanhaIncentivo2026' : (gerenteVDLogin ? 'AcompanhamentoVD' : (usuarioSomenteLojaLogin ? 'LojaVisaoGeral' : 'Dashboard'));
+      const canalInicialLogin = usuarioSomenteLojaLogin && !campanhaLogin ? 'LOJA' : 'VD';
 
       setAcompanhamentoVD({
         carregando: gerenteVDLogin,
@@ -21797,7 +21813,16 @@ const enviarArquivo = async (tipo) => {
   };
 
   const renderTelaCampanhaIncentivo2026 = () => {
-    if (!podeAcessarCampanhaIncentivo2026) return null;
+    if (!podeAcessarCampanhaIncentivo2026) {
+      if (!modoCampanha) return null;
+      return (
+        <div className="max-w-xl mx-auto mt-10 rounded-[24px] bg-white border border-gray-100 shadow-sm p-8 text-center">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-[#e6f6f7] text-[#048187] flex items-center justify-center"><Trophy size={26} /></div>
+          <h2 className="mt-4 text-lg font-semibold text-slate-800">Campanha Incentivo 2026</h2>
+          <p className="mt-2 text-sm text-slate-500">{acessoCampanha2026.carregado ? 'O seu acesso está pronto. A campanha ainda não foi liberada; assim que for, o seu resultado aparece aqui.' : 'Carregando a campanha...'}</p>
+        </div>
+      );
+    }
     const payload = campanhaIncentivo2026?.dados || {};
     const realizado = payload?.realizado || {};
     const metas = payload?.metas || {};
@@ -21810,6 +21835,7 @@ const enviarArquivo = async (tipo) => {
       { id: 'geral', rotulo: 'Resultado Geral', icone: BarChart2 },
       { id: 'individual', rotulo: 'Resultado Individual', icone: Trophy },
       ...(donoCampanhaIncentivo2026 ? [{ id: 'lancamentos', rotulo: 'Lançamentos C01–C13', icone: Pencil }] : []),
+      ...(donoCampanhaIncentivo2026 ? [{ id: 'acessos', rotulo: 'Acessos', icone: KeyRound }] : []),
     ];
     const abaCampanhaAtiva = abasCampanha.some((aba) => aba.id === abaCampanhaIncentivo) ? abaCampanhaIncentivo : 'visao';
     const alternarLiberacaoCampanha = async () => {
@@ -21868,6 +21894,9 @@ const enviarArquivo = async (tipo) => {
         {campanhaIncentivo2026?.erro && <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 flex items-center gap-2"><AlertCircle size={17} /> {campanhaIncentivo2026.erro}</div>}
         {abaCampanhaAtiva === 'visao' && (
           <VisaoGeralCampanha2026 realizado={realizado} metas={metas} atualizadoEm={payload?.atualizado_em} carregando={campanhaIncentivo2026?.carregando} acumuladoAnterior={payload?.acumulado_anterior} campanhaC14C17={payload?.campanha_c14_c17} aoLancar={donoCampanhaIncentivo2026 ? () => setAbaCampanhaIncentivo('lancamentos') : null} />
+        )}
+        {abaCampanhaAtiva === 'acessos' && donoCampanhaIncentivo2026 && (
+          <AcessosCampanha2026 apiUrl={API_URL} />
         )}
         {abaCampanhaAtiva === 'lancamentos' && donoCampanhaIncentivo2026 && (
           <LancamentosCampanha2026 apiUrl={API_URL} aoSalvar={() => carregarCampanhaIncentivo2026(true)} />
@@ -22247,6 +22276,7 @@ const enviarArquivo = async (tipo) => {
           </div>
 
           <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            {!modoCampanha && (
             <div className="rounded-2xl border border-[#e7edef] overflow-hidden">
               <button
                 type="button"
@@ -22280,6 +22310,7 @@ const enviarArquivo = async (tipo) => {
                 </div>
               )}
             </div>
+            )}
 
             {usuarioPodeAcessarLoja() && (
               <div className="rounded-2xl border border-[#e7edef] overflow-hidden">
@@ -22316,7 +22347,7 @@ const enviarArquivo = async (tipo) => {
               </div>
             )}
 
-            {podeAcessarCampanhaIncentivo2026 && (
+            {(podeAcessarCampanhaIncentivo2026 || modoCampanha) && (
               <button
                 type="button"
                 onClick={() => {
