@@ -12587,14 +12587,14 @@ const enviarArquivo = async (tipo) => {
                   <div className="rounded-2xl border border-gray-100 overflow-hidden">
                     <div className="px-4 py-3 bg-[#f7fafb] border-b border-gray-100">
                       <h4 className="text-sm font-black text-gray-700">Revendedores da estrutura</h4>
-                      <p className="mt-1 text-xs font-semibold text-gray-400">Atividade base da planilha inicial e atividade atual considerando pedidos válidos do ciclo.</p>
+                      <p className="mt-1 text-xs font-semibold text-gray-400">Atividade base da planilha inicial e atividade atual pelos pedidos válidos do ciclo: A0–I6 que compra vira A0, C7+ vira Reinício e quem não estava na base vira Início.</p>
                     </div>
                     <div className="max-h-[430px] overflow-auto">
                       {(detalheAdicoesGerente.dados?.revendedores || []).length ? (
                         <table className="w-full min-w-[720px] text-[12px]">
                           <thead className="sticky top-0 bg-white text-[10px] uppercase text-gray-400"><tr><th className="px-4 py-3 text-left">Cód. Revendedor</th><th className="px-4 py-3 text-left">Nome</th><th className="px-4 py-3 text-left">Atividade Base</th><th className="px-4 py-3 text-left">Atividade Atual</th></tr></thead>
                           <tbody>{(detalheAdicoesGerente.dados?.revendedores || []).map((rev, idx) => (
-                            <tr key={`${rev?.cod_revendedor || idx}-${idx}`} className="border-t border-gray-100"><td className="px-4 py-3 font-black text-gray-700">{rev?.cod_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-700">{rev?.nome_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-500">{rev?.atividade_base || rev?.atividade || '-'}</td><td className="px-4 py-3 font-semibold text-[#048187]">{rev?.atividade || '-'}</td></tr>
+                            <tr key={`${rev?.cod_revendedor || idx}-${idx}`} className="border-t border-gray-100"><td className="px-4 py-3 font-black text-gray-700">{rev?.cod_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-700">{rev?.nome_revendedor || '-'}</td><td className="px-4 py-3 font-semibold text-gray-500">{rev?.origem === 'pedido' ? 'Fora da base' : (rev?.atividade_base || rev?.atividade || '-')}</td><td className="px-4 py-3 font-semibold text-[#048187]">{rev?.atividade || '-'}</td></tr>
                           ))}</tbody>
                         </table>
                       ) : <div className="p-8 text-center text-sm font-bold text-gray-400">Nenhum revendedor encontrado.</div>}

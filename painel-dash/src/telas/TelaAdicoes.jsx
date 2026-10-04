@@ -16,6 +16,12 @@ const corFaixa = (percentual) => {
 
 const formatarInteiro = (valor) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(Number(valor || 0));
 const formatarPercentual = (valor) => `${Number(valor || 0).toFixed(1).replace('.', ',')}%`;
+const formatarDataHora = (valor) => {
+  // O backend manda microssegundos (.219426); o Safari só aceita até milissegundos.
+  const data = valor ? new Date(String(valor).replace(/(\.\d{3})\d+/, '$1')) : null;
+  if (!data || Number.isNaN(data.getTime())) return '';
+  return data.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+};
 
 const normalizar = (valor) => String(valor || '')
   .normalize('NFD')
@@ -161,7 +167,8 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], estruturas = 
         <div className="p-4 sm:p-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>
             <h3 className="text-lg font-black text-gray-700">Adições por estrutura</h3>
-            <p className="mt-1 text-xs font-semibold text-gray-400">Base inicial do ciclo + Consulta Pedidos • Quem possui pedido válido é acompanhado como A0 sem precisar reenviar a base.</p>
+            <p className="mt-1 text-xs font-semibold text-gray-400">Base inicial do ciclo + Consulta Pedidos • Com pedido válido: A0–I6 vira A0, C7+ vira Reinício e quem não estava na base vira Início.</p>
+            {formatarDataHora(dados?.ultima_atualizacao) ? <p className="mt-1 text-[11px] font-black text-[#048187]">Atualizado em {formatarDataHora(dados.ultima_atualizacao)}</p> : null}
           </div>
           <div className="relative w-full lg:w-[320px]">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -279,7 +286,7 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], estruturas = 
                 <div className="rounded-2xl border border-gray-100 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100 bg-[#f9fbfb]">
                     <h4 className="text-sm font-black text-gray-700">Revendedores da estrutura</h4>
-                    <p className="mt-1 text-xs font-semibold text-gray-400">A atividade base vem da planilha inicial. A atividade atual considera os pedidos válidos do ciclo.</p>
+                    <p className="mt-1 text-xs font-semibold text-gray-400">A atividade base vem da planilha inicial. A atividade atual considera os pedidos válidos do ciclo; "Fora da base" é quem comprou sem estar na planilha inicial.</p>
                   </div>
                   {revendedoresDetalhe.length === 0 ? (
                     <div className="px-4 py-8 text-center text-sm font-bold text-gray-400">Nenhum revendedor encontrado para esta estrutura.</div>
@@ -299,9 +306,9 @@ export default function TelaAdicoes({ apiUrl, ciclo, nucleos = [], estruturas = 
                             <tr key={`${rev.cod_revendedor || 'rev'}-${idx}`} className="border-t border-gray-100 hover:bg-[#fbfefe]">
                               <td className="px-4 py-3 font-black text-gray-700">{rev.cod_revendedor || '-'}</td>
                               <td className="px-4 py-3 font-semibold text-gray-700">{rev.nome_revendedor || '-'}</td>
-                              <td className="px-4 py-3 font-semibold text-gray-500">{rev.atividade_base || rev.atividade || '-'}</td>
+                              <td className="px-4 py-3 font-semibold text-gray-500">{rev.origem === 'pedido' ? 'Fora da base' : (rev.atividade_base || rev.atividade || '-')}</td>
                               <td className="px-4 py-3">
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-1 font-black ${rev.ativou_no_ciclo && rev.atividade === 'A0' ? 'bg-[#e6f6f7] text-[#048187]' : 'bg-gray-100 text-gray-600'}`}>
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-1 font-black ${rev.ativou_no_ciclo && rev.atividade !== rev.atividade_base ? 'bg-[#e6f6f7] text-[#048187]' : 'bg-gray-100 text-gray-600'}`}>
                                   {rev.atividade || '-'}
                                 </span>
                               </td>
