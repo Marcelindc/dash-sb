@@ -21831,37 +21831,41 @@ const enviarArquivo = async (tipo) => {
 
     return (
       <div className="campanha-incentivo-2026 space-y-5 sm:space-y-6">
-        <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1" aria-label="Abas da Campanha Incentivo 2026">
-          {abasCampanha.map(({ id, rotulo, icone: Icone }) => {
-            const ativa = abaCampanhaAtiva === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setAbaCampanhaIncentivo(id)}
-                aria-current={ativa ? 'page' : undefined}
-                className={`shrink-0 inline-flex items-center gap-2 rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm font-black transition-all ${ativa ? 'bg-gradient-to-br from-[#048187] to-[#059aa0] text-white shadow-[0_14px_28px_-12px_rgba(4,129,135,.55)]' : 'bg-white text-gray-500 border border-gray-100 hover:text-[#048187] hover:border-[#cfe7e8]'}`}
-              >
-                <Icone size={16} /> {rotulo}
-              </button>
-            );
-          })}
+        <nav className="flex flex-wrap items-center gap-2 sm:gap-3" aria-label="Abas da Campanha Incentivo 2026">
+          <div className="max-w-full overflow-x-auto">
+            <div className="inline-flex items-center gap-0.5 rounded-xl bg-white border border-[#e8eef0] p-1 shadow-[0_1px_2px_rgba(15,23,42,.04)]">
+              {abasCampanha.map(({ id, rotulo, icone: Icone }) => {
+                const ativa = abaCampanhaAtiva === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setAbaCampanhaIncentivo(id)}
+                    aria-current={ativa ? 'page' : undefined}
+                    className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 sm:px-3.5 py-1.5 sm:py-2 text-[13px] font-medium transition-colors ${ativa ? 'bg-[#048187] text-white shadow-sm' : 'text-slate-500 hover:text-[#048187] hover:bg-[#f2f8f8]'}`}
+                  >
+                    <Icone size={15} strokeWidth={ativa ? 2.2 : 1.8} /> {rotulo}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {donoCampanhaIncentivo2026 ? (
             <button
               type="button"
               onClick={alternarLiberacaoCampanha}
               disabled={liberandoCampanha2026}
               title={campanhaIncentivo2026Liberada ? 'Clique para voltar a ser só sua' : 'Clique para liberar para gestores, gestores de unidade e consultores'}
-              className={`ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-2xl border px-3.5 py-2.5 text-xs font-black transition-colors disabled:opacity-60 ${campanhaIncentivo2026Liberada ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-white border-[#f1d9de] text-[#7c1f31] hover:bg-[#fbf3f5]'}`}
+              className={`ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60 ${campanhaIncentivo2026Liberada ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-white border-[#ecdde0] text-[#8a3445] hover:bg-[#fbf5f6]'}`}
             >
               {liberandoCampanha2026 ? <Loader2 size={14} className="animate-spin" /> : campanhaIncentivo2026Liberada ? <Unlock size={14} /> : <LockKeyhole size={14} />}
               {campanhaIncentivo2026Liberada ? 'Liberada para a equipe' : 'Privada • liberar para a equipe'}
             </button>
           ) : (
-            <span className="ml-auto hidden md:inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-400"><ShieldCheck size={14} className="text-[#048187]" /> Atualizado em {atualizadoCampanha}</span>
+            <span className="ml-auto hidden md:inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-slate-400"><ShieldCheck size={14} className="text-[#048187]" /> Atualizado em {atualizadoCampanha}</span>
           )}
         </nav>
-        {campanhaIncentivo2026?.erro && <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 flex items-center gap-2"><AlertCircle size={17} /> {campanhaIncentivo2026.erro}</div>}
+        {campanhaIncentivo2026?.erro && <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 flex items-center gap-2"><AlertCircle size={17} /> {campanhaIncentivo2026.erro}</div>}
         {abaCampanhaAtiva === 'visao' && (
           <VisaoGeralCampanha2026 realizado={realizado} metas={metas} atualizadoEm={payload?.atualizado_em} carregando={campanhaIncentivo2026?.carregando} acumuladoAnterior={payload?.acumulado_anterior} campanhaC14C17={payload?.campanha_c14_c17} aoLancar={donoCampanhaIncentivo2026 ? () => setAbaCampanhaIncentivo('lancamentos') : null} />
         )}
@@ -22510,8 +22514,8 @@ const enviarArquivo = async (tipo) => {
                 {telaAtual === 'CampanhaIncentivo2026' ? (
                   <div className="shrink-0 inline-flex items-center gap-2 rounded-full bg-[#f1f8f8] border border-[#dcebed] px-3.5 py-2 text-[#048187]">
                     <Trophy size={15} />
-                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-wide whitespace-nowrap">Campanha Incentivo 2026</span>
-                    {donoCampanhaIncentivo2026 && !campanhaIncentivo2026Liberada && <span className="hidden sm:inline text-[8px] font-black uppercase tracking-wider bg-[#7c1f31]/10 text-[#7c1f31] px-2 py-0.5 rounded-full">Privada</span>}
+                    <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide whitespace-nowrap">Campanha Incentivo 2026</span>
+                    {donoCampanhaIncentivo2026 && !campanhaIncentivo2026Liberada && <span className="hidden sm:inline text-[8px] font-semibold uppercase tracking-wider bg-[#7c1f31]/10 text-[#7c1f31] px-2 py-0.5 rounded-full">Privada</span>}
                   </div>
                 ) : (
                   <div className="relative shrink-0">

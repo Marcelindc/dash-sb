@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, MapPin, Pause, Play, CheckCircle, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Pause, Play, CheckCircle, CalendarDays, Sparkles, X } from 'lucide-react';
+import ChuvaDeCedulas from './ChuvaDeCedulas';
 
 // Visão Geral da Campanha Incentivo 2026 (layout do PDF "Geral" de 01/10/2026):
 // abertura com o resultado combinado, Ação 1 com o slide dos Lençóis e Ação 2 com o bônus.
@@ -109,7 +110,7 @@ function SliderLencois({ slides, intervaloMs = 5500 }) {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#011c1e]/85 via-[#011c1e]/15 to-transparent" />
 
       <div className="absolute left-4 top-4 sm:left-6 sm:top-6 z-20 flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/20 px-3 py-1.5 text-[11px] font-black text-white tracking-wide">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/20 px-3 py-1.5 text-[11px] font-semibold text-white tracking-wide">
           <MapPin size={13} /> Santo Amaro • MA
         </span>
         <button
@@ -121,7 +122,7 @@ function SliderLencois({ slides, intervaloMs = 5500 }) {
           {pausadoUsuario ? <Play size={13} /> : <Pause size={13} />}
         </button>
       </div>
-      <span className="absolute right-4 top-4 sm:right-6 sm:top-6 z-20 rounded-full bg-black/25 backdrop-blur-md border border-white/20 px-3 py-1.5 text-[11px] font-black text-white tabular-nums">
+      <span className="absolute right-4 top-4 sm:right-6 sm:top-6 z-20 rounded-full bg-black/25 backdrop-blur-md border border-white/20 px-3 py-1.5 text-[11px] font-semibold text-white tabular-nums">
         {String(atual + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
       </span>
 
@@ -130,8 +131,8 @@ function SliderLencois({ slides, intervaloMs = 5500 }) {
 
       <div className="absolute inset-x-0 bottom-0 z-10 p-5 sm:p-7 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div key={atual} className="vg-legenda max-w-xl text-white" aria-live="polite">
-          <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.18em] text-white/70">Lençóis Maranhenses</p>
-          <h3 className="mt-1 text-xl sm:text-2xl xl:text-3xl font-black leading-tight">{slide.titulo}</h3>
+          <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] text-white/70">Lençóis Maranhenses</p>
+          <h3 className="mt-1 text-xl sm:text-2xl xl:text-3xl font-bold leading-tight">{slide.titulo}</h3>
           <p className="mt-1.5 text-[13px] sm:text-[15px] text-white/80 font-medium">{slide.legenda}</p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0" role="tablist" aria-label="Escolher foto">
@@ -168,17 +169,17 @@ function AndamentoMeta({ realizado, meta, cor, rotulo }) {
   return (
     <div className="mt-6 rounded-2xl border border-black/5 bg-white/80 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">{rotulo}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">{rotulo}</span>
         {habilitada ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-2.5 py-1 text-[11px] font-black text-green-700"><CheckCircle size={13} /> Ação habilitada</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-2.5 py-1 text-[11px] font-semibold text-green-700"><CheckCircle size={13} /> Ação habilitada</span>
         ) : (
-          <span className="text-[11px] font-black text-gray-500">Faltam <span style={{ color: cor }}>{emMilhoes(falta)}</span></span>
+          <span className="text-[11px] font-semibold text-gray-500">Faltam <span style={{ color: cor }}>{emMilhoes(falta)}</span></span>
         )}
       </div>
       <div className="mt-3 h-2.5 rounded-full bg-gray-100 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(limitar(percentual))} aria-label={rotulo}>
         <div className="h-full rounded-full transition-[width] duration-1000 ease-out" style={{ width: `${limitar(percentual)}%`, background: cor }} />
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2 text-xs font-bold text-gray-500">
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs font-semibold text-gray-500">
         <span>{emMilhoes(realizado)} de {emMilhoes(meta)}</span>
         <span className="tabular-nums" style={{ color: cor }}>{emPercentual(percentual)}</span>
       </div>
@@ -188,7 +189,7 @@ function AndamentoMeta({ realizado, meta, cor, rotulo }) {
 
 function Selo({ children, destaque = false }) {
   return (
-    <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs sm:text-[13px] font-black ${destaque ? 'bg-[#e3f3f3] text-[#036b70]' : 'bg-[#eef3f3] text-gray-600'}`}>
+    <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs sm:text-[13px] font-semibold ${destaque ? 'bg-[#e3f3f3] text-[#036b70]' : 'bg-[#eef3f3] text-gray-600'}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current" />
       {children}
     </span>
@@ -204,6 +205,14 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
   const partVD = total > 0 ? (vd / total) * 100 : 0;
   const partLoja = total > 0 ? (loja / total) * 100 : 0;
   const semDados = carregando && !total;
+  // Chuva de cédulas (bônus de R$ 50 mil): ~10 s ao abrir a Visão Geral; dá para repetir ou pular.
+  const [chuva, setChuva] = useState(() => ({ rodada: 1, ativa: !prefereMenosMovimento() }));
+  useEffect(() => {
+    if (!chuva.ativa) return undefined;
+    const timer = setTimeout(() => setChuva((atual) => ({ ...atual, ativa: false })), 10300);
+    return () => clearTimeout(timer);
+  }, [chuva.rodada, chuva.ativa]);
+  const fazerChover = () => setChuva((atual) => ({ rodada: atual.rodada + 1, ativa: true }));
   const atualizado = atualizadoEm
     ? new Date(atualizadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
     : null;
@@ -212,6 +221,18 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
   return (
     <div className="campanha-vg space-y-6 sm:space-y-8">
       <style>{ESTILO}</style>
+      {chuva.ativa && (
+        <>
+          <ChuvaDeCedulas rodada={chuva.rodada} />
+          <button
+            type="button"
+            onClick={() => setChuva((atual) => ({ ...atual, ativa: false }))}
+            className="fixed bottom-5 right-5 z-[71] inline-flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur border border-gray-200 px-3.5 py-2 text-xs font-medium text-slate-600 shadow-lg hover:bg-white"
+          >
+            <X size={14} /> Pular
+          </button>
+        </>
+      )}
 
       {/* Abertura: título, mascotes e resultado combinado */}
       <section className="relative overflow-hidden rounded-[28px] sm:rounded-[32px] bg-[linear-gradient(115deg,#010d0e_0%,#033c3f_38%,#05767b_72%,#13a7ad_100%)] text-white shadow-[0_30px_70px_-35px_rgba(1,40,44,.8)]">
@@ -219,10 +240,10 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
         <div className="pointer-events-none absolute right-[-120px] bottom-[-160px] w-[420px] h-[420px] rounded-full bg-white/10 blur-3xl" />
         <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(340px,440px)] items-center gap-6 xl:gap-4 p-6 sm:p-9 xl:p-10">
           <div className="text-center xl:text-left">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.16em] text-white/80">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] text-white/80">
               <CalendarDays size={13} /> Ciclos 14 • 15 • 16 • 17
             </span>
-            <h1 className="mt-4 text-[2.6rem] leading-[1.02] sm:text-6xl xl:text-[clamp(2.6rem,3.4vw,3.9rem)] font-black tracking-tight">
+            <h1 className="mt-4 text-[2.6rem] leading-[1.02] sm:text-6xl xl:text-[clamp(2.6rem,3.4vw,3.9rem)] font-bold tracking-tight">
               Campanha<br /><span className="sm:whitespace-nowrap">Incentivo 2026</span>
             </h1>
             <p className="mt-4 text-sm sm:text-base text-white/75 font-medium max-w-md mx-auto xl:mx-0">
@@ -240,24 +261,24 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
           </div>
 
           <div className="rounded-[26px] bg-white/[0.14] backdrop-blur-md border border-white/25 p-5 sm:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,.25)]">
-            <p className="text-[11px] sm:text-xs font-black uppercase tracking-[0.14em] text-[#bff3f2]">Resultado combinado 2026 até C17</p>
-            <p className="mt-2 text-4xl sm:text-5xl font-black tracking-tight tabular-nums">{valor(emMilhoes(total))}</p>
+            <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.06em] text-[#bff3f2]">Resultado combinado 2026 até C17</p>
+            <p className="mt-2 text-4xl sm:text-5xl font-bold tracking-tight tabular-nums">{valor(emMilhoes(total))}</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-[#04676b] border border-white/10 p-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/70">Venda Direta</p>
-                <p className="mt-1.5 text-base sm:text-2xl font-black tabular-nums whitespace-nowrap">{valor(emMilhoes(vd))}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-white/70">Venda Direta</p>
+                <p className="mt-1.5 text-base sm:text-2xl font-bold tabular-nums whitespace-nowrap">{valor(emMilhoes(vd))}</p>
                 <div className="mt-3 h-2 rounded-full bg-white/20 overflow-hidden"><div className="h-full rounded-full bg-white transition-[width] duration-1000 ease-out" style={{ width: `${limitar(partVD)}%` }} /></div>
-                <p className="mt-1.5 text-[10px] font-bold text-white/65">{emPercentual(partVD)} do resultado</p>
+                <p className="mt-1.5 text-[10px] font-semibold text-white/65">{emPercentual(partVD)} do resultado</p>
               </div>
               <div className="rounded-2xl bg-white/85 border border-white/40 p-4 text-[#035f63]">
-                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#047c81]">Loja</p>
-                <p className="mt-1.5 text-base sm:text-2xl font-black tabular-nums whitespace-nowrap">{valor(emMilhoes(loja))}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#047c81]">Loja</p>
+                <p className="mt-1.5 text-base sm:text-2xl font-bold tabular-nums whitespace-nowrap">{valor(emMilhoes(loja))}</p>
                 <div className="mt-3 h-2 rounded-full bg-[#048187]/15 overflow-hidden"><div className="h-full rounded-full bg-[#048187] transition-[width] duration-1000 ease-out" style={{ width: `${limitar(partLoja)}%` }} /></div>
-                <p className="mt-1.5 text-[10px] font-bold text-[#047c81]/80">{emPercentual(partLoja)} do resultado</p>
+                <p className="mt-1.5 text-[10px] font-semibold text-[#047c81]/80">{emPercentual(partLoja)} do resultado</p>
               </div>
             </div>
             {acumuladoAnterior && campanhaC14C17 && (
-              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-white/70">
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-white/70">
                 <span>C01–C13: <span className="text-white tabular-nums">{emMilhoes(acumuladoAnterior.total)}</span></span>
                 <span className="w-1 h-1 rounded-full bg-white/40" />
                 <span>C14–C17: <span className="text-white tabular-nums">{emMilhoes(campanhaC14C17.total)}</span></span>
@@ -267,7 +288,7 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
               <button
                 type="button"
                 onClick={() => aoLancar?.()}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#ffd9a8]/20 border border-[#ffd9a8]/40 px-3 py-1.5 text-[11px] font-black text-[#ffe7c7] hover:bg-[#ffd9a8]/30"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#ffd9a8]/20 border border-[#ffd9a8]/40 px-3 py-1.5 text-[11px] font-semibold text-[#ffe7c7] hover:bg-[#ffd9a8]/30"
               >
                 {acumuladoAnterior.ciclos_faltando.length} ciclo(s) do C01 ao C13 sem resultado — lançar
               </button>
@@ -281,8 +302,8 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
       <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] gap-5 sm:gap-6 items-stretch">
         <SliderLencois slides={SLIDES_LENCOIS} />
         <article className="rounded-[28px] bg-[#f8f7f2] border border-[#ebe8de] p-6 sm:p-9 xl:p-10 flex flex-col justify-center">
-          <p className="text-xs sm:text-sm font-black uppercase tracking-[0.16em] text-[#048187]">Ação 1 • Expedição 106</p>
-          <h2 className="mt-3 sm:mt-4 text-3xl sm:text-4xl font-black tracking-tight text-[#7c1f31] leading-tight">Viagem para Santo Amaro</h2>
+          <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.06em] text-[#048187]">Ação 1 • Expedição 106</p>
+          <h2 className="mt-3 sm:mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-[#7c1f31] leading-tight">Viagem para Santo Amaro</h2>
           <p className="mt-4 sm:mt-5 text-base sm:text-lg text-gray-600 leading-relaxed">
             Os consultores elegíveis precisam bater as metas completas de <strong className="text-gray-800">receita + indicadores</strong> nos ciclos <strong className="text-gray-800">14, 15, 16 e 17</strong>. A ação é habilitada quando o CP alcançar <strong className="text-[#048187]">R$ 106 milhões</strong>.
           </p>
@@ -299,8 +320,8 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
         <div className="pointer-events-none absolute -right-32 -top-32 w-[420px] h-[420px] rounded-full bg-white/10 blur-3xl" />
         <div className="relative grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-6 xl:gap-10">
           <article className="rounded-[26px] bg-white p-6 sm:p-9 xl:p-10 shadow-[0_30px_60px_-30px_rgba(0,0,0,.45)]">
-            <p className="text-xs sm:text-sm font-black uppercase tracking-[0.16em] text-[#048187]">Ação 2 • Expedição 109</p>
-            <h2 className="mt-3 sm:mt-4 text-3xl sm:text-4xl font-black tracking-tight text-[#7c1f31] leading-tight">Bônus de R$ 50 mil</h2>
+            <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.06em] text-[#048187]">Ação 2 • Expedição 109</p>
+            <h2 className="mt-3 sm:mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-[#7c1f31] leading-tight">Bônus de R$ 50 mil</h2>
             <p className="mt-4 sm:mt-5 text-base sm:text-lg text-gray-600 leading-relaxed">
               O pool de <strong className="text-[#048187]">R$ 50.000</strong> será dividido proporcionalmente entre os elegíveis que alcançarem <strong className="text-[#048187]">120% da meta individual</strong> do C14 ao C17 e cumprirem os indicadores <span className="text-[#048187] font-semibold">IAF aplicáveis</span>. A ação é habilitada quando o CP atingir <strong className="text-[#048187]">R$ 109 milhões</strong>.
             </p>
@@ -308,6 +329,14 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
               <Selo destaque>120% da meta individual</Selo>
               <Selo>Meta corporativa 109 MM</Selo>
             </div>
+            <button
+              type="button"
+              onClick={fazerChover}
+              disabled={chuva.ativa}
+              className="mt-5 inline-flex items-center gap-2 rounded-xl border border-[#cfe7e8] bg-[#f3fafa] px-3.5 py-2 text-xs font-medium text-[#036b70] transition-colors hover:bg-[#e7f4f4] disabled:opacity-50"
+            >
+              <Sparkles size={14} /> {chuva.ativa ? 'Chovendo R$ 50 mil...' : 'Ver a chuva de R$ 50 mil'}
+            </button>
             <AndamentoMeta realizado={total} meta={meta109} cor="#7c1f31" rotulo="Andamento do CP até 109 MM" />
           </article>
           <div className="flex justify-center">

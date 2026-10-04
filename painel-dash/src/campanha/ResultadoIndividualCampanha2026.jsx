@@ -62,8 +62,8 @@ function iniciais(nome) {
 
 function SeloCanal({ canal }) {
   return canal === 'LOJA'
-    ? <span className="inline-flex items-center gap-1 rounded-full bg-[#eef8f8] px-2 py-0.5 text-[10px] font-black text-[#2a9aa0]"><Store size={11} /> Loja</span>
-    : <span className="inline-flex items-center gap-1 rounded-full bg-[#e3f3f3] px-2 py-0.5 text-[10px] font-black text-[#036b70]"><Users size={11} /> VD</span>;
+    ? <span className="inline-flex items-center gap-1 rounded-full bg-[#eef8f8] px-2 py-0.5 text-[10px] font-semibold text-[#2a9aa0]"><Store size={11} /> Loja</span>
+    : <span className="inline-flex items-center gap-1 rounded-full bg-[#e3f3f3] px-2 py-0.5 text-[10px] font-semibold text-[#036b70]"><Users size={11} /> VD</span>;
 }
 
 function PilulaCiclo({ ciclo }) {
@@ -73,7 +73,7 @@ function PilulaCiclo({ ciclo }) {
   const batidos = total - (ciclo.faltam || 0);
   const parcial = ciclo.status === 'em_andamento' && total > 0;
   return (
-    <span title={`${rotuloCiclo(ciclo.numero)}: ${info.texto}${total ? ` (${batidos} de ${total} metas)` : ''}`} className={`inline-flex flex-col items-center justify-center w-[46px] h-[42px] rounded-xl border text-[10px] font-black leading-none ${info.classe}`}>
+    <span title={`${rotuloCiclo(ciclo.numero)}: ${info.texto}${total ? ` (${batidos} de ${total} metas)` : ''}`} className={`inline-flex flex-col items-center justify-center w-[46px] h-[42px] rounded-xl border text-[10px] font-semibold leading-none ${info.classe}`}>
       <span className="opacity-80">{rotuloCiclo(ciclo.numero)}</span>
       <span className="mt-1 flex items-center gap-0.5">{Icone ? <Icone size={12} strokeWidth={3} /> : '—'}{parcial && <span className="tabular-nums">{batidos}/{total}</span>}</span>
     </span>
@@ -96,9 +96,9 @@ function CartaoResumo({ Icone, cor, titulo, valor, detalhe }) {
     <article className="rounded-[22px] bg-white border border-gray-100 shadow-sm p-4 sm:p-5">
       <div className="flex items-center gap-2.5">
         <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${cor}14`, color: cor }}><Icone size={18} /></span>
-        <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.12em] text-gray-400 leading-tight">{titulo}</p>
+        <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 leading-tight">{titulo}</p>
       </div>
-      <p className="mt-3 text-2xl sm:text-3xl font-black tabular-nums text-gray-800">{valor}</p>
+      <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-gray-800">{valor}</p>
       <p className="mt-1 text-[11px] font-semibold text-gray-400 leading-snug">{detalhe}</p>
     </article>
   );
@@ -109,31 +109,31 @@ function TabelaCiclos({ ciclos, titulo, cor = '#048187', Icone = Plane }) {
   for (const ciclo of ciclos || []) for (const criterio of ciclo.criterios || []) if (!chaves.find((c) => c.chave === criterio.chave)) chaves.push({ chave: criterio.chave, rotulo: criterio.rotulo });
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-black uppercase tracking-[0.12em] flex items-center gap-1.5" style={{ color: cor }}><Icone size={13} /> {titulo}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.06em] flex items-center gap-1.5" style={{ color: cor }}><Icone size={13} /> {titulo}</p>
       {chaves.length ? (
         <div className="mt-2 overflow-x-auto rounded-xl border border-gray-100 bg-white">
           <table className="w-full min-w-[460px] text-[11px]">
             <thead>
               <tr className="bg-[#f5f9f9] text-gray-500">
-                <th className="px-3 py-2 text-left font-black">Meta</th>
-                {ciclos.map((c) => <th key={c.numero} className="px-2 py-2 text-center font-black">{rotuloCiclo(c.numero)}</th>)}
+                <th className="px-3 py-2 text-left font-semibold">Meta</th>
+                {ciclos.map((c) => <th key={c.numero} className="px-2 py-2 text-center font-semibold">{rotuloCiclo(c.numero)}</th>)}
               </tr>
             </thead>
             <tbody>
               {chaves.map(({ chave, rotulo }) => (
                 <tr key={chave} className="border-t border-gray-100">
-                  <td className="px-3 py-2 font-black text-gray-700 whitespace-nowrap">{rotulo}</td>
+                  <td className="px-3 py-2 font-semibold text-gray-700 whitespace-nowrap">{rotulo}</td>
                   {ciclos.map((c) => {
                     const criterio = (c.criterios || []).find((x) => x.chave === chave);
                     if (!criterio) return <td key={c.numero} className="px-2 py-2 text-center text-gray-300">—</td>;
                     const fechado = c.situacao_ciclo === 'encerrado';
                     return (
                       <td key={c.numero} className="px-2 py-2 text-center">
-                        <span className={`inline-flex items-center gap-1 font-black tabular-nums ${criterio.ok ? 'text-green-700' : fechado ? 'text-[#b42335]' : 'text-[#a65f00]'}`}>
+                        <span className={`inline-flex items-center gap-1 font-semibold tabular-nums ${criterio.ok ? 'text-green-700' : fechado ? 'text-[#b42335]' : 'text-[#a65f00]'}`}>
                           {criterio.ok ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}
                           {emValor(criterio.valor, criterio.formato)}
                         </span>
-                        <span className="block text-[10px] font-bold text-gray-400">{criterio.sem_meta ? 'sem meta' : `meta ${emValor(criterio.meta, criterio.formato)}`}</span>
+                        <span className="block text-[10px] font-semibold text-gray-400">{criterio.sem_meta ? 'sem meta' : `meta ${emValor(criterio.meta, criterio.formato)}`}</span>
                       </td>
                     );
                   })}
@@ -142,7 +142,7 @@ function TabelaCiclos({ ciclos, titulo, cor = '#048187', Icone = Plane }) {
             </tbody>
           </table>
         </div>
-      ) : <p className="mt-2 text-xs font-bold text-gray-400">Ainda sem ciclo com resultado.</p>}
+      ) : <p className="mt-2 text-xs font-semibold text-gray-400">Ainda sem ciclo com resultado.</p>}
     </div>
   );
 }
@@ -156,26 +156,26 @@ function DetalhePessoa({ pessoa }) {
         <p className="mt-2 text-[10px] font-semibold text-gray-400">Verde: meta batida. Laranja: ainda não bateu, ciclo em andamento. Vermelho: ciclo fechado sem bater.</p>
       </div>
       <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#7c1f31] flex items-center gap-1.5"><BadgeDollarSign size={13} /> Bônus • C14 até agora</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#7c1f31] flex items-center gap-1.5"><BadgeDollarSign size={13} /> Bônus • C14 até agora</p>
         <div className="mt-2 rounded-xl border border-gray-100 bg-white p-3.5">
           <div className="flex items-baseline justify-between gap-2">
-            <p className="text-xs font-bold text-gray-500">Receita do período</p>
-            <p className="text-sm font-black tabular-nums text-gray-800">{emValor(sup.receita, 'moeda')} <span className="text-gray-400 font-bold">de {emValor(sup.meta, 'moeda')}</span></p>
+            <p className="text-xs font-semibold text-gray-500">Receita do período</p>
+            <p className="text-sm font-semibold tabular-nums text-gray-800">{emValor(sup.receita, 'moeda')} <span className="text-gray-400 font-semibold">de {emValor(sup.meta, 'moeda')}</span></p>
           </div>
           <BarraReceita superacao={sup} comBonus />
-          <p className="mt-1.5 text-[10px] font-bold text-gray-400">{emPercentual(sup.percentual)} da meta • precisa de 120% (marca na barra)</p>
+          <p className="mt-1.5 text-[10px] font-semibold text-gray-400">{emPercentual(sup.percentual)} da meta • precisa de 120% (marca na barra)</p>
           <ul className="mt-3 space-y-1.5">
             {(sup.criterios || []).map((c) => (
               <li key={c.chave} className="flex items-center justify-between gap-2 text-[11px]">
-                <span className={`inline-flex items-center gap-1.5 font-black ${c.ok ? 'text-green-700' : 'text-gray-500'}`}>
+                <span className={`inline-flex items-center gap-1.5 font-semibold ${c.ok ? 'text-green-700' : 'text-gray-500'}`}>
                   {c.ok ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />} {c.rotulo}
                 </span>
-                <span className="font-bold tabular-nums text-gray-500">{c.chave === 'receita_120' ? emPercentual(c.valor) : `${emValor(c.valor, c.formato)} / ${c.sem_meta ? 'sem meta' : emValor(c.meta, c.formato)}`}</span>
+                <span className="font-semibold tabular-nums text-gray-500">{c.chave === 'receita_120' ? emPercentual(c.valor) : `${emValor(c.valor, c.formato)} / ${c.sem_meta ? 'sem meta' : emValor(c.meta, c.formato)}`}</span>
               </li>
             ))}
           </ul>
           {sup.ok && (
-            <p className="mt-3 rounded-lg bg-green-50 border border-green-100 px-2.5 py-2 text-[11px] font-bold text-green-800">
+            <p className="mt-3 rounded-lg bg-green-50 border border-green-100 px-2.5 py-2 text-[11px] font-semibold text-green-800">
               Parte estimada do bônus: <strong className="tabular-nums">{emReais(sup.parte_estimada)}</strong> (se a campanha terminasse hoje e o CP chegar a 109 MM)
             </p>
           )}
@@ -193,18 +193,18 @@ function LinhaPessoa({ pessoa, aberta, aoAlternar, recuo = false }) {
       <button type="button" onClick={aoAlternar} aria-expanded={aberta}
         className={`w-full text-left py-3 grid grid-cols-1 ${GRADE_LINHA} gap-3 lg:gap-4 items-center hover:bg-[#f9fcfc] transition-colors ${recuo ? 'pl-4 sm:pl-10 pr-4 sm:pr-5' : 'px-4 sm:px-5'}`}>
         <div className="flex items-center gap-3 min-w-0">
-          <span className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-[11px] font-black ${pessoa.canal === 'LOJA' ? 'bg-[#e6f6f7] text-[#2a9aa0]' : 'bg-[#048187] text-white'}`}>{iniciais(pessoa.nome)}</span>
+          <span className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-[11px] font-semibold ${pessoa.canal === 'LOJA' ? 'bg-[#e6f6f7] text-[#2a9aa0]' : 'bg-[#048187] text-white'}`}>{iniciais(pessoa.nome)}</span>
           <div className="min-w-0">
-            <p className="text-sm font-black text-gray-800 truncate">{pessoa.nome}</p>
+            <p className="text-sm font-semibold text-gray-800 truncate">{pessoa.nome}</p>
             <p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold text-gray-400 min-w-0"><SeloCanal canal={pessoa.canal} /> <span className="truncate">{pessoa.unidade}</span></p>
           </div>
         </div>
         <div className="flex gap-1.5">{(pessoa.ciclos || []).map((c) => <PilulaCiclo key={c.numero} ciclo={c} />)}</div>
-        <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-black ${viagem.classe}`}>{viagem.texto}</span></div>
+        <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${viagem.classe}`}>{viagem.texto}</span></div>
         <div className="min-w-0">
           <div className="flex items-baseline justify-between gap-2">
-            <span className={`text-sm font-black tabular-nums ${sup.ok ? 'text-green-700' : 'text-gray-700'}`}>{emPercentual(sup.percentual)}</span>
-            <span className="text-[10px] font-bold text-gray-400 truncate">{sup.ok && sup.parte_estimada ? `≈ ${emReais(sup.parte_estimada)}` : STATUS_BONUS[pessoa.status_109] || ''}</span>
+            <span className={`text-sm font-semibold tabular-nums ${sup.ok ? 'text-green-700' : 'text-gray-700'}`}>{emPercentual(sup.percentual)}</span>
+            <span className="text-[10px] font-semibold text-gray-400 truncate">{sup.ok && sup.parte_estimada ? `≈ ${emReais(sup.parte_estimada)}` : STATUS_BONUS[pessoa.status_109] || ''}</span>
           </div>
           <BarraReceita superacao={sup} comBonus />
         </div>
@@ -228,7 +228,7 @@ function CartaoUnidade({ unidade, pessoas, aberta, aoAlternar, pessoasAbertas, a
         <div className="flex items-center gap-3 min-w-0">
           <span className={`w-11 h-11 shrink-0 rounded-2xl flex items-center justify-center ${unidade.canal === 'LOJA' ? 'bg-[#eef8f8] text-[#2a9aa0]' : 'bg-[#e3f3f3] text-[#048187]'}`}><IconeUnidade size={20} /></span>
           <div className="min-w-0">
-            <p className="text-sm sm:text-[15px] font-black text-gray-800 truncate">{unidade.nome}</p>
+            <p className="text-sm sm:text-[15px] font-semibold text-gray-800 truncate">{unidade.nome}</p>
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-gray-400">
               <SeloCanal canal={unidade.canal} />
               {unidade.unidade && <span>{unidade.unidade}</span>}
@@ -238,15 +238,15 @@ function CartaoUnidade({ unidade, pessoas, aberta, aoAlternar, pessoasAbertas, a
           </div>
         </div>
         <div className="flex gap-1.5">
-          {semResultado ? <span className="text-[11px] font-bold text-gray-400 lg:w-[208px]">Sem meta própria</span> : (unidade.ciclos || []).map((c) => <PilulaCiclo key={c.numero} ciclo={c} />)}
+          {semResultado ? <span className="text-[11px] font-semibold text-gray-400 lg:w-[208px]">Sem meta própria</span> : (unidade.ciclos || []).map((c) => <PilulaCiclo key={c.numero} ciclo={c} />)}
         </div>
-        <div>{!semResultado && <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-black ${status.classe}`}>{status.texto}</span>}</div>
+        <div>{!semResultado && <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${status.classe}`}>{status.texto}</span>}</div>
         <div className="min-w-0">
           {!semResultado && (
             <>
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm font-black tabular-nums text-gray-700">{emPercentual(sup.percentual)}</span>
-                <span className="text-[10px] font-bold text-gray-400 truncate">da meta de receita (C14 até agora)</span>
+                <span className="text-sm font-semibold tabular-nums text-gray-700">{emPercentual(sup.percentual)}</span>
+                <span className="text-[10px] font-semibold text-gray-400 truncate">da meta de receita (C14 até agora)</span>
               </div>
               <BarraReceita superacao={sup} comBonus={false} />
             </>
@@ -264,11 +264,11 @@ function CartaoUnidade({ unidade, pessoas, aberta, aoAlternar, pessoasAbertas, a
           {mostrarPessoas && (
             pessoas.length ? (
               <div>
-                <p className="px-4 sm:px-5 pt-3 pb-1 text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">Consultores desta {unidade.canal === 'LOJA' ? 'loja' : 'unidade'}</p>
+                <p className="px-4 sm:px-5 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">Consultores desta {unidade.canal === 'LOJA' ? 'loja' : 'unidade'}</p>
                 <ul>{pessoas.map((p) => <LinhaPessoa key={p.participante} pessoa={p} recuo aberta={pessoasAbertas.has(p.participante)} aoAlternar={() => aoAlternarPessoa(p.participante)} />)}</ul>
               </div>
             ) : (
-              <p className="px-5 py-4 text-xs font-bold text-gray-400 flex items-center gap-1.5"><Info size={13} /> Nenhum consultor desta unidade está no cadastro de metas do DASH.</p>
+              <p className="px-5 py-4 text-xs font-semibold text-gray-400 flex items-center gap-1.5"><Info size={13} /> Nenhum consultor desta unidade está no cadastro de metas do DASH.</p>
             )
           )}
         </div>
@@ -302,14 +302,14 @@ function EditorRegras({ dados, apiUrl, aoSalvar, aoCancelar }) {
 
   const grupo = (titulo, chave, canal, travarReceita = false) => (
     <div>
-      <p className="text-[11px] font-black text-gray-600">{titulo}</p>
+      <p className="text-[11px] font-semibold text-gray-600">{titulo}</p>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         {(dados.indicadores_disponiveis?.[canal] || []).filter((i) => travarReceita || i.chave !== 'receita').map((i) => {
           const travado = travarReceita && i.chave === 'receita';
           const ativo = travado || regras[chave].includes(i.chave);
           return (
             <button key={i.chave} type="button" disabled={travado} onClick={() => alternar(chave, i.chave)}
-              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-black transition-colors ${ativo ? 'bg-[#048187] border-[#048187] text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-[#048187] hover:text-[#048187]'} ${travado ? 'opacity-80 cursor-not-allowed' : ''}`}>
+              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors ${ativo ? 'bg-[#048187] border-[#048187] text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-[#048187] hover:text-[#048187]'} ${travado ? 'opacity-80 cursor-not-allowed' : ''}`}>
               {travado ? <Lock size={11} /> : ativo ? <Check size={11} strokeWidth={3} /> : null} {i.rotulo}
             </button>
           );
@@ -322,27 +322,27 @@ function EditorRegras({ dados, apiUrl, aoSalvar, aoCancelar }) {
     <div className="mt-4 rounded-2xl border border-[#cde9ea] bg-[#f6fbfb] p-4 space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="space-y-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#048187]">Viagem (106) • bater em todos os ciclos</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#048187]">Viagem (106) • bater em todos os ciclos</p>
           {grupo('Venda Direta', 'vd_106', 'VD', true)}
           {grupo('Loja', 'loja_106', 'LOJA', true)}
         </div>
         <div className="space-y-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#7c1f31]">Bônus (109) • além dos 120% da receita</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#7c1f31]">Bônus (109) • além dos 120% da receita</p>
           {grupo('Venda Direta (IAF)', 'vd_109', 'VD')}
           {grupo('Loja', 'loja_109', 'LOJA')}
           <div>
-            <p className="text-[11px] font-black text-gray-600">Divisão dos R$ 50 mil</p>
-            <select value={regras.divisao_bonus} onChange={(e) => setRegras((r) => ({ ...r, divisao_bonus: e.target.value }))} className="mt-1.5 w-full sm:w-auto rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#048187]/30">
+            <p className="text-[11px] font-semibold text-gray-600">Divisão dos R$ 50 mil</p>
+            <select value={regras.divisao_bonus} onChange={(e) => setRegras((r) => ({ ...r, divisao_bonus: e.target.value }))} className="mt-1.5 w-full sm:w-auto rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#048187]/30">
               {(dados.divisoes_bonus || []).map((d) => <option key={d.chave} value={d.chave}>{d.rotulo}</option>)}
             </select>
           </div>
         </div>
       </div>
       <p className="text-[11px] font-semibold text-gray-500">As mesmas metas valem para as unidades (equipes, ERs e lojas) e para os consultores.</p>
-      {erro && <p className="text-xs font-bold text-[#b42335] flex items-center gap-1.5"><AlertCircle size={14} /> {erro}</p>}
+      {erro && <p className="text-xs font-semibold text-[#b42335] flex items-center gap-1.5"><AlertCircle size={14} /> {erro}</p>}
       <div className="flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={aoCancelar} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-black text-gray-500 hover:text-gray-700">Cancelar</button>
-        <button type="button" onClick={salvar} disabled={salvando} className="inline-flex items-center gap-1.5 rounded-xl bg-[#048187] px-4 py-2 text-xs font-black text-white hover:bg-[#036b70] disabled:opacity-60">
+        <button type="button" onClick={aoCancelar} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700">Cancelar</button>
+        <button type="button" onClick={salvar} disabled={salvando} className="inline-flex items-center gap-1.5 rounded-xl bg-[#048187] px-4 py-2 text-xs font-semibold text-white hover:bg-[#036b70] disabled:opacity-60">
           {salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Salvar regras
         </button>
       </div>
@@ -355,20 +355,20 @@ function ResumoRegras({ dados }) {
   const r = dados.regras || {};
   const divisao = dados.divisoes_bonus?.find((d) => d.chave === r.divisao_bonus)?.rotulo || '';
   const linha = (titulo, itens) => (
-    <p className="text-[11px] font-semibold text-gray-500"><span className="font-black text-gray-700">{titulo}:</span> {itens.length ? itens.join(' + ') : 'só a receita'}</p>
+    <p className="text-[11px] font-semibold text-gray-500"><span className="font-semibold text-gray-700">{titulo}:</span> {itens.length ? itens.join(' + ') : 'só a receita'}</p>
   );
   return (
     <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
       <div className="rounded-xl bg-[#f6fbfb] border border-[#e1f0f0] p-3 space-y-1">
-        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#048187]">Viagem (106) • em C14, C15, C16 e C17</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#048187]">Viagem (106) • em C14, C15, C16 e C17</p>
         {linha('VD', nomes('VD', r.vd_106))}
         {linha('Loja', nomes('LOJA', r.loja_106))}
       </div>
       <div className="rounded-xl bg-[#fbf7f8] border border-[#f1e3e6] p-3 space-y-1">
-        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#7c1f31]">Bônus (109) • somando C14 a C17</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#7c1f31]">Bônus (109) • somando C14 a C17</p>
         {linha('VD', ['Receita ≥ 120%', ...nomes('VD', r.vd_109)])}
         {linha('Loja', ['Receita ≥ 120%', ...nomes('LOJA', r.loja_109)])}
-        <p className="text-[11px] font-semibold text-gray-500"><span className="font-black text-gray-700">Divisão:</span> {divisao}</p>
+        <p className="text-[11px] font-semibold text-gray-500"><span className="font-semibold text-gray-700">Divisão:</span> {divisao}</p>
       </div>
     </div>
   );
@@ -377,10 +377,10 @@ function ResumoRegras({ dados }) {
 function SeletorVerComo({ opcoes, valor, aoMudar, carregando }) {
   const grupos = ['Gestor de unidade', 'Consultor'];
   return (
-    <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white pl-3 pr-1 py-1 text-xs font-black text-gray-500">
+    <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white pl-3 pr-1 py-1 text-xs font-semibold text-gray-500">
       {carregando ? <Loader2 size={14} className="animate-spin text-[#048187]" /> : <Eye size={14} className="text-[#048187]" />}
       <span className="whitespace-nowrap">Ver como</span>
-      <select value={valor} onChange={(e) => aoMudar(e.target.value)} className="min-w-0 max-w-[220px] sm:max-w-[260px] rounded-lg bg-[#f5f9f9] px-2 py-1.5 text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#048187]/30">
+      <select value={valor} onChange={(e) => aoMudar(e.target.value)} className="min-w-0 max-w-[220px] sm:max-w-[260px] rounded-lg bg-[#f5f9f9] px-2 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#048187]/30">
         <option value="">Visão completa (você)</option>
         {grupos.map((g) => (
           <optgroup key={g} label={g}>
@@ -483,7 +483,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
     return (
       <div className="rounded-[24px] bg-white border border-gray-100 p-10 sm:p-14 text-center shadow-sm">
         <Loader2 size={30} className="mx-auto animate-spin text-[#048187]" />
-        <p className="mt-4 text-sm font-black text-gray-700">Calculando o resultado das unidades e dos consultores...</p>
+        <p className="mt-4 text-sm font-semibold text-gray-700">Calculando o resultado das unidades e dos consultores...</p>
         <p className="mt-1 text-xs font-semibold text-gray-400">Na primeira vez pode levar até 1 minuto: o DASH confere receita e indicadores ciclo a ciclo.</p>
       </div>
     );
@@ -493,8 +493,8 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
     return (
       <div className="rounded-[24px] bg-white border border-red-100 p-8 text-center shadow-sm">
         <AlertCircle size={26} className="mx-auto text-[#b42335]" />
-        <p className="mt-3 text-sm font-black text-gray-700">{erro || 'Não foi possível calcular o resultado individual.'}</p>
-        <button type="button" onClick={() => { setCarregando(true); carregar({ forcar: true }); }} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#048187] px-4 py-2 text-xs font-black text-white"><RefreshCw size={14} /> Tentar de novo</button>
+        <p className="mt-3 text-sm font-semibold text-gray-700">{erro || 'Não foi possível calcular o resultado individual.'}</p>
+        <button type="button" onClick={() => { setCarregando(true); carregar({ forcar: true }); }} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#048187] px-4 py-2 text-xs font-semibold text-white"><RefreshCw size={14} /> Tentar de novo</button>
       </div>
     );
   }
@@ -511,7 +511,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
     <div className="space-y-5 sm:space-y-6">
       {acesso.dono && (
         <div className={`rounded-2xl border px-4 py-3 flex flex-col md:flex-row md:items-center gap-3 ${acesso.simulando ? 'border-[#f8dfb8] bg-[#fff8ee]' : 'border-gray-100 bg-white'}`}>
-          <p className="flex-1 text-xs font-bold text-gray-500 flex items-start gap-2">
+          <p className="flex-1 text-xs font-semibold text-gray-500 flex items-start gap-2">
             <Eye size={16} className={`shrink-0 mt-0.5 ${acesso.simulando ? 'text-[#a65f00]' : 'text-[#048187]'}`} />
             {acesso.simulando
               ? <span>Você está vendo esta aba como {acesso.simulando.tipo === 'unidade' ? <>o <strong className="text-gray-800">gestor da unidade {acesso.simulando.nome}</strong></> : <>o <strong className="text-gray-800">consultor {acesso.simulando.nome}</strong></>}.</span>
@@ -519,7 +519,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <SeletorVerComo opcoes={opcoesVerComo} valor={verComo} aoMudar={mudarVerComo} carregando={atualizando} />
-            {acesso.simulando && <button type="button" onClick={() => mudarVerComo('')} className="rounded-xl bg-[#a65f00] px-3 py-2 text-xs font-black text-white hover:bg-[#8a4f00]">Voltar à visão completa</button>}
+            {acesso.simulando && <button type="button" onClick={() => mudarVerComo('')} className="rounded-xl bg-[#a65f00] px-3 py-2 text-xs font-semibold text-white hover:bg-[#8a4f00]">Voltar à visão completa</button>}
           </div>
         </div>
       )}
@@ -529,15 +529,15 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
         eu ? (
           <section className="rounded-[24px] bg-white border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-4 sm:px-5 pt-4 sm:pt-5">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#048187]">Seu resultado</p>
-              <h2 className="mt-1 text-lg sm:text-xl font-black text-gray-800">Como você está na campanha</h2>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#048187]">Seu resultado</p>
+              <h2 className="mt-1 text-lg sm:text-xl font-bold text-gray-800">Como você está na campanha</h2>
             </div>
             <ul className="mt-2"><LinhaPessoa pessoa={eu} aberta={pessoasAbertas.has(eu.participante)} aoAlternar={() => alternarPessoa(eu.participante)} /></ul>
           </section>
         ) : (
           <div className="rounded-[24px] bg-white border border-gray-100 p-8 text-center shadow-sm">
             <UserRound size={26} className="mx-auto text-gray-300" />
-            <p className="mt-3 text-sm font-black text-gray-700">Seu resultado ainda não aparece na campanha.</p>
+            <p className="mt-3 text-sm font-semibold text-gray-700">Seu resultado ainda não aparece na campanha.</p>
             <p className="mt-1 text-xs font-semibold text-gray-400">Ele aparece quando você tiver meta cadastrada ou venda no ciclo. Fale com o seu gestor se isso não acontecer.</p>
           </div>
         )
@@ -558,12 +558,12 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
       <section className="rounded-[24px] bg-white border border-gray-100 shadow-sm p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-black text-gray-800 flex items-center gap-2"><SlidersHorizontal size={16} className="text-[#048187]" /> Regras da campanha</p>
+            <p className="text-sm font-semibold text-gray-800 flex items-center gap-2"><SlidersHorizontal size={16} className="text-[#048187]" /> Regras da campanha</p>
             <p className="mt-0.5 text-[11px] font-semibold text-gray-400">Mesmos números do DASH (Metas e painel da Loja).{calculadoEm ? ` Calculado em ${calculadoEm}.` : ''}</p>
           </div>
           <div className="flex gap-2">
-            {acesso.pode_editar && !editandoRegras && <button type="button" onClick={() => setEditandoRegras(true)} className="rounded-xl border border-gray-200 px-3.5 py-2 text-xs font-black text-gray-600 hover:border-[#048187] hover:text-[#048187]">Editar regras</button>}
-            <button type="button" onClick={() => carregar({ forcar: true })} disabled={atualizando} className="inline-flex items-center gap-1.5 rounded-xl bg-[#048187] px-3.5 py-2 text-xs font-black text-white hover:bg-[#036b70] disabled:opacity-60">
+            {acesso.pode_editar && !editandoRegras && <button type="button" onClick={() => setEditandoRegras(true)} className="rounded-xl border border-gray-200 px-3.5 py-2 text-xs font-semibold text-gray-600 hover:border-[#048187] hover:text-[#048187]">Editar regras</button>}
+            <button type="button" onClick={() => carregar({ forcar: true })} disabled={atualizando} className="inline-flex items-center gap-1.5 rounded-xl bg-[#048187] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#036b70] disabled:opacity-60">
               <RefreshCw size={14} className={atualizando ? 'animate-spin' : ''} /> {atualizando ? 'Atualizando...' : 'Atualizar'}
             </button>
           </div>
@@ -571,7 +571,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
         {editandoRegras && acesso.pode_editar
           ? <EditorRegras dados={dados} apiUrl={apiUrl} aoCancelar={() => setEditandoRegras(false)} aoSalvar={() => { setEditandoRegras(false); carregar(); }} />
           : <ResumoRegras dados={dados} />}
-        {erro && <p className="mt-3 text-xs font-bold text-[#b42335] flex items-center gap-1.5"><AlertCircle size={14} /> {erro}</p>}
+        {erro && <p className="mt-3 text-xs font-semibold text-[#b42335] flex items-center gap-1.5"><AlertCircle size={14} /> {erro}</p>}
         {acesso.pode_editar && (dados.fora_da_base || []).length > 0 && (
           <p className="mt-3 text-[11px] font-semibold text-gray-400 flex items-start gap-1.5">
             <Info size={13} className="shrink-0 mt-0.5" /> {dados.fora_da_base.join(' e ')} também participam da campanha, mas ainda não têm meta individual no DASH.
@@ -583,7 +583,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
       {nivel === 'consultor' ? (
         unidades.length > 0 && (
           <section className="space-y-2">
-            <p className="px-1 text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Sua unidade</p>
+            <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">Sua unidade</p>
             <ul className="space-y-2">
               {unidades.map((u) => (
                 <CartaoUnidade key={u.participante} unidade={u} pessoas={[]} mostrarPessoas={false}
@@ -597,13 +597,13 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
         <section className="rounded-[24px] bg-[#f7faf9] border border-gray-100 p-3 sm:p-4">
           <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-1 pb-3">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-black text-gray-800">{nivel === 'unidade' ? 'Sua unidade e os consultores dela' : 'Unidades e consultores'}</p>
+              <p className="text-sm font-semibold text-gray-800">{nivel === 'unidade' ? 'Sua unidade e os consultores dela' : 'Unidades e consultores'}</p>
               <p className="text-[11px] font-semibold text-gray-400">Clique numa unidade para ver os consultores que pertencem a ela.</p>
             </div>
             {unidades.some((u) => u.canal === 'LOJA') && unidades.some((u) => u.canal === 'VD') && (
               <div className="inline-flex rounded-xl bg-white border border-gray-100 p-1 self-start">
                 {[{ id: 'todos', r: 'Todas' }, { id: 'VD', r: `VD (${resumo.unidades_vd || 0})` }, { id: 'LOJA', r: `Lojas (${resumo.unidades_loja || 0})` }].map((o) => (
-                  <button key={o.id} type="button" onClick={() => setCanal(o.id)} className={`rounded-lg px-3 py-1.5 text-xs font-black transition-colors ${canal === o.id ? 'bg-[#048187] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{o.r}</button>
+                  <button key={o.id} type="button" onClick={() => setCanal(o.id)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${canal === o.id ? 'bg-[#048187] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{o.r}</button>
                 ))}
               </div>
             )}
@@ -612,7 +612,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
               <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar unidade ou consultor" className="w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 py-2 text-sm font-semibold text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#048187]/25" />
             </label>
           </div>
-          <div className={`hidden lg:grid ${GRADE_LINHA} gap-4 px-5 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-gray-400`}>
+          <div className={`hidden lg:grid ${GRADE_LINHA} gap-4 px-5 py-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400`}>
             <span>Unidade</span><span className="w-[208px]">Ciclos (metas completas)</span><span>Situação</span><span>Receita • Bônus (meta 120%)</span><span />
           </div>
           {unidadesVisiveis.length ? (
@@ -624,7 +624,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
               ))}
             </ul>
           ) : (
-            <p className="p-10 text-center text-sm font-bold text-gray-400">{unidades.length ? 'Nenhuma unidade ou consultor com essa busca.' : 'Nenhuma unidade vinculada ao seu acesso.'}</p>
+            <p className="p-10 text-center text-sm font-semibold text-gray-400">{unidades.length ? 'Nenhuma unidade ou consultor com essa busca.' : 'Nenhuma unidade vinculada ao seu acesso.'}</p>
           )}
         </section>
       )}
