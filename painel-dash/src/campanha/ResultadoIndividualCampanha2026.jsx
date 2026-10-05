@@ -618,8 +618,8 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
         </section>
       )}
 
-      {/* Regras: só o dono vê (e some no "Ver como", para mostrar a tela como os outros veem) */}
-      {acesso.pode_editar && !acesso.simulando ? (
+      {/* Regras: o dono edita; quem tem visão total (gestão) vê o resumo. Some no "Ver como", para mostrar a tela como os outros veem. */}
+      {(acesso.pode_editar || acesso.ve_regras) && !acesso.simulando ? (
       <section className="rounded-[24px] bg-white border border-gray-100 shadow-sm p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
