@@ -25,6 +25,9 @@ const FILTROS_INICIAIS = {
   estrutura: '',
   status: '',
   busca: '',
+  // Data do pedido (aprovação), AAAA-MM-DD.
+  data_inicio: '',
+  data_fim: '',
 };
 
 const normalizar = (valor) => String(valor || '')
@@ -80,21 +83,7 @@ const CardStatus = ({ titulo, valor, icone: Icone, detalhe, ativo = false, onCli
   </button>
 );
 
-const Info = ({ label, valor, mono = false }) => (
-  <div className="min-w-0">
-    <p className="text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1">{label}</p>
-    <p className={`text-sm font-bold text-gray-700 break-words ${mono ? 'font-mono' : ''}`}>{valor === null || valor === undefined || valor === '' ? '—' : String(valor)}</p>
-  </div>
-);
-
-const SecaoDetalhe = ({ titulo, children }) => (
-  <section className="rounded-xl border border-gray-100 bg-white overflow-hidden">
-    <div className="px-4 py-3 border-b border-gray-100 bg-[#f8fbfb]">
-      <h3 className="text-xs font-black uppercase tracking-wide text-[#048187]">{titulo}</h3>
-    </div>
-    <div className="p-4">{children}</div>
-  </section>
-);
+const dataBR = (iso) => (iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '');
 
 export default function TelaRotas({ API_URL }) {
   const [filtros, setFiltros] = useState(FILTROS_INICIAIS);
@@ -110,9 +99,9 @@ export default function TelaRotas({ API_URL }) {
   const [pagina, setPagina] = useState(1);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-  const [detalhe, setDetalhe] = useState(null);
-  const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
-  const [erroDetalhe, setErroDetalhe] = useState('');
+  // Rastreio aberto em tela cheia: { pedido, url, nome, status } (url vazia enquanto busca).
+  const [rastreio, setRastreio] = useState(null);
+  const [erroRastreio, setErroRastreio] = useState('');
   const [diagnosticoAberto, setDiagnosticoAberto] = useState(false);
   const [carregandoDiagnostico, setCarregandoDiagnostico] = useState(false);
   const [erroDiagnostico, setErroDiagnostico] = useState('');
@@ -135,6 +124,8 @@ export default function TelaRotas({ API_URL }) {
           estrutura: filtros.estrutura || undefined,
           status_filtro: filtros.status || undefined,
           busca: filtros.busca || undefined,
+          data_inicio: filtros.data_inicio || undefined,
+          data_fim: filtros.data_fim || undefined,
           pagina: paginaDesejada,
           por_pagina: 50,
         },
@@ -164,7 +155,15 @@ export default function TelaRotas({ API_URL }) {
     }, filtros.busca ? 250 : 50);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtros.motorista, filtros.cidade, filtros.estrutura, filtros.status, filtros.busca]);
+  }, [filtros.motorista, filtros.cidade, filtros.estrutura, filtros.status, filtros.busca, filtros.data_inicio, filtros.data_fim]);
+
+  // Esc fecha o rastreio e volta para a lista.
+  useEffect(() => {
+    if (!rastreio) return undefined;
+    const aoTecla = (evento) => { if (evento.key === 'Escape') setRastreio(null); };
+    window.addEventListener('keydown', aoTecla);
+    return () => window.removeEventListener('keydown', aoTecla);
+  }, [rastreio]);
 
   const alterarFiltro = (campo, valor) => {
     setPagina(1);
@@ -176,19 +175,27 @@ export default function TelaRotas({ API_URL }) {
     setFiltros(FILTROS_INICIAIS);
   };
 
-  const abrirPedido = async (pedido) => {
+  /** Abre o acompanhamento oficial do pedido em tela cheia. A lista já traz o link; senão busca o pedido. */
+  const abrirPedido = async (item) => {
+    const pedido = typeof item === 'string' ? item : item?.pedido;
     if (!pedido) return;
-    setDetalhe(null);
-    setErroDetalhe('');
-    setCarregandoDetalhe(true);
+    setErroRastreio('');
+    const conhecido = typeof item === 'object' ? item : {};
+    setRastreio({ pedido, url: conhecido.rastreio || '', nome: conhecido.nome_revendedor || '', status: conhecido.status || '' });
+    if (conhecido.rastreio) return;
     try {
       const resposta = await axios.get(`${API_URL}/rotas/pedido/${encodeURIComponent(pedido)}`);
-      setDetalhe(resposta.data || null);
+      const dados = resposta.data || {};
+      const url = dados.resumo_logistico?.rastreio || '';
+      setRastreio((atual) => (atual?.pedido === pedido ? {
+        ...atual,
+        url,
+        nome: atual.nome || dados.dados_comerciais?.nome_revendedor || '',
+        status: atual.status || dados.resumo_logistico?.status || '',
+      } : atual));
+      if (!url) setErroRastreio('Este pedido ainda não tem link de rastreio na Plataforma Logística.');
     } catch (e) {
-      setErroDetalhe(e.response?.data?.detail || 'Não foi possível carregar os detalhes deste pedido.');
-      setDetalhe({ pedido });
-    } finally {
-      setCarregandoDetalhe(false);
+      setErroRastreio(e.response?.data?.detail || 'Não foi possível abrir o rastreio deste pedido.');
     }
   };
 
@@ -203,6 +210,8 @@ export default function TelaRotas({ API_URL }) {
           cidade: filtros.cidade || undefined,
           estrutura: filtros.estrutura || undefined,
           busca: filtros.busca || undefined,
+          data_inicio: filtros.data_inicio || undefined,
+          data_fim: filtros.data_fim || undefined,
         },
       });
       const payload = resposta.data || {};
@@ -306,7 +315,7 @@ export default function TelaRotas({ API_URL }) {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <div>
             <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Motorista</label>
             <select value={filtros.motorista} onChange={(e) => alterarFiltro('motorista', e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-600 bg-white outline-none focus:border-[#048187]">
@@ -335,7 +344,36 @@ export default function TelaRotas({ API_URL }) {
               {(opcoes.status || []).map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </div>
-          <div>
+          <div className="xl:col-span-2">
+            <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Data do pedido (aprovação)</label>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-gray-400">De</span>
+                <input
+                  type="date"
+                  value={filtros.data_inicio}
+                  min={base.data_inicio_relatorio || undefined}
+                  max={filtros.data_fim || base.data_fim_relatorio || undefined}
+                  onChange={(e) => alterarFiltro('data_inicio', e.target.value)}
+                  aria-label="Data do pedido: de"
+                  className="w-full border border-gray-200 rounded-lg pl-10 pr-2 py-2.5 text-sm font-bold text-gray-600 bg-white outline-none focus:border-[#048187]"
+                />
+              </div>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-gray-400">Até</span>
+                <input
+                  type="date"
+                  value={filtros.data_fim}
+                  min={filtros.data_inicio || base.data_inicio_relatorio || undefined}
+                  max={base.data_fim_relatorio || undefined}
+                  onChange={(e) => alterarFiltro('data_fim', e.target.value)}
+                  aria-label="Data do pedido: até"
+                  className="w-full border border-gray-200 rounded-lg pl-11 pr-2 py-2.5 text-sm font-bold text-gray-600 bg-white outline-none focus:border-[#048187]"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="xl:col-span-2">
             <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Buscar</label>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -354,7 +392,17 @@ export default function TelaRotas({ API_URL }) {
         <div className="px-4 sm:px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <h2 className="font-black text-gray-700">Pedidos</h2>
-            <p className="text-xs font-bold text-gray-400 mt-0.5">{Number(dados.total_filtrado || 0).toLocaleString('pt-BR')} pedido(s) encontrado(s)</p>
+            <p className="text-xs font-bold text-gray-400 mt-0.5">
+              {Number(dados.total_filtrado || 0).toLocaleString('pt-BR')} pedido(s) encontrado(s)
+              {(filtros.data_inicio || filtros.data_fim) && (
+                <span className="text-[#048187]">
+                  {' · '}
+                  {filtros.data_inicio && filtros.data_fim
+                    ? (filtros.data_inicio === filtros.data_fim ? `pedidos de ${dataBR(filtros.data_inicio)}` : `pedidos de ${dataBR(filtros.data_inicio)} a ${dataBR(filtros.data_fim)}`)
+                    : filtros.data_inicio ? `pedidos a partir de ${dataBR(filtros.data_inicio)}` : `pedidos até ${dataBR(filtros.data_fim)}`}
+                </span>
+              )}
+            </p>
           </div>
           {Number(resumo.nao_conciliados || 0) > 0 && (
             <button
@@ -394,7 +442,7 @@ export default function TelaRotas({ API_URL }) {
                 <tr key={item.pedido} className="hover:bg-[#fbfefe] transition-colors align-top">
                   <td className="px-4 py-3.5"><BadgeStatus status={item.status} /></td>
                   <td className="px-4 py-3.5">
-                    <button type="button" onClick={() => abrirPedido(item.pedido)} className="font-black text-[#048187] hover:underline inline-flex items-center gap-1">
+                    <button type="button" onClick={() => abrirPedido(item)} title="Abrir o acompanhamento do pedido" className="font-black text-[#048187] hover:underline inline-flex items-center gap-1">
                       {item.pedido || '—'} <ChevronRight size={14} />
                     </button>
                     {!item.encontrado_consulta && <p className="text-[9px] font-black text-amber-600 mt-1">Não conciliado</p>}
@@ -423,7 +471,7 @@ export default function TelaRotas({ API_URL }) {
       </div>
 
       {diagnosticoAberto && (
-        <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget && !carregandoDiagnostico) setDiagnosticoAberto(false); }}>
+        <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-3 sm:p-6" style={{ margin: 0 }} onMouseDown={(e) => { if (e.target === e.currentTarget && !carregandoDiagnostico) setDiagnosticoAberto(false); }}>
           <div className="w-full max-w-7xl max-h-[88vh] rounded-2xl bg-[#f7fafb] shadow-2xl overflow-hidden flex flex-col">
             <div className="bg-white border-b border-gray-100 px-5 sm:px-6 py-4 flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -528,129 +576,68 @@ export default function TelaRotas({ API_URL }) {
         </div>
       )}
 
-      {(detalhe || carregandoDetalhe) && (
-        <div className={`fixed inset-0 z-[9999] ${detalhe?.resumo_logistico?.rastreio ? 'bg-[#eef3f4]' : 'bg-black/40 backdrop-blur-[1px]'} flex`} onMouseDown={(e) => { if (e.target === e.currentTarget && !carregandoDetalhe) setDetalhe(null); }}>
-          {/* DASH_SB_ROTAS_RASTREIO_EMBUTIDO_V1 */}
-          {detalhe?.resumo_logistico?.rastreio && (
-            <section className="hidden lg:flex h-full flex-1 min-w-0 bg-white border-r border-gray-200 flex-col">
-              <div className="shrink-0 bg-white border-b border-gray-100 px-5 xl:px-7 py-4 flex items-center justify-between gap-5">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-wide text-[#048187]">Rastreio oficial</p>
-                  <h2 className="mt-0.5 text-lg xl:text-xl font-black text-gray-700 truncate">Acompanhamento do pedido {detalhe?.pedido || detalhe?.dados_comerciais?.pedido || ''}</h2>
-                  <p className="mt-1 text-[11px] font-semibold text-gray-400">Atualização carregada automaticamente direto do portal de rastreio do Grupo Boticário.</p>
+      {rastreio && (
+        <div className="fixed inset-0 z-[9999] bg-white flex flex-col" style={{ margin: 0 }} role="dialog" aria-modal="true" aria-labelledby="rastreio-titulo">
+          {/* DASH_SB_ROTAS_RASTREIO_EMBUTIDO_V2: só o acompanhamento oficial, em tela cheia, com X para voltar.
+              margin 0: o space-y-5 da tela empurrava a camada fixa 20 px para baixo. */}
+          <div className="shrink-0 border-b border-gray-100 px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={() => setRastreio(null)}
+              title="Voltar para a lista (Esc)"
+              aria-label="Fechar o acompanhamento e voltar para a lista"
+              className="w-10 h-10 rounded-xl bg-gray-50 text-gray-500 hover:bg-[#fff3f5] hover:text-[#7c1f31] flex items-center justify-center shrink-0 transition-colors"
+            >
+              <X size={20} />
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-black uppercase tracking-wide text-[#048187]">Rastreio oficial</p>
+              <h2 id="rastreio-titulo" className="text-base sm:text-lg font-black text-gray-700 truncate"><span className="hidden sm:inline">Acompanhamento do pedido</span><span className="sm:hidden">Pedido</span> {rastreio.pedido}</h2>
+              {(rastreio.nome || rastreio.status) && (
+                <div className="mt-0.5 flex items-center gap-2 min-w-0">
+                  {rastreio.status && <BadgeStatus status={rastreio.status} />}
+                  {rastreio.nome && <span className="text-[11px] font-bold text-gray-400 truncate">{rastreio.nome}</span>}
                 </div>
-                <a
-                  href={detalhe.resumo_logistico.rastreio}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[#cbe8ea] bg-[#f1fbfb] text-[#048187] text-xs font-black hover:bg-[#e6f6f7]"
-                >
-                  Abrir em nova guia <ExternalLink size={14} />
-                </a>
-              </div>
-              <div className="relative flex-1 min-h-0 bg-white">
-                <iframe
-                  key={detalhe.resumo_logistico.rastreio}
-                  src={detalhe.resumo_logistico.rastreio}
-                  title={`Rastreio oficial do pedido ${detalhe?.pedido || detalhe?.dados_comerciais?.pedido || ''}`}
-                  className="absolute inset-0 h-full w-full border-0 bg-white"
-                  loading="eager"
-                />
-              </div>
-              <div className="shrink-0 border-t border-gray-100 bg-[#f8fbfb] px-5 py-2.5 flex items-center justify-between gap-4">
-                <p className="text-[10px] font-semibold text-gray-400">O rastreio é aberto automaticamente. Se o portal bloquear a exibição incorporada, use “Abrir em nova guia”.</p>
-                <span className="text-[9px] font-black uppercase tracking-wide text-[#048187] whitespace-nowrap">Grupo Boticário</span>
-              </div>
-            </section>
-          )}
-          <div
-            className={`h-full w-full ${detalhe?.resumo_logistico?.rastreio ? 'lg:w-[42%] xl:w-[40%]' : 'lg:max-w-3xl lg:ml-auto'} bg-[#f7fafb] shadow-2xl flex flex-col shrink-0`}
-          >
-            <div className="bg-white border-b border-gray-100 px-5 sm:px-6 py-4 flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-wide text-[#048187]">Detalhe completo</p>
-                <h2 className="text-lg font-black text-gray-700 truncate">Pedido {detalhe?.pedido || ''}</h2>
-              </div>
-              <button type="button" onClick={() => { setDetalhe(null); setErroDetalhe(''); }} className="w-9 h-9 rounded-xl bg-gray-50 text-gray-400 hover:text-gray-600 flex items-center justify-center"><X size={18} /></button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-              {carregandoDetalhe ? (
-                <div className="py-20 text-center"><Loader2 size={28} className="animate-spin text-[#048187] mx-auto mb-3" /><p className="text-sm font-bold text-gray-400">Carregando todas as informações do pedido...</p></div>
-              ) : erroDetalhe ? (
-                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">{erroDetalhe}</div>
-              ) : detalhe && (
-                <>
-                  <SecaoDetalhe titulo="Status da entrega">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div>
-                        <BadgeStatus status={detalhe.resumo_logistico?.status} />
-                        <p className="text-sm font-bold text-gray-600 mt-3">{detalhe.resumo_logistico?.status_detalhe || 'Sem detalhe de status.'}</p>
-                      </div>
-                      {detalhe.resumo_logistico?.rastreio && (
-                        <a href={detalhe.resumo_logistico.rastreio} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#048187] text-white text-xs font-black whitespace-nowrap">
-                          Abrir em nova guia <ExternalLink size={14} />
-                        </a>
-                      )}
-                    </div>
-                  </SecaoDetalhe>
-
-                  <SecaoDetalhe titulo="Informações comerciais">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-5">
-                      <Info label="Nº Pedido" valor={detalhe.dados_comerciais?.pedido} mono />
-                      <Info label="Cód Revendedor" valor={detalhe.dados_comerciais?.codigo_revendedor} mono />
-                      <Info label="Nome Revendedor" valor={detalhe.dados_comerciais?.nome_revendedor} />
-                      <Info label="Ciclo de Captação" valor={detalhe.dados_comerciais?.ciclo_captacao} />
-                      <Info label="Usuário de Finalização" valor={detalhe.dados_comerciais?.usuario_finalizacao} />
-                      <Info label="Valor Líquido" valor={formatarMoeda(detalhe.dados_comerciais?.valor_liquido)} />
-                      <Info label="Forma de Pagamento" valor={detalhe.dados_comerciais?.forma_pagamento} />
-                      <Info label="Meio de Captação" valor={detalhe.dados_comerciais?.meio_captacao} />
-                      <Info label="Estrutura Comercial" valor={detalhe.dados_comerciais?.estrutura_comercial} />
-                      <Info label="Responsável pela Estrutura" valor={detalhe.dados_comerciais?.responsavel_estrutura} />
-                      <Info label="Telefone do Responsável" valor={detalhe.dados_comerciais?.telefone_responsavel} mono />
-                      <Info label="Cruzamento ConsultaPedidos" valor={detalhe.dados_comerciais?.encontrado_consulta ? 'Encontrado' : 'Ainda não encontrado'} />
-                    </div>
-                  </SecaoDetalhe>
-
-                  <SecaoDetalhe titulo="Operação logística">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-5">
-                      <Info label="Motorista" valor={detalhe.resumo_logistico?.motorista} />
-                      <Info label="Telefone Motorista" valor={detalhe.resumo_logistico?.telefone_motorista} mono />
-                      <Info label="Rota" valor={detalhe.resumo_logistico?.rota} mono />
-                      <Info label="Placa" valor={detalhe.resumo_logistico?.placa} mono />
-                      <Info label="Transportadora" valor={detalhe.resumo_logistico?.transportadora} />
-                      <Info label="Prazo Cliente" valor={detalhe.resumo_logistico?.prazo_cliente} />
-                      <Info label="Data de Coleta" valor={detalhe.resumo_logistico?.data_coleta} />
-                      <Info label="Data de Criação" valor={detalhe.resumo_logistico?.data_criacao} />
-                      <Info label="Data de Aprovação" valor={detalhe.resumo_logistico?.data_aprovacao} />
-                      <Info label="Ocorrências" valor={`${detalhe.resumo_logistico?.existem_ocorrencias || 'Não'} • ${detalhe.resumo_logistico?.quantidade_ocorrencias || '0'}`} />
-                      <Info label="Última Ocorrência" valor={detalhe.resumo_logistico?.ultima_ocorrencia_status} />
-                      <Info label="Mensagem da Ocorrência" valor={detalhe.resumo_logistico?.ultima_ocorrencia_mensagem} />
-                    </div>
-                  </SecaoDetalhe>
-
-                  <SecaoDetalhe titulo="Destino">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      <Info label="Endereço" valor={detalhe.resumo_logistico?.endereco_completo} />
-                      <Info label="Cidade / UF" valor={[detalhe.resumo_logistico?.cidade, detalhe.resumo_logistico?.uf].filter(Boolean).join(' - ')} />
-                      <Info label="CEP" valor={detalhe.resumo_logistico?.cep} mono />
-                    </div>
-                  </SecaoDetalhe>
-
-                  <SecaoDetalhe titulo="Relatório logístico completo">
-                    <p className="text-xs font-semibold text-gray-400 mb-4">Todos os campos recebidos no arquivo da plataforma logística são preservados abaixo.</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 divide-y sm:divide-y-0">
-                      {Object.entries(detalhe.dados_logistica || {}).map(([chave, valor]) => (
-                        <div key={chave} className="py-3 border-b border-gray-100 min-w-0">
-                          <Info label={chave} valor={valor} />
-                        </div>
-                      ))}
-                    </div>
-                  </SecaoDetalhe>
-                </>
               )}
             </div>
+            {rastreio.url && (
+              <a
+                href={rastreio.url}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl border border-[#cbe8ea] bg-[#f1fbfb] text-[#048187] text-xs font-black hover:bg-[#e6f6f7]"
+              >
+                <span className="hidden sm:inline">Abrir em nova guia</span> <ExternalLink size={14} />
+              </a>
+            )}
           </div>
+          <div className="relative flex-1 min-h-0 bg-white">
+            {rastreio.url ? (
+              <iframe
+                key={rastreio.url}
+                src={rastreio.url}
+                title={`Rastreio oficial do pedido ${rastreio.pedido}`}
+                className="absolute inset-0 h-full w-full border-0 bg-white"
+                loading="eager"
+              />
+            ) : erroRastreio ? (
+              <div className="h-full flex items-center justify-center p-6">
+                <div className="max-w-md text-center">
+                  <AlertTriangle size={28} className="text-amber-500 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-gray-600">{erroRastreio}</p>
+                  <button type="button" onClick={() => setRastreio(null)} className="mt-4 px-4 py-2.5 rounded-xl bg-[#e6f6f7] text-[#048187] text-xs font-black hover:bg-[#d8f0f1]">Voltar para a lista</button>
+                </div>
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center"><Loader2 size={28} className="animate-spin text-[#048187]" /></div>
+            )}
+          </div>
+          {rastreio.url && (
+            <div className="shrink-0 border-t border-gray-100 bg-[#f8fbfb] px-4 sm:px-6 py-2 flex items-center justify-between gap-4">
+              <p className="text-[10px] font-semibold text-gray-400">Se o portal não carregar aqui dentro, use “Abrir em nova guia”.</p>
+              <span className="hidden sm:inline text-[9px] font-black uppercase tracking-wide text-[#048187] whitespace-nowrap">Grupo Boticário</span>
+            </div>
+          )}
         </div>
       )}
     </div>
