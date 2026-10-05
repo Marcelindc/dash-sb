@@ -1,17 +1,40 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronRight, Loader2, Share2, X } from 'lucide-react';
 import ChuvaDeCedulas from '../campanha/ChuvaDeCedulas';
 
 // Comemoração de meta de faturamento batida: cartão com os mascotes (o mesmo desenho
-// usado pela equipe), confete e, a partir de 120%, a chuva de cédulas da campanha.
-// O backend já entrega só o que é desta pessoa (/notificacoes/celebracoes).
+// usado pela equipe), confete enquanto o cartão estiver aberto e, a partir de 120%, a
+// chuva de cédulas da campanha. O backend já entrega só o que é desta pessoa e o nome de
+// quem parabenizar (/notificacoes/celebracoes).
 
 const MOLDE = '/celebracao/molde-meta-batida.webp';
 const MOLDE_LARGURA = 907;
 const MOLDE_ALTURA = 512;
 // Área livre do cartão verde no molde, entre os dois mascotes (em fração da imagem).
 const AREA_TEXTO = { esquerda: 0.32, largura: 0.397, topo: 0.29, altura: 0.43 };
-const TEMPO_POR_META_MS = 10000;
+
+const FONTE = '"Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+const FONTE_URL = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap';
+
+// A fonte só é baixada quando há comemoração (este arquivo já é carregado sob demanda).
+if (typeof document !== 'undefined' && !document.getElementById('fonte-celebracao')) {
+  const link = document.createElement('link');
+  link.id = 'fonte-celebracao';
+  link.rel = 'stylesheet';
+  link.href = FONTE_URL;
+  document.head.appendChild(link);
+}
+
+const ESTILO = `
+  @keyframes celebracaoSurgir {
+    from { opacity: 0; transform: translateY(0.9cqw) scale(.96); }
+    to { opacity: 1; transform: none; }
+  }
+  .celebracao-linha { animation: celebracaoSurgir .6s cubic-bezier(.4,0,.2,1) both; }
+  /* No celular essa linha ficaria pequena demais para ler (o ciclo já aparece embaixo). */
+  @container (max-width: 520px) { .celebracao-sobretitulo { display: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .celebracao-linha { animation: none; } }
+`;
 
 const CORES_CONFETE = {
   meta: ['#048187', '#62ccd1', '#7c1f31', '#ffffff', '#f2c14e'],
@@ -36,27 +59,26 @@ function rotuloCiclo(ciclo) {
   return numero ? `C${numero.padStart(2, '0')}` : 'ciclo';
 }
 
-// Quem está sendo parabenizado, curto o bastante para caber no cartão.
+// Quem o cartão parabeniza. O backend manda 'pessoa'; o resto é só para respostas antigas.
 function nomeComemorado(item) {
+  if (item?.pessoa) return item.pessoa;
   const nome = String(item?.nome || '').trim();
   if (item?.tipo === 'CONSULTOR') {
     const partes = nome.split(/\s+/).filter(Boolean);
     if (item.propria) return partes[0] || nome;
     return partes.length > 2 ? `${partes[0]} ${partes[partes.length - 1]}` : nome;
   }
-  if (item?.tipo === 'PDV') {
-    const loja = nome.split('—').pop().trim();
-    return loja && loja !== nome ? `Loja ${loja}` : nome;
-  }
-  return nome;
+  return nome.replace(/^\s*(?:\d[\d.]*|N\d+)\s*-\s*/i, '').replace(/^EQUIPE\s+/i, '').split('—').pop().trim() || nome;
 }
 
-function tamanhoNome(nome) {
-  const n = nome.length;
-  if (n <= 10) return 5.2;
-  if (n <= 16) return 4.4;
-  if (n <= 22) return 3.6;
-  return 3;
+function frasePrincipal(item) {
+  const ciclo = rotuloCiclo(item.ciclo);
+  if (item.propria) {
+    if (item.tipo === 'CONSULTOR') return `Você bateu a sua meta de faturamento no ${ciclo}`;
+    if (item.tipo === 'PDV') return `Sua loja bateu a meta de faturamento no ${ciclo}`;
+    return `Sua equipe bateu a meta de faturamento no ${ciclo}`;
+  }
+  return `${item.grupo || item.nome} bateu a meta de faturamento no ${ciclo}`;
 }
 
 function nivel(percentual) {
@@ -65,7 +87,41 @@ function nivel(percentual) {
   return 'meta';
 }
 
-// ---------- confete (canvas, sem biblioteca) ----------
+// ---------- texto que encolhe para caber numa linha só (tamanho em % da largura do cartão) ----------
+function LinhaAjustada({ children, maximo, className = '', style, atraso = 0 }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const caixa = el?.parentElement;
+    if (!el || !caixa) return undefined;
+    const ajustar = () => {
+      el.style.fontSize = `${maximo}cqw`;
+      const disponivel = caixa.clientWidth * 0.94;
+      const largura = el.scrollWidth;
+      if (largura > disponivel && largura > 0) el.style.fontSize = `${Math.max(maximo * 0.35, (maximo * disponivel) / largura)}cqw`;
+    };
+    ajustar();
+    const observador = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(ajustar) : null;
+    observador?.observe(caixa);
+    document.fonts?.addEventListener?.('loadingdone', ajustar);
+    document.fonts?.ready?.then(ajustar).catch(() => {});
+    return () => {
+      observador?.disconnect();
+      document.fonts?.removeEventListener?.('loadingdone', ajustar);
+    };
+  }, [children, maximo]);
+  return (
+    <span
+      ref={ref}
+      className={`celebracao-linha inline-block whitespace-nowrap ${className}`}
+      style={{ fontSize: `${maximo}cqw`, animationDelay: `${atraso}s`, ...style }}
+    >
+      {children}
+    </span>
+  );
+}
+
+// ---------- confete (canvas, sem biblioteca): rajada inicial e depois chuva até fechar ----------
 function Confete({ disparo, cores }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -86,9 +142,9 @@ function Confete({ disparo, cores }) {
     redimensionar();
     window.addEventListener('resize', redimensionar);
 
-    const pedacos = [];
-    const novo = (x, y, vx, vy) => pedacos.push({
-      x, y, vx, vy,
+    let pedacos = [];
+    const novo = (x, y, vx, vy, limite = 7) => pedacos.push({
+      x, y, vx, vy, limite,
       tamanho: 6 + Math.random() * 7,
       giro: Math.random() * Math.PI,
       vgiro: (Math.random() - 0.5) * 0.3,
@@ -96,7 +152,10 @@ function Confete({ disparo, cores }) {
       cor: cores[Math.floor(Math.random() * cores.length)],
       redondo: Math.random() < 0.3,
     });
-    const quantidade = largura < 640 ? 70 : 120;
+    const celular = largura < 640;
+    const quantidade = celular ? 70 : 120;
+    // Depois da rajada, a chuva fica com no máximo esta quantidade de pedaços na tela.
+    const chuva = celular ? 40 : 70;
     // Dois canhões, um de cada lado, e uma chuva leve vinda do topo.
     for (let i = 0; i < quantidade; i += 1) {
       const angulo = (55 + Math.random() * 30) * (Math.PI / 180);
@@ -107,19 +166,16 @@ function Confete({ disparo, cores }) {
     for (let i = 0; i < quantidade * 0.6; i += 1) novo(Math.random() * largura, -20 - Math.random() * altura * 0.6, (Math.random() - 0.5) * 2, 2 + Math.random() * 3);
 
     let quadro = 0;
-    const inicio = performance.now();
-    const passo = (agora) => {
+    const passo = () => {
       ctx.clearRect(0, 0, largura, altura);
-      let vivos = 0;
+      pedacos = pedacos.filter((p) => p.y <= altura + 30);
       for (const p of pedacos) {
-        p.vy = Math.min(p.vy + 0.22, 7);
+        p.vy = Math.min(p.vy + 0.22, p.limite);
         p.vx *= 0.985;
         p.balanco += 0.08;
         p.x += p.vx + Math.sin(p.balanco) * 0.6;
         p.y += p.vy;
         p.giro += p.vgiro;
-        if (p.y > altura + 30) continue;
-        vivos += 1;
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.giro);
@@ -133,8 +189,9 @@ function Confete({ disparo, cores }) {
         }
         ctx.restore();
       }
-      if (vivos && agora - inicio < 8000) quadro = requestAnimationFrame(passo);
-      else ctx.clearRect(0, 0, largura, altura);
+      // Repõe aos poucos o que saiu por baixo, para a chuva nunca parar.
+      if (pedacos.length < chuva && Math.random() < 0.5) novo(Math.random() * largura, -20, (Math.random() - 0.5) * 2, 1.5, 2.2 + Math.random() * 1.6);
+      quadro = requestAnimationFrame(passo);
     };
     quadro = requestAnimationFrame(passo);
     return () => {
@@ -158,13 +215,18 @@ function carregarImagem(src) {
 function escreverAjustado(ctx, texto, x, y, larguraMax, tamanho, peso = 800) {
   let fonte = tamanho;
   do {
-    ctx.font = `${peso} ${fonte}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+    ctx.font = `${peso} ${fonte}px ${FONTE}`;
     fonte -= 1;
   } while (ctx.measureText(texto).width > larguraMax && fonte > 10);
   ctx.fillText(texto, x, y);
 }
 
 async function gerarImagem(item) {
+  try {
+    await Promise.all(['600', '700', '800'].map((peso) => document.fonts.load(`${peso} 40px "Plus Jakarta Sans"`)));
+  } catch {
+    // Sem a fonte, o canvas usa a do sistema.
+  }
   const molde = await carregarImagem(MOLDE);
   const escala = 1.5;
   const W = MOLDE_LARGURA * escala;
@@ -177,18 +239,26 @@ async function gerarImagem(item) {
   ctx.fillRect(0, 0, W, H);
   ctx.drawImage(molde, 0, 0, W, H);
 
-  const larguraTexto = AREA_TEXTO.largura * W * 0.94;
+  const larguraTexto = AREA_TEXTO.largura * W * 0.92;
   const cx = (AREA_TEXTO.esquerda + AREA_TEXTO.largura / 2) * W;
   const topo = AREA_TEXTO.topo * H;
   const alt = AREA_TEXTO.altura * H;
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  escreverAjustado(ctx, 'PARABÉNS', cx, topo + alt * 0.2, larguraTexto, Math.round(W * 0.046));
-  escreverAjustado(ctx, `${nomeComemorado(item).toUpperCase()},`, cx, topo + alt * 0.45, larguraTexto, Math.round(W * 0.05));
-  escreverAjustado(ctx, 'PELA META BATIDA!', cx, topo + alt * 0.7, larguraTexto, Math.round(W * 0.046));
-  escreverAjustado(ctx, `Faturamento ${rotuloCiclo(item.ciclo)} • ${emPercentual(item.percentual)} da meta`, cx, topo + alt * 0.9, larguraTexto, Math.round(W * 0.02), 600);
+  ctx.shadowColor = 'rgba(0, 40, 44, 0.28)';
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 3;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '3px';
+  ctx.globalAlpha = 0.88;
+  escreverAjustado(ctx, `META DE FATURAMENTO • ${rotuloCiclo(item.ciclo)} • ${emPercentual(item.percentual)}`, cx, topo + alt * 0.1, larguraTexto, Math.round(W * 0.016), 700);
+  ctx.globalAlpha = 1;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  escreverAjustado(ctx, 'Parabéns,', cx, topo + alt * 0.33, larguraTexto, Math.round(W * 0.04), 700);
+  escreverAjustado(ctx, nomeComemorado(item), cx, topo + alt * 0.58, larguraTexto, Math.round(W * 0.068), 800);
+  escreverAjustado(ctx, 'pela meta batida!', cx, topo + alt * 0.83, larguraTexto, Math.round(W * 0.04), 700);
 
+  ctx.shadowColor = 'transparent';
   ctx.fillStyle = '#048187';
   escreverAjustado(ctx, 'Grupo SB Monteiro • DASH Comercial', W / 2, H - H * 0.07, W * 0.6, Math.round(W * 0.017), 700);
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
@@ -206,13 +276,16 @@ function podeCompartilharArquivoNoCelular() {
 }
 
 function mensagemWhatsApp(item) {
-  return `🎉 Parabéns, ${nomeComemorado(item)}! Meta de faturamento do ${rotuloCiclo(item.ciclo)} batida: ${emPercentual(item.percentual)} da meta (${emDinheiroCurto(item.realizado)} de ${emDinheiroCurto(item.meta)}).`;
+  const valores = `${emPercentual(item.percentual)} da meta (${emDinheiroCurto(item.realizado)} de ${emDinheiroCurto(item.meta)})`;
+  if (item.tipo === 'CONSULTOR') {
+    return `🎉 Parabéns, ${nomeComemorado(item)}! Meta de faturamento do ${rotuloCiclo(item.ciclo)} batida: ${valores}.`;
+  }
+  return `🎉 Parabéns, ${nomeComemorado(item)}! ${item.grupo || item.nome}: meta de faturamento do ${rotuloCiclo(item.ciclo)} batida com ${valores}.`;
 }
 
 // ---------- tela ----------
 export default function CelebracaoMeta({ itens = [], aoFechar }) {
   const [indice, setIndice] = useState(0);
-  const [pausado, setPausado] = useState(false);
   const [compartilhando, setCompartilhando] = useState(false);
   const [aviso, setAviso] = useState('');
   const botaoFechar = useRef(null);
@@ -221,20 +294,15 @@ export default function CelebracaoMeta({ itens = [], aoFechar }) {
   const nivelAtual = nivel(Number(item?.percentual || 0));
   const ultimo = indice >= total - 1;
 
+  // O cartão fica aberto (com o confete) até a pessoa fechar.
   const fechar = useCallback(() => aoFechar?.(itens.map((i) => i.id)), [aoFechar, itens]);
   const avancar = useCallback(() => {
+    if (ultimo) return;
     setAviso('');
-    if (ultimo) fechar();
-    else setIndice((i) => i + 1);
-  }, [ultimo, fechar]);
+    setIndice((i) => i + 1);
+  }, [ultimo]);
 
   useEffect(() => { botaoFechar.current?.focus(); }, []);
-
-  useEffect(() => {
-    if (pausado || prefereMenosMovimento()) return undefined;
-    const timer = setTimeout(avancar, TEMPO_POR_META_MS);
-    return () => clearTimeout(timer);
-  }, [indice, pausado, avancar]);
 
   useEffect(() => {
     const aoTecla = (evento) => {
@@ -247,7 +315,6 @@ export default function CelebracaoMeta({ itens = [], aoFechar }) {
 
   const compartilhar = async () => {
     if (!item) return;
-    setPausado(true);
     setAviso('');
     const texto = mensagemWhatsApp(item);
     const compartilhaArquivo = podeCompartilharArquivoNoCelular();
@@ -285,33 +352,36 @@ export default function CelebracaoMeta({ itens = [], aoFechar }) {
       aria-modal="true"
       aria-labelledby="celebracao-titulo"
       className="fixed inset-0 z-[150] flex items-center justify-center overflow-y-auto bg-slate-950/60 px-3 py-6 backdrop-blur-[2px]"
+      style={{ fontFamily: FONTE }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) fechar(); }}
     >
+      <style>{ESTILO}</style>
       {nivelAtual === 'superacao' && <ChuvaDeCedulas rodada={item.id} />}
       <Confete key={item.id} disparo={item.id} cores={nivelAtual === 'meta' ? CORES_CONFETE.meta : CORES_CONFETE.ouro} />
 
-      <div
-        className="relative w-full max-w-[760px]"
-        style={{ zIndex: 2 }}
-        onMouseEnter={() => setPausado(true)}
-        onMouseLeave={() => setPausado(false)}
-        onTouchStart={() => setPausado(true)}
-      >
+      <div className="relative w-full max-w-[760px]" style={{ zIndex: 2 }}>
         <div className="relative overflow-hidden rounded-[28px] bg-white shadow-[0_30px_80px_-30px_rgba(1,40,44,.6)]">
           <div className="relative" style={{ containerType: 'inline-size' }}>
             <img src={MOLDE} alt="" className="block w-full select-none" draggable={false} />
             <div
-              className="absolute flex flex-col items-center justify-center text-center font-extrabold uppercase leading-[1.08] text-white"
+              key={item.id}
+              id="celebracao-titulo"
+              className="absolute flex flex-col items-center justify-center text-center leading-[1.12] text-white"
               style={{
                 left: `${AREA_TEXTO.esquerda * 100}%`,
                 width: `${AREA_TEXTO.largura * 100}%`,
                 top: `${AREA_TEXTO.topo * 100}%`,
                 height: `${AREA_TEXTO.altura * 100}%`,
+                textShadow: '0 2px 12px rgba(0, 40, 44, .28)',
               }}
             >
-              <p id="celebracao-titulo" style={{ fontSize: '4.6cqw' }}>Parabéns</p>
-              <p className="my-[0.6cqw] line-clamp-2 break-words" style={{ fontSize: `${tamanhoNome(nome)}cqw` }}>{nome},</p>
-              <p style={{ fontSize: '4.6cqw' }}>pela meta batida!</p>
+              <LinhaAjustada maximo={1.55} atraso={0.05} className="celebracao-sobretitulo mb-[1.1cqw] font-bold uppercase tracking-[0.14em] text-white/85">
+                {`Meta de faturamento • ${rotuloCiclo(item.ciclo)}`}
+              </LinhaAjustada>
+              {/* A vírgula desta fonte vem com folga à esquerda: puxada um pouco para perto da palavra. */}
+              <LinhaAjustada maximo={4} atraso={0.14} className="font-bold tracking-[-0.01em]">Parabéns<span style={{ marginLeft: '-0.1em' }}>,</span></LinhaAjustada>
+              <LinhaAjustada maximo={7} atraso={0.23} className="my-[0.5cqw] font-extrabold tracking-[-0.02em]">{nome}</LinhaAjustada>
+              <LinhaAjustada maximo={4} atraso={0.32} className="font-bold tracking-[-0.01em]">pela meta batida!</LinhaAjustada>
             </div>
             {nivelAtual === 'superacao' && (
               <span className="absolute left-1/2 top-[19%] -translate-x-1/2 rounded-full bg-[#f2c14e] px-3 py-1 font-extrabold uppercase tracking-wide text-[#5b3d00] shadow" style={{ fontSize: '1.9cqw' }}>
@@ -322,7 +392,7 @@ export default function CelebracaoMeta({ itens = [], aoFechar }) {
 
           <div className="border-t border-gray-100 px-4 pb-4 pt-3 sm:px-6">
             <p className="text-center text-sm font-semibold text-gray-700">
-              {item.propria ? 'Você bateu a sua meta de faturamento' : 'Meta de faturamento batida'} no {rotuloCiclo(item.ciclo)}:{' '}
+              {frasePrincipal(item)}:{' '}
               <span className="whitespace-nowrap text-[#048187]">{emPercentual(item.percentual)} da meta</span>
             </p>
             <p className="mt-0.5 text-center text-xs font-medium text-gray-400">
