@@ -16,6 +16,9 @@ import TelaRotas from './telas/TelaRotas';
 import TelaAdicoes from './telas/TelaAdicoes';
 
 import './dashboard-refinado.css';
+
+// Só baixa a tela de comemoração quando houver meta batida para mostrar.
+const CelebracaoMeta = React.lazy(() => import('./celebracao/CelebracaoMeta'));
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
 const TELA_ATUAL_STORAGE_KEY = 'dashSbTelaAtual';
@@ -5063,6 +5066,7 @@ export default function App() {
   }, [cacheDashboard]);
 
   const [notificacoesSistema, setNotificacoesSistema] = useState([]);
+  const [celebracoesMeta, setCelebracoesMeta] = useState([]);
   const [notificacoesNaoLidas, setNotificacoesNaoLidas] = useState(0);
   const [painelNotificacoesAberto, setPainelNotificacoesAberto] = useState(false);
   const [carregandoNotificacoes, setCarregandoNotificacoes] = useState(false);
@@ -5308,6 +5312,37 @@ export default function App() {
     usuarioLogado?.perfil,
     usuarioLogado?.area_gestao,
   ]);
+
+  // Comemoração de meta batida: vale para todos os perfis (o backend já filtra o que é de cada um).
+  useEffect(() => {
+    if (!usuarioLogado?.id) {
+      setCelebracoesMeta([]);
+      return undefined;
+    }
+    let ativo = true;
+    const buscar = async () => {
+      if (document.hidden) return;
+      try {
+        const { data } = await axios.get(`${API_URL}/notificacoes/celebracoes`, { params: { _t: Date.now() } });
+        const novas = Array.isArray(data?.celebracoes) ? data.celebracoes : [];
+        if (ativo && novas.length) setCelebracoesMeta((atual) => (atual.length ? atual : novas));
+      } catch {
+        // A comemoração é um extra: se falhar, o DASH segue normalmente.
+      }
+    };
+    const timerInicial = window.setTimeout(buscar, 6000);
+    const intervalo = window.setInterval(buscar, 300000);
+    return () => {
+      ativo = false;
+      window.clearTimeout(timerInicial);
+      window.clearInterval(intervalo);
+    };
+  }, [usuarioLogado?.id]);
+
+  const fecharCelebracoesMeta = (ids) => {
+    setCelebracoesMeta([]);
+    if (ids?.length) axios.post(`${API_URL}/notificacoes/celebracoes/vistas`, { ids }).catch(() => {});
+  };
 
   useEffect(() => {
     if (!toastNotificacao) return undefined;
@@ -25132,6 +25167,12 @@ const enviarArquivo = async (tipo) => {
             </form>
           </div>
         </div>
+      )}
+
+      {celebracoesMeta.length > 0 && (
+        <React.Suspense fallback={null}>
+          <CelebracaoMeta itens={celebracoesMeta} aoFechar={fecharCelebracoesMeta} />
+        </React.Suspense>
       )}
 
       {modalExcluirUsuarioAberto && usuarioParaExcluir && (
