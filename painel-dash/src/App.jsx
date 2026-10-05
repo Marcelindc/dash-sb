@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell, BarChart, Bar, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
-import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu, LockKeyhole, Unlock, Rocket } from 'lucide-react';
+import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu, LockKeyhole, Unlock } from 'lucide-react';
 import VisaoGeralCampanha2026 from './campanha/VisaoGeralCampanha2026';
 import LancamentosCampanha2026 from './campanha/LancamentosCampanha2026';
 import ResultadoGeralCampanha2026 from './campanha/ResultadoGeralCampanha2026';
 import ResultadoIndividualCampanha2026 from './campanha/ResultadoIndividualCampanha2026';
 import AcessosCampanha2026 from './campanha/AcessosCampanha2026';
-import ExpedicaoCampanha2026 from './campanha/ExpedicaoCampanha2026';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
 import produtosLoginHero from './assets/login-produtos.webp';
@@ -4969,8 +4968,7 @@ export default function App() {
   // cada um no seu nível (total, unidade ou consultor).
   const [acessoCampanha2026, setAcessoCampanha2026] = useState({ carregado: false, dados: null });
   const [liberandoCampanha2026, setLiberandoCampanha2026] = useState(false);
-  // null = aba padrão: Expedição para consultor e gestor de unidade, Visão Geral para a gestão.
-  const [abaCampanhaIncentivo, setAbaCampanhaIncentivo] = useState(null);
+  const [abaCampanhaIncentivo, setAbaCampanhaIncentivo] = useState('visao');
   const [adicoesRefreshToken, setAdicoesRefreshToken] = useState(0);
   const [resumoAdicoesMetas, setResumoAdicoesMetas] = useState({ mapa: {}, estruturas: [], totais: null, ciclo: '' });
   const [detalheAdicoesGerente, setDetalheAdicoesGerente] = useState({ aberto: false, carregando: false, erro: '', dados: null });
@@ -21867,17 +21865,14 @@ const enviarArquivo = async (tipo) => {
       ? new Date(payload.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
       : 'Aguardando atualização';
 
-    const nivelCampanha = acessoCampanha2026.dados?.nivel;
     const abasCampanha = [
-      { id: 'expedicao', rotulo: nivelCampanha === 'consultor' ? 'Minha Expedição' : 'Expedição', curto: 'Expedição', icone: Rocket },
       { id: 'visao', rotulo: 'Visão Geral', curto: 'Visão geral', icone: Sparkles },
       { id: 'geral', rotulo: 'Resultado Geral', curto: 'Geral', icone: BarChart2 },
       { id: 'individual', rotulo: 'Resultado Individual', curto: 'Individual', icone: Trophy },
       ...(donoCampanhaIncentivo2026 ? [{ id: 'lancamentos', rotulo: 'Lançamentos C01–C13', curto: 'Lançar', icone: Pencil }] : []),
       ...(donoCampanhaIncentivo2026 ? [{ id: 'acessos', rotulo: 'Acessos', curto: 'Acessos', icone: KeyRound }] : []),
     ];
-    const abaCampanhaPadrao = nivelCampanha === 'consultor' || nivelCampanha === 'unidade' ? 'expedicao' : 'visao';
-    const abaCampanhaAtiva = abasCampanha.some((aba) => aba.id === abaCampanhaIncentivo) ? abaCampanhaIncentivo : abaCampanhaPadrao;
+    const abaCampanhaAtiva = abasCampanha.some((aba) => aba.id === abaCampanhaIncentivo) ? abaCampanhaIncentivo : 'visao';
     const alternarLiberacaoCampanha = async () => {
       const liberar = !campanhaIncentivo2026Liberada;
       const pergunta = liberar
@@ -21936,15 +21931,6 @@ const enviarArquivo = async (tipo) => {
           )}
         </nav>
         {campanhaIncentivo2026?.erro && <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 flex items-center gap-2"><AlertCircle size={17} /> {campanhaIncentivo2026.erro}</div>}
-        {abaCampanhaAtiva === 'expedicao' && (
-          <ExpedicaoCampanha2026
-            apiUrl={API_URL}
-            totalCp={Number(realizado?.total || 0)}
-            inicioCp={Number(payload?.acumulado_anterior?.total || 0)}
-            meta106={Number(metas?.meta_principal || 106000000)}
-            meta109={Number(metas?.meta_superacao || 109000000)}
-          />
-        )}
         {abaCampanhaAtiva === 'visao' && (
           <VisaoGeralCampanha2026 realizado={realizado} metas={metas} atualizadoEm={payload?.atualizado_em} carregando={campanhaIncentivo2026?.carregando} acumuladoAnterior={payload?.acumulado_anterior} campanhaC14C17={payload?.campanha_c14_c17} aoLancar={donoCampanhaIncentivo2026 ? () => setAbaCampanhaIncentivo('lancamentos') : null} />
         )}
