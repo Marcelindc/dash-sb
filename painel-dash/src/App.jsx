@@ -7,6 +7,7 @@ import LancamentosCampanha2026 from './campanha/LancamentosCampanha2026';
 import ResultadoGeralCampanha2026 from './campanha/ResultadoGeralCampanha2026';
 import ResultadoIndividualCampanha2026 from './campanha/ResultadoIndividualCampanha2026';
 import AcessosCampanha2026 from './campanha/AcessosCampanha2026';
+import BotaoRobo from './robos/BotaoRobo';
 import logoEmpresa from './assets/LOGO VERDE SB.png';
 import logoMonteiroBranca from './assets/logo-monteiro-branca.png';
 import produtosLoginHero from './assets/login-produtos.webp';
@@ -5172,7 +5173,8 @@ export default function App() {
         && !idsAnteriores.has(String(item?.id))
       ));
 
-      setNotificacoesSistema(lista);
+      // Só troca a lista se mudou: a mesma lista em objeto novo redesenhava o DASH (e os gráficos) a cada 5 min.
+      setNotificacoesSistema((atual) => (JSON.stringify(atual) === JSON.stringify(lista) ? atual : lista));
       setNotificacoesNaoLidas(
         Number(dadosGerais?.nao_lidas || 0)
         + Number(dadosAcoes?.nao_lidas || 0)
@@ -5550,7 +5552,7 @@ export default function App() {
   const [erroRelatorioAuditoria, setErroRelatorioAuditoria] = useState('');
   const [configRelatorioAuditoria, setConfigRelatorioAuditoria] = useState(() => criarConfigRelatorioAuditoria(7));
 
-  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [carregandoAutomacaoRotas, setCarregandoAutomacaoRotas] = useState(false); const [statusBasesVD, setStatusBasesVD] = useState({}); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoBaseAdicoes, setArquivoBaseAdicoes] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoEudora, setCarregandoAutomacaoEudora] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [statusRoboVd, setStatusRoboVd] = useState(null); const [ligandoRoboVd, setLigandoRoboVd] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
+  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [carregandoAutomacaoRotas, setCarregandoAutomacaoRotas] = useState(false); const [statusBasesVD, setStatusBasesVD] = useState({}); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivoBaseAdicoes, setArquivoBaseAdicoes] = useState(null); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoEudora, setCarregandoAutomacaoEudora] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [ligandoRoboVd, setLigandoRoboVd] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloSelecionadoVD, setCicloSelecionadoVD] = useState(
@@ -5719,7 +5721,6 @@ export default function App() {
   const [carregandoLoja, setCarregandoLoja] = useState(false);
   const [erroLoja, setErroLoja] = useState('');
   const [mensagemLoja, setMensagemLoja] = useState('');
-  const [statusRoboLoja, setStatusRoboLoja] = useState(null);
   const [ligandoRoboLoja, setLigandoRoboLoja] = useState(false);
   const recarregarLojaRef = useRef(null);
   const [cicloLoja, setCicloLoja] = useState('');
@@ -8781,10 +8782,8 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       if (event.source !== window) return;
       const data = event.data || {};
       if (data.source !== 'BOT_VENDAS_EXTENSAO') return;
-      if (data.acao === 'ROBO_VD_STATUS') {
-        setStatusRoboVd(data.estado || null);
-        return;
-      }
+      // O estado do robô (a cada 5 s) é tratado só no BotaoRobo: aqui redesenhava o DASH inteiro.
+      if (data.acao === 'ROBO_VD_STATUS') return;
       if (data.acao === 'AUTOMACAO_ROBO_VD_INICIADA') {
         setLigandoRoboVd(false);
         setErroUpload('');
@@ -8806,10 +8805,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       if (event.source !== window) return;
       const data = event.data || {};
       if (data.source !== 'ROBO_LOJA_EXTENSAO') return;
-      if (data.acao === 'ROBO_LOJA_STATUS') {
-        setStatusRoboLoja(data.estado || null);
-        return;
-      }
+      if (data.acao === 'ROBO_LOJA_STATUS') return;
       if (data.acao === 'ROBO_LOJA_INICIADO') {
         setLigandoRoboLoja(false);
         setErroLoja('');
@@ -16129,35 +16125,18 @@ const enviarArquivo = async (tipo) => {
             <p className="text-sm text-gray-400 font-semibold">Selecione o ciclo de destino antes de enviar as bases de VD. A base Rotas é um snapshot móvel e independe do ciclo.</p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            {(() => {
-              const ligado = Boolean(statusRoboVd?.ativa);
-              const rodando = statusRoboVd?.rodando;
-              const detalhe = statusRoboVd?.recarregar
-                ? 'A extensão foi recarregada: aperte F5.'
-                : !statusRoboVd
-                  ? 'Extensão Robô VD não detectada neste Chrome.'
-                  : rodando
-                    ? `${rodando.rotulo}${rodando.etapa ? ` — ${rodando.etapa}` : ''}`
-                    : ligado
-                      ? `Ligado hoje${statusRoboVd.proximaPedidosEm ? ` • próximo Pedidos às ${new Date(statusRoboVd.proximaPedidosEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}`
-                      : 'Pedidos, MAKE, CABELO, EUDORA e Rotas.';
-              return (
-                <div className="sm:w-[240px]">
-                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Robô VD</label>
-                  <button
-                    type="button"
-                    onClick={ligarRoboVd}
-                    disabled={ligandoRoboVd || ligado || !cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')}
-                    title={detalhe}
-                    className={`w-full px-4 py-3 rounded-lg font-black inline-flex items-center justify-center gap-2 disabled:cursor-default ${ligado ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-[#048187] text-white hover:bg-[#036b70] disabled:opacity-60'}`}
-                  >
-                    {ligado && !rodando ? <CheckCircle size={16} /> : <RefreshCcw size={16} className={rodando || ligandoRoboVd ? 'animate-spin' : ''} />}
-                    {ligandoRoboVd ? 'Ligando...' : rodando ? 'Robô VD rodando' : ligado ? 'Robô VD ligado' : 'Ligar Robô VD'}
-                  </button>
-                  <p className="text-[10px] font-bold text-gray-400 mt-1 truncate" title={detalhe}>{detalhe}</p>
-                </div>
-              );
-            })()}
+            <BotaoRobo
+              nome="Robô VD"
+              origem="BOT_VENDAS_EXTENSAO"
+              acaoStatus="ROBO_VD_STATUS"
+              campoProxima="proximaPedidosEm"
+              textoProxima="próximo Pedidos"
+              textoPadrao="Pedidos, MAKE, CABELO, EUDORA e Rotas."
+              ligando={ligandoRoboVd}
+              podeLigar={cicloAbertoParaArea(cicloUploadVD || obterCicloReferenciaAtual(), 'VD')}
+              aoLigar={ligarRoboVd}
+              larguraClasse="sm:w-[240px]"
+            />
             <div>
               <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Ciclo de destino</label>
               <select value={cicloUploadVD || obterCicloReferenciaAtual()} onChange={(e) => { const novoCiclo = e.target.value; setCicloUploadVD(novoCiclo); gravarStorageUsuario(CICLO_UPLOAD_VD_STORAGE_KEY, novoCiclo); void carregarStatusBasesVD(novoCiclo); }} className="border border-gray-200 rounded-lg px-4 py-3 font-black text-gray-700 bg-white outline-none focus:border-[#048187] min-w-[190px]">
@@ -20786,35 +20765,18 @@ const enviarArquivo = async (tipo) => {
                     {ciclos.map((item) => <option key={item.id || item.ciclo} value={item.ciclo}>{item.ciclo}{item.eh_atual ? ' • atual' : ''}{obterStatusCicloArea(item.ciclo, 'LOJA') === 'fechado' ? ' • fechado' : ' • aberto'}</option>)}
                   </select>
                 </div>
-                {(() => {
-                  const ligado = Boolean(statusRoboLoja?.ativa);
-                  const rodando = statusRoboLoja?.rodando;
-                  const detalhe = statusRoboLoja?.recarregar
-                    ? 'A extensão foi recarregada: aperte F5.'
-                    : !statusRoboLoja
-                      ? 'Extensão Robô LOJA não detectada neste Chrome.'
-                      : rodando
-                        ? `${rodando.rotulo}${rodando.etapa ? ` — ${rodando.etapa}` : ''}`
-                        : ligado
-                          ? `Ligado hoje${statusRoboLoja.proximaRodadaEm ? ` • próxima rodada às ${new Date(statusRoboLoja.proximaRodadaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}`
-                          : 'Venda diária, venda total e Skin.';
-                  return (
-                    <div className="w-full xl:w-[260px]">
-                      <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Robô LOJA</label>
-                      <button
-                        type="button"
-                        onClick={ligarRoboLoja}
-                        disabled={ligandoRoboLoja || ligado || !cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA')}
-                        title={detalhe}
-                        className={`w-full px-4 py-3 rounded-lg font-black inline-flex items-center justify-center gap-2 disabled:cursor-default ${ligado ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-[#048187] text-white hover:bg-[#036b70] disabled:opacity-60'}`}
-                      >
-                        {ligado && !rodando ? <CheckCircle size={16} /> : <RefreshCcw size={16} className={rodando || ligandoRoboLoja ? 'animate-spin' : ''} />}
-                        {ligandoRoboLoja ? 'Ligando...' : rodando ? 'Robô LOJA rodando' : ligado ? 'Robô LOJA ligado' : 'Ligar Robô LOJA'}
-                      </button>
-                      <p className="text-[10px] font-bold text-gray-400 mt-1 truncate" title={detalhe}>{detalhe}</p>
-                    </div>
-                  );
-                })()}
+                <BotaoRobo
+                  nome="Robô LOJA"
+                  origem="ROBO_LOJA_EXTENSAO"
+                  acaoStatus="ROBO_LOJA_STATUS"
+                  campoProxima="proximaRodadaEm"
+                  textoProxima="próxima rodada"
+                  textoPadrao="Venda diária, venda total e Skin."
+                  ligando={ligandoRoboLoja}
+                  podeLigar={cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA')}
+                  aoLigar={ligarRoboLoja}
+                  larguraClasse="w-full xl:w-[260px]"
+                />
                 <div className="flex gap-2">
                   {cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA') ? (
                     perfilPodeFecharCiclo && <button type="button" disabled={alterandoStatusCiclo} onClick={() => atualizarStatusOperacionalCiclo('LOJA', 'fechar')} className="bg-[#712231] text-white px-4 py-3 rounded-lg font-black disabled:opacity-50"><Save size={16} className="inline mr-2" />Fechar ciclo</button>
