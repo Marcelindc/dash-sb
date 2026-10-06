@@ -652,7 +652,8 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
             </div>
             <ul className="mt-2"><LinhaPessoa pessoa={eu} aberta={pessoasAbertas.has(eu.participante)} aoAlternar={() => alternarPessoa(eu.participante)} /></ul>
           </section>
-        ) : (
+        ) : dados.so_unidade ? null : (
+          // Quem não tem meta própria na campanha (ex.: consultora de ER) vê só a unidade: sem este aviso.
           <div className="rounded-[24px] bg-white border border-gray-100 p-8 text-center shadow-sm">
             <UserRound size={26} className="mx-auto text-gray-300" />
             <p className="mt-3 text-sm font-semibold text-gray-700">Seu resultado ainda não aparece na campanha.</p>
@@ -704,7 +705,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
       {nivel === 'consultor' ? (
         unidades.length > 0 && (
           <section className="space-y-2">
-            <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">Sua unidade</p>
+            <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">{dados.so_unidade ? 'Resultado da sua unidade' : 'Sua unidade'}</p>
             <ul className="space-y-2">
               {unidades.map((u) => (
                 <CartaoUnidade key={u.participante} unidade={u} pessoas={[]} mostrarPessoas={false}
