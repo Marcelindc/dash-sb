@@ -20771,7 +20771,7 @@ const enviarArquivo = async (tipo) => {
                   acaoStatus="ROBO_LOJA_STATUS"
                   campoProxima="proximaRodadaEm"
                   textoProxima="próxima rodada"
-                  textoPadrao="Venda diária, venda total e Skin."
+                  textoPadrao="Venda diária, venda total, Skin e Serviços."
                   ligando={ligandoRoboLoja}
                   podeLigar={cicloAbertoParaArea(cicloUploadLoja || cicloAtualLoja, 'LOJA')}
                   aoLigar={ligarRoboLoja}
