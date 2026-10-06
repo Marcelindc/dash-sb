@@ -21968,11 +21968,17 @@ const enviarArquivo = async (tipo) => {
           </div>
           {/* Horário da última atualização: no Resultado Individual, o do cálculo dessa aba. */}
           <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-slate-400">
-            {abaCampanhaAtiva === 'individual' && calculoIndividualCampanha?.atualizando
-              ? <><Loader2 size={14} className="animate-spin text-[#048187]" /> Atualizando...</>
-              : <><ShieldCheck size={14} className="text-[#048187]" /> Atualizado em {abaCampanhaAtiva === 'individual' && calculoIndividualCampanha?.em
-                ? new Date(calculoIndividualCampanha.em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-                : atualizadoCampanha}</>}
+            {(() => {
+              // No Individual: horário do número na tela; enquanto o servidor recalcula, mostra "atualizando" junto.
+              const individual = abaCampanhaAtiva === 'individual' ? calculoIndividualCampanha : null;
+              const horario = individual?.em
+                ? new Date(individual.em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                : (individual ? null : atualizadoCampanha);
+              if (individual?.atualizando) {
+                return <><Loader2 size={14} className="animate-spin text-[#048187]" /> {horario ? `Atualizado em ${horario} • atualizando...` : 'Atualizando...'}</>;
+              }
+              return <><ShieldCheck size={14} className="text-[#048187]" /> Atualizado em {horario || atualizadoCampanha}</>;
+            })()}
           </span>
           {donoCampanhaIncentivo2026 && (
             <button

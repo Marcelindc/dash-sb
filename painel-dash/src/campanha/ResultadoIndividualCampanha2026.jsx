@@ -470,9 +470,11 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
   const [opcoesVerComo, setOpcoesVerComo] = useState([]);
   const [previaAvisos, setPreviaAvisos] = useState({ carregando: false, msg: '' });
 
-  const aplicar = useCallback((payload) => {
+  const aplicar = useCallback((payload, manterAbertos = false) => {
     setDados(payload);
     if (payload?.opcoes_ver_como?.length) setOpcoesVerComo(payload.opcoes_ver_como);
+    // Troca silenciosa pelo número recalculado: não fecha o que a pessoa abriu.
+    if (manterAbertos) return;
     // Quem vê poucas unidades (gestor de unidade, consultor) já recebe tudo aberto.
     const unidades = payload?.unidades || [];
     const nivel = payload?.acesso?.nivel_exibido;
@@ -480,7 +482,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
     setPessoasAbertas(new Set(nivel === 'consultor' ? (payload?.participantes || []).map((p) => p.participante) : []));
   }, []);
 
-  const carregar = useCallback(async ({ forcar = false, simular = verComo } = {}) => {
+  const carregar = useCallback(async ({ forcar = false, simular = verComo, silencioso = false } = {}) => {
     setAtualizando(true);
     setErro('');
     try {
@@ -488,9 +490,9 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
         params: { _t: Date.now(), ...(simular ? { ver_como: simular } : {}) },
         headers: forcar ? { 'X-Force-Refresh': '1' } : {},
       });
-      aplicar(resposta.data);
+      aplicar(resposta.data, silencioso);
     } catch (e) {
-      setErro(e?.response?.data?.detail || e?.message || 'Não foi possível calcular o resultado individual.');
+      if (!silencioso) setErro(e?.response?.data?.detail || e?.message || 'Não foi possível calcular o resultado individual.');
     } finally {
       setCarregando(false);
       setAtualizando(false);
@@ -511,15 +513,32 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
   useEffect(() => {
     if (refreshToken === tokenInicial.current) return undefined;
     tokenInicial.current = refreshToken;
-    const timer = setTimeout(() => carregar({ forcar: true }), 0);
+    const timer = setTimeout(() => carregar({ silencioso: true }), 0);
     return () => clearTimeout(timer);
   }, [refreshToken, carregar]);
 
+  // O servidor devolveu o último número pronto e está recalculando em segundo plano:
+  // confere de novo a cada 30 s e troca sozinho quando o novo ficar pronto.
+  const tentativasRecalculo = useRef(0);
+  useEffect(() => {
+    if (!dados?.recalculando) {
+      tentativasRecalculo.current = 0;
+      return undefined;
+    }
+    if (tentativasRecalculo.current >= 6) return undefined;
+    const timer = setTimeout(() => {
+      tentativasRecalculo.current += 1;
+      carregar({ silencioso: true });
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [dados, carregar]);
+
   // O horário do cálculo aparece ao lado das abas da campanha (App.jsx).
   const calculadoIso = dados?.calculado_em || null;
+  const recalculando = Boolean(dados?.recalculando);
   useEffect(() => {
-    aoCalculado?.({ em: calculadoIso, atualizando });
-  }, [aoCalculado, calculadoIso, atualizando]);
+    aoCalculado?.({ em: calculadoIso, atualizando: atualizando || recalculando });
+  }, [aoCalculado, calculadoIso, atualizando, recalculando]);
   useEffect(() => () => aoCalculado?.(null), [aoCalculado]);
 
   const mudarVerComo = (valor) => {
