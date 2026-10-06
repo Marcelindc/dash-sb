@@ -4972,6 +4972,9 @@ export default function App() {
   const [liberandoCampanha2026, setLiberandoCampanha2026] = useState(false);
   const [abaCampanhaIncentivo, setAbaCampanhaIncentivo] = useState('visao');
   const [adicoesRefreshToken, setAdicoesRefreshToken] = useState(0);
+  // "Atualizar" da barra de cima também recalcula o Resultado Individual da campanha; e o horário dele vai ao lado das abas.
+  const [campanhaRefreshToken, setCampanhaRefreshToken] = useState(0);
+  const [calculoIndividualCampanha, setCalculoIndividualCampanha] = useState(null);
   const [resumoAdicoesMetas, setResumoAdicoesMetas] = useState({ mapa: {}, estruturas: [], totais: null, ciclo: '' });
   const [detalheAdicoesGerente, setDetalheAdicoesGerente] = useState({ aberto: false, carregando: false, erro: '', dados: null });
 
@@ -10277,7 +10280,10 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     if (!usuarioLogado) return;
     if (modoCampanha && telaAtual !== 'CampanhaIncentivo2026') return;
 
-    if (telaAtual === 'CampanhaIncentivo2026') return carregarCampanhaIncentivo2026(forcarAtualizacao);
+    if (telaAtual === 'CampanhaIncentivo2026') {
+      if (forcarAtualizacao) setCampanhaRefreshToken((valor) => valor + 1);
+      return carregarCampanhaIncentivo2026(forcarAtualizacao);
+    }
     if (telaAtual === 'AcompanhamentoVD') return carregarAcompanhamentoGerenteVD(filtros, forcarAtualizacao);
     if (telaAtual === 'PrimeiroPedidoCaptacao') return carregarPrimeiroPedidoCaptacao(filtros, forcarAtualizacao);
     if (telaAtual === 'Dashboard') return carregarDashboard(filtros, forcarAtualizacao, false);
@@ -21960,19 +21966,25 @@ const enviarArquivo = async (tipo) => {
               })}
             </div>
           </div>
-          {donoCampanhaIncentivo2026 ? (
+          {/* Horário da última atualização: no Resultado Individual, o do cálculo dessa aba. */}
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-slate-400">
+            {abaCampanhaAtiva === 'individual' && calculoIndividualCampanha?.atualizando
+              ? <><Loader2 size={14} className="animate-spin text-[#048187]" /> Atualizando...</>
+              : <><ShieldCheck size={14} className="text-[#048187]" /> Atualizado em {abaCampanhaAtiva === 'individual' && calculoIndividualCampanha?.em
+                ? new Date(calculoIndividualCampanha.em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                : atualizadoCampanha}</>}
+          </span>
+          {donoCampanhaIncentivo2026 && (
             <button
               type="button"
               onClick={alternarLiberacaoCampanha}
               disabled={liberandoCampanha2026}
               title={campanhaIncentivo2026Liberada ? 'Clique para voltar a ser só sua' : 'Clique para liberar para gestores, gestores de unidade e consultores'}
-              className={`ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60 ${campanhaIncentivo2026Liberada ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-white border-[#ecdde0] text-[#8a3445] hover:bg-[#fbf5f6]'}`}
+              className={`shrink-0 inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60 ${campanhaIncentivo2026Liberada ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-white border-[#ecdde0] text-[#8a3445] hover:bg-[#fbf5f6]'}`}
             >
               {liberandoCampanha2026 ? <Loader2 size={14} className="animate-spin" /> : campanhaIncentivo2026Liberada ? <Unlock size={14} /> : <LockKeyhole size={14} />}
               {campanhaIncentivo2026Liberada ? 'Liberada para a equipe' : 'Privada • liberar para a equipe'}
             </button>
-          ) : (
-            <span className="ml-auto hidden md:inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-slate-400"><ShieldCheck size={14} className="text-[#048187]" /> Atualizado em {atualizadoCampanha}</span>
           )}
         </nav>
         {campanhaIncentivo2026?.erro && <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 flex items-center gap-2"><AlertCircle size={17} /> {campanhaIncentivo2026.erro}</div>}
@@ -21989,7 +22001,7 @@ const enviarArquivo = async (tipo) => {
           <ResultadoGeralCampanha2026 ciclosAno={payload?.ciclos_ano || []} calendario={payload?.calendario || []} metas={metas} carregando={campanhaIncentivo2026?.carregando} aoLancar={donoCampanhaIncentivo2026 ? () => setAbaCampanhaIncentivo('lancamentos') : null} />
         )}
         {abaCampanhaAtiva === 'individual' && (
-          <ResultadoIndividualCampanha2026 apiUrl={API_URL} totalCp={Number(realizado?.total || 0)} meta109={Number(metas?.meta_superacao || 109000000)} aoPreviaAvisos={previaAvisosCampanha} />
+          <ResultadoIndividualCampanha2026 apiUrl={API_URL} totalCp={Number(realizado?.total || 0)} meta109={Number(metas?.meta_superacao || 109000000)} aoPreviaAvisos={previaAvisosCampanha} refreshToken={campanhaRefreshToken} aoCalculado={setCalculoIndividualCampanha} />
         )}
       </div>
     );

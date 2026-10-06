@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AlertTriangle, ArrowRight, CalendarClock, Check, Coins, Droplets, Layers, Package, Palette, Receipt, Scissors,
+  AlertTriangle, ArrowRight, CalendarClock, Check, Coins, Droplets, Layers, Package, Palette, Receipt, Rocket, Scissors,
   ShoppingBag, Sparkles, Target, Ticket, TrendingDown, TrendingUp, Trophy, UserCheck, X,
 } from 'lucide-react';
 import Confete from '../celebracao/Confete';
+import ChuvaDeCedulas from './ChuvaDeCedulas';
 import { FONTE, prefereMenosMovimento } from '../celebracao/efeitos';
 
 // Avisos da Campanha Incentivo 2026 num card na tela (vêm de /campanha-incentivo-2026/avisos):
 // - atingiu: "Parabéns! Você atingiu X" + confete, lembrando de manter até o fim do ciclo;
 // - todas: todos os indicadores do ciclo batidos (comemoração dourada);
 // - quase: "Falta apenas X para você atingir Y";
-// - caiu: o indicador que estava batido voltou para baixo da meta.
+// - caiu: o indicador que estava batido voltou para baixo da meta;
+// - superou: a receita somada desde o C14 passou de 120% (o patamar do bônus), com chuva de cédulas.
+// O parabéns da receita já mostra o próximo desafio: chegar aos 120%.
 
 const MASCOTES = '/campanha-incentivo-2026/mascotes';
 
@@ -38,6 +41,10 @@ const TEMAS = {
   quase: {
     fundo: 'linear-gradient(135deg,#011c1e 0%,#03474a 50%,#048187 100%)', titulo: 'Quase lá!', selo: 'Falta pouco',
     mascote: 'ela-apontando', botao: 'Vou buscar!',
+  },
+  superou: {
+    fundo: 'linear-gradient(135deg,#3b0a14 0%,#7c1f31 45%,#d4a017 100%)', titulo: 'Superação!', selo: '120% da meta',
+    mascote: 'ele-comemorando', mascote2: 'ela-pulando', botao: 'Quero mais!', confete: ['#f2c14e', '#e0a106', '#fff3c4', '#7c1f31', '#ffffff'], raios: true,
   },
   caiu: {
     fundo: 'linear-gradient(135deg,#3b0a14 0%,#7c1f31 55%,#c2410c 100%)', titulo: 'Atenção!', selo: 'Ficou abaixo da meta',
@@ -107,7 +114,7 @@ function Anel({ percentual, cor }) {
 
 /** Selo redondo do indicador no topo do card (ícone + anel de progresso ou check). */
 function Selo({ aviso }) {
-  const Icone = aviso.tipo === 'todas' ? Trophy : (ICONES[aviso.indicador] || Target);
+  const Icone = aviso.tipo === 'todas' || aviso.tipo === 'superou' ? Trophy : (ICONES[aviso.indicador] || Target);
   const pct = Number(aviso.percentual || 0);
   if (aviso.tipo === 'quase' || aviso.tipo === 'caiu') {
     return (
@@ -121,7 +128,7 @@ function Selo({ aviso }) {
     );
   }
   return (
-    <span className="ac-pop relative w-[86px] h-[86px] shrink-0 rounded-full bg-white shadow-[0_12px_30px_-10px_rgba(0,0,0,.5)] flex items-center justify-center" style={{ color: aviso.tipo === 'todas' ? '#b8860b' : '#048187' }}>
+    <span className="ac-pop relative w-[86px] h-[86px] shrink-0 rounded-full bg-white shadow-[0_12px_30px_-10px_rgba(0,0,0,.5)] flex items-center justify-center" style={{ color: aviso.tipo === 'todas' ? '#b8860b' : aviso.tipo === 'superou' ? '#7c1f31' : '#048187' }}>
       <Icone size={34} strokeWidth={2.2} />
       <span className="absolute -right-1 -bottom-1 w-8 h-8 rounded-full bg-green-500 text-white border-[3px] border-white flex items-center justify-center"><Check size={16} strokeWidth={3.2} /></span>
     </span>
@@ -139,6 +146,14 @@ function textos(a) {
       frase: `${quem} está batendo todos os indicadores do ${c}!`,
       lista: a.indicadores || [],
       aviso: `Segure firme até ${fim} para validar o ciclo inteiro: ${prazo}.`,
+    };
+  }
+  if (a.tipo === 'superou') {
+    return {
+      frase: `${quem} passou dos ${Number(a.sup_alvo || 120).toLocaleString('pt-BR')}% da meta de receita!`,
+      aviso: a.unidade
+        ? 'A receita somada desde o C14 está acima de 120% da meta. Segure esse patamar até o fim do C17!'
+        : 'Esse é o patamar do bônus de R$ 50 mil (receita somada desde o C14). Segure acima de 120% até o fim do C17!',
     };
   }
   if (a.tipo === 'atingiu') {
@@ -183,6 +198,10 @@ export default function AvisosCampanha2026({ itens = [], aoFechar, aoAbrirCampan
   const { frase, aviso: lembrete, lista } = textos(aviso);
   const valorMeta = aviso.tipo !== 'todas' && aviso.meta != null;
   const pct = Math.min(Math.max(Number(aviso.percentual || 0), 0), 100);
+  const alvo120 = Number(aviso.sup_alvo || 120);
+  const desafio120 = aviso.tipo === 'atingiu' && aviso.indicador === 'receita' && Number(aviso.sup_meta) > 0 && Number(aviso.sup_percentual) < alvo120
+    ? { alvo: alvo120, falta: Number(aviso.sup_meta) * (alvo120 / 100) - Number(aviso.sup_receita || 0) }
+    : null;
 
   return (
     <div className="aviso-camp fixed inset-0 z-[160] flex items-center justify-center overflow-y-auto bg-slate-950/65 px-3 py-6 backdrop-blur-[3px]" style={{ fontFamily: FONTE }}
@@ -190,8 +209,10 @@ export default function AvisosCampanha2026({ itens = [], aoFechar, aoAbrirCampan
       <style>{ESTILO}</style>
       {/* Chaves diferentes para o confete e o card: com a mesma chave o React deixava o confete antigo na tela. */}
       {tema.confete && <Confete key={`confete-${aviso.id}`} disparo={aviso.id} cores={tema.confete} />}
+      {aviso.tipo === 'superou' && !aviso.unidade && <ChuvaDeCedulas key={`cedulas-${aviso.id}`} rodada={indice + 1} />}
 
-      <article key={`card-${aviso.id}`} className="ac-surgir relative w-full max-w-[520px] overflow-hidden rounded-[30px] bg-white shadow-[0_40px_90px_-30px_rgba(0,0,0,.65)]" style={{ zIndex: 2 }}>
+      {/* Na superação as cédulas (z 70) caem por trás do card, para o texto continuar legível. */}
+      <article key={`card-${aviso.id}`} className="ac-surgir relative w-full max-w-[520px] overflow-hidden rounded-[30px] bg-white shadow-[0_40px_90px_-30px_rgba(0,0,0,.65)]" style={{ zIndex: aviso.tipo === 'superou' ? 80 : 2 }}>
         {/* Topo colorido: selo do indicador, título e mascote */}
         <div className="relative overflow-hidden px-5 pt-5 pb-0 sm:px-7 sm:pt-6 text-white" style={{ background: tema.fundo }}>
           {tema.raios && (
@@ -230,7 +251,18 @@ export default function AvisosCampanha2026({ itens = [], aoFechar, aoAbrirCampan
             </ul>
           )}
 
-          {valorMeta && (
+          {aviso.tipo === 'superou' && Number(aviso.sup_meta) > 0 && (
+            <div className="mt-4 rounded-2xl border border-[#f3e2b3] bg-[#fffaf0] p-3.5">
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="font-extrabold tabular-nums text-slate-800">{emValor(aviso.sup_receita, 'moeda')} <span className="text-[#b8860b]">({emValor(aviso.sup_percentual, 'percentual')})</span></span>
+                <span className="text-xs font-semibold text-slate-400">120% = {emValor(Number(aviso.sup_meta) * (Number(aviso.sup_alvo || 120) / 100), 'moeda')}</span>
+              </div>
+              <div className="mt-2 h-2.5 rounded-full overflow-hidden bg-[linear-gradient(90deg,#b8860b,#f2c14e)]" />
+              <p className="mt-1.5 text-[11px] font-semibold text-slate-400">Receita somada desde o C14</p>
+            </div>
+          )}
+
+          {valorMeta && aviso.tipo !== 'superou' && (
             <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-3.5">
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="font-extrabold tabular-nums text-slate-800">{emValor(aviso.valor, aviso.formato)}</span>
@@ -243,6 +275,21 @@ export default function AvisosCampanha2026({ itens = [], aoFechar, aoAbrirCampan
             </div>
           )}
 
+          {desafio120 && (
+            <div className="mt-4 rounded-2xl border border-[#ecdde0] bg-[#fdf7f8] p-3.5">
+              <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-[#7c1f31]"><Rocket size={14} /> Próximo desafio: 120% da meta</p>
+              <div className="relative mt-2.5 h-2.5 rounded-full bg-[#f1e4e7] overflow-hidden">
+                <div className="h-full rounded-full bg-[linear-gradient(90deg,#b44a5c,#7c1f31)] transition-[width] duration-1000" style={{ width: `${Math.min((Number(aviso.sup_percentual) / desafio120.alvo) * 100, 100)}%` }} />
+                <span className="absolute inset-y-0 w-0.5 bg-white/90" style={{ left: `${(100 / desafio120.alvo) * 100}%` }} />
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] font-bold text-slate-400 tabular-nums"><span>{emValor(aviso.sup_percentual, 'percentual')} agora</span><span className="text-[#7c1f31]">{desafio120.alvo}%</span></div>
+              <p className="mt-2 text-[13px] font-semibold leading-snug text-slate-700">
+                Faltam <strong className="text-[#7c1f31] tabular-nums">{emValor(desafio120.falta, 'moeda')}</strong>{' '}
+                {aviso.unidade ? 'para a unidade chegar a 120% da meta (receita somada desde o C14).' : 'de receita (somada desde o C14) para os 120% que valem o bônus de R$ 50 mil.'}
+              </p>
+            </div>
+          )}
+
           <p className={`mt-4 flex items-start gap-2 rounded-2xl px-3.5 py-3 text-[13px] font-semibold leading-snug ${aviso.tipo === 'caiu' ? 'bg-[#fff1ec] text-[#9a3412]' : aviso.tipo === 'quase' ? 'bg-[#e6f6f7] text-[#036b70]' : 'bg-[#fff8e6] text-[#7a5200]'}`}>
             {aviso.tipo === 'caiu' ? <AlertTriangle size={16} className="shrink-0 mt-0.5" /> : <CalendarClock size={16} className="shrink-0 mt-0.5" />}
             <span>{lembrete}</span>
@@ -251,7 +298,7 @@ export default function AvisosCampanha2026({ itens = [], aoFechar, aoAbrirCampan
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <button ref={botao} type="button" onClick={avancar}
               className="inline-flex flex-1 sm:flex-none items-center justify-center gap-2 whitespace-nowrap rounded-2xl px-5 py-3 text-sm font-extrabold text-white shadow-[0_10px_24px_-12px_rgba(4,129,135,.9)] hover:brightness-110"
-              style={{ background: aviso.tipo === 'caiu' ? '#7c1f31' : aviso.tipo === 'todas' ? '#b8860b' : '#048187' }}>
+              style={{ background: aviso.tipo === 'caiu' || aviso.tipo === 'superou' ? '#7c1f31' : aviso.tipo === 'todas' ? '#b8860b' : '#048187' }}>
               {tema.botao} {!ultimo && <ArrowRight size={16} />}
             </button>
             {aoAbrirCampanha && !simulacao && (

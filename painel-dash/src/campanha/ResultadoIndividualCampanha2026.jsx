@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import {
   AlertCircle, BadgeDollarSign, Building2, Check, ChevronDown, Clock, Eye, Info, Loader2, Lock, Minus, Plane,
@@ -456,7 +456,7 @@ function SeletorVerComo({ opcoes, valor, aoMudar, carregando }) {
   );
 }
 
-export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, meta109 = 109000000, aoPreviaAvisos = null }) {
+export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, meta109 = 109000000, aoPreviaAvisos = null, refreshToken = 0, aoCalculado = null }) {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
@@ -505,6 +505,22 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
   }, [apiUrl, aplicar]);
+
+  // O "Atualizar" da barra de cima do DASH também recalcula esta aba (sem esperar o primeiro valor).
+  const tokenInicial = useRef(refreshToken);
+  useEffect(() => {
+    if (refreshToken === tokenInicial.current) return undefined;
+    tokenInicial.current = refreshToken;
+    const timer = setTimeout(() => carregar({ forcar: true }), 0);
+    return () => clearTimeout(timer);
+  }, [refreshToken, carregar]);
+
+  // O horário do cálculo aparece ao lado das abas da campanha (App.jsx).
+  const calculadoIso = dados?.calculado_em || null;
+  useEffect(() => {
+    aoCalculado?.({ em: calculadoIso, atualizando });
+  }, [aoCalculado, calculadoIso, atualizando]);
+  useEffect(() => () => aoCalculado?.(null), [aoCalculado]);
 
   const mudarVerComo = (valor) => {
     setVerComo(valor);
@@ -569,7 +585,6 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
   const resumo = dados.resumo || {};
   const cicloAtual = resumo.ciclo_atual ? Number(String(resumo.ciclo_atual).split('/')[0]) : null;
   const habilitado109 = totalCp >= meta109;
-  const calculadoEm = dados.calculado_em ? new Date(dados.calculado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
   const eu = nivel === 'consultor' ? participantes[0] : null;
 
   return (
@@ -625,7 +640,8 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
             <p className="mt-1 text-xs font-semibold text-gray-400">Ele aparece quando você tiver meta cadastrada ou venda no ciclo. Fale com o seu gestor se isso não acontecer.</p>
           </div>
         )
-      ) : (
+      ) : nivel === 'total' && (
+        // Cards de resumo: só para a gestão e os admins (gestor de unidade não vê).
         <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           <CartaoResumo Icone={Building2} cor="#036b70" titulo={cicloAtual ? `Unidades batendo tudo no ${rotuloCiclo(cicloAtual)}` : 'Unidades batendo tudo'} valor={`${resumo.unidades_batendo_ciclo_atual || 0} de ${resumo.unidades || 0}`}
             detalhe={`${resumo.unidades_vd || 0} da VD e ${resumo.unidades_loja || 0} loja(s), com o ciclo ainda aberto`} />
@@ -644,13 +660,10 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-gray-800 flex items-center gap-2"><SlidersHorizontal size={16} className="text-[#048187]" /> Regras da campanha</p>
-            <p className="mt-0.5 text-[11px] font-semibold text-gray-400">Mesmos números do DASH (Metas e painel da Loja).{calculadoEm ? ` Calculado em ${calculadoEm}.` : ''}</p>
+            <p className="mt-0.5 text-[11px] font-semibold text-gray-400">Mesmos números do DASH (Metas e painel da Loja).</p>
           </div>
           <div className="flex gap-2">
             {acesso.pode_editar && !editandoRegras && <button type="button" onClick={() => setEditandoRegras(true)} className="rounded-xl border border-gray-200 px-3.5 py-2 text-xs font-semibold text-gray-600 hover:border-[#048187] hover:text-[#048187]">Editar regras</button>}
-            <button type="button" onClick={() => carregar({ forcar: true })} disabled={atualizando} className="inline-flex items-center gap-1.5 rounded-xl bg-[#048187] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#036b70] disabled:opacity-60">
-              <RefreshCw size={14} className={atualizando ? 'animate-spin' : ''} /> {atualizando ? 'Atualizando...' : 'Atualizar'}
-            </button>
           </div>
         </div>
         {editandoRegras && acesso.pode_editar
@@ -663,15 +676,10 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
           </p>
         )}
       </section>
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white border border-gray-100 px-4 py-2.5">
-          <p className="text-[11px] font-medium text-slate-400">{calculadoEm ? `Atualizado em ${calculadoEm}.` : 'Resultado da campanha.'}</p>
-          <button type="button" onClick={() => carregar({ forcar: true })} disabled={atualizando} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-[#048187] hover:text-[#048187] disabled:opacity-60">
-            <RefreshCw size={13} className={atualizando ? 'animate-spin' : ''} /> {atualizando ? 'Atualizando...' : 'Atualizar'}
-          </button>
-          {erro && <p className="w-full text-xs font-medium text-[#b42335] flex items-center gap-1.5"><AlertCircle size={14} /> {erro}</p>}
-        </div>
-      )}
+      ) : erro ? (
+        // O "Atualizar" fica na barra de cima do DASH e o horário ao lado das abas da campanha.
+        <p className="rounded-2xl bg-white border border-red-100 px-4 py-2.5 text-xs font-medium text-[#b42335] flex items-center gap-1.5"><AlertCircle size={14} /> {erro}</p>
+      ) : null}
 
       {/* Unidades e consultores */}
       {nivel === 'consultor' ? (
