@@ -456,7 +456,7 @@ function SeletorVerComo({ opcoes, valor, aoMudar, carregando }) {
   );
 }
 
-export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, meta109 = 109000000 }) {
+export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, meta109 = 109000000, aoPreviaAvisos = null }) {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
@@ -468,6 +468,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
   const [editandoRegras, setEditandoRegras] = useState(false);
   const [verComo, setVerComo] = useState('');
   const [opcoesVerComo, setOpcoesVerComo] = useState([]);
+  const [previaAvisos, setPreviaAvisos] = useState({ carregando: false, msg: '' });
 
   const aplicar = useCallback((payload) => {
     setDados(payload);
@@ -583,7 +584,26 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <SeletorVerComo opcoes={opcoesVerComo} valor={verComo} aoMudar={mudarVerComo} carregando={atualizando} />
+            {acesso.simulando && aoPreviaAvisos && (
+              <button
+                type="button"
+                disabled={previaAvisos.carregando}
+                onClick={async () => {
+                  setPreviaAvisos({ carregando: true, msg: '' });
+                  try {
+                    const n = await aoPreviaAvisos(verComo);
+                    setPreviaAvisos({ carregando: false, msg: n ? '' : 'Nenhum aviso para esta pessoa agora.' });
+                  } catch (e) {
+                    setPreviaAvisos({ carregando: false, msg: e?.response?.data?.detail || 'Não foi possível montar a prévia.' });
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#f8dfb8] bg-white px-3 py-2 text-xs font-semibold text-[#a65f00] hover:bg-[#fff8ee] disabled:opacity-60"
+              >
+                {previaAvisos.carregando ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />} Prévia dos avisos
+              </button>
+            )}
             {acesso.simulando && <button type="button" onClick={() => mudarVerComo('')} className="rounded-xl bg-[#a65f00] px-3 py-2 text-xs font-semibold text-white hover:bg-[#8a4f00]">Voltar à visão completa</button>}
+            {previaAvisos.msg && acesso.simulando && <p className="w-full text-[11px] font-semibold text-[#a65f00]">{previaAvisos.msg}</p>}
           </div>
         </div>
       )}

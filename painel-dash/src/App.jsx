@@ -19,6 +19,8 @@ import './dashboard-refinado.css';
 
 // Só baixa a tela de comemoração quando houver meta batida para mostrar.
 const CelebracaoMeta = React.lazy(() => import('./celebracao/CelebracaoMeta'));
+// Avisos da Campanha Incentivo 2026 (indicador atingido, quase lá, caiu): também só baixa quando houver.
+const AvisosCampanha2026 = React.lazy(() => import('./campanha/AvisosCampanha2026'));
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
 const TELA_ATUAL_STORAGE_KEY = 'dashSbTelaAtual';
@@ -5342,6 +5344,49 @@ export default function App() {
   const fecharCelebracoesMeta = (ids) => {
     setCelebracoesMeta([]);
     if (ids?.length) axios.post(`${API_URL}/notificacoes/celebracoes/vistas`, { ids }).catch(() => {});
+  };
+
+  // Avisos da Campanha Incentivo 2026 para consultor e gestor de unidade (o backend decide o que é novo).
+  // O nível só existe quando a pessoa pode ver a campanha (liberada).
+  const [avisosCampanha, setAvisosCampanha] = useState({ itens: [], simulacao: false });
+  const nivelAvisosCampanha = acessoCampanha2026.dados?.nivel;
+  useEffect(() => {
+    if (!usuarioLogado?.id || !['consultor', 'unidade'].includes(nivelAvisosCampanha)) return undefined;
+    let ativo = true;
+    const buscar = async () => {
+      if (document.hidden) return;
+      try {
+        const { data } = await axios.get(`${API_URL}/campanha-incentivo-2026/avisos`, { params: { _t: Date.now() } });
+        const novos = Array.isArray(data?.avisos) ? data.avisos : [];
+        if (ativo && novos.length) setAvisosCampanha((atual) => (atual.itens.length ? atual : { itens: novos, simulacao: false }));
+      } catch {
+        // O aviso é um extra: se falhar, o DASH segue normalmente.
+      }
+    };
+    const timerInicial = window.setTimeout(buscar, 9000);
+    const intervalo = window.setInterval(buscar, 600000);
+    return () => {
+      ativo = false;
+      window.clearTimeout(timerInicial);
+      window.clearInterval(intervalo);
+    };
+  }, [usuarioLogado?.id, nivelAvisosCampanha]);
+
+  const fecharAvisosCampanha = (itens) => {
+    const simulacao = avisosCampanha.simulacao;
+    setAvisosCampanha({ itens: [], simulacao: false });
+    if (simulacao || !itens?.length) return;
+    axios.post(`${API_URL}/campanha-incentivo-2026/avisos/vistos`, {
+      avisos: itens.map((a) => ({ ciclo: a.ciclo, chave: a.chave, tipo: a.tipo })),
+    }).catch(() => {});
+  };
+
+  // Prévia para o dono (Ver como): mostra os avisos de alguém sem marcar nada como visto.
+  const previaAvisosCampanha = async (verComo) => {
+    const { data } = await axios.get(`${API_URL}/campanha-incentivo-2026/avisos`, { params: { ver_como: verComo, _t: Date.now() } });
+    const itens = Array.isArray(data?.avisos) ? data.avisos : [];
+    if (itens.length) setAvisosCampanha({ itens, simulacao: true });
+    return itens.length;
   };
 
   useEffect(() => {
@@ -21944,7 +21989,7 @@ const enviarArquivo = async (tipo) => {
           <ResultadoGeralCampanha2026 ciclosAno={payload?.ciclos_ano || []} calendario={payload?.calendario || []} metas={metas} carregando={campanhaIncentivo2026?.carregando} aoLancar={donoCampanhaIncentivo2026 ? () => setAbaCampanhaIncentivo('lancamentos') : null} />
         )}
         {abaCampanhaAtiva === 'individual' && (
-          <ResultadoIndividualCampanha2026 apiUrl={API_URL} totalCp={Number(realizado?.total || 0)} meta109={Number(metas?.meta_superacao || 109000000)} />
+          <ResultadoIndividualCampanha2026 apiUrl={API_URL} totalCp={Number(realizado?.total || 0)} meta109={Number(metas?.meta_superacao || 109000000)} aoPreviaAvisos={previaAvisosCampanha} />
         )}
       </div>
     );
@@ -25172,6 +25217,17 @@ const enviarArquivo = async (tipo) => {
       {celebracoesMeta.length > 0 && (
         <React.Suspense fallback={null}>
           <CelebracaoMeta itens={celebracoesMeta} aoFechar={fecharCelebracoesMeta} />
+        </React.Suspense>
+      )}
+
+      {avisosCampanha.itens.length > 0 && celebracoesMeta.length === 0 && (
+        <React.Suspense fallback={null}>
+          <AvisosCampanha2026
+            itens={avisosCampanha.itens}
+            simulacao={avisosCampanha.simulacao}
+            aoFechar={fecharAvisosCampanha}
+            aoAbrirCampanha={() => { setTelaAtual('CampanhaIncentivo2026'); setAbaCampanhaIncentivo('individual'); }}
+          />
         </React.Suspense>
       )}
 
