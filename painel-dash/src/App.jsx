@@ -12651,7 +12651,6 @@ const enviarArquivo = async (tipo) => {
                   atingimento: calcPerc(pMake, metaMake),
                   onClick: () => abrirDetIndicadorDashboard('MAKE', {
                     titulo: `MAKE - ${escopoTexto}`,
-                    estruturas: estruturasEscopoGerenteVD,
                   }),
                 },
                 {
@@ -12660,7 +12659,6 @@ const enviarArquivo = async (tipo) => {
                   atingimento: calcPerc(pCabelo, metaCabelo),
                   onClick: () => abrirDetIndicadorDashboard('CABELO', {
                     titulo: `CABELO - ${escopoTexto}`,
-                    estruturas: estruturasEscopoGerenteVD,
                   }),
                 },
                 {
@@ -12669,7 +12667,6 @@ const enviarArquivo = async (tipo) => {
                   atingimento: calcPerc(pMulti, metaMulti),
                   onClick: () => abrirDetIndicadorDashboard('MULTIMARCAS', {
                     titulo: `MULTIMARCAS - ${escopoTexto}`,
-                    estruturas: estruturasEscopoGerenteVD,
                   }),
                 },
                 {
