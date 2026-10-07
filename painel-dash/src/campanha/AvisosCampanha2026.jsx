@@ -63,10 +63,21 @@ const ESTILO = `
   @keyframes acFlutuar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
   .aviso-camp .ac-tremer { animation: acTremer .6s ease-in-out .3s 2; }
   @keyframes acTremer { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+  .aviso-camp .ac-foguete { animation: acFoguete 1.2s ease-in-out infinite; }
+  @keyframes acFoguete { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, -64%); } }
+  .aviso-camp .ac-rastro { animation: acRastro .45s ease-in-out infinite alternate; }
+  @keyframes acRastro { from { opacity: .35; transform: scaleX(.75); } to { opacity: .9; transform: scaleX(1); } }
+  .aviso-camp .ac-bandeira { transform-origin: left center; animation: acBandeira 1.3s ease-in-out infinite; }
+  @keyframes acBandeira { 0%, 100% { transform: skewY(0deg) scaleX(1); } 50% { transform: skewY(-9deg) scaleX(.9); } }
+  .aviso-camp .ac-chegada { animation: acChegada 1.8s ease-out infinite; }
+  @keyframes acChegada { 0% { transform: scale(.55); opacity: .75; } 100% { transform: scale(1.9); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
-    .aviso-camp .ac-surgir, .aviso-camp .ac-pop, .aviso-camp .ac-raios, .aviso-camp .ac-flutuar, .aviso-camp .ac-tremer { animation: none; }
+    .aviso-camp .ac-surgir, .aviso-camp .ac-pop, .aviso-camp .ac-raios, .aviso-camp .ac-flutuar, .aviso-camp .ac-tremer,
+    .aviso-camp .ac-foguete, .aviso-camp .ac-rastro, .aviso-camp .ac-bandeira, .aviso-camp .ac-chegada { animation: none; }
   }
 `;
+
+const XADREZ = 'repeating-conic-gradient(#0f172a 0% 25%, #ffffff 0% 50%) 0 0 / 7px 7px';
 
 const rotuloCiclo = (n) => `C${String(n).padStart(2, '0')}`;
 const dataCurta = (iso) => (iso ? String(iso).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '');
@@ -109,6 +120,57 @@ function Anel({ percentual, cor }) {
       <circle cx="36" cy="36" r={raio} fill="none" stroke={cor} strokeWidth="7" strokeLinecap="round" strokeDasharray={circ}
         strokeDashoffset={circ * (1 - Math.min(Math.max(p, 0), 100) / 100)} style={{ transition: 'stroke-dashoffset 1.4s cubic-bezier(.2,.8,.2,1)' }} />
     </svg>
+  );
+}
+
+/** "Falta pouco": a barra vira uma pista; o foguete anda até onde a pessoa está e a bandeira
+ *  quadriculada da meta pisca no fim (pedido em 07/10/2026: confete é só para quando bate). */
+function PistaChegada({ aviso, percentual, falta }) {
+  const [p, setP] = useState(() => (prefereMenosMovimento() ? percentual : 0));
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setP(percentual));
+    return () => cancelAnimationFrame(t);
+  }, [percentual]);
+  const pos = Math.min(Math.max(p, 0), 100);
+  const andar = 'cubic-bezier(.2,.8,.2,1)';
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/70 px-3.5 pt-3.5 pb-3">
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="font-extrabold tabular-nums text-slate-800">{emValor(aviso.valor, aviso.formato)}</span>
+        <span className="text-xs font-semibold text-slate-400">meta {emValor(aviso.meta, aviso.formato)}</span>
+      </div>
+
+      <div className="relative mt-3 h-11">
+        {/* Pista: trecho percorrido em verde, o que falta tracejado */}
+        <div className="absolute left-0 right-8 top-1/2 -translate-y-1/2 h-3 rounded-full bg-slate-200/80 overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${pos}%`, background: 'linear-gradient(90deg,#048187,#2dd4bf)', transition: `width 1.6s ${andar}` }} />
+          <div className="absolute inset-y-0 right-0" style={{ left: `${pos}%`, transition: `left 1.6s ${andar}`, background: 'repeating-linear-gradient(90deg, rgba(100,116,139,.55) 0 7px, transparent 7px 13px) center / 100% 2px no-repeat' }} />
+        </div>
+        {/* Foguete no ponto atual */}
+        <div className="absolute left-0 right-8 inset-y-0 pointer-events-none">
+          <span className="absolute top-1/2" style={{ left: `${pos}%`, transition: `left 1.6s ${andar}` }}>
+            <span className="ac-foguete absolute left-0 top-0 flex items-center" style={{ transform: 'translate(-50%, -50%)' }}>
+              <span className="ac-rastro absolute right-[26px] h-[3px] w-5 origin-right rounded-full bg-gradient-to-l from-orange-400 to-transparent" />
+              <span className="w-8 h-8 rounded-full bg-white shadow-[0_6px_14px_-6px_rgba(4,129,135,.8)] border border-[#cde9ea] flex items-center justify-center text-[#048187]">
+                <Rocket size={17} strokeWidth={2.4} style={{ transform: 'rotate(45deg)' }} />
+              </span>
+            </span>
+          </span>
+        </div>
+        {/* Linha de chegada: bandeira quadriculada pulsando */}
+        <div className="absolute right-0 top-0 bottom-0 w-8 flex items-center justify-center" aria-hidden="true">
+          <span className="ac-chegada absolute w-8 h-8 rounded-full bg-[#2dd4bf]/40" />
+          <span className="relative h-9 w-[2px] rounded-full bg-slate-700">
+            <span className="ac-bandeira absolute left-[2px] top-0 h-[14px] w-[20px] rounded-[2px] shadow-sm" style={{ background: XADREZ }} />
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-1 flex items-center justify-between gap-3 text-[11px] font-bold tabular-nums">
+        <span className="text-slate-400">{Math.floor(percentual)}% da meta</span>
+        <span className="text-[#036b70]">{falta.plural ? 'Faltam' : 'Falta'} {falta.texto}</span>
+      </div>
+    </div>
   );
 }
 
@@ -166,7 +228,7 @@ function textos(a) {
   if (a.tipo === 'quase') {
     const ritmo = a.formato === 'moeda' && dias > 0 ? ` São ${emValor(Math.max(Number(a.meta) - Number(a.valor), 0) / dias, 'moeda')} por dia.` : '';
     return {
-      frase: `${falta.plural ? 'Faltam' : 'Falta'} apenas ${falta.texto} para ${a.unidade ? 'sua unidade' : 'você'} atingir ${a.rotulo}!`,
+      frase: `${falta.plural ? 'Faltam' : 'Falta'} apenas ${falta.texto} para ${a.unidade ? 'sua unidade' : 'você'} bater a meta de ${a.rotulo}!`,
       aviso: `${prazo.charAt(0).toUpperCase()}${prazo.slice(1)}: dá tempo!${ritmo}`,
     };
   }
@@ -262,7 +324,11 @@ export default function AvisosCampanha2026({ itens = [], aoFechar, aoAbrirCampan
             </div>
           )}
 
-          {valorMeta && aviso.tipo !== 'superou' && (
+          {valorMeta && aviso.tipo === 'quase' && (
+            <PistaChegada aviso={aviso} percentual={pct} falta={quantoFalta(aviso)} />
+          )}
+
+          {valorMeta && aviso.tipo !== 'superou' && aviso.tipo !== 'quase' && (
             <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-3.5">
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="font-extrabold tabular-nums text-slate-800">{emValor(aviso.valor, aviso.formato)}</span>
