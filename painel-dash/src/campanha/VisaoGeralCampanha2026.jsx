@@ -227,7 +227,7 @@ export default function VisaoGeralCampanha2026({ realizado = {}, metas = {}, atu
           <button
             type="button"
             onClick={() => setChuva((atual) => ({ ...atual, ativa: false }))}
-            className="fixed bottom-5 right-5 z-[71] inline-flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur border border-gray-200 px-3.5 py-2 text-xs font-medium text-slate-600 shadow-lg hover:bg-white"
+            className="fixed bottom-[calc(108px+env(safe-area-inset-bottom))] sm:bottom-5 right-5 z-[71] inline-flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur border border-gray-200 px-3.5 py-2 text-xs font-medium text-slate-600 shadow-lg hover:bg-white"
           >
             <X size={14} /> Pular
           </button>

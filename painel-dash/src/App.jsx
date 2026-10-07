@@ -22149,11 +22149,12 @@ const enviarArquivo = async (tipo) => {
     };
 
     return (
-      <div className="campanha-incentivo-2026 space-y-5 sm:space-y-6">
+      <div className="campanha-incentivo-2026 space-y-5 sm:space-y-6 pb-28 sm:pb-0">
         <nav className="flex flex-wrap items-center gap-2 sm:gap-3" aria-label="Abas da Campanha Incentivo 2026">
-          {/* No celular todas as abas ficam visíveis lado a lado (ícone + nome curto); do sm em diante, a fileira de sempre. */}
-          <div className="w-full sm:w-auto sm:max-w-full sm:overflow-x-auto">
-            <div className="grid grid-flow-col auto-cols-fr gap-1 sm:inline-flex sm:items-center sm:gap-0.5 rounded-xl bg-white border border-[#e8eef0] p-1 shadow-[0_1px_2px_rgba(15,23,42,.04)]">
+          {/* Celular: as abas ficam numa barra fixa no rodapé, como num aplicativo (ícone + nome curto), pedido em 07/10/2026.
+              Do sm em diante, a fileira de sempre no topo. */}
+          <div className="fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-40 sm:static sm:inset-auto sm:z-auto sm:w-auto sm:max-w-full sm:overflow-x-auto">
+            <div className="grid grid-flow-col auto-cols-fr gap-1 rounded-2xl bg-white border border-[#e3ecee] p-1.5 shadow-[0_14px_34px_-14px_rgba(15,23,42,.45)] sm:inline-flex sm:items-center sm:gap-0.5 sm:rounded-xl sm:p-1 sm:shadow-[0_1px_2px_rgba(15,23,42,.04)]">
               {abasCampanha.map(({ id, rotulo, curto, icone: Icone }) => {
                 const ativa = abaCampanhaAtiva === id;
                 return (
@@ -22163,9 +22164,9 @@ const enviarArquivo = async (tipo) => {
                     onClick={() => setAbaCampanhaIncentivo(id)}
                     aria-current={ativa ? 'page' : undefined}
                     aria-label={rotulo}
-                    className={`min-w-0 flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] leading-tight font-medium transition-colors sm:shrink-0 sm:flex-row sm:gap-1.5 sm:px-3.5 sm:text-[13px] ${ativa ? 'bg-[#048187] text-white shadow-sm' : 'text-slate-500 hover:text-[#048187] hover:bg-[#f2f8f8]'}`}
+                    className={`min-w-0 flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-2.5 text-[11px] leading-tight transition-colors sm:shrink-0 sm:flex-row sm:gap-1.5 sm:rounded-lg sm:px-3.5 sm:py-2 sm:text-[13px] ${ativa ? 'bg-[#048187] text-white font-semibold shadow-sm sm:font-medium' : 'text-slate-500 font-medium hover:text-[#048187] hover:bg-[#f2f8f8]'}`}
                   >
-                    <Icone size={16} strokeWidth={ativa ? 2.2 : 1.8} className="shrink-0" />
+                    <Icone size={18} strokeWidth={ativa ? 2.2 : 1.8} className="shrink-0 sm:w-4 sm:h-4" />
                     <span className="sm:hidden text-center">{curto}</span>
                     <span className="hidden sm:inline whitespace-nowrap">{rotulo}</span>
                   </button>
