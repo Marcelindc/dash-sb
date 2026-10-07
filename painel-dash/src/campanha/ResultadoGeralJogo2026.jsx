@@ -22,10 +22,15 @@ const ESTILO = `
 
 /** A pista do CP: 0 → 106 (viagem) → 109 (bônus), com o foguete onde estamos e a projeção tracejada. */
 function Pista({ total, projecao, meta106, meta109 }) {
-  // Zoom na reta final: a pista começa perto do resultado atual para os marcos de 106 e 109 não ficarem espremidos.
-  const min = total > 0 ? Math.min(meta106 * 0.85, total * 0.95) : 0;
-  const max = meta109 * 1.02;
-  const pos = (v) => limitar(((Number(v || 0) - min) / Math.max(max - min, 1)) * 100);
+  // A pista começa no zero e a Viagem (106) fica a 80% da largura, na proporção real (ex.: 77 Mi = 73% do caminho até
+  // a bandeira). O trecho curto 106 → 109 (bônus) vem logo depois, um pouco esticado para os marcos não se encostarem.
+  const FIM_VIAGEM = 80;
+  const FIM_BONUS = 95;
+  const pos = (v) => {
+    const x = Math.max(Number(v || 0), 0);
+    if (x <= meta106) return limitar((x / Math.max(meta106, 1)) * FIM_VIAGEM);
+    return limitar(FIM_VIAGEM + ((x - meta106) / Math.max(meta109 - meta106, 1)) * (FIM_BONUS - FIM_VIAGEM));
+  };
   const marcos = [
     { valor: meta106, rotulo: 'Viagem', sub: emMilhoes(meta106, 0), icone: Plane, cor: '#2dd4bf', ok: total >= meta106 },
     { valor: meta109, rotulo: 'Bônus', sub: emMilhoes(meta109, 0), icone: Coins, cor: '#f2c14e', ok: total >= meta109 },
@@ -48,11 +53,11 @@ function Pista({ total, projecao, meta106, meta109 }) {
             <span className="absolute left-1/2 -bottom-1 -translate-x-1/2 w-2 h-2 rotate-45 bg-white" />
           </span>
         </span>
-        {min > 0 && <span className="absolute left-0 top-7 text-[10px] font-bold text-white/50">{emMilhoes(min, 0)}</span>}
+        <span className="absolute left-0 top-7 text-[10px] font-bold text-white/50">R$ 0</span>
         {/* Marcos */}
         {marcos.map(({ valor, rotulo, sub, icone: Icone, cor, ok }) => (
           <span key={rotulo} className="absolute top-1/2" style={{ left: `${pos(valor)}%` }}>
-            <span className="absolute left-0 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full border-[3px] border-white flex items-center justify-center shadow-md"
+            <span className="absolute left-0 -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full border-[3px] border-white flex items-center justify-center shadow-md"
               style={{ background: ok ? cor : '#0b3a3d' }}>
               {ok ? <Icone size={16} color="#063" strokeWidth={2.6} /> : <Lock size={15} color={cor} strokeWidth={2.6} />}
             </span>
@@ -256,8 +261,8 @@ export default function ResultadoGeralJogo2026({ ciclosAno = [], calendario = []
           </div>
           <img src="/campanha-incentivo-2026/mascotes/ele-pulando.webp" alt="" aria-hidden="true" className="hidden sm:block shrink-0 w-[110px] drop-shadow-[0_14px_20px_rgba(0,0,0,.35)]" />
         </div>
-        <div className="relative pl-1 pr-12 sm:px-3"><Pista total={p.total} projecao={p.projecao} meta106={meta106} meta109={meta109} /></div>
-        <div className="relative -mt-4 mb-5 flex flex-wrap items-center gap-2">
+        <div className="relative pl-1 pr-14 sm:pl-3 sm:pr-20"><Pista total={p.total} projecao={p.projecao} meta106={meta106} meta109={meta109} /></div>
+        <div className="relative mt-2 sm:-mt-4 mb-5 flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 border border-white/15 px-3 py-1.5 text-[12px] font-bold">
             <TrendingUp size={14} /> No ritmo atual chegamos a <strong className="text-white">{emMilhoes(p.projecao)}</strong> no C17
           </span>
