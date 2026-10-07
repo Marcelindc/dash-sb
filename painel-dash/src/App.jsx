@@ -838,6 +838,152 @@ const normalizarListaPermissoesUsuario = (abas = [], perfil = 'visualizador') =>
   return normalizadas;
 };
 
+// ===== Configurar abas: o que cada caixinha realmente faz para cada tipo de acesso =====
+// A janela, a lista de usuários e o menu seguem estas mesmas regras, para a tela nunca
+// mostrar marcada uma aba que a pessoa não vê (ou o contrário).
+const GRUPOS_PERMISSOES_ABAS = [
+  {
+    id: 'vd',
+    titulo: 'VD',
+    abas: [
+      { aba: 'Dashboard', rotulo: 'Visão Geral' },
+      { aba: 'AcompanhamentoVD', rotulo: 'Acompanhamento da unidade' },
+      { aba: 'PrimeiroPedidoCaptacao', rotulo: '1º Pedido' },
+      { aba: 'Metas', rotulo: 'Metas Estruturas' },
+      { aba: 'Adições', rotulo: 'Adições' },
+      { aba: 'Ranking', rotulo: 'Ranking' },
+      { aba: 'Comparativo', rotulo: 'Comparativo' },
+      { aba: 'VendasCidades', rotulo: 'Vendas por Cidades' },
+      { aba: 'Ações', rotulo: 'Ações' },
+      { aba: 'Histórico', rotulo: 'Histórico' },
+      { aba: 'Revendedores', rotulo: 'Revendedores' },
+      { aba: 'Rotas', rotulo: 'Rotas' },
+    ],
+  },
+  {
+    id: 'nucleos',
+    titulo: 'Núcleos na aba Metas Estruturas',
+    descricao: 'Marque os núcleos que esta pessoa vê em Metas Estruturas. Sem nenhum marcado, ela vê todos.',
+    abas: [
+      { aba: 'N1', rotulo: 'Núcleo 1 (N1)' },
+      { aba: 'N2', rotulo: 'Núcleo 2 (N2)' },
+      { aba: 'N3', rotulo: 'Núcleo 3 (N3)' },
+    ],
+  },
+  {
+    id: 'loja',
+    titulo: 'LOJA',
+    abas: [
+      { aba: 'LojaVisaoGeral', rotulo: 'Visão Geral da LOJA' },
+      { aba: 'LojaRanking', rotulo: 'Ranking da LOJA' },
+      { aba: 'LojaCadastro', rotulo: 'Cadastro da LOJA' },
+    ],
+  },
+  {
+    id: 'gestao',
+    titulo: 'Gestão',
+    abas: [
+      { aba: 'Cadastro', rotulo: 'Cadastro (VD)' },
+      { aba: 'Base', rotulo: 'Base de dados' },
+      { aba: 'ADM', rotulo: 'Painel ADM' },
+      { aba: 'Configurações', rotulo: 'Configurações (usuários)' },
+    ],
+  },
+];
+const ABAS_LIBERADAS_PARA_TODOS = ['Perfil', 'Solicitações', 'Tutoriais'];
+const ABAS_LOJA_PERMISSAO = ['LojaVisaoGeral', 'LojaRanking', 'LojaCadastro'];
+const NUCLEOS_PERMISSAO = ['N1', 'N2', 'N3'];
+
+// admin | campanha | consultor | unidade (gestor de unidade VD) | loja (só LOJA) | gestor | visualizador
+const tipoAcessoUsuario = (usuario) => {
+  const perfil = String(usuario?.perfil || 'visualizador').toLowerCase();
+  if (perfil === 'admin' || perfil === 'campanha' || perfil === 'consultor') return perfil;
+  const escopos = normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas);
+  if (escopos.some((item) => item.area === 'VD')) return 'unidade';
+  const area = String(usuario?.area_gestao || '').trim().toUpperCase();
+  if (area === 'LOJA' || escopos.some((item) => item.area === 'LOJA')) return 'loja';
+  return perfil === 'gestor' ? 'gestor' : 'visualizador';
+};
+
+const DESCRICAO_TIPO_ACESSO = {
+  admin: 'Vê todas as abas',
+  campanha: 'Só a Campanha Incentivo',
+  consultor: 'Consultor FV: só os próprios números',
+  unidade: 'Gestor de unidade (vê só as estruturas vinculadas)',
+  loja: 'Só LOJA',
+  gestor: 'Gestor',
+  visualizador: 'Visualizador',
+};
+
+// estado: 'livre' (a caixinha manda), 'sempre' (sempre liberada), 'nunca' (não existe para esse acesso), 'oculta'.
+const regraAbaPermissao = (aba, usuario) => {
+  const tipo = tipoAcessoUsuario(usuario);
+  const perfil = String(usuario?.perfil || '').toLowerCase();
+  if (ABAS_LIBERADAS_PARA_TODOS.includes(aba)) return { estado: 'sempre', motivo: 'Liberada para todos.' };
+  if (aba === 'Configurações') return { estado: 'nunca', motivo: 'Só administrador gerencia usuários.' };
+  const ehVD = GRUPOS_PERMISSOES_ABAS[0].abas.some((item) => item.aba === aba) || NUCLEOS_PERMISSAO.includes(aba) || aba === 'Cadastro';
+  const ehLoja = ABAS_LOJA_PERMISSAO.includes(aba);
+
+  if (tipo === 'loja') {
+    if (ehVD) return { estado: 'nunca', motivo: 'Usuário só da LOJA.' };
+    return { estado: 'livre' };
+  }
+  if (tipo === 'unidade') {
+    if (aba === 'Dashboard') return { estado: 'oculta' };
+    if (aba === 'AcompanhamentoVD') return { estado: 'sempre', motivo: 'Tela principal do gestor de unidade.' };
+    if (aba === 'Adições' || aba === 'Rotas') return { estado: 'sempre', motivo: 'Sempre liberada para a unidade.' };
+    if (aba === 'PrimeiroPedidoCaptacao') {
+      return perfil === 'gestor'
+        ? { estado: 'sempre', motivo: 'Liberada para o perfil Gestor da VD.' }
+        : { estado: 'nunca', motivo: 'Só para o perfil Gestor da VD.' };
+    }
+    if (['Revendedores', 'VendasCidades', 'Ações'].includes(aba)) return { estado: 'livre' };
+    if (ehLoja) return { estado: 'nunca', motivo: 'Gestor de unidade da VD não vê a LOJA.' };
+    return { estado: 'nunca', motivo: 'Gestor de unidade vê só a própria unidade.' };
+  }
+  // gestor / visualizador sem estrutura vinculada
+  if (aba === 'AcompanhamentoVD') return { estado: 'oculta' };
+  if (aba === 'Adições' || aba === 'Rotas') return { estado: 'sempre', motivo: 'Sempre liberada na VD.' };
+  if (aba === 'PrimeiroPedidoCaptacao') {
+    return perfil === 'gestor'
+      ? { estado: 'sempre', motivo: 'Liberada para o perfil Gestor da VD.' }
+      : { estado: 'nunca', motivo: 'Só para o perfil Gestor da VD.' };
+  }
+  return { estado: 'livre' };
+};
+
+// Lista que vai para o banco: só o que a caixinha manda + o que o acesso exige por baixo.
+const montarPermissoesParaSalvar = (marcadas, usuario) => {
+  const perfil = String(usuario?.perfil || 'visualizador').toLowerCase();
+  const tipo = tipoAcessoUsuario(usuario);
+  const lista = (Array.isArray(marcadas) ? marcadas : []).filter((aba) => regraAbaPermissao(aba, usuario).estado === 'livre');
+  if (tipo === 'unidade') lista.push('Dashboard', 'AcompanhamentoVD');
+  if (perfil === 'gestor' && tipo !== 'loja') lista.push('PrimeiroPedidoCaptacao');
+  // As rotas da LOJA no servidor exigem a aba "Loja" além da tela escolhida.
+  if (lista.some((aba) => ABAS_LOJA_PERMISSAO.includes(aba))) lista.push('Loja');
+  return normalizarListaPermissoesUsuario(Array.from(new Set(lista)), perfil);
+};
+
+// Abas que a pessoa enxerga de fato (para a lista de usuários).
+const abasEfetivasUsuario = (usuario, permissoes) => {
+  const lista = Array.isArray(permissoes) ? permissoes : [];
+  return GRUPOS_PERMISSOES_ABAS
+    .filter((grupo) => grupo.id !== 'nucleos')
+    .flatMap((grupo) => grupo.abas)
+    .filter(({ aba }) => {
+      const regra = regraAbaPermissao(aba, usuario);
+      return regra.estado === 'sempre' || (regra.estado === 'livre' && lista.includes(aba));
+    })
+    .map(({ aba, rotulo }) => ({ aba, rotulo }));
+};
+
+const nucleosMetasDoUsuario = (usuario, permissoes) => {
+  const tipo = tipoAcessoUsuario(usuario);
+  if (!['gestor', 'visualizador'].includes(tipo)) return [];
+  const lista = NUCLEOS_PERMISSAO.filter((nucleo) => (permissoes || []).includes(nucleo));
+  return lista.length < NUCLEOS_PERMISSAO.length ? lista : [];
+};
+
 const filtroVazio = { ciclo: '', nucleos: [], unidades: [], estruturas: [], consultores: [], situacoes: [], meios_captacao: [], modelos_comerciais: [], canais_venda: [], data_inicio: '', data_fim: '' };
 const buscaFiltrosVazia = { nucleos: '', unidades: '', estruturas: '', consultores: '', situacoes: '', meios_captacao: '', modelos_comerciais: '', canais_venda: '' };
 const cicloFormVazio = { ciclo: '', data_inicio: '', data_fim: '', meta_ciclo: '', status_ciclo: 'ativo' };
@@ -3923,15 +4069,21 @@ const GrupoFiltro = ({ cat, tit, busca, setBusca, opc, ativos, toggle }) => {
   );
 };
 
-const FiltroRapidoNucleos = ({ filtrosAtivos, onSelecionar, opcoesNucleos = [] }) => {
-  const nucleosSelecionados = filtrosAtivos?.nucleos || [];
-  const filtroSelecionado = nucleosSelecionados.length === 1 ? nucleosSelecionados[0] : 'TODOS';
+// somenteNucleos: em Metas Estruturas, o gestor vê só os núcleos dele ("TODOS" vira "N2 + N3").
+const FiltroRapidoNucleos = ({ filtrosAtivos, onSelecionar, opcoesNucleos = [], somenteNucleos = [] }) => {
+  const restrito = Array.isArray(somenteNucleos) && somenteNucleos.length > 0;
+  const paraNucleo = (valor) => {
+    const digito = String(valor || '').match(/\d+/)?.[0];
+    return digito ? `NUCLEO ${digito}` : String(valor || '');
+  };
+  const nucleosSelecionados = (filtrosAtivos?.nucleos || []).filter((n) => !restrito || somenteNucleos.includes(paraNucleo(n)));
+  const filtroSelecionado = nucleosSelecionados.length === 1 ? paraNucleo(nucleosSelecionados[0]) : 'TODOS';
   const normalizarBotaoNucleo = (valor) => {
     const texto = String(valor || '').toUpperCase().replace('Ú', 'U').trim();
     const match = texto.match(/(\d+)/);
     return match ? `N${match[1]}` : texto;
   };
-  const nucleosDisponiveis = Array.from(new Set([...(opcoesNucleos || []), 'NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3']))
+  const nucleosDisponiveis = (restrito ? [...somenteNucleos] : Array.from(new Set([...(opcoesNucleos || []), 'NUCLEO 1', 'NUCLEO 2', 'NUCLEO 3'])))
     .filter(Boolean)
     .sort((a, b) => {
       const na = Number(String(a).match(/\d+/)?.[0] || 99);
@@ -3939,9 +4091,10 @@ const FiltroRapidoNucleos = ({ filtrosAtivos, onSelecionar, opcoesNucleos = [] }
       return na - nb;
     });
   const botoes = [
-    { label: 'TODOS', valor: 'TODOS' },
+    ...(restrito && somenteNucleos.length === 1 ? [] : [{ label: restrito ? nucleosDisponiveis.map(normalizarBotaoNucleo).join(' + ') : 'TODOS', valor: 'TODOS' }]),
     ...nucleosDisponiveis.map((n) => ({ label: normalizarBotaoNucleo(n), valor: n }))
   ];
+  const estaAtivo = (valor) => (restrito && somenteNucleos.length === 1) || (valor === 'TODOS' ? filtroSelecionado === 'TODOS' : paraNucleo(valor) === filtroSelecionado);
 
   return (
     <div className="dash-filtro-nucleos-topo flex bg-[#f4f7f8] p-1 rounded-full shrink-0 overflow-x-auto max-w-full border border-[#e4ecee]">
@@ -3950,7 +4103,7 @@ const FiltroRapidoNucleos = ({ filtrosAtivos, onSelecionar, opcoesNucleos = [] }
           key={botao.valor}
           type="button"
           onClick={() => onSelecionar(botao.valor)}
-          className={`px-3 sm:px-4 py-1.5 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${filtroSelecionado === botao.valor ? 'bg-[#048187] text-white' : 'text-[#4b6f72] hover:bg-white hover:text-[#036b70]'}`}
+          className={`px-3 sm:px-4 py-1.5 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${estaAtivo(botao.valor) ? 'bg-[#048187] text-white' : 'text-[#4b6f72] hover:bg-white hover:text-[#036b70]'}`}
         >
           {botao.label}
         </button>
@@ -4998,9 +5151,11 @@ export default function App() {
 
   const [permissoesAtivas, setPermissoesAtivas] = useState(permissoesPadrao);
   const [modalPermissoesAberto, setModalPermissoesAberto] = useState(false);
-  const [perfilEditando, setPerfilEditando] = useState('admin');
   const [usuarioPermissoesEditando, setUsuarioPermissoesEditando] = useState(null);
   const [permissoesTemporarias, setPermissoesTemporarias] = useState([]);
+  // Janelas de acesso (Configurar abas / Editar usuário): erro mostrado dentro da própria janela.
+  const [salvandoAcesso, setSalvandoAcesso] = useState(false);
+  const [erroModalAcesso, setErroModalAcesso] = useState('');
 
   const [cacheDashboard, setCacheDashboard] = useState(() => carregarCacheSessaoDash()); const [cacheDetalheMetas, setCacheDetalheMetas] = useState({}); const [cacheMetas, setCacheMetas] = useState(null); const [opcoesFiltrosCarregadas, setOpcoesFiltrosCarregadas] = useState(false);
   const [carregandoDashboard, setCarregandoDashboard] = useState(false); const [carregandoMetas, setCarregandoMetas] = useState(false); const [carregandoDetalheMeta, setCarregandoDetalheMeta] = useState(false); const [erroMetas, setErroMetas] = useState('');
@@ -6017,23 +6172,18 @@ export default function App() {
       return podeAcessarPrimeiroPedidoCaptacao;
     }
     if (tela === 'Revendedores') {
-      return podeAcessarRevendedoresVD;
+      // O servidor exige a permissão "Revendedores": sem ela o menu mostrava a aba e a tela dava erro.
+      return podeAcessarRevendedoresVD && permissoesDoUsuarioAtual().includes('Revendedores');
     }
     if (tela === 'Rotas') {
       return podeAcessarRotasVD;
     }
     if (modoGerenteVD) {
-      return [
-        'AcompanhamentoVD',
-        'Adições',
-        ...(podeAcessarPrimeiroPedidoCaptacao ? ['PrimeiroPedidoCaptacao'] : []),
-        ...(podeAcessarRevendedoresVD ? ['Revendedores'] : []),
-        ...(podeAcessarRotasVD ? ['Rotas'] : []),
-        'Ações',
-        'Tutoriais',
-        'Solicitações',
-        'Perfil',
-      ].includes(tela);
+      // Gestor de unidade: Acompanhamento, Adições e Rotas fixos; o resto vem de "Configurar abas"
+      // (só telas que respeitam a estrutura dele: regraAbaPermissao).
+      if (['Adições', 'Tutoriais', 'Solicitações', 'Perfil'].includes(tela)) return true;
+      if (['VendasCidades', 'Ações'].includes(tela)) return permissoesDoUsuarioAtual().includes(tela);
+      return false;
     }
     return permissoesDoUsuarioAtual().includes(tela);
   };
@@ -6069,7 +6219,26 @@ export default function App() {
   const podeGerarRelatorioLoja = ['admin', 'gestor'].includes(String(usuarioLogado?.perfil || '').toLowerCase());
   const podeGerenciarAcoesCiclo = String(usuarioLogado?.perfil || '').toLowerCase() === 'admin';
 
-  const telaEhLoja = (tela) => ['Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking'].includes(tela);
+  // Metas Estruturas: cada gestor vê só os núcleos marcados em "Configurar abas" (N1/N2/N3);
+  // nenhum (ou os três) marcado = todos. Pedido em 07/10/2026: Leonardo N1, Jossan N2 + N3.
+  const nucleosMetasLiberados = () => (
+    usuarioLogado && perfilUsuarioAtual !== 'admin'
+      ? nucleosMetasDoUsuario(usuarioLogado, permissoesDoUsuarioAtual()).map((nucleo) => `NUCLEO ${nucleo.slice(1)}`)
+      : []
+  );
+  const restringirNucleosMetas = (filtros) => {
+    const liberados = nucleosMetasLiberados();
+    if (!liberados.length) return filtros;
+    const escolhidos = (filtros?.nucleos || [])
+      .map((valor) => {
+        const digito = String(valor || '').match(/\d+/)?.[0];
+        return digito ? `NUCLEO ${digito}` : '';
+      })
+      .filter((nucleo) => liberados.includes(nucleo));
+    return { ...filtros, nucleos: escolhidos.length ? Array.from(new Set(escolhidos)) : liberados };
+  };
+
+  const telaEhLoja =(tela) => ['Loja', 'LojaVisaoGeral', 'LojaCadastro', 'LojaUnidades', 'LojaConsultoras', 'LojaRanking'].includes(tela);
 
   const obterPermissoesUsuarioLista = (usuario) => normalizarListaPermissoesUsuario(
     Array.isArray(usuario?.permissoes) ? usuario.permissoes : (permissoesAtivas[usuario?.perfil] || []),
@@ -6080,28 +6249,33 @@ export default function App() {
     const usuarioAlvo = usuario && usuario.id ? usuario : null;
     if (!usuarioAlvo) return;
     setUsuarioPermissoesEditando(usuarioAlvo);
-    setPerfilEditando(usuarioAlvo.perfil || 'visualizador');
     setPermissoesTemporarias(obterPermissoesUsuarioLista(usuarioAlvo));
+    setErroModalAcesso('');
+    setMensagemUsuarios('');
     setModalPermissoesAberto(true);
   };
 
+  const fecharModalPermissoes = () => {
+    if (salvandoAcesso) return;
+    setModalPermissoesAberto(false);
+    setUsuarioPermissoesEditando(null);
+    setErroModalAcesso('');
+  };
+
   const togglePermissaoTemporaria = (aba) => {
-    const perfil = usuarioPermissoesEditando?.perfil || perfilEditando || 'visualizador';
-    if (perfil === 'admin' && ['ADM', 'Configurações', 'Perfil'].includes(aba)) return;
-    if (aba === 'Perfil') return;
-
-    const listaAtual = Array.isArray(permissoesTemporarias) ? permissoesTemporarias : [];
-    const novaLista = listaAtual.includes(aba)
-      ? listaAtual.filter(i => i !== aba)
-      : [...listaAtual, aba];
-
-    setPermissoesTemporarias(normalizarListaPermissoesUsuario(novaLista, perfil));
+    if (!usuarioPermissoesEditando || regraAbaPermissao(aba, usuarioPermissoesEditando).estado !== 'livre') return;
+    setPermissoesTemporarias((listaAtual) => {
+      const lista = Array.isArray(listaAtual) ? listaAtual : [];
+      return lista.includes(aba) ? lista.filter((item) => item !== aba) : [...lista, aba];
+    });
   };
 
   const salvarPermissoes = async () => {
-    if (!usuarioPermissoesEditando) return;
+    if (!usuarioPermissoesEditando || salvandoAcesso) return;
+    setSalvandoAcesso(true);
+    setErroModalAcesso('');
     try {
-      const permissoesNormalizadas = normalizarListaPermissoesUsuario(permissoesTemporarias, usuarioPermissoesEditando.perfil);
+      const permissoesNormalizadas = montarPermissoesParaSalvar(permissoesTemporarias, usuarioPermissoesEditando);
       const resposta = await axios.put(`${API_URL}/auth/usuario-permissoes`, {
         id: usuarioPermissoesEditando.id,
         permissoes: permissoesNormalizadas
@@ -6124,10 +6298,13 @@ export default function App() {
 
       setModalPermissoesAberto(false);
       setUsuarioPermissoesEditando(null);
-      setMensagemUsuarios(`Permissões de ${usuarioPermissoesEditando.nome} atualizadas!`);
+      setErroUsuarios('');
+      setMensagemUsuarios(`Abas de ${usuarioPermissoesEditando.nome} salvas. A pessoa vê a mudança ao abrir ou atualizar o DASH.`);
       await carregarUsuarios();
     } catch (erro) {
-      setErroUsuarios(erro.response?.data?.detail || 'Falha ao salvar permissões do usuário.');
+      setErroModalAcesso(erro.response?.data?.detail || 'Não consegui salvar as abas deste usuário. Tente de novo.');
+    } finally {
+      setSalvandoAcesso(false);
     }
   };
 
@@ -6609,8 +6786,9 @@ export default function App() {
     return promessa;
   };
 
-  const carregarDashboardEMetas = async (filtros, forcarAtualizacao = false) => {
+  const carregarDashboardEMetas = async (filtrosRecebidos, forcarAtualizacao = false) => {
     if (!usuarioLogado) return null;
+    const filtros = telaAtual === 'Metas' ? restringirNucleosMetas(filtrosRecebidos) : filtrosRecebidos;
 
     // As duas áreas carregam independentemente. Uma falha não apaga a outra.
     const [resultadoDashboard, resultadoMetas] = await Promise.allSettled([
@@ -7109,7 +7287,10 @@ export default function App() {
     const nucleos = (dadosMetas?.estruturas || [])
       .flatMap((item) => obterNucleosDoItemRelatorioMetas(item))
       .filter((nucleo) => ['N1', 'N2', 'N3'].includes(nucleo))
-      .filter((nucleo) => usuarioPodeAcessar(nucleo));
+      .filter((nucleo) => {
+        const liberados = nucleosMetasLiberados();
+        return !liberados.length || liberados.includes(`NUCLEO ${nucleo.slice(1)}`);
+      });
 
     return Array.from(new Set(nucleos)).sort();
   };
@@ -8356,7 +8537,34 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       void carregarPermissoesDoBanco();
     }, 3500);
 
-    return () => window.clearTimeout(timerPermissoes);
+    // Abas e estruturas mudam em "Configurar abas": pega o acesso atual do servidor
+    // sem a pessoa precisar sair e entrar de novo (ao abrir e a cada 15 min).
+    const atualizarAcessoDoServidor = async () => {
+      try {
+        const { data } = await axios.get(`${API_URL}/auth/me`);
+        const novo = data?.usuario;
+        if (!novo?.id || !Array.isArray(novo.permissoes)) return;
+        const campos = ['nome', 'perfil', 'area_gestao', 'estruturas_permitidas', 'permissoes', 'id_colaborador_vd', 'nome_consultor_vd'];
+        setUsuarioLogado((atual) => {
+          if (!atual || String(atual.id) !== String(novo.id)) return atual;
+          const mudou = campos.some((campo) => JSON.stringify(atual[campo] ?? null) !== JSON.stringify(novo[campo] ?? null));
+          if (!mudou) return atual;
+          const atualizado = { ...atual, ...Object.fromEntries(campos.map((campo) => [campo, novo[campo]])) };
+          salvarUsuarioSessao(atualizado);
+          return atualizado;
+        });
+      } catch {
+        // Sem resposta: continua com o acesso do login.
+      }
+    };
+    const timerAcesso = window.setTimeout(() => { void atualizarAcessoDoServidor(); }, 1500);
+    const intervaloAcesso = window.setInterval(() => { void atualizarAcessoDoServidor(); }, 15 * 60 * 1000);
+
+    return () => {
+      window.clearTimeout(timerPermissoes);
+      window.clearTimeout(timerAcesso);
+      window.clearInterval(intervaloAcesso);
+    };
   }, [usuarioLogado?.id, tokenAuth]);
 
 
@@ -11275,31 +11483,43 @@ const enviarArquivo = async (tipo) => {
   const abrirEditarUsuario = (usuario) => {
     setUsuarioEditando({
       ...usuario,
+      perfil_original: usuario?.perfil,
       area_gestao: normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil),
       estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas),
     });
     setErroUsuarios('');
+    setErroModalAcesso('');
+    setMensagemUsuarios('');
     setModalEditarUsuarioAberto(true);
+  };
+
+  const fecharEditarUsuario = () => {
+    if (salvandoAcesso) return;
+    setModalEditarUsuarioAberto(false);
+    setErroModalAcesso('');
   };
 
   const salvarEdicaoUsuario = async (e) => {
     e.preventDefault();
-    setErroUsuarios('');
+    if (salvandoAcesso) return;
+    setErroModalAcesso('');
 
     const perfil = String(usuarioEditando?.perfil || 'visualizador').toLowerCase();
     const area = normalizarAreaGestao(usuarioEditando?.area_gestao, perfil);
     const estruturasNormalizadas = normalizarEstruturasPermitidasUsuario(usuarioEditando?.estruturas_permitidas)
       .filter((item) => area === 'AMBOS' || item.area === area);
 
+    // Os avisos aparecem dentro da janela (antes ficavam atrás dela e parecia que "não salvava").
     if (perfil === 'visualizador' && !estruturasNormalizadas.length) {
-      setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
+      setErroModalAcesso('Visualizador precisa de pelo menos uma estrutura. Marque abaixo ou mude o perfil.');
       return;
     }
     if (perfil === 'consultor' && (!String(usuarioEditando?.id_colaborador_vd || '').trim() || !estruturasNormalizadas.length)) {
-      setErroUsuarios('Selecione o consultor de Força de Vendas. A estrutura será vinculada automaticamente.');
+      setErroModalAcesso('Selecione o consultor de Força de Vendas. A estrutura será vinculada automaticamente.');
       return;
     }
 
+    setSalvandoAcesso(true);
     try {
       await axios.put(`${API_URL}/auth/atualizar-usuario`, {
         id: usuarioEditando.id,
@@ -11307,14 +11527,17 @@ const enviarArquivo = async (tipo) => {
         perfil,
         status_usuario: usuarioEditando.status_usuario,
         area_gestao: perfil === 'consultor' ? 'VD' : area,
-        estruturas_permitidas: perfil === 'admin' ? [] : estruturasNormalizadas,
+        estruturas_permitidas: perfil === 'admin' || perfil === 'campanha' ? [] : estruturasNormalizadas,
         id_colaborador_vd: perfil === 'consultor' ? String(usuarioEditando?.id_colaborador_vd || '').trim() : '',
       });
       setModalEditarUsuarioAberto(false);
-      setMensagemUsuarios('Usuário atualizado com sucesso.');
+      setErroUsuarios('');
+      setMensagemUsuarios(`${usuarioEditando.nome} atualizado.`);
       await carregarUsuarios();
     } catch (erro) {
-      setErroUsuarios(erro?.response?.data?.detail || 'Erro ao atualizar usuário.');
+      setErroModalAcesso(erro?.response?.data?.detail || 'Não consegui salvar este usuário. Tente de novo.');
+    } finally {
+      setSalvandoAcesso(false);
     }
   };
   const abrirExcluirUsuario = (usuario) => { setUsuarioParaExcluir(usuario); setModalExcluirUsuarioAberto(true); };
@@ -17399,7 +17622,7 @@ const enviarArquivo = async (tipo) => {
   const renderTelaConfiguracoes = () => (
     <div className="space-y-6 animate-fade-in">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8"><h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">Configurações</h1><p className="text-gray-400">Gerencie usuários e permissões de acesso.</p></div>
-      {(mensagemUsuarios || erroUsuarios) && (<div className={`rounded-xl p-4 font-bold text-sm ${mensagemUsuarios ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{mensagemUsuarios || erroUsuarios}</div>)}
+      {(erroUsuarios || mensagemUsuarios) && (<div className={`rounded-xl p-4 font-bold text-sm ${erroUsuarios ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{erroUsuarios || mensagemUsuarios}</div>)}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-8">
         <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-full bg-[#e6f6f7] text-[#048187] flex items-center justify-center shrink-0"><ShieldCheck size={24} /></div><div><h2 className="text-xl font-bold text-gray-700">Controle de Permissões</h2><p className="text-sm text-gray-400">Configure as abas liberadas individualmente para cada usuário cadastrado.</p></div></div>
       </div>
@@ -17542,6 +17765,9 @@ const enviarArquivo = async (tipo) => {
               <tbody>
                 {usuariosSistema.map((u) => {
                   const abasPerfil = obterPermissoesUsuarioLista(u);
+                  const tipoAcesso = tipoAcessoUsuario(u);
+                  const abasVisiveis = abasEfetivasUsuario(u, abasPerfil);
+                  const nucleosMetas = nucleosMetasDoUsuario(u, abasPerfil);
                   const podeConfigurarPermissoes = usuarioLogado?.perfil === 'admin';
                   const areaUsuario = normalizarAreaGestao(
                     u.area_gestao,
@@ -17556,8 +17782,11 @@ const enviarArquivo = async (tipo) => {
                       <td className="py-4 px-2 text-gray-500">
                         {u.email}
                       </td>
-                      <td className="py-4 px-2 text-[#048187] font-bold uppercase">
-                        {u.perfil}
+                      <td className="py-4 px-2">
+                        <span className="block text-[#048187] font-bold uppercase">{u.perfil}</span>
+                        {!['gestor', 'visualizador'].includes(tipoAcesso) && (
+                          <span className="block text-[10px] font-semibold text-gray-400 mt-0.5 max-w-[150px]">{DESCRICAO_TIPO_ACESSO[tipoAcesso]}</span>
+                        )}
                       </td>
                       <td className="py-4 px-2">
                         <span className={`px-3 py-1 rounded-full text-[10px] font-black ${
@@ -17595,19 +17824,34 @@ const enviarArquivo = async (tipo) => {
                       </td>
                       <td className="py-4 px-2">
                         <div className="flex flex-col gap-2 min-w-[220px]">
-                          <div className="flex flex-wrap gap-1.5">
-                            {abasPerfil.slice(0, 3).map((aba) => (
-                              <span
-                                key={aba}
-                                className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold"
-                              >
-                                {obterNomeAba(aba)}
-                              </span>
+                          <div className="flex flex-wrap gap-1.5 max-w-[320px]">
+                            {tipoAcesso === 'admin' && (
+                              <span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold">Todas as abas</span>
+                            )}
+                            {tipoAcesso === 'campanha' && (
+                              <span className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold">Só a Campanha Incentivo</span>
+                            )}
+                            {tipoAcesso === 'consultor' && ['Visão Geral (dele)', 'Revendedores', 'Rotas'].map((rotulo) => (
+                              <span key={rotulo} className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold">{rotulo}</span>
                             ))}
-                            {abasPerfil.length > 3 && (
-                              <span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold">
-                                +{abasPerfil.length - 3}
-                              </span>
+                            {!['admin', 'campanha', 'consultor'].includes(tipoAcesso) && (
+                              <>
+                                {abasVisiveis.slice(0, 4).map(({ aba, rotulo }) => (
+                                  <span key={aba} className="bg-[#e6f6f7] text-[#048187] px-2 py-1 rounded-full text-[10px] font-bold" title={rotulo}>
+                                    {rotulo}
+                                  </span>
+                                ))}
+                                {abasVisiveis.length > 4 && (
+                                  <span className="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-[10px] font-bold" title={abasVisiveis.slice(4).map((item) => item.rotulo).join(', ')}>
+                                    +{abasVisiveis.length - 4}
+                                  </span>
+                                )}
+                                {!!nucleosMetas.length && (
+                                  <span className="bg-orange-50 text-orange-700 border border-orange-100 px-2 py-1 rounded-full text-[10px] font-bold">
+                                    Metas: só {nucleosMetas.join(' + ')}
+                                  </span>
+                                )}
+                              </>
                             )}
                           </div>
                           {podeConfigurarPermissoes ? (
@@ -22643,6 +22887,7 @@ const enviarArquivo = async (tipo) => {
                       filtrosAtivos={filtrosAtivos}
                       onSelecionar={handleFiltroRapidoNucleo}
                       opcoesNucleos={opcoesFiltros.nucleos}
+                      somenteNucleos={telaAtual === 'Metas' ? nucleosMetasLiberados() : []}
                     />
                   </div>
                 )}
@@ -24972,59 +25217,118 @@ const enviarArquivo = async (tipo) => {
         </div>
       )}
 
-      {modalPermissoesAberto && usuarioPermissoesEditando && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden">
+      {modalPermissoesAberto && usuarioPermissoesEditando && (() => {
+        const alvo = usuarioPermissoesEditando;
+        const tipo = tipoAcessoUsuario(alvo);
+        const marcadas = Array.isArray(permissoesTemporarias) ? permissoesTemporarias : [];
+        const semEscolha = ['admin', 'campanha', 'consultor'].includes(tipo);
+        const nucleosMarcados = NUCLEOS_PERMISSAO.filter((n) => marcadas.includes(n));
+        const textoSemEscolha = {
+          admin: 'Administrador vê todas as abas do DASH. Não há o que marcar aqui.',
+          campanha: 'Perfil Campanha: a pessoa vê só a Campanha Incentivo 2026 (e o próprio Perfil). Para dar outras abas, mude o perfil em Editar usuário (lápis).',
+          consultor: 'Consultor FV vê só os próprios números na Visão Geral e, em Revendedores e Rotas, a estrutura vinculada. Essas abas são fixas.',
+        }[tipo];
+        return (
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4 py-6">
+          <div className="bg-white w-full max-w-3xl max-h-full rounded-2xl shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-start justify-between p-6 border-b border-gray-100">
               <div>
-                <h2 className="text-xl font-bold text-gray-700">Permissões do usuário</h2>
-                <p className="text-sm text-gray-400 mt-1">
-                  Configure as abas liberadas somente para <strong>{usuarioPermissoesEditando.nome}</strong>.
-                </p>
+                <h2 className="text-xl font-bold text-gray-700">Abas de {alvo.nome}</h2>
+                <p className="text-sm text-gray-400 mt-1">Marque o que esta pessoa pode ver. Vale só para este usuário.</p>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1 rounded-full text-xs font-black uppercase">{usuarioPermissoesEditando.perfil}</span>
-                  <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-xs font-bold">{usuarioPermissoesEditando.email}</span>
+                  <span className="bg-[#e6f6f7] text-[#048187] px-3 py-1 rounded-full text-xs font-black uppercase">{alvo.perfil}</span>
+                  <span className="bg-[#f1fbfb] border border-[#cde9ea] text-[#048187] px-3 py-1 rounded-full text-xs font-bold">{DESCRICAO_TIPO_ACESSO[tipo]}</span>
+                  <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-xs font-bold">{alvo.email}</span>
                 </div>
               </div>
-              <button onClick={() => { setModalPermissoesAberto(false); setUsuarioPermissoesEditando(null); }} className="text-gray-400 hover:bg-gray-50 rounded-full p-2">
+              <button type="button" onClick={fecharModalPermissoes} className="text-gray-400 hover:bg-gray-50 rounded-full p-2">
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-6 bg-[#fbfefe] border-b border-gray-100">
-              <div className="rounded-xl bg-white border border-[#d9eff0] p-4 text-sm text-gray-500 font-semibold">
-                Agora as permissões são salvas por pessoa. Alterar a Isabela não altera a Ellerne, Leonardo, Oseas ou qualquer outro gestor.
-              </div>
-            </div>
-
-            <div className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {ABAS_SISTEMA.map((aba) => {
-                  const perfil = usuarioPermissoesEditando?.perfil || 'visualizador';
-                  const travado = perfil === 'consultor' || aba === 'Perfil' || (perfil === 'admin' && ['ADM', 'Configurações', 'Perfil'].includes(aba));
-                  return (
-                    <label key={aba} className={`flex items-center gap-3 p-3 rounded-lg border ${travado ? 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-70' : 'bg-white border-gray-200 cursor-pointer hover:border-[#048187]'}`}>
-                      <input
-                        type="checkbox"
-                        checked={Array.isArray(permissoesTemporarias) && permissoesTemporarias.includes(aba)}
-                        onChange={() => togglePermissaoTemporaria(aba)}
-                        disabled={travado}
-                        className="w-4 h-4 accent-[#048187]"
-                      />
-                      <span className="text-sm font-bold text-gray-700">{obterNomeAba(aba)}</span>
-                    </label>
-                  );
-                })}
-              </div>
+            <div className="p-6 overflow-y-auto space-y-5">
+              {semEscolha ? (
+                <div className="rounded-xl bg-[#f7fafb] border border-gray-100 p-4 text-sm font-semibold text-gray-600">{textoSemEscolha}</div>
+              ) : (
+                <>
+                  {tipo === 'unidade' && (
+                    <div className="rounded-xl bg-[#fbfefe] border border-[#d9eff0] p-4 text-xs font-semibold text-gray-500">
+                      Gestor de unidade: vê só as estruturas vinculadas no lápis (Editar usuário). As abas em cinza não existem para esse tipo de acesso.
+                    </div>
+                  )}
+                  {GRUPOS_PERMISSOES_ABAS.map((grupo) => {
+                    const itens = grupo.abas
+                      .map((item) => ({ ...item, regra: regraAbaPermissao(item.aba, alvo) }))
+                      .filter((item) => item.regra.estado !== 'oculta');
+                    if (!itens.some((item) => item.regra.estado !== 'nunca')) return null;
+                    return (
+                      <div key={grupo.id}>
+                        <h3 className="text-xs font-black uppercase tracking-wide text-gray-500">{grupo.titulo}</h3>
+                        {grupo.descricao && <p className="text-xs text-gray-400 mt-1">{grupo.descricao}</p>}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                          {itens.map(({ aba, rotulo, regra }) => {
+                            const travado = regra.estado !== 'livre';
+                            const marcado = regra.estado === 'sempre' || (regra.estado === 'livre' && marcadas.includes(aba));
+                            return (
+                              <label
+                                key={aba}
+                                title={regra.motivo || ''}
+                                className={`flex items-start gap-3 p-3 rounded-lg border ${travado ? 'bg-gray-50 border-gray-100 cursor-not-allowed' : marcado ? 'bg-[#f1fbfb] border-[#048187] cursor-pointer' : 'bg-white border-gray-200 cursor-pointer hover:border-[#048187]'}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={marcado}
+                                  onChange={() => togglePermissaoTemporaria(aba)}
+                                  disabled={travado}
+                                  className="w-4 h-4 mt-0.5 accent-[#048187]"
+                                />
+                                <span className="min-w-0">
+                                  <span className={`block text-sm font-bold ${travado && !marcado ? 'text-gray-400' : 'text-gray-700'}`}>{rotulo}</span>
+                                  {travado && regra.motivo && <span className="block text-[11px] font-semibold text-gray-400 mt-0.5">{regra.motivo}</span>}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {grupo.id === 'nucleos' && (
+                          <p className="mt-2 text-xs font-bold text-[#048187]">
+                            {nucleosMarcados.length === 0 || nucleosMarcados.length === NUCLEOS_PERMISSAO.length
+                              ? 'Em Metas Estruturas: vê todos os núcleos.'
+                              : `Em Metas Estruturas: vê só ${nucleosMarcados.join(' + ')}.`}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wide text-gray-500">Sempre liberadas</h3>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {ABAS_LIBERADAS_PARA_TODOS.map((aba) => (
+                        <span key={aba} className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">{obterNomeAba(aba)}</span>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+              {erroModalAcesso && (
+                <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">{erroModalAcesso}</div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 p-6 border-t border-gray-100">
-              <button onClick={() => { setModalPermissoesAberto(false); setUsuarioPermissoesEditando(null); }} className="px-5 py-2 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50">Cancelar</button>
-              <button onClick={salvarPermissoes} className="px-5 py-2 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70]">Salvar permissões deste usuário</button>
+              <button type="button" onClick={fecharModalPermissoes} disabled={salvandoAcesso} className="px-5 py-2 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50 disabled:opacity-60">
+                {semEscolha ? 'Fechar' : 'Cancelar'}
+              </button>
+              {!semEscolha && (
+                <button type="button" onClick={salvarPermissoes} disabled={salvandoAcesso} className="px-5 py-2 rounded-lg bg-[#048187] text-white font-bold hover:bg-[#036b70] disabled:opacity-60">
+                  {salvandoAcesso ? 'Salvando...' : 'Salvar abas'}
+                </button>
+              )}
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {modalEditarUsuarioAberto && usuarioEditando && (
         <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center px-4">
@@ -25039,14 +25343,15 @@ const enviarArquivo = async (tipo) => {
                 </p>
               </div>
               <button
-                onClick={() => setModalEditarUsuarioAberto(false)}
+                type="button"
+                onClick={fecharEditarUsuario}
                 className="text-gray-400 hover:bg-gray-50 rounded-full p-2"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={salvarEdicaoUsuario} className="p-6 space-y-4">
+            <form onSubmit={salvarEdicaoUsuario} className="p-6 space-y-4 max-h-[78vh] overflow-y-auto">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
                   Nome
@@ -25090,6 +25395,8 @@ const enviarArquivo = async (tipo) => {
                     <option value="gestor">Gestor</option>
                     <option value="visualizador">Visualizador</option>
                     <option value="consultor">Consultor FV</option>
+                    {/* Contas da campanha são criadas na aba Acessos; aqui só dá para mantê-las. */}
+                    {usuarioEditando.perfil_original === 'campanha' && <option value="campanha">Campanha</option>}
                   </select>
                 </div>
 
@@ -25111,7 +25418,7 @@ const enviarArquivo = async (tipo) => {
                           .filter((item) => area === 'AMBOS' || item.area === area),
                       });
                     }}
-                    disabled={usuarioEditando.perfil === 'admin' || usuarioEditando.perfil === 'consultor'}
+                    disabled={['admin', 'consultor', 'campanha'].includes(usuarioEditando.perfil)}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
                   >
                     {AREAS_GESTAO.map((area) => (
@@ -25168,26 +25475,50 @@ const enviarArquivo = async (tipo) => {
                   </select>
                   <p className="mt-2 text-xs font-bold text-[#048187]">Visão Geral individual • Rotas da estrutura vinculada.</p>
                 </div>
+              ) : usuarioEditando.perfil === 'campanha' ? (
+                <div className="rounded-xl border border-[#d9eff0] bg-[#fbfefe] p-4 text-xs font-semibold text-gray-500">
+                  Conta da Campanha Incentivo 2026: vê só a campanha. O vínculo com o consultor é mantido como foi criado na aba Acessos.
+                </div>
               ) : usuarioEditando.perfil !== 'admin' && (
-                <SeletorEscopoUsuario
-                  area={normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil)}
-                  opcoes={opcoesEscopoUsuarios}
-                  selecionadas={usuarioEditando.estruturas_permitidas}
-                  onChange={(estruturas_permitidas) => setUsuarioEditando({ ...usuarioEditando, estruturas_permitidas })}
-                  carregando={carregandoOpcoesEscopoUsuarios}
-                />
+                <>
+                  {usuarioEditando.perfil === 'gestor' && (
+                    <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-semibold text-orange-700">
+                      Gestor com estrutura marcada vira gestor de unidade e passa a ver só essas estruturas. Para um gestor de núcleo (ex.: N2 + N3), deixe sem estrutura e marque os núcleos em "Configurar abas".
+                    </div>
+                  )}
+                  <SeletorEscopoUsuario
+                    area={normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil)}
+                    opcoes={opcoesEscopoUsuarios}
+                    selecionadas={usuarioEditando.estruturas_permitidas}
+                    onChange={(estruturas_permitidas) => setUsuarioEditando({ ...usuarioEditando, estruturas_permitidas })}
+                    carregando={carregandoOpcoesEscopoUsuarios}
+                  />
+                </>
               )}
 
               <div className="rounded-xl bg-[#f7fafb] border border-gray-100 px-4 py-3 text-xs text-gray-500 font-normal">
-                Visualizador VD fica limitado às estruturas selecionadas. Gestor de unidade respeita o mesmo escopo. Consultor FV vê somente os próprios indicadores na Visão Geral e, em Rotas e Revendedores, somente dados da estrutura vinculada.
+                As abas ficam em "Configurar abas". Elas continuam iguais ao salvar aqui; só voltam ao padrão se o perfil mudar (ou a área de um visualizador).
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
+              {erroModalAcesso && (
+                <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">{erroModalAcesso}</div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={fecharEditarUsuario}
+                  disabled={salvandoAcesso}
+                  className="px-5 py-2 rounded-lg border border-gray-200 text-gray-500 font-bold hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
                 <button
                   type="submit"
-                  className="bg-[#048187] text-white px-5 py-2 rounded-lg font-bold"
+                  disabled={salvandoAcesso}
+                  className="bg-[#048187] text-white px-5 py-2 rounded-lg font-bold disabled:opacity-60"
                 >
-                  Salvar alterações
+                  {salvandoAcesso ? 'Salvando...' : 'Salvar alterações'}
                 </button>
               </div>
             </form>
