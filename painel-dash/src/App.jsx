@@ -4,7 +4,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, PieChart, Pie, Cell
 import { Eye, EyeOff, UserCircle, LayoutDashboard, SlidersHorizontal, ChevronLeft, ChevronRight, X, BarChart2, Users, Database, Settings, LogOut, User, Save, Plus, ShieldCheck, KeyRound, Trash2, Pencil, TrendingUp, TrendingDown, Target, RefreshCcw, BadgeDollarSign, Sparkles, Scissors, AlertCircle, CheckCircle, Upload, Search, CalendarDays, FileSpreadsheet, Scale, Trophy, ArrowUpRight, ArrowDownRight, Medal, Maximize2, Minimize2, Bell, CheckCheck, ImagePlus, Camera, ZoomIn, ZoomOut, Move, Loader2, LifeBuoy, BookOpen, Video, FileQuestion, MessageSquare, ExternalLink, PlayCircle, Archive, UsersRound, Send, MapPin, Truck, Menu, LockKeyhole, Unlock } from 'lucide-react';
 import VisaoGeralCampanha2026 from './campanha/VisaoGeralCampanha2026';
 import LancamentosCampanha2026 from './campanha/LancamentosCampanha2026';
-import ResultadoGeralCampanha2026 from './campanha/ResultadoGeralCampanha2026';
+import ResultadoGeralJogo2026 from './campanha/ResultadoGeralJogo2026';
 import ResultadoIndividualCampanha2026 from './campanha/ResultadoIndividualCampanha2026';
 import AcessosCampanha2026 from './campanha/AcessosCampanha2026';
 import BotaoRobo from './robos/BotaoRobo';
@@ -22123,10 +22123,15 @@ const enviarArquivo = async (tipo) => {
       ? new Date(payload.atualizado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
       : 'Aguardando atualização';
 
+    // A aba "individual" virou a jornada gamificada: o nome muda conforme o acesso (07/10/2026).
+    const nivelCampanha = acessoCampanha2026.dados?.nivel;
+    const abaJornada = nivelCampanha === 'consultor'
+      ? { rotulo: 'Minha jornada', curto: 'Jornada' }
+      : nivelCampanha === 'unidade' ? { rotulo: 'Minha unidade', curto: 'Unidade' } : { rotulo: 'Equipe', curto: 'Equipe' };
     const abasCampanha = [
       { id: 'visao', rotulo: 'Visão Geral', curto: 'Visão geral', icone: Sparkles },
       { id: 'geral', rotulo: 'Resultado Geral', curto: 'Geral', icone: BarChart2 },
-      { id: 'individual', rotulo: 'Resultado Individual', curto: 'Individual', icone: Trophy },
+      { id: 'individual', rotulo: abaJornada.rotulo, curto: abaJornada.curto, icone: Trophy },
       ...(donoCampanhaIncentivo2026 ? [{ id: 'lancamentos', rotulo: 'Lançamentos C01–C13', curto: 'Lançar', icone: Pencil }] : []),
       ...(donoCampanhaIncentivo2026 ? [{ id: 'acessos', rotulo: 'Acessos', curto: 'Acessos', icone: KeyRound }] : []),
     ];
@@ -22212,10 +22217,11 @@ const enviarArquivo = async (tipo) => {
           <LancamentosCampanha2026 apiUrl={API_URL} aoSalvar={() => carregarCampanhaIncentivo2026(true)} />
         )}
         {abaCampanhaAtiva === 'geral' && (
-          <ResultadoGeralCampanha2026 ciclosAno={payload?.ciclos_ano || []} calendario={payload?.calendario || []} metas={metas} carregando={campanhaIncentivo2026?.carregando} aoLancar={donoCampanhaIncentivo2026 ? () => setAbaCampanhaIncentivo('lancamentos') : null} />
+          <ResultadoGeralJogo2026 ciclosAno={payload?.ciclos_ano || []} calendario={payload?.calendario || []} metas={metas} carregando={campanhaIncentivo2026?.carregando} aoLancar={donoCampanhaIncentivo2026 ? () => setAbaCampanhaIncentivo('lancamentos') : null} />
         )}
         {abaCampanhaAtiva === 'individual' && (
-          <ResultadoIndividualCampanha2026 apiUrl={API_URL} totalCp={Number(realizado?.total || 0)} meta109={Number(metas?.meta_superacao || 109000000)} aoPreviaAvisos={previaAvisosCampanha} refreshToken={campanhaRefreshToken} aoCalculado={setCalculoIndividualCampanha} />
+          <ResultadoIndividualCampanha2026 apiUrl={API_URL} totalCp={Number(realizado?.total || 0)} meta109={Number(metas?.meta_superacao || 109000000)} aoPreviaAvisos={previaAvisosCampanha} refreshToken={campanhaRefreshToken} aoCalculado={setCalculoIndividualCampanha}
+            nucleosDoGestor={nucleosMetasDoUsuario(usuarioLogado, permissoesDoUsuarioAtual())} nomeGestor={String(usuarioLogado?.nome || '').trim().split(/\s+/)[0] || ''} />
         )}
       </div>
     );

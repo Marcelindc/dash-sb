@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import {
-  AlertCircle, BadgeDollarSign, Building2, Check, ChevronDown, Clock, Eye, Info, Loader2, Lock, Minus, Plane,
-  RefreshCw, Save, Search, SlidersHorizontal, Store, Target, TrendingUp, UserRound, Users, X
+  AlertCircle, BadgeDollarSign, Building2, Check, ChevronDown, Clock, Eye, Info, LayoutList, Loader2, Lock, Minus, Plane,
+  RefreshCw, Save, Search, SlidersHorizontal, Sparkles, Store, Target, TrendingUp, UserRound, Users, X
 } from 'lucide-react';
+import EquipeCampanha2026 from './EquipeCampanha2026';
 
 // Resultado Individual da Campanha Incentivo 2026, em dois níveis: primeiro as unidades
 // (equipes/ERs da VD e lojas) e, ao abrir uma delas, os consultores que pertencem a ela.
@@ -456,8 +457,11 @@ function SeletorVerComo({ opcoes, valor, aoMudar, carregando }) {
   );
 }
 
-export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, meta109 = 109000000, aoPreviaAvisos = null, refreshToken = 0, aoCalculado = null }) {
+// A tela principal é a versão gamificada (EquipeCampanha2026, 07/10/2026). A lista detalhada antiga
+// continua disponível para quem vê mais de uma pessoa, para conferir números.
+export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, meta109 = 109000000, aoPreviaAvisos = null, refreshToken = 0, aoCalculado = null, nucleosDoGestor = [], nomeGestor = '' }) {
   const [dados, setDados] = useState(null);
+  const [modoLista, setModoLista] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState('');
@@ -642,8 +646,22 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
         </div>
       )}
 
-      {/* Resumo */}
-      {nivel === 'consultor' ? (
+      {nivel !== 'consultor' && (
+        <div className="flex justify-end">
+          <button type="button" onClick={() => setModoLista((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:border-[#048187] hover:text-[#048187]">
+            {modoLista ? <><Sparkles size={14} /> Ver painel da campanha</> : <><LayoutList size={14} /> Ver lista detalhada</>}
+          </button>
+        </div>
+      )}
+
+      {!modoLista && (
+        <EquipeCampanha2026 key={`${nivel}-${acesso.simulando?.chave || ''}`} nivel={nivel} pessoas={participantes} unidades={unidades}
+          calendario={dados.calendario || []} nucleosDoGestor={acesso.simulando ? [] : nucleosDoGestor} nomeGestor={acesso.simulando ? '' : nomeGestor} />
+      )}
+
+      {/* Lista detalhada (formato anterior) */}
+      {modoLista && (nivel === 'consultor' ? (
         eu ? (
           <section className="rounded-[24px] bg-white border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-4 sm:px-5 pt-4 sm:pt-5">
@@ -672,7 +690,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
           <CartaoResumo Icone={BadgeDollarSign} cor="#7c1f31" titulo="Acima de 120% da meta" valor={resumo.acima_superacao || 0}
             detalhe={habilitado109 ? 'Bônus habilitado: o CP passou dos R$ 109 milhões' : `CP em ${emPercentual(meta109 > 0 ? (totalCp / meta109) * 100 : 0)} do caminho até os R$ 109 milhões`} />
         </section>
-      )}
+      ))}
 
       {/* Regras: o dono edita; quem tem visão total (gestão) vê o resumo. Some no "Ver como", para mostrar a tela como os outros veem. */}
       {(acesso.pode_editar || acesso.ve_regras) && !acesso.simulando ? (
@@ -702,7 +720,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
       ) : null}
 
       {/* Unidades e consultores */}
-      {nivel === 'consultor' ? (
+      {modoLista && (nivel === 'consultor' ? (
         unidades.length > 0 && (
           <section className="space-y-2">
             <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">{dados.so_unidade ? 'Resultado da sua unidade' : 'Sua unidade'}</p>
@@ -749,7 +767,7 @@ export default function ResultadoIndividualCampanha2026({ apiUrl, totalCp = 0, m
             <p className="p-10 text-center text-sm font-semibold text-gray-400">{unidades.length ? 'Nenhuma unidade ou consultor com essa busca.' : 'Nenhuma unidade vinculada ao seu acesso.'}</p>
           )}
         </section>
-      )}
+      ))}
     </div>
   );
 }
