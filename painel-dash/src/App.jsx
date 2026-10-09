@@ -6390,8 +6390,10 @@ export default function App() {
       });
       const mapa = {};
       (resposta?.data?.estruturas || []).forEach((item) => {
+        const metaId = String(item?.meta_id ?? '').trim();
         const codigo = String(item?.cod_estrutura || '').trim();
         const nome = normalizarChaveFiltroMeta(item?.estrutura);
+        if (metaId) mapa[`meta::${metaId}`] = item;
         if (codigo) mapa[`cod::${codigo}`] = item;
         if (nome) mapa[`nome::${nome}`] = item;
       });
@@ -6406,9 +6408,15 @@ export default function App() {
   };
 
   const obterInfoAdicoesEstrutura = (item) => {
+    // Pela meta primeiro: equipes com o mesmo nome em núcleos diferentes (ex.: EDNA N1 e N3) chegam
+    // como "17325 - EQUIPE EDNA" e não batiam pelo nome. O detalhe não traz o id, mas traz o nome da meta.
+    const mapa = resumoAdicoesMetas?.mapa || {};
+    const metaId = String(item?.meta_id ?? '').trim();
     const codigo = String(item?.cod_estrutura || item?.meta?.cod_estrutura || '').trim();
     const nome = normalizarChaveFiltroMeta(item?.estrutura || item?.nome_estrutura || '');
-    const registro = resumoAdicoesMetas?.mapa?.[`cod::${codigo}`] || resumoAdicoesMetas?.mapa?.[`nome::${nome}`] || {};
+    const nomeMeta = normalizarChaveFiltroMeta(item?.nome_meta_real || '');
+    const registro = (metaId && mapa[`meta::${metaId}`]) || (codigo && mapa[`cod::${codigo}`]) || (nome && mapa[`nome::${nome}`])
+      || (nomeMeta && mapa[`nome::${nomeMeta}`]) || {};
     return {
       meta: Number(registro?.meta_adicoes || 0),
       realizado: Number(registro?.adicoes || 0),
