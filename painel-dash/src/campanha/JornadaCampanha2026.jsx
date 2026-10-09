@@ -97,6 +97,9 @@ const ESTADO_NO = {
 /** Trilha estilo Duolingo: C14 → C17 em zigue-zague e o prêmio (Santo Amaro) no fim. */
 function Trilha({ ciclos, selecionado, aoSelecionar, classificado, fora }) {
   const deslocamentos = [0, 56, 0, -56];
+  // A mascote acompanha o ciclo em andamento (sem ciclo aberto: o último que já começou).
+  const indiceAtual = ciclos.findIndex((c) => c.situacao_ciclo === 'em_andamento');
+  const indiceMascote = indiceAtual >= 0 ? indiceAtual : Math.max(0, ciclos.map((c) => c.status !== 'futuro').lastIndexOf(true));
   return (
     <div className="relative flex flex-col items-center pt-5 pb-4">
       {ciclos.map((c, i) => {
@@ -116,12 +119,20 @@ function Trilha({ ciclos, selecionado, aoSelecionar, classificado, fora }) {
                 <span className="absolute left-1/2 -bottom-[7px] -translate-x-1/2 w-3 h-3 rotate-45 bg-white border-b-2 border-r-2 border-slate-200" />
               </span>
             )}
+            {i === indiceMascote && (
+              // Do lado com espaço: na curva para a esquerda (C17) ela fica à direita, apontando para o nó.
+              <div aria-hidden="true" className={`pointer-events-none absolute top-[40px] z-[1] ${deslocamentos[i % 4] < 0 ? '' : '-scale-x-100'}`}
+                style={deslocamentos[i % 4] < 0 ? { left: 'calc(100% + 26px)' } : { right: 'calc(100% + 26px)' }}>
+                <img src={`${MASCOTES}/ela-apontando.webp`} alt="" className="jc-flutuar w-[66px] sm:w-[78px] max-w-none" />
+              </div>
+            )}
             <button type="button" onClick={() => ativo && aoSelecionar(c.numero)} disabled={!ativo}
               aria-label={`${rotuloCiclo(c.numero)}: ${estado.texto}`} aria-pressed={marcado}
               className="relative w-[104px] h-[104px] rounded-full disabled:cursor-default">
               {(atual || marcado) && ativo && <Anel percentual={total ? (batidos / total) * 100 : 0} cor={c.status === 'batendo' ? '#22c55e' : '#2dd4bf'} tamanho={104} espessura={7} />}
-              <span className={`absolute inset-[17px] rounded-full flex items-center justify-center transition-transform active:translate-y-[3px] ${ativo ? 'hover:brightness-105' : ''}`}
-                style={{ background: estado.fundo, boxShadow: `0 5px 0 ${estado.sombra}` }}>
+              {/* Botão 70px com a base 3D de 5px: o conjunto (botão + base) fica no centro do anel. */}
+              <span className={`absolute rounded-full flex items-center justify-center transition-transform active:translate-y-[3px] ${ativo ? 'hover:brightness-105' : ''}`}
+                style={{ top: 14.5, bottom: 19.5, left: 17, right: 17, background: estado.fundo, boxShadow: `0 5px 0 ${estado.sombra}` }}>
                 <Icone size={30} color={estado.cor} strokeWidth={2.6} fill={c.status === 'bateu' || c.status === 'em_andamento' ? estado.cor : 'none'} />
               </span>
             </button>
@@ -300,9 +311,6 @@ export default function JornadaCampanha2026({ pessoa, calendario = [], visitante
             <span className="text-[11px] font-bold text-slate-400">toque no ciclo</span>
           </div>
           <div className="relative">
-            <div aria-hidden="true" className="pointer-events-none absolute left-1 sm:left-4 top-[124px] -scale-x-100">
-              <img src={`${MASCOTES}/ela-apontando.webp`} alt="" className="jc-flutuar w-[66px] sm:w-[78px]" />
-            </div>
             <Trilha ciclos={ciclos} selecionado={cicloSelecionado?.numero} aoSelecionar={setSelecionado}
               classificado={pessoa?.status_106 === 'classificado'} fora={pessoa?.status_106 === 'fora'} />
           </div>
