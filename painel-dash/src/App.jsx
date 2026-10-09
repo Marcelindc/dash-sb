@@ -5423,7 +5423,7 @@ export default function App() {
       document.head.appendChild(appleIcon);
     }
     // Ícone da tela inicial do iPhone (PWA): o quadrado verde com o SB, não o logo transparente.
-    appleIcon.href = '/pwa-icon-192.png';
+    appleIcon.href = '/apple-touch-icon-v2.png';
   }, []);
 
 

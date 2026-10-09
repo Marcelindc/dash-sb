@@ -1,5 +1,5 @@
-const CACHE_NAME = 'dash-comercial-sb-v1';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/pwa-icon-192.png', '/pwa-icon-512.png'];
+const CACHE_NAME = 'dash-comercial-sb-v2';
+const APP_SHELL = ['/', '/manifest.webmanifest', '/pwa-icon-v2-192.png', '/pwa-icon-v2-512.png', '/apple-touch-icon-v2.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
