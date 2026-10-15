@@ -6390,13 +6390,32 @@ export default function App() {
     .trim()
     .toLowerCase();
 
-    const carregarResumoAdicoesMetas = async (ciclo, headersExtras = {}, signal = undefined) => {
+    // Adições não depende dos filtros, só do ciclo. Antes era buscada a cada troca de filtro (e cancelada
+  // junto com Metas), refazendo a conta no servidor. Agora: uma busca por ciclo a cada 2 min, ou no Atualizar.
+  const adicoesMetasCargaRef = useRef({ ciclo: '', em: 0, promessa: null });
+    const carregarResumoAdicoesMetas = async (ciclo, headersExtras = {}) => {
+    const cicloTxt = String(ciclo || '').trim();
+    const forcar = Boolean(headersExtras?.['X-Force-Refresh']);
+    const carga = adicoesMetasCargaRef.current;
+    if (!forcar && carga.ciclo === cicloTxt) {
+      if (carga.promessa) return carga.promessa;
+      if (Date.now() - carga.em < 120000) return null;
+    }
+    const promessa = buscarResumoAdicoesMetas(ciclo, headersExtras);
+    adicoesMetasCargaRef.current = { ciclo: cicloTxt, em: 0, promessa };
+    const resultado = await promessa;
+    if (adicoesMetasCargaRef.current.promessa === promessa) {
+      adicoesMetasCargaRef.current = { ciclo: cicloTxt, em: resultado ? Date.now() : 0, promessa: null };
+    }
+    return resultado;
+  };
+
+  const buscarResumoAdicoesMetas = async (ciclo, headersExtras = {}) => {
     try {
       const resposta = await axios.get(`${API_URL}/adicoes/resumo`, {
         params: { ciclo },
         headers: { 'X-Ciclo-VD': ciclo, ...headersExtras },
         timeout: 45000,
-        signal,
       });
       const mapa = {};
       (resposta?.data?.estruturas || []).forEach((item) => {
