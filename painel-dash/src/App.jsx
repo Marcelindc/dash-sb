@@ -14693,10 +14693,11 @@ const enviarArquivo = async (tipo) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3"><div><h2 className="text-base font-medium text-gray-700">Estruturas cadastradas</h2></div><span className="text-sm font-medium text-[#048187]">{ests.length} estruturas</span></div>
           <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-            <div className="min-w-[1700px] space-y-2">
+            {/* w-max: a largura acompanha a soma das colunas (1.790 px). Com 1.700 px fixos, a coluna Ação (botão +) ficava cortada. */}
+            <div className="w-max min-w-full space-y-2">
               <div
                 className="grid gap-0 px-1 text-[9px] font-semibold uppercase tracking-wide text-gray-400"
-                style={{ gridTemplateColumns: '280px 245px 155px 120px 105px 135px 135px 90px 120px 120px 120px 135px 72px' }}
+                style={{ gridTemplateColumns: '280px 245px 150px 120px 100px 132px 132px 90px 120px 120px 120px 125px 56px' }}
               >
                 <div className="px-2 py-2">Estrutura</div>
                 <div className="px-2 py-2">Faturamento e % Receita</div>
@@ -14723,8 +14724,25 @@ const enviarArquivo = async (tipo) => {
                   return (
                     <div
                       key={i.estrutura}
-                      className={`grid rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}
-                      style={{ gridTemplateColumns: '280px 245px 155px 120px 105px 135px 135px 90px 120px 120px 120px 135px 72px' }}
+                      // O card inteiro abre o detalhe da estrutura. Os olhinhos (e o +) são botões e
+                      // continuam fazendo só o que fazem; selecionar texto para copiar não abre nada.
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Abrir detalhes de ${i.estrutura}`}
+                      onClick={(event) => {
+                        if (event.target.closest('button, a, input, select, textarea')) return;
+                        if (String(window.getSelection?.() || '').trim()) return;
+                        abrirDetalheEstruturaMetas(i.estrutura, false);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          abrirDetalheEstruturaMetas(i.estrutura, false);
+                        }
+                      }}
+                      className={`grid rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md cursor-pointer hover:border-[#048187]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#048187]/30 ${estruturaSelecionada === i.estrutura ? 'border-[#048187]/30 ring-2 ring-[#048187]/10' : 'border-gray-100'}`}
+                      style={{ gridTemplateColumns: '280px 245px 150px 120px 100px 132px 132px 90px 120px 120px 120px 125px 56px' }}
                     >
                       <ColunaEstruturaMetaRealizado item={i} />
                       <CelulaFaturamentoMetaRealizado
@@ -14879,12 +14897,12 @@ const enviarArquivo = async (tipo) => {
                           ]
                         )}
                       />
-                      <div className="h-full min-h-[104px] bg-white border-l border-gray-100 flex items-center justify-center px-2 rounded-r-2xl">
+                      <div className="h-full min-h-[104px] bg-white border-l border-gray-100 flex items-center justify-center px-1 rounded-r-2xl">
                         <button
                           type="button"
                           onClick={() => abrirDetalheEstruturaMetas(i.estrutura, false)}
                           disabled={carregandoDetalheMeta && estruturaSelecionada === i.estrutura}
-                          className="w-11 h-11 rounded-full bg-[#048187] hover:bg-[#036b70] disabled:opacity-70 text-white flex items-center justify-center shadow-md transition-transform hover:scale-105 active:scale-95"
+                          className="w-10 h-10 rounded-full bg-[#048187] hover:bg-[#036b70] disabled:opacity-70 text-white flex items-center justify-center shadow-md transition-transform hover:scale-105 active:scale-95"
                           title={`Abrir detalhes de ${i.estrutura}`}
                           aria-label={`Abrir detalhes de ${i.estrutura}`}
                         >
