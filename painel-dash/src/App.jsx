@@ -4158,6 +4158,70 @@ const formatarMetaIndicadorInput = (valor, casas = 2) => {
   return numero.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 };
 
+const ehSupervisorER = (item) => String(item?.funcao || '').trim().toUpperCase() === 'SUPERVISOR';
+
+// Supervisores dos ERs (main.py "SUPERVISORES DOS ERs"): metas do ER inteiro, não só do que o supervisor finalizou.
+const IndicadorSupervisorER = ({ titulo, valorTexto, metaTexto, atingimento, detalhe }) => {
+  const cor = corPorFaixaMeta(atingimento);
+  return (
+    <div className="rounded-xl border border-gray-100 p-4 min-w-0">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[11px] uppercase font-semibold text-gray-500">{titulo}</p>
+        <p className="text-[11px] text-gray-400 whitespace-nowrap">{metaTexto}</p>
+      </div>
+      <p className="text-2xl font-bold mt-1" style={{ color: cor }}>{valorTexto}</p>
+      <div className="h-2 rounded-full bg-gray-100 mt-2 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${Math.max(Math.min(Number(atingimento || 0), 100), 0)}%`, background: cor }} />
+      </div>
+      <p className="text-xs text-gray-500 mt-2 leading-snug">{detalhe}</p>
+    </div>
+  );
+};
+
+function BlocoSupervisoresER({ supervisores = [], mostrarEstrutura = false }) {
+  const lista = Array.isArray(supervisores) ? supervisores : [];
+  if (!lista.length) return null;
+  return (
+    <div className="bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-amber-100 bg-amber-50/60">
+        <p className="font-bold text-gray-700">Supervisores</p>
+        <p className="text-xs text-gray-500 mt-0.5">Metas do ER inteiro: reativar a base que começou o ciclo como I4, I5 ou I6 (vale a ativação de qualquer consultor e pelo app) e Adições líquidas (Inícios + Reinícios − I6).</p>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {lista.map((s) => {
+          const ativos = s.ativos || {};
+          const adicoes = s.adicoes || {};
+          const metaAtivos = Number(ativos.meta_percentual || 0);
+          const metaAdicoes = Number(adicoes.meta || 0);
+          return (
+            <div key={`${s.equipe_id}-${s.id_colaborador}`} className="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1.3fr)] gap-4 items-start">
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-700 leading-snug">{s.nome}</p>
+                <p className="text-[11px] text-gray-400">ID {s.id_colaborador}{mostrarEstrutura && s.estrutura ? ` • ${s.estrutura}` : ''}</p>
+                <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-amber-50 text-amber-700">Supervisor</span>
+              </div>
+              <IndicadorSupervisorER
+                titulo="Ativos I4–I6"
+                valorTexto={`${formatarNumeroBR(ativos.percentual || 0, 1)}%`}
+                metaTexto={`Meta ${formatarNumeroBR(metaAtivos, 1)}%`}
+                atingimento={metaAtivos > 0 ? (Number(ativos.percentual || 0) / metaAtivos) * 100 : 0}
+                detalhe={`${formatarNumeroBR(ativos.ativadas || 0)} de ${formatarNumeroBR(ativos.base || 0)} reativadas (I4 ${formatarNumeroBR(ativos.i4 || 0)} • I5 ${formatarNumeroBR(ativos.i5 || 0)} • I6 ${formatarNumeroBR(ativos.i6 || 0)})${Number(ativos.base || 0) > 0 ? (Number(ativos.faltam || 0) > 0 ? ` • faltam ${formatarNumeroBR(ativos.faltam)}` : ' • meta batida') : ''}`}
+              />
+              <IndicadorSupervisorER
+                titulo="Adições líquidas"
+                valorTexto={formatarNumeroBR(adicoes.realizado || 0)}
+                metaTexto={metaAdicoes > 0 ? `Meta ${formatarNumeroBR(metaAdicoes)}` : 'Sem meta cadastrada'}
+                atingimento={metaAdicoes > 0 ? (Number(adicoes.realizado || 0) / metaAdicoes) * 100 : 0}
+                detalhe={`Inícios ${formatarNumeroBR(adicoes.inicios || 0)} + Reinícios ${formatarNumeroBR(adicoes.reinicios || 0)} − I6 ${formatarNumeroBR(adicoes.i6 || 0)}${metaAdicoes > 0 ? (Number(adicoes.faltam || 0) > 0 ? ` • faltam ${formatarNumeroBR(adicoes.faltam)}` : ' • meta batida') : ''}`}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const CampoMetaIndicador = ({ label, value, onChange, placeholder = '0,00', casas = 2 }) => (
   <div>
     <label className="text-xs font-black text-gray-400 uppercase block mb-1">{label}</label>
@@ -4176,7 +4240,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     ciclo: cicloPadrao || '', estrutura_oficial_id: '', variacao_ids: [],
     meta_real: '', meta_atividade: '', meta_make: '', meta_cabelo: '', meta_multimarcas: '',
     meta_eudora: '20,0', meta_rpa: '', meta_tkt_medio: '', meta_upa: '', meta_adicoes: '',
-    tem_consultores: '', consultores: []
+    tem_consultores: '', consultores: [], supervisores: []
   });
   const [form, setForm] = useState(metaVazia);
   const [estruturas, setEstruturas] = useState([]);
@@ -4254,8 +4318,9 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
         id_colaborador: String(c.id_colaborador || ''), nome: c.nome_exibicao || c.nome || c.id_colaborador,
         meta_receita: ''
       }));
+      const supervisores = supervisoresDoContexto(data, []);
       setContexto({ ...(data || {}), estrutura: est });
-      setForm((a) => ({ ...a, estrutura_oficial_id: estruturaId, variacao_ids: (est?.variacao_ids || []).map(Number), consultores }));
+      setForm((a) => ({ ...a, estrutura_oficial_id: estruturaId, variacao_ids: (est?.variacao_ids || []).map(Number), consultores, supervisores }));
       if (!editandoId && data?.meta_existente_id) setErro('Já existe uma meta para esta estrutura no ciclo. Use o lápis na lista para editar.');
     } catch (e) { setErro(e.response?.data?.detail || 'Erro ao carregar a estrutura.'); }
   };
@@ -4283,7 +4348,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
         meta_make: pctInput(meta.meta_make), meta_cabelo: pctInput(meta.meta_cabelo),
         meta_multimarcas: pctInput(meta.meta_multimarcas), meta_eudora: pctInput(meta.meta_eudora || 20),
         meta_rpa: moedaInput(meta.meta_rpa), meta_tkt_medio: moedaInput(meta.meta_tkt_medio),
-        meta_upa: pctInput(meta.meta_upa), meta_adicoes: pctInput(meta.meta_adicoes), tem_consultores: Boolean(meta.tem_consultores), consultores
+        meta_upa: pctInput(meta.meta_upa), meta_adicoes: pctInput(meta.meta_adicoes), tem_consultores: Boolean(meta.tem_consultores), consultores,
+        supervisores: supervisoresDoContexto(data, meta.supervisores || [])
       });
     } catch (e) { setErro(e.response?.data?.detail || 'Erro ao abrir a meta.'); }
   };
@@ -4292,6 +4358,23 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     setMostrarFormulario(false); setEditandoId(null); setContexto(null);
     setForm({ ...metaVazia(), ciclo: cicloAtualForm || cicloPadrao || '' }); setErro('');
   };
+
+  // Supervisores do ER: % de Ativos I4–I6 (padrão do servidor, hoje 35%) e Adições em número.
+  const supervisoresDoContexto = (data, salvos) => {
+    const porId = new Map((salvos || []).map((s) => [String(s.id_colaborador || ''), s]));
+    const padrao = Number(data?.meta_ativos_supervisor_padrao || 35);
+    return (data?.supervisores || []).map((s) => {
+      const salvo = porId.get(String(s.id_colaborador || ''));
+      return {
+        id_colaborador: String(s.id_colaborador || ''), nome: s.nome_exibicao || s.nome || s.id_colaborador,
+        meta_ativos_pct: pctInput(salvo ? salvo.meta_ativos_pct : padrao),
+        meta_adicoes: salvo && Number(salvo.meta_adicoes || 0) ? String(Math.round(Number(salvo.meta_adicoes))) : ''
+      };
+    });
+  };
+  const atualizarSupervisorForm = (idx, campo, valor) => setForm((a) => ({
+    ...a, supervisores: a.supervisores.map((s, i) => (i === idx ? { ...s, [campo]: valor } : s))
+  }));
 
   const totalDistribuido = form.consultores.reduce((acc, c) => acc + numero(c.meta_receita), 0);
   const metaReceita = numero(form.meta_real);
@@ -4306,6 +4389,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
     if (metaReceita <= 0) return setErro('Informe a Meta Receita.');
     if (form.tem_consultores === '') return setErro('Responda se a estrutura tem consultores.');
     if (form.tem_consultores && Math.abs(saldoDistribuicao) > 0.01) return setErro('A soma das metas dos consultores precisa ser exatamente igual à Meta Receita da estrutura.');
+    if (form.supervisores.some((s) => numero(s.meta_ativos_pct) < 0 || numero(s.meta_ativos_pct) > 100)) return setErro('A meta de Ativos I4–I6 do supervisor deve ficar entre 0 e 100%.');
     setSalvando(true);
     const payload = {
       ciclo: cicloAtualForm, estrutura_oficial_id: Number(form.estrutura_oficial_id),
@@ -4314,7 +4398,8 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
       meta_multimarcas: numero(form.meta_multimarcas), meta_eudora: eudoraPercent,
       meta_rpa: numero(form.meta_rpa), meta_tkt_medio: numero(form.meta_tkt_medio), meta_upa: numero(form.meta_upa), meta_adicoes: numero(form.meta_adicoes),
       tem_consultores: Boolean(form.tem_consultores),
-      consultores: form.tem_consultores ? form.consultores.map((c) => ({ id_colaborador: c.id_colaborador, meta_receita: numero(c.meta_receita) })) : []
+      consultores: form.tem_consultores ? form.consultores.map((c) => ({ id_colaborador: c.id_colaborador, meta_receita: numero(c.meta_receita) })) : [],
+      supervisores: form.supervisores.map((s) => ({ id_colaborador: s.id_colaborador, meta_ativos_pct: numero(s.meta_ativos_pct), meta_adicoes: Math.round(numero(s.meta_adicoes)) }))
     };
     try {
       if (editandoId) await axios.put(`${apiUrl}/cadastro-v2/metas/${editandoId}`, payload);
@@ -4516,6 +4601,32 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
           <div className="rounded-2xl border border-gray-100 p-4"><p className="text-sm font-bold text-gray-700">A estrutura tem consultores? <span className="text-red-500">*</span></p><div className="flex gap-3 mt-3"><button type="button" onClick={()=>setForm(a=>({...a,tem_consultores:true}))} className={`px-5 py-2.5 rounded-xl font-semibold text-sm border ${form.tem_consultores===true?'bg-[#048187] text-white border-[#048187]':'bg-white text-gray-600 border-gray-200'}`}>Sim</button><button type="button" onClick={()=>setForm(a=>({...a,tem_consultores:false}))} className={`px-5 py-2.5 rounded-xl font-semibold text-sm border ${form.tem_consultores===false?'bg-[#048187] text-white border-[#048187]':'bg-white text-gray-600 border-gray-200'}`}>Não</button></div></div>
 
           {form.tem_consultores===true && <div className="rounded-2xl border border-gray-100 overflow-hidden"><div className="bg-[#f7fafb] px-4 py-3 flex items-center justify-between"><div><p className="font-bold text-gray-700">Metas dos consultores</p><p className="text-xs text-gray-400">Atividade, MAKE, CABELO, RPA, Ticket e UPA herdam a meta da estrutura.</p></div><span className={`text-xs font-bold px-3 py-1.5 rounded-full ${Math.abs(saldoDistribuicao)<=0.01?'bg-green-50 text-green-700':'bg-orange-50 text-orange-600'}`}>Falta distribuir: {formatarMoeda(Math.max(saldoDistribuicao,0))}</span></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="text-[10px] uppercase text-gray-400 bg-white"><tr><th className="px-4 py-3 text-left">Consultor</th><th className="px-4 py-3 text-right">Meta Receita</th><th className="px-4 py-3 text-right">Meta Eudora</th><th className="px-4 py-3 text-left">Metas herdadas</th></tr></thead><tbody>{form.consultores.map((c,idx)=><tr key={c.id_colaborador} className="border-t border-gray-100"><td className="px-4 py-3 font-semibold text-gray-700">{c.nome}<div className="text-[10px] text-gray-400">ID {c.id_colaborador}</div></td><td className="px-4 py-3"><input value={c.meta_receita} onChange={(e)=>setForm(a=>({...a,consultores:a.consultores.map((x,i)=>i===idx?{...x,meta_receita:e.target.value}:x)}))} onBlur={(e)=>setForm(a=>({...a,consultores:a.consultores.map((x,i)=>i===idx?{...x,meta_receita:moedaInput(e.target.value)}:x)}))} className="w-36 ml-auto block border border-gray-200 rounded-lg px-3 py-2 text-right outline-none focus:border-[#048187]" placeholder="0,00"/></td><td className="px-4 py-3 text-right font-semibold text-[#048187]">{formatarMoeda(numero(c.meta_receita)*(eudoraPercent/100))}</td><td className="px-4 py-3 text-xs text-gray-500">Ativ. {numero(form.meta_atividade).toFixed(1)}% • Make {numero(form.meta_make).toFixed(1)}% • Cabelo {numero(form.meta_cabelo).toFixed(1)}% • RPA {formatarMoeda(numero(form.meta_rpa))} • Tkt {formatarMoeda(numero(form.meta_tkt_medio))} • UPA {numero(form.meta_upa).toFixed(1)}</td></tr>)}</tbody></table></div><div className="px-4 py-3 bg-[#f7fafb] flex justify-end gap-6 text-sm"><span>Meta estrutura: <b>{formatarMoeda(metaReceita)}</b></span><span>Distribuído: <b>{formatarMoeda(totalDistribuido)}</b></span></div></div>}
+          {form.supervisores.length > 0 && (
+            <div className="rounded-2xl border border-amber-100 overflow-hidden">
+              <div className="bg-amber-50/60 px-4 py-3">
+                <p className="font-bold text-gray-700">Supervisores</p>
+                <p className="text-xs text-gray-500">Não dividem a Meta Receita. Ativos I4–I6 = % da base que começou o ciclo como I4, I5 ou I6 a reativar no ER (qualquer consultor ou app). Adições = Inícios + Reinícios − I6 do ER.</p>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {form.supervisores.map((s, idx) => (
+                  <div key={s.id_colaborador} className="px-4 py-3 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_160px_160px] gap-3 sm:items-end">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-700">{s.nome}</p>
+                      <p className="text-[10px] text-gray-400">ID {s.id_colaborador}</p>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-semibold text-gray-400 block mb-1">Meta Ativos I4–I6 (%)</label>
+                      <input value={s.meta_ativos_pct} onChange={(e) => atualizarSupervisorForm(idx, 'meta_ativos_pct', e.target.value)} onBlur={(e) => atualizarSupervisorForm(idx, 'meta_ativos_pct', pctInput(e.target.value))} inputMode="decimal" placeholder="35,0" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right outline-none focus:border-[#048187]" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-semibold text-gray-400 block mb-1">Meta Adições (líquidas)</label>
+                      <input value={s.meta_adicoes} onChange={(e) => atualizarSupervisorForm(idx, 'meta_adicoes', e.target.value)} inputMode="numeric" placeholder="Ex.: 15" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-right outline-none focus:border-[#048187]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={cancelarFormulario} className="px-5 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold">Cancelar</button><button type="submit" disabled={salvando} className="px-5 py-3 rounded-xl bg-[#048187] text-white font-semibold disabled:opacity-50 inline-flex items-center gap-2"><Save size={16}/>{salvando?'Salvando...':editandoId?'Salvar alterações':'Cadastrar meta'}</button></div>
         </form>
@@ -4558,14 +4669,14 @@ function CadastroEstruturasV2({ apiUrl, onAtualizacao }) {
 }
 
 function CadastroConsultoresV2({ apiUrl, onAtualizacao, abrirIdentidade, obterFoto, podeGerenciarIdentidade }) {
-  const vazio={id_colaborador:'',nome:'',nome_social:'',estrutura_oficial_id:'',status_consultor:'ativo'};
+  const vazio={id_colaborador:'',nome:'',nome_social:'',estrutura_oficial_id:'',status_consultor:'ativo',funcao:'CONSULTOR'};
   const [lista,setLista]=useState([]);const [estruturas,setEstruturas]=useState([]);const [form,setForm]=useState(vazio);const [editando,setEditando]=useState(null);const [modal,setModal]=useState(false);const [busca,setBusca]=useState('');const [erro,setErro]=useState('');const [mensagem,setMensagem]=useState('');const [carregando,setCarregando]=useState(false);const [salvando,setSalvando]=useState(false);
   const carregar=async()=>{setCarregando(true);try{const [c,e]=await Promise.all([axios.get(`${apiUrl}/consultores/listar`),axios.get(`${apiUrl}/cadastro-v2/estruturas`,{params:{incluir_inativas:false}})]);setLista(c.data?.consultores||[]);setEstruturas(e.data?.estruturas||[]);}catch(err){setErro(err.response?.data?.detail||'Erro ao carregar consultores.');}finally{setCarregando(false);}};useEffect(()=>{carregar();},[]);
-  const abrirNovo=()=>{setEditando(null);setForm(vazio);setModal(true);setErro('');};const abrirEditar=(c)=>{setEditando(c);setForm({id_colaborador:c.id_colaborador||'',nome:c.nome||'',nome_social:c.nome_social||'',estrutura_oficial_id:c.equipe_consolidada_id||c.estrutura_oficial_id||'',status_consultor:c.status_consultor||'ativo'});setModal(true);};
+  const abrirNovo=()=>{setEditando(null);setForm(vazio);setModal(true);setErro('');};const abrirEditar=(c)=>{setEditando(c);setForm({id_colaborador:c.id_colaborador||'',nome:c.nome||'',nome_social:c.nome_social||'',estrutura_oficial_id:c.equipe_consolidada_id||c.estrutura_oficial_id||'',status_consultor:c.status_consultor||'ativo',funcao:ehSupervisorER(c)?'SUPERVISOR':'CONSULTOR'});setModal(true);};
   const salvar=async(e)=>{e.preventDefault();setSalvando(true);setErro('');try{if(editando?.id)await axios.put(`${apiUrl}/cadastro-v2/consultores/${editando.id}`,form);else await axios.post(`${apiUrl}/cadastro-v2/consultores`,form);setModal(false);setMensagem(editando?'Consultor atualizado.':'Consultor cadastrado.');await carregar();if(onAtualizacao)onAtualizacao();}catch(err){setErro(err.response?.data?.detail||'Erro ao salvar consultor.');}finally{setSalvando(false);}};
   const excluir=async(c)=>{if(!window.confirm(`Apagar ${c.nome_exibicao||c.nome}?`))return;try{await axios.delete(`${apiUrl}/cadastro-v2/consultores/${c.id}`);setMensagem('Consultor removido.');await carregar();if(onAtualizacao)onAtualizacao();}catch(err){setErro(err.response?.data?.detail||'Erro ao remover consultor.');}};
   const filtrada=lista.filter(c=>{const q=busca.toLowerCase();return !q||String(c.nome||'').toLowerCase().includes(q)||String(c.nome_social||'').toLowerCase().includes(q)||String(c.id_colaborador||'').includes(q)||String(c.equipe_consolidada_nome||c.estrutura||'').toLowerCase().includes(q);});
-  return <div className="space-y-5"><div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center justify-between"><div><h2 className="text-xl font-bold text-gray-700">Cadastro de Consultores</h2><p className="text-sm text-gray-400 mt-1">O consultor fica vinculado à estrutura oficial por ID.</p></div><button onClick={abrirNovo} className="bg-[#048187] text-white px-4 py-2.5 rounded-xl font-semibold text-sm inline-flex items-center gap-2"><Plus size={16}/> Cadastrar consultor</button></div>{(erro||mensagem)&&<div className={`rounded-xl px-4 py-3 text-sm font-semibold ${erro?'bg-red-50 text-red-600':'bg-green-50 text-green-700'}`}>{erro||mensagem}</div>}<div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm"><div className="relative max-w-md mb-5"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar nome, ID ou estrutura..." className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]"/></div>{carregando?<div className="py-10 text-center text-[#048187]">Carregando...</div>:<div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="text-xs text-gray-400 uppercase"><tr><th className="text-left py-3 px-2">Foto</th><th className="text-left py-3 px-2">ID</th><th className="text-left py-3 px-2">Consultor</th><th className="text-left py-3 px-2">Estrutura oficial</th><th className="text-left py-3 px-2">Núcleo</th><th className="text-left py-3 px-2">Status</th><th className="text-right py-3 px-2">Ações</th></tr></thead><tbody>{filtrada.map(c=><tr key={c.id} className="border-t border-gray-100"><td className="py-3 px-2"><button type="button" onClick={()=>abrirIdentidade&&abrirIdentidade({area:'VD',id_colaborador:c.id_colaborador,nome_oficial:c.nome_exibicao||c.nome,codigo_contexto:c.equipe_consolidada_nome||c.estrutura||'',foto_data_url:c.foto_data_url,aliases:c.aliases})}><AvatarColaborador src={obterFoto?obterFoto('VD',c.id_colaborador,c.foto_data_url):c.foto_data_url} nome={c.nome_exibicao||c.nome} tamanho={38}/></button></td><td className="py-3 px-2 text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2"><p className="font-semibold text-gray-700">{c.nome}</p>{c.nome_social&&<p className="text-xs text-[#048187]">{c.nome_social}</p>}</td><td className="py-3 px-2 text-gray-600">{c.equipe_consolidada_nome||c.estrutura||'-'}</td><td className="py-3 px-2 text-gray-500">{String(c.nucleo||'').replace('NUCLEO','N')}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase ${c.status_consultor==='ativo'?'bg-green-50 text-green-700':'bg-gray-100 text-gray-500'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right whitespace-nowrap">{podeGerenciarIdentidade&&podeGerenciarIdentidade('VD')&&<button onClick={()=>abrirIdentidade&&abrirIdentidade({area:'VD',id_colaborador:c.id_colaborador,nome_oficial:c.nome_exibicao||c.nome,codigo_contexto:c.equipe_consolidada_nome||c.estrutura||'',foto_data_url:c.foto_data_url,aliases:c.aliases})} className="text-[#257B9C] mr-3"><ImagePlus size={17}/></button>}<button onClick={()=>abrirEditar(c)} className="text-[#048187] mr-3"><Pencil size={17}/></button><button onClick={()=>excluir(c)} className="text-red-500"><Trash2 size={17}/></button></td></tr>)}</tbody></table></div>}</div>{modal&&<div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4"><div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl"><div className="p-5 border-b border-gray-100 flex justify-between"><div><h3 className="text-xl font-bold text-gray-700">{editando?'Editar consultor':'Cadastrar consultor'}</h3><p className="text-xs text-gray-400 mt-1">A estrutura é selecionada do cadastro oficial.</p></div><button onClick={()=>setModal(false)}><X size={20}/></button></div><form onSubmit={salvar} className="p-5 space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">ID colaborador</label><input value={form.id_colaborador} onChange={e=>setForm({...form,id_colaborador:e.target.value})} required className="w-full border border-gray-200 rounded-xl px-4 py-3"/></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Nome</label><input value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})} required className="w-full border border-gray-200 rounded-xl px-4 py-3"/></div></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Nome social</label><input value={form.nome_social} onChange={e=>setForm({...form,nome_social:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"/></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Estrutura</label><select value={form.estrutura_oficial_id} onChange={e=>setForm({...form,estrutura_oficial_id:e.target.value})} required className="w-full border border-gray-200 rounded-xl px-4 py-3"><option value="">Selecione</option>{estruturas.map(est=><option key={est.id} value={est.id}>{est.nome} • {String(est.nucleo).replace('NUCLEO','N')}</option>)}</select></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Status</label><select value={form.status_consultor} onChange={e=>setForm({...form,status_consultor:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div className="flex justify-end gap-3 pt-2"><button type="button" onClick={()=>setModal(false)} className="px-5 py-3 border border-gray-200 rounded-xl font-semibold text-gray-600">Cancelar</button><button type="submit" disabled={salvando} className="px-5 py-3 bg-[#048187] text-white rounded-xl font-semibold disabled:opacity-50">{salvando?'Salvando...':'Salvar'}</button></div></form></div></div>}</div>;
+  return <div className="space-y-5"><div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center justify-between"><div><h2 className="text-xl font-bold text-gray-700">Cadastro de Consultores</h2><p className="text-sm text-gray-400 mt-1">O consultor fica vinculado à estrutura oficial por ID.</p></div><button onClick={abrirNovo} className="bg-[#048187] text-white px-4 py-2.5 rounded-xl font-semibold text-sm inline-flex items-center gap-2"><Plus size={16}/> Cadastrar consultor</button></div>{(erro||mensagem)&&<div className={`rounded-xl px-4 py-3 text-sm font-semibold ${erro?'bg-red-50 text-red-600':'bg-green-50 text-green-700'}`}>{erro||mensagem}</div>}<div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm"><div className="relative max-w-md mb-5"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar nome, ID ou estrutura..." className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#048187]"/></div>{carregando?<div className="py-10 text-center text-[#048187]">Carregando...</div>:<div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="text-xs text-gray-400 uppercase"><tr><th className="text-left py-3 px-2">Foto</th><th className="text-left py-3 px-2">ID</th><th className="text-left py-3 px-2">Consultor</th><th className="text-left py-3 px-2">Estrutura oficial</th><th className="text-left py-3 px-2">Núcleo</th><th className="text-left py-3 px-2">Status</th><th className="text-right py-3 px-2">Ações</th></tr></thead><tbody>{filtrada.map(c=><tr key={c.id} className="border-t border-gray-100"><td className="py-3 px-2"><button type="button" onClick={()=>abrirIdentidade&&abrirIdentidade({area:'VD',id_colaborador:c.id_colaborador,nome_oficial:c.nome_exibicao||c.nome,codigo_contexto:c.equipe_consolidada_nome||c.estrutura||'',foto_data_url:c.foto_data_url,aliases:c.aliases})}><AvatarColaborador src={obterFoto?obterFoto('VD',c.id_colaborador,c.foto_data_url):c.foto_data_url} nome={c.nome_exibicao||c.nome} tamanho={38}/></button></td><td className="py-3 px-2 text-gray-500">{c.id_colaborador}</td><td className="py-3 px-2"><p className="font-semibold text-gray-700">{c.nome}</p>{c.nome_social&&<p className="text-xs text-[#048187]">{c.nome_social}</p>}{ehSupervisorER(c)&&<span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-amber-50 text-amber-700" title="Metas próprias: Ativos I4–I6 e Adições do ER. Fica fora da meta de receita e do ranking.">Supervisor</span>}</td><td className="py-3 px-2 text-gray-600">{c.equipe_consolidada_nome||c.estrutura||'-'}</td><td className="py-3 px-2 text-gray-500">{String(c.nucleo||'').replace('NUCLEO','N')}</td><td className="py-3 px-2"><span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase ${c.status_consultor==='ativo'?'bg-green-50 text-green-700':'bg-gray-100 text-gray-500'}`}>{c.status_consultor}</span></td><td className="py-3 px-2 text-right whitespace-nowrap">{podeGerenciarIdentidade&&podeGerenciarIdentidade('VD')&&<button onClick={()=>abrirIdentidade&&abrirIdentidade({area:'VD',id_colaborador:c.id_colaborador,nome_oficial:c.nome_exibicao||c.nome,codigo_contexto:c.equipe_consolidada_nome||c.estrutura||'',foto_data_url:c.foto_data_url,aliases:c.aliases})} className="text-[#257B9C] mr-3"><ImagePlus size={17}/></button>}<button onClick={()=>abrirEditar(c)} className="text-[#048187] mr-3"><Pencil size={17}/></button><button onClick={()=>excluir(c)} className="text-red-500"><Trash2 size={17}/></button></td></tr>)}</tbody></table></div>}</div>{modal&&<div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4"><div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl"><div className="p-5 border-b border-gray-100 flex justify-between"><div><h3 className="text-xl font-bold text-gray-700">{editando?'Editar consultor':'Cadastrar consultor'}</h3><p className="text-xs text-gray-400 mt-1">A estrutura é selecionada do cadastro oficial.</p></div><button onClick={()=>setModal(false)}><X size={20}/></button></div><form onSubmit={salvar} className="p-5 space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">ID colaborador</label><input value={form.id_colaborador} onChange={e=>setForm({...form,id_colaborador:e.target.value})} required className="w-full border border-gray-200 rounded-xl px-4 py-3"/></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Nome</label><input value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})} required className="w-full border border-gray-200 rounded-xl px-4 py-3"/></div></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Nome social</label><input value={form.nome_social} onChange={e=>setForm({...form,nome_social:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"/></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Estrutura</label><select value={form.estrutura_oficial_id} onChange={e=>setForm({...form,estrutura_oficial_id:e.target.value})} required className="w-full border border-gray-200 rounded-xl px-4 py-3"><option value="">Selecione</option>{estruturas.map(est=><option key={est.id} value={est.id}>{est.nome} • {String(est.nucleo).replace('NUCLEO','N')}</option>)}</select></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Status</label><select value={form.status_consultor} onChange={e=>setForm({...form,status_consultor:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option></select></div><div><label className="text-[11px] uppercase font-semibold text-gray-500 block mb-1">Função</label><select value={form.funcao||'CONSULTOR'} onChange={e=>setForm({...form,funcao:e.target.value})} className="w-full border border-gray-200 rounded-xl px-4 py-3"><option value="CONSULTOR">Consultor</option><option value="SUPERVISOR">Supervisor (ER)</option></select>{form.funcao==='SUPERVISOR'&&<p className="text-xs text-amber-700 mt-1.5">Supervisor não divide a meta de receita nem entra no ranking. As metas dele são Ativos I4–I6 e Adições do ER, lançadas na meta da estrutura.</p>}</div><div className="flex justify-end gap-3 pt-2"><button type="button" onClick={()=>setModal(false)} className="px-5 py-3 border border-gray-200 rounded-xl font-semibold text-gray-600">Cancelar</button><button type="submit" disabled={salvando} className="px-5 py-3 bg-[#048187] text-white rounded-xl font-semibold disabled:opacity-50">{salvando?'Salvando...':'Salvar'}</button></div></form></div></div>}</div>;
 }
 
 function TelaExclusoesRevendedores({ apiUrl = API_URL, onAtualizacao }) {
@@ -10170,6 +10281,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
           carregandoDiario: false,
           erro: '',
           consultores: cacheAcompanhamento.consultores || criarConsultoresBasicosDashboard(cacheAcompanhamento.dados),
+          supervisores: cacheAcompanhamento.supervisores || cacheAcompanhamento.dadosMetas?.supervisores || [],
           meta_resolvida: cacheAcompanhamento.meta_resolvida || null,
           diario: cacheAcompanhamento.diario || {
             resumo: {
@@ -10256,6 +10368,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       // de metas devolver o ranking individual completo, não chamamos o detalhe
       // pesado por estrutura desnecessariamente.
       let metasAtualizadas = null;
+      let supervisoresGerente = [];
       let erroMetas = '';
       try {
         const respostaMetas = await requisitarDashboardComRetry(
@@ -10381,6 +10494,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
               )
             : [];
           metaResolvida = resultadoConsultores?.meta_resolvida || null;
+          supervisoresGerente = Array.isArray(resultadoConsultores?.supervisores) ? resultadoConsultores.supervisores : [];
           if (!listaDetalhada.length && Array.isArray(resultadoConsultores?.erros)) {
             erroConsultores = resultadoConsultores.erros.map((item) => item?.erro).filter(Boolean).join(' ');
           }
@@ -10403,12 +10517,16 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       if (!consultoresCompletos.length && erroConsultores) mensagensErro.push(erroConsultores);
 
       const atualizadoEm = new Date().toISOString();
+      const supervisoresAcompanhamento = Array.isArray(metasAtualizadas?.supervisores) && metasAtualizadas.supervisores.length
+        ? metasAtualizadas.supervisores
+        : supervisoresGerente;
       setAcompanhamentoVD({
         carregando: false,
         carregandoConsultores: false,
         carregandoDiario: false,
         erro: mensagensErro.join(' '),
         consultores: consultoresCompletos,
+        supervisores: supervisoresAcompanhamento,
         meta_resolvida: metaResolvida,
         diario: diarioAtualizado,
         atualizado_em: atualizadoEm,
@@ -10420,6 +10538,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
           dados: dadosAtualizados,
           dadosMetas: metasAtualizadas,
           consultores: consultoresCompletos,
+          supervisores: supervisoresAcompanhamento,
           meta_resolvida: metaResolvida,
           diario: diarioAtualizado,
           atualizado_em: atualizadoEm,
@@ -13158,6 +13277,8 @@ const enviarArquivo = async (tipo) => {
           )}
         </section>
 
+        <BlocoSupervisoresER supervisores={acompanhamentoVD.supervisores} />
+
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-start gap-2">
             <AlertCircle size={20} className="text-orange-500 shrink-0" />
@@ -15249,6 +15370,8 @@ const enviarArquivo = async (tipo) => {
               </div>
             </div>
 
+            <BlocoSupervisoresER supervisores={detalheMeta?.supervisores} />
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
               <div className="flex items-start gap-2 mb-4"><AlertCircle size={22} className="text-[#F97316] shrink-0" /><div><h2 className="text-lg font-medium text-gray-700">Vendas fora da estrutura</h2><p className="text-xs text-gray-400 mt-1">Pedidos que os consultores desta equipe finalizaram para revendedoras de outras estruturas. Não contam para o consultor nem para esta equipe: entram na meta da estrutura da revendedora.</p></div></div>
               {vFora.length > 0 ? (
@@ -15568,6 +15691,7 @@ const enviarArquivo = async (tipo) => {
           <CardTop5 titulo="Maior Ticket Médio" dados={cData} propValor="tkt_medio" formatter={formatarMoeda} corValor="#56549E" />
           <CardTop5 titulo="Maior UPA" dados={cData} propValor="upa" formatter={(v)=>Number(v).toFixed(1)} corValor="#257B9C" />
         </div>
+        <BlocoSupervisoresER supervisores={dadosMetas?.supervisores} mostrarEstrutura />
       </div>
     );
   };
