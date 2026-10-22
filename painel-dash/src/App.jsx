@@ -4349,7 +4349,7 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
         meta_multimarcas: pctInput(meta.meta_multimarcas), meta_eudora: pctInput(meta.meta_eudora || 20),
         meta_rpa: moedaInput(meta.meta_rpa), meta_tkt_medio: moedaInput(meta.meta_tkt_medio),
         meta_upa: pctInput(meta.meta_upa), meta_adicoes: pctInput(meta.meta_adicoes), tem_consultores: Boolean(meta.tem_consultores), consultores,
-        supervisores: supervisoresDoContexto(data, meta.supervisores || [])
+        supervisores: supervisoresDoContexto(data, meta.supervisores || [], meta.meta_adicoes)
       });
     } catch (e) { setErro(e.response?.data?.detail || 'Erro ao abrir a meta.'); }
   };
@@ -4360,15 +4360,17 @@ function ModalMetasReais({ aberto, onClose, apiUrl, cicloPadrao = '', onAtualiza
   };
 
   // Supervisores do ER: % de Ativos I4–I6 (padrão do servidor, hoje 35%) e Adições em número.
-  const supervisoresDoContexto = (data, salvos) => {
+  // Sem meta salva para o supervisor, a de Adições começa com a meta de Adições do ER (o servidor usa a mesma).
+  const supervisoresDoContexto = (data, salvos, metaAdicoesEstrutura = 0) => {
     const porId = new Map((salvos || []).map((s) => [String(s.id_colaborador || ''), s]));
     const padrao = Number(data?.meta_ativos_supervisor_padrao || 35);
     return (data?.supervisores || []).map((s) => {
       const salvo = porId.get(String(s.id_colaborador || ''));
+      const adicoes = Math.round(Number(salvo ? salvo.meta_adicoes : metaAdicoesEstrutura) || 0);
       return {
         id_colaborador: String(s.id_colaborador || ''), nome: s.nome_exibicao || s.nome || s.id_colaborador,
         meta_ativos_pct: pctInput(salvo ? salvo.meta_ativos_pct : padrao),
-        meta_adicoes: salvo && Number(salvo.meta_adicoes || 0) ? String(Math.round(Number(salvo.meta_adicoes))) : ''
+        meta_adicoes: adicoes ? String(adicoes) : ''
       };
     });
   };

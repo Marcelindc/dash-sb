@@ -1,5 +1,5 @@
 // Regras e formatos compartilhados da Campanha Incentivo 2026 gamificada (jornada, equipe e resultado geral).
-import { Coins, Droplets, Flower2, Gem, Layers, Palette, Plane, Receipt, Scissors, ShoppingBag, Star, Target, UserCheck } from 'lucide-react';
+import { Coins, Droplets, Flower2, Gem, Layers, Palette, Plane, Receipt, RotateCcw, Scissors, ShoppingBag, Star, Target, UserCheck, UserPlus } from 'lucide-react';
 
 export const INDICADORES = {
   receita: { nome: 'Receita', cor: '#d4a017', escura: '#9a7400', icone: Coins },
@@ -11,6 +11,9 @@ export const INDICADORES = {
   itens_boleto: { nome: 'Itens por boleto', cor: '#f97316', escura: '#c2410c', icone: ShoppingBag },
   skin: { nome: 'Skin', cor: '#06b6d4', escura: '#0e7490', icone: Droplets },
   eudora: { nome: 'Eudora', cor: '#c026d3', escura: '#701a75', icone: Flower2 },
+  // Supervisores dos ERs: só estas duas metas, do ER inteiro.
+  ativos_i4_i6: { nome: 'Ativos I4–I6', cor: '#0d9488', escura: '#115e59', icone: RotateCcw },
+  adicoes: { nome: 'Adições', cor: '#65a30d', escura: '#3f6212', icone: UserPlus },
 };
 export const INDICADOR_PADRAO = { nome: 'Indicador', cor: '#64748b', escura: '#334155', icone: Target };
 
@@ -27,6 +30,7 @@ export const QUANTIDADES = {
   make: ['revendedora com MAKE', 'revendedoras com MAKE'],
   cabelo: ['revendedora com CABELO', 'revendedoras com CABELO'],
   multimarcas: ['revendedora multimarcas', 'revendedoras multimarcas'],
+  ativos_i4_i6: ['reativação', 'reativações'],
 };
 
 export const meta = (chave) => INDICADORES[chave] || INDICADOR_PADRAO;
@@ -40,6 +44,7 @@ export function emValor(valor, formato) {
   const n = Number(valor || 0);
   if (formato === 'percentual') return `${n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
   if (formato === 'numero') return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (formato === 'inteiro') return n.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
   if (Math.abs(n) >= 1e6) return `R$ ${(n / 1e6).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Mi`;
   if (Math.abs(n) >= 1e3) return `R$ ${(n / 1e3).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mil`;
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -86,9 +91,10 @@ export function montarSelos(pessoa) {
     };
   });
   const perfeitos = encerrados.filter((c) => c.status === 'bateu').length;
+  const supervisor = pessoa?.perfil === 'supervisor';
   const especiais = [
     { id: 'perfeito', especial: Star, nome: 'Ciclo perfeito', cor: '#f2c14e', escura: '#b8860b', nivel: Math.min(perfeitos, 4), emJogo: atual?.status === 'batendo', dica: perfeitos ? `${perfeitos} ${perfeitos === 1 ? 'ciclo' : 'ciclos'} com tudo batido` : 'Bata todos os indicadores de um ciclo' },
-    { id: 'superacao', especial: Gem, nome: 'Superação 120%', cor: '#7c1f31', escura: '#4c0f1c', nivel: pessoa?.superacao?.ok ? 4 : 0, emJogo: false, dica: pessoa?.superacao?.ok ? 'Receita acima de 120%' : 'Receita somada ≥ 120% da meta' },
+    { id: 'superacao', especial: Gem, nome: 'Superação 120%', cor: '#7c1f31', escura: '#4c0f1c', nivel: pessoa?.superacao?.ok ? 4 : 0, emJogo: false, dica: supervisor ? (pessoa?.superacao?.ok ? 'Ativos e Adições acima de 120%' : 'Ativos I4–I6 e Adições somados ≥ 120% da meta') : (pessoa?.superacao?.ok ? 'Receita acima de 120%' : 'Receita somada ≥ 120% da meta') },
     { id: 'viagem', especial: Plane, nome: 'Santo Amaro', cor: '#0f9aa1', escura: '#036b70', nivel: pessoa?.status_106 === 'classificado' ? 4 : 0, emJogo: false, dica: pessoa?.status_106 === 'classificado' ? 'Viagem garantida!' : 'Bata tudo do C14 ao C17' },
   ];
   return { porIndicador, especiais };

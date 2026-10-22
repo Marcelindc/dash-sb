@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AlertTriangle, ArrowRight, CalendarClock, Check, Coins, Droplets, Layers, Package, Palette, Receipt, Rocket, Scissors,
-  ShoppingBag, Sparkles, Target, Ticket, TrendingDown, TrendingUp, Trophy, UserCheck, X,
+  AlertTriangle, ArrowRight, CalendarClock, Check, Coins, Droplets, Layers, Package, Palette, Receipt, Rocket, RotateCcw, Scissors,
+  ShoppingBag, Sparkles, Target, Ticket, TrendingDown, TrendingUp, Trophy, UserCheck, UserPlus, X,
 } from 'lucide-react';
 import Confete from '../celebracao/Confete';
 import ChuvaDeCedulas from './ChuvaDeCedulas';
@@ -20,6 +20,7 @@ const MASCOTES = '/campanha-incentivo-2026/mascotes';
 const ICONES = {
   receita: Coins, atividade: UserCheck, make: Palette, cabelo: Scissors, multimarcas: Layers,
   boleto_medio: Receipt, itens_boleto: ShoppingBag, skin: Droplets, rpa: TrendingUp, ticket: Ticket, upa: Package,
+  ativos_i4_i6: RotateCcw, adicoes: UserPlus,
 };
 
 const QUANTIDADES = {
@@ -27,6 +28,7 @@ const QUANTIDADES = {
   make: (n) => `${n} ${n === 1 ? 'revendedora' : 'revendedoras'} com MAKE`,
   cabelo: (n) => `${n} ${n === 1 ? 'revendedora' : 'revendedoras'} com CABELO`,
   multimarcas: (n) => `${n} ${n === 1 ? 'revendedora' : 'revendedoras'} multimarcas`,
+  ativos_i4_i6: (n) => `${n} ${n === 1 ? 'reativação' : 'reativações'} da base I4–I6`,
 };
 
 const TEMAS = {
@@ -86,6 +88,7 @@ function emValor(valor, formato) {
   const n = Number(valor || 0);
   if (formato === 'percentual') return `${n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
   if (formato === 'numero') return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (formato === 'inteiro') return n.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
   if (Math.abs(n) >= 1e6) return `R$ ${(n / 1e6).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Mi`;
   if (Math.abs(n) >= 1e3) return `R$ ${(n / 1e3).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mil`;
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -102,6 +105,10 @@ function quantoFalta(a) {
   const falta = Math.max(meta - valor, 0);
   if (a.formato === 'percentual') {
     return { texto: `${falta.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ponto${falta >= 2 ? 's' : ''} percentua${falta >= 2 ? 'is' : 'l'}`, plural: falta >= 2 };
+  }
+  if (a.indicador === 'adicoes') {
+    const n = Math.max(Math.ceil(falta - 1e-9), 1);
+    return { texto: `${n} ${n === 1 ? 'adição líquida' : 'adições líquidas'}`, plural: n > 1 };
   }
   return { texto: emValor(falta, a.formato), plural: true };
 }

@@ -21,6 +21,7 @@ function emValor(valor, formato) {
   const n = Number(valor || 0);
   if (formato === 'percentual') return emPercentual(n);
   if (formato === 'numero') return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (formato === 'inteiro') return n.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
   if (Math.abs(n) >= 1e6) return `R$ ${(n / 1e6).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Mi`;
   if (Math.abs(n) >= 1e3) return `R$ ${(n / 1e3).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} mil`;
   return emReais(n);
@@ -219,7 +220,11 @@ function DetalhePessoa({ pessoa }) {
       <PainelIndicadores ciclos={pessoa.ciclos || []} titulo="Viagem • metas do ciclo" />
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#7c1f31] flex items-center gap-1.5"><BadgeDollarSign size={13} /> Bônus • somando C14 até agora</p>
-        <p className="mt-1.5 text-[11px] text-slate-400">Receita do período: {emValor(sup.receita, 'moeda')} de {emValor(sup.meta, 'moeda')} ({emPercentual(sup.percentual)} da meta). Para o bônus precisa de 120%.</p>
+        <p className="mt-1.5 text-[11px] text-slate-400">
+          {pessoa.perfil === 'supervisor'
+            ? 'Supervisor: Ativos I4–I6 e Adições do ER somados no período. Para o bônus precisa de 120% da meta nos dois (sem meta de Adições, conta só Ativos).'
+            : `Receita do período: ${emValor(sup.receita, 'moeda')} de ${emValor(sup.meta, 'moeda')} (${emPercentual(sup.percentual)} da meta). Para o bônus precisa de 120%.`}
+        </p>
         <div className={`mt-2.5 ${GRADE_CARDS}`}>
           {(sup.criterios || []).map((c) => (
             <CardIndicador key={c.chave} criterio={c} extra={c.chave === 'receita_120' && !c.ok && faltaReceita > 0 ? `${emValor(faltaReceita, 'moeda')} de receita` : ''} />
@@ -247,7 +252,7 @@ function LinhaPessoa({ pessoa, aberta, aoAlternar, recuo = false }) {
           <div className="min-w-0 flex-1">
             {/* No celular o nome inteiro aparece em até duas linhas; na tabela larga, uma linha só. */}
             <p className="text-sm font-semibold text-gray-800 line-clamp-2 break-words xl:line-clamp-none xl:truncate">{pessoa.nome}</p>
-            <p className="mt-0.5 flex flex-wrap xl:flex-nowrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-semibold text-gray-400 min-w-0"><SeloCanal canal={pessoa.canal} /> <span className="min-w-0 break-words xl:truncate">{pessoa.unidade}</span></p>
+            <p className="mt-0.5 flex flex-wrap xl:flex-nowrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-semibold text-gray-400 min-w-0"><SeloCanal canal={pessoa.canal} />{pessoa.perfil === 'supervisor' && <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700">Supervisor</span>} <span className="min-w-0 break-words xl:truncate">{pessoa.unidade}</span></p>
           </div>
           <ChevronDown size={18} className={`xl:hidden shrink-0 text-gray-400 transition-transform ${aberta ? 'rotate-180' : ''}`} />
         </div>
@@ -261,7 +266,7 @@ function LinhaPessoa({ pessoa, aberta, aoAlternar, recuo = false }) {
         </div>
         <div className="hidden xl:block"><span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${viagem.classe}`}>{viagem.texto}</span></div>
         <div className="min-w-0">
-          <p className="xl:hidden mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">Bônus • receita desde o C14 (meta 120%)</p>
+          <p className="xl:hidden mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-400">{pessoa.perfil === 'supervisor' ? 'Bônus • Ativos e Adições desde o C14 (meta 120%)' : 'Bônus • receita desde o C14 (meta 120%)'}</p>
           <div className="flex items-baseline justify-between gap-2">
             <span className={`text-sm font-semibold tabular-nums ${sup.ok ? 'text-green-700' : 'text-gray-700'}`}>{emPercentual(sup.percentual)}</span>
             <span className="text-[10px] font-semibold text-gray-400 truncate">{sup.ok && sup.parte_estimada ? `≈ ${emReais(sup.parte_estimada)}` : STATUS_BONUS[pessoa.status_109] || ''}</span>
