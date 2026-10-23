@@ -11,6 +11,8 @@ export const INDICADORES = {
   itens_boleto: { nome: 'Itens por boleto', cor: '#f97316', escura: '#c2410c', icone: ShoppingBag },
   skin: { nome: 'Skin', cor: '#06b6d4', escura: '#0e7490', icone: Droplets },
   eudora: { nome: 'Eudora', cor: '#c026d3', escura: '#701a75', icone: Flower2 },
+  // Selo "Receita 120%" e a linha do Bônus 120% nas missões.
+  receita_120: { nome: 'Receita 120%', cor: '#b45309', escura: '#78350f', icone: Gem },
   // Supervisores dos ERs: só estas duas metas, do ER inteiro.
   ativos_i4_i6: { nome: 'Ativos I4–I6', cor: '#0d9488', escura: '#115e59', icone: RotateCcw },
   adicoes: { nome: 'Adições', cor: '#65a30d', escura: '#3f6212', icone: UserPlus },
@@ -75,6 +77,25 @@ export function textoMissao(c) {
   };
 }
 
+const PERCENTUAL_BONUS = 120;
+const receitaDoCiclo = (ciclo) => (ciclo?.criterios || []).find((cr) => cr.chave === 'receita' && !cr.sem_meta);
+const bateu120 = (cr) => Boolean(cr) && Number(cr.meta) > 0 && Number(cr.valor) + 1e-9 >= Number(cr.meta) * (PERCENTUAL_BONUS / 100);
+
+/** Bônus 120% (regra do 109): receita somada do C14 até o ciclo informado contra 120% da meta somada.
+ *  Só informa: não conta como missão. null quando não há receita com meta nesses ciclos. */
+export function bonusAteCiclo(entidade, numero) {
+  let valor = 0;
+  let metaSomada = 0;
+  (entidade?.ciclos || []).forEach((c) => {
+    if (Number(c.numero) > Number(numero)) return;
+    const cr = receitaDoCiclo(c);
+    if (cr) { valor += Number(cr.valor || 0); metaSomada += Number(cr.meta || 0); }
+  });
+  if (metaSomada <= 0) return null;
+  const alvo = metaSomada * (PERCENTUAL_BONUS / 100);
+  return { valor, alvo, falta: Math.max(alvo - valor, 0), ok: valor + 1e-9 >= alvo, percentual: (valor / metaSomada) * 100 };
+}
+
 /** Selos por indicador (nível = ciclos encerrados batidos) + especiais. */
 export function montarSelos(pessoa) {
   const ciclos = pessoa?.ciclos || [];
@@ -85,21 +106,35 @@ export function montarSelos(pessoa) {
   const porIndicador = chaves.map((chave) => {
     const conquistas = encerrados.filter((c) => (c.criterios || []).some((cr) => cr.chave === chave && cr.ok)).length;
     const crAtual = (atual?.criterios || []).find((cr) => cr.chave === chave);
+    const nome = chave === 'receita' ? 'Receita 100%' : meta(chave).nome;
     return {
-      id: chave, chave, nome: meta(chave).nome, nivel: Math.min(conquistas, 4), emJogo: Boolean(crAtual?.ok),
-      dica: conquistas ? `${conquistas} ${conquistas === 1 ? 'ciclo batido' : 'ciclos batidos'}` : `Bata ${meta(chave).nome} em um ciclo`,
+      id: chave, chave, nome, nivel: Math.min(conquistas, 4), emJogo: Boolean(crAtual?.ok),
+      dica: conquistas ? `${conquistas} ${conquistas === 1 ? 'ciclo batido' : 'ciclos batidos'}` : `Bata ${nome} em um ciclo`,
     };
   });
+  // Receita 120%: sobe de nível a cada ciclo encerrado com a receita do ciclo ≥ 120% da meta (vem logo depois da Receita 100%).
+  const posicaoReceita = porIndicador.findIndex((s) => s.chave === 'receita');
+  if (posicaoReceita >= 0) {
+    const conquistas120 = encerrados.filter((c) => bateu120(receitaDoCiclo(c))).length;
+    porIndicador.splice(posicaoReceita + 1, 0, {
+      id: 'receita_120', chave: 'receita_120', nome: 'Receita 120%', nivel: Math.min(conquistas120, 4), emJogo: bateu120(receitaDoCiclo(atual)),
+      dica: conquistas120 ? `${conquistas120} ${conquistas120 === 1 ? 'ciclo' : 'ciclos'} com receita ≥ 120%` : 'Faça 120% da meta de receita em um ciclo',
+    });
+  }
   const perfeitos = encerrados.filter((c) => c.status === 'bateu').length;
   const supervisor = pessoa?.perfil === 'supervisor';
   const especiais = [
     { id: 'perfeito', especial: Star, nome: 'Ciclo perfeito', cor: '#f2c14e', escura: '#b8860b', nivel: Math.min(perfeitos, 4), emJogo: atual?.status === 'batendo', dica: perfeitos ? `${perfeitos} ${perfeitos === 1 ? 'ciclo' : 'ciclos'} com tudo batido` : 'Bata todos os indicadores de um ciclo' },
-    { id: 'superacao', especial: Gem, nome: 'Superação 120%', cor: '#7c1f31', escura: '#4c0f1c', nivel: pessoa?.superacao?.ok ? 4 : 0, emJogo: false, dica: supervisor ? (pessoa?.superacao?.ok ? 'Ativos e Adições acima de 120%' : 'Ativos I4–I6 e Adições somados ≥ 120% da meta') : (pessoa?.superacao?.ok ? 'Receita acima de 120%' : 'Receita somada ≥ 120% da meta') },
+    // Quem tem receita já tem o selo Receita 120%; o de superação fica só para o supervisor (Ativos e Adições).
+    ...(supervisor ? [{ id: 'superacao', especial: Gem, nome: 'Superação 120%', cor: '#7c1f31', escura: '#4c0f1c', nivel: pessoa?.superacao?.ok ? 4 : 0, emJogo: false, dica: pessoa?.superacao?.ok ? 'Ativos e Adições acima de 120%' : 'Ativos I4–I6 e Adições somados ≥ 120% da meta' }] : []),
     { id: 'viagem', especial: Plane, nome: 'Santo Amaro', cor: '#0f9aa1', escura: '#036b70', nivel: pessoa?.status_106 === 'classificado' ? 4 : 0, emJogo: false, dica: pessoa?.status_106 === 'classificado' ? 'Viagem garantida!' : 'Bata tudo do C14 ao C17' },
   ];
   return { porIndicador, especiais };
 }
 
+
+/** Grupo do ranking: unidades = ERs (VD) e lojas; estruturas = as demais equipes da VD (força de vendas, equipe de campo). */
+export const grupoUnidade = (u) => (u?.canal === 'LOJA' ? 'loja' : u?.unidade === 'ER' ? 'er' : 'estrutura');
 
 export const capitalizar = (texto) => String(texto || '').toLowerCase().replace(/(^|\s)\S/g, (l) => l.toUpperCase());
 

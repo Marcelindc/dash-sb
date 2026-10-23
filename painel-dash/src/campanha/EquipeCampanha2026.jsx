@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronRight, Crown, Flame, Medal, Plane, Search, Store, Target, Trophy, Users, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Crown, Flame, Medal, Network, Plane, Search, Store, Target, Trophy, Users, X } from 'lucide-react';
 import { FONTE } from '../celebracao/efeitos';
 import JornadaCampanha2026 from './JornadaCampanha2026';
-import { capitalizar, compararRanking, nomeCurto, numeroNucleo, resumoEntidade, rotuloCiclo } from './jornadaComum';
+import { capitalizar, compararRanking, grupoUnidade, nomeCurto, numeroNucleo, resumoEntidade, rotuloCiclo } from './jornadaComum';
 
 // Campanha Incentivo 2026 gamificada, por tipo de acesso (pedido de 07/10/2026):
-// - total (gestor geral e gestores de núcleo): placar da campanha, ranking das unidades e dos consultores.
+// - total (gestor geral e gestores de núcleo): placar da campanha e três rankings (23/10/2026): unidades
+//   (ERs da VD + lojas), consultores (de ER e de loja) e estruturas (as demais equipes da VD).
 //   Gestor de núcleo vê tudo (regra de 05/10), mas a tela abre filtrada no(s) núcleo(s) dele.
 // - unidade (gestor de unidade ER/LOJA): a jornada da unidade e o ranking dos consultores dela.
 // - consultor: a própria jornada e o resumo da sua unidade.
@@ -94,15 +95,36 @@ function LinhaRanking({ item, posicao, aoAbrir, mostrarUnidade = true }) {
   );
 }
 
-function CartaoNumero({ icone: Icone, cor, valor, rotulo }) {
+function CartaoNumero({ icone: Icone, cor, valor, rotulo, detalhe }) {
   return (
     <div className="flex items-center gap-2.5 rounded-2xl bg-white/95 px-3 py-2.5 shadow-[0_4px_0_rgba(0,0,0,.08)]">
       <span className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center" style={{ background: `${cor}1f` }}><Icone size={20} color={cor} strokeWidth={2.5} /></span>
       <span className="min-w-0">
         <span className="block text-[18px] font-extrabold leading-none text-slate-800">{valor}</span>
         <span className="block mt-1 text-[10px] font-bold uppercase tracking-wide leading-tight text-slate-400">{rotulo}</span>
+        {detalhe && <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-extrabold leading-tight text-green-600"><Flame size={11} fill="currentColor" /> {detalhe}</span>}
       </span>
     </div>
+  );
+}
+
+/** Ranking de unidades ou de estruturas (mesma linha do ranking de consultores). */
+function RankingUnidades({ titulo, icone: Icone, lista, aoAbrir, vazio, fora = 0 }) {
+  return (
+    <section className="rounded-[26px] border-2 border-slate-100 bg-white p-3.5 sm:p-5">
+      <div className="flex items-start justify-between gap-3 px-1">
+        <div>
+          <h3 className="text-lg sm:text-xl font-extrabold text-slate-800 inline-flex items-center gap-2"><Icone size={20} className="text-[#048187]" /> {titulo}</h3>
+          <p className="mt-0.5 text-[12px] font-semibold text-slate-400">Toque para ver a jornada e a equipe.</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-slate-50 border border-slate-100 px-3 py-1 text-[12px] font-extrabold text-slate-500">{lista.length}</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {lista.map((item, i) => <LinhaRanking key={item.e.participante} item={item} posicao={i + 1} aoAbrir={aoAbrir} />)}
+        {!lista.length && <p className="py-8 text-center text-sm font-bold text-slate-400 inline-flex items-center gap-2 w-full justify-center"><Target size={16} /> {vazio}</p>}
+      </div>
+      {fora > 0 && <p className="mt-3 px-1 text-[11px] font-semibold text-slate-400">{fora} sem meta cadastrada no ciclo {fora === 1 ? 'ficou' : 'ficaram'} fora do ranking.</p>}
+    </section>
   );
 }
 
@@ -216,9 +238,14 @@ export default function EquipeCampanha2026({ nivel, pessoas = [], unidades = [],
   };
 
   // Quem não tem nenhuma missão no ciclo (sem meta cadastrada) fica fora do ranking, com aviso.
-  const rankingPessoas = useMemo(() => pessoas.map((e) => ({ e, r: resumoEntidade(e) })).filter((i) => i.r.total > 0).sort(compararRanking), [pessoas]);
-  const rankingUnidades = useMemo(() => unidades.map((e) => ({ e, r: resumoEntidade(e) })).filter((i) => i.r.total > 0).sort(compararRanking), [unidades]);
-  const foraDoRanking = unidades.length - rankingUnidades.length;
+  const grupoPorUnidade = useMemo(() => new Map(unidades.filter((u) => !u.sem_resultado_proprio).map((u) => [u.participante, grupoUnidade(u)])), [unidades]);
+  // Consultores do ranking: os de ER e de loja; quem é de estrutura aparece dentro da estrutura dele.
+  const rankingPessoas = useMemo(() => pessoas
+    .filter((e) => grupoPorUnidade.get(e.unidade_chave) !== 'estrutura')
+    .map((e) => ({ e, r: resumoEntidade(e) })).filter((i) => i.r.total > 0).sort(compararRanking), [pessoas, grupoPorUnidade]);
+  const rankingTodasUnidades = useMemo(() => unidades.filter((u) => !u.sem_resultado_proprio).map((e) => ({ e, r: resumoEntidade(e) })), [unidades]);
+  const rankingUnidades = useMemo(() => rankingTodasUnidades.filter((i) => i.r.total > 0 && grupoUnidade(i.e) !== 'estrutura').sort(compararRanking), [rankingTodasUnidades]);
+  const rankingEstruturas = useMemo(() => rankingTodasUnidades.filter((i) => i.r.total > 0 && grupoUnidade(i.e) === 'estrutura').sort(compararRanking), [rankingTodasUnidades]);
 
   const folha = (
     <Folha aberta={Boolean(pessoaAberta || unidadeAberta)} aoVoltar={voltar} aoFechar={fechar} titulo={pessoaAberta ? nomeCurto(pessoaAberta) : unidadeAberta ? nomeCurto(unidadeAberta) : ''}>
@@ -270,9 +297,13 @@ export default function EquipeCampanha2026({ nivel, pessoas = [], unidades = [],
   // Gestor geral e gestores de núcleo.
   const pessoasFiltradas = rankingPessoas.filter((i) => passaFiltro(i.e));
   const unidadesFiltradas = rankingUnidades.filter((i) => passaFiltro(i.e));
+  const estruturasFiltradas = rankingEstruturas.filter((i) => passaFiltro(i.e));
+  const semMissao = (grupo) => rankingTodasUnidades.filter((i) => i.r.total === 0 && (grupoUnidade(i.e) === 'estrutura') === (grupo === 'estrutura') && passaFiltro(i.e)).length;
   const cicloAtual = calendario.find((c) => c.status === 'em_andamento');
-  const naDisputa = pessoasFiltradas.filter((i) => i.e.status_106 !== 'fora').length;
-  const batendoTudo = pessoasFiltradas.filter((i) => i.r.tudo).length;
+  const batendo = (lista) => {
+    const n = lista.filter((i) => i.r.tudo).length;
+    return `${n} batendo tudo${cicloAtual ? ` no ${rotuloCiclo(cicloAtual.numero)}` : ''}`;
+  };
   const selos = pessoasFiltradas.reduce((s, i) => s + i.r.selos, 0);
   const opcoesNucleo = [
     ...(nucleosDoGestor.length ? [['meus', `Seu núcleo: ${nucleosDoGestor.map((n) => `N${numeroNucleo(n)}`).join(' + ')}`]] : []),
@@ -291,9 +322,9 @@ export default function EquipeCampanha2026({ nivel, pessoas = [], unidades = [],
           <img src="/campanha-incentivo-2026/mascotes/ele-comemorando.webp" alt="" aria-hidden="true" className="shrink-0 w-auto max-h-[130px] sm:max-h-[170px] -mb-4 drop-shadow-[0_14px_20px_rgba(0,0,0,.35)]" />
         </div>
         <div className="relative mt-1 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-          <CartaoNumero icone={Users} cor="#0f9aa1" valor={pessoasFiltradas.length} rotulo="consultores" />
-          <CartaoNumero icone={Plane} cor="#7c1f31" valor={naDisputa} rotulo="na disputa da viagem" />
-          <CartaoNumero icone={Flame} cor="#f97316" valor={batendoTudo} rotulo="batendo tudo no ciclo" />
+          <CartaoNumero icone={Store} cor="#048187" valor={unidadesFiltradas.length} rotulo="unidades (ERs e lojas)" detalhe={batendo(unidadesFiltradas)} />
+          <CartaoNumero icone={Users} cor="#0f9aa1" valor={pessoasFiltradas.length} rotulo="consultores" detalhe={batendo(pessoasFiltradas)} />
+          <CartaoNumero icone={Network} cor="#7c1f31" valor={estruturasFiltradas.length} rotulo="estruturas" detalhe={batendo(estruturasFiltradas)} />
           <CartaoNumero icone={Medal} cor="#d4a017" valor={selos} rotulo="selos conquistados" />
         </div>
       </header>
@@ -301,29 +332,17 @@ export default function EquipeCampanha2026({ nivel, pessoas = [], unidades = [],
       <section className="rounded-[22px] border-2 border-slate-100 bg-white p-3 sm:p-4 space-y-2.5">
         <div className="relative">
           <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={busca} onChange={(ev) => setBusca(ev.target.value)} placeholder="Buscar consultor ou unidade..."
+          <input value={busca} onChange={(ev) => setBusca(ev.target.value)} placeholder="Buscar consultor, unidade ou estrutura..."
             className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-semibold outline-none focus:border-teal-300" />
         </div>
         <Chips opcoes={[['todos', 'VD + LOJA'], ['vd', 'VD'], ['loja', 'LOJA']]} valor={canal} aoEscolher={setCanal} />
         <Chips opcoes={opcoesNucleo} valor={nucleo} aoEscolher={setNucleo} />
       </section>
 
-      <div className="grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start">
-        <section className="rounded-[26px] border-2 border-slate-100 bg-white p-3.5 sm:p-5">
-          <div className="flex items-start justify-between gap-3 px-1">
-            <div>
-              <h3 className="text-lg sm:text-xl font-extrabold text-slate-800 inline-flex items-center gap-2"><Store size={20} className="text-[#048187]" /> Ranking das unidades</h3>
-              <p className="mt-0.5 text-[12px] font-semibold text-slate-400">Toque numa unidade para ver a jornada dela e a equipe.</p>
-            </div>
-            <span className="shrink-0 rounded-full bg-slate-50 border border-slate-100 px-3 py-1 text-[12px] font-extrabold text-slate-500">{unidadesFiltradas.length}</span>
-          </div>
-          <div className="mt-3 space-y-2">
-            {unidadesFiltradas.map((item, i) => <LinhaRanking key={item.e.participante} item={item} posicao={i + 1} aoAbrir={abrir} />)}
-            {!unidadesFiltradas.length && <p className="py-8 text-center text-sm font-bold text-slate-400 inline-flex items-center gap-2 w-full justify-center"><Target size={16} /> Nenhuma unidade neste filtro.</p>}
-          </div>
-          {foraDoRanking > 0 && <p className="mt-3 px-1 text-[11px] font-semibold text-slate-400">{foraDoRanking} {foraDoRanking === 1 ? 'unidade sem meta cadastrada no ciclo ficou' : 'unidades sem meta cadastrada no ciclo ficaram'} fora do ranking.</p>}
-        </section>
-        <RankingConsultores pessoas={pessoasFiltradas} aoAbrir={abrir} titulo="Ranking dos consultores" subtitulo="Ordem: missões do ciclo, depois selos e receita somada." />
+      <div className="grid gap-4 sm:gap-5 xl:grid-cols-2 2xl:grid-cols-3 items-start">
+        <RankingUnidades titulo="Ranking das unidades" icone={Store} lista={unidadesFiltradas} aoAbrir={abrir} vazio="Nenhuma unidade neste filtro." fora={semMissao('unidade')} />
+        <RankingConsultores pessoas={pessoasFiltradas} aoAbrir={abrir} titulo="Ranking dos consultores" subtitulo="ERs e lojas. Ordem: missões do ciclo, depois selos e receita somada." />
+        <RankingUnidades titulo="Ranking das estruturas" icone={Network} lista={estruturasFiltradas} aoAbrir={abrir} vazio="Nenhuma estrutura neste filtro." fora={semMissao('estrutura')} />
       </div>
       {folha}
     </div>

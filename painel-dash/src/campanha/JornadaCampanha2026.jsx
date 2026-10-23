@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Crown, Flame, Gem, Lock, Medal, Plane, Sparkles, Star, Target, Timer, Trophy } from 'lucide-react';
 import { FONTE, prefereMenosMovimento } from '../celebracao/efeitos';
-import { NIVEIS, criteriosValidos, dataCurta, meta, montarSelos, percentualCriterio, rotuloCiclo, textoMissao } from './jornadaComum';
+import { NIVEIS, bonusAteCiclo, criteriosValidos, dataCurta, emValor, meta, montarSelos, percentualCriterio, rotuloCiclo, textoMissao } from './jornadaComum';
 
 // "Minha jornada" da Campanha Incentivo 2026, no estilo de app gamificado (referências do usuário em 07/10/2026:
 // Duolingo / FitOn). Placar no topo, trilha C14 → C17 → Santo Amaro, missões do ciclo (os indicadores) e selos.
@@ -181,7 +181,36 @@ function Placar({ pessoa, sequencia, selosConquistados, selosEmJogo }) {
   );
 }
 
-function Missoes({ ciclo, calendario }) {
+/** Bônus 120% (receita somada desde o C14): no mesmo formato das missões, mas não conta como missão. */
+function LinhaBonus({ bonus }) {
+  const info = meta('receita_120');
+  const Icone = info.icone;
+  const pct = bonus.alvo > 0 ? Math.min(Math.max((bonus.valor / bonus.alvo) * 100, 0), 100) : 0;
+  return (
+    <div className="flex items-center gap-3 py-3">
+      <span className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center" style={{ background: `linear-gradient(160deg, ${info.cor}, ${info.escura})`, boxShadow: `0 4px 0 ${info.escura}55` }}>
+        <Icone size={22} color="#fff" strokeWidth={2.4} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+          <p className="text-[14px] font-extrabold text-slate-800 whitespace-nowrap">Bônus 120%</p>
+          <p className="shrink-0 text-[12px] font-extrabold tabular-nums text-slate-600">{emValor(bonus.valor, 'moeda')} de {emValor(bonus.alvo, 'moeda')}</p>
+        </div>
+        <div className="mt-1.5 h-3.5 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-full rounded-full transition-[width] duration-1000" style={{ width: `${bonus.ok ? 100 : pct}%`, background: bonus.ok ? 'linear-gradient(90deg,#f59e0b,#b45309)' : `linear-gradient(90deg, ${info.cor}, ${info.escura})` }} />
+        </div>
+        <p className={`mt-1 text-[11px] font-bold ${bonus.ok ? 'text-amber-700' : 'text-slate-500'}`}>
+          {bonus.ok ? 'Acima de 120%! Receita somada desde o C14.' : `Faltam ${emValor(bonus.falta, 'moeda')} para os 120% (receita somada desde o C14).`}
+        </p>
+      </div>
+      <span className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center border-2 ${bonus.ok ? 'bg-amber-50 border-amber-200 text-amber-600' : 'bg-slate-50 border-slate-100 text-slate-300'}`} title="Bônus: não conta como missão">
+        <Icone size={18} />
+      </span>
+    </div>
+  );
+}
+
+function Missoes({ ciclo, calendario, bonus = null }) {
   const cal = (calendario || []).find((c) => c.numero === ciclo?.numero) || {};
   const aberto = ciclo?.situacao_ciclo === 'em_andamento';
   const dias = Math.max(Number(cal.dias_total || 0) - Number(cal.dias_passados || 0), 0);
@@ -231,6 +260,7 @@ function Missoes({ ciclo, calendario }) {
             </div>
           );
         })}
+        {bonus && criterios.length > 0 && <LinhaBonus bonus={bonus} />}
         {semMeta.map((c) => {
           const Icone = meta(c.chave).icone;
           return (
@@ -317,7 +347,10 @@ export default function JornadaCampanha2026({ pessoa, calendario = [], visitante
         </section>
 
         <div className="space-y-4 sm:space-y-5 min-w-0">
-          <div className="jc-surgir" style={{ animationDelay: '.14s' }}><Missoes ciclo={cicloSelecionado} calendario={calendario} /></div>
+          <div className="jc-surgir" style={{ animationDelay: '.14s' }}>
+            <Missoes ciclo={cicloSelecionado} calendario={calendario}
+              bonus={pessoa?.tipo !== 'unidade' && pessoa?.perfil !== 'supervisor' ? bonusAteCiclo(pessoa, cicloSelecionado?.numero) : null} />
+          </div>
 
           {/* Selos */}
           <section className="jc-surgir rounded-[26px] border-2 border-slate-100 bg-white p-4 sm:p-5" style={{ animationDelay: '.2s' }}>
