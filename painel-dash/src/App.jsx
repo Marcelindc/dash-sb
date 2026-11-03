@@ -912,8 +912,16 @@ const DESCRICAO_TIPO_ACESSO = {
   unidade: 'Gestor de unidade (vê só as estruturas vinculadas)',
   loja: 'Só LOJA',
   gestor: 'Gestor',
-  visualizador: 'Visualizador',
+  visualizador: 'Visualizador geral (vê tudo, só leitura)',
 };
+
+// Visualizador sem estrutura = vê todos os canais e estruturas, só leitura
+// (não grava nada, pois as rotas de escrita exigem gestor/admin no backend).
+// Usado para diretoria/sucessor. O formulário controla esse estado com
+// escopoVisualizador: 'tudo' | 'especificas'.
+const formVisualizadorVeTudo = (form) =>
+  String(form?.perfil || '').toLowerCase() === 'visualizador'
+  && (form?.escopoVisualizador || 'especificas') === 'tudo';
 
 // estado: 'livre' (a caixinha manda), 'sempre' (sempre liberada), 'nunca' (não existe para esse acesso), 'oculta'.
 const regraAbaPermissao = (aba, usuario) => {
@@ -5823,14 +5831,14 @@ export default function App() {
   }, [usuarioLogado, estruturaSelecionada]);
 
 
-  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'VD', estruturas_permitidas: [], id_colaborador_vd: '' }); const [opcoesEscopoUsuarios, setOpcoesEscopoUsuarios] = useState([]); const [opcoesConsultoresUsuarios, setOpcoesConsultoresUsuarios] = useState([]); const [carregandoOpcoesEscopoUsuarios, setCarregandoOpcoesEscopoUsuarios] = useState(false); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
+  const [usuariosSistema, setUsuariosSistema] = useState([]); const [carregandoUsuarios, setCarregandoUsuarios] = useState(false); const [mensagemUsuarios, setMensagemUsuarios] = useState(''); const [erroUsuarios, setErroUsuarios] = useState(''); const [usuarioEditando, setUsuarioEditando] = useState(null); const [modalEditarUsuarioAberto, setModalEditarUsuarioAberto] = useState(false); const [modalExcluirUsuarioAberto, setModalExcluirUsuarioAberto] = useState(false); const [usuarioParaExcluir, setUsuarioParaExcluir] = useState(null); const [novoUsuario, setNovoUsuario] = useState({ nome: '', email: '', senha: '', perfil: 'visualizador', status_usuario: 'ativo', area_gestao: 'VD', estruturas_permitidas: [], id_colaborador_vd: '', escopoVisualizador: 'especificas' }); const [opcoesEscopoUsuarios, setOpcoesEscopoUsuarios] = useState([]); const [opcoesConsultoresUsuarios, setOpcoesConsultoresUsuarios] = useState([]); const [carregandoOpcoesEscopoUsuarios, setCarregandoOpcoesEscopoUsuarios] = useState(false); const [senhaPerfil, setSenhaPerfil] = useState({ senha_atual: '', nova_senha: '', confirmar_senha: '' }); const [mostrarSenhasPerfil, setMostrarSenhasPerfil] = useState(false); const [mensagemSenha, setMensagemSenha] = useState(''); const [erroSenha, setErroSenha] = useState(''); const [modalResetSenhaAdminAberto, setModalResetSenhaAdminAberto] = useState(false); const [usuarioResetSenhaAdmin, setUsuarioResetSenhaAdmin] = useState(null); const [novaSenhaAdmin, setNovaSenhaAdmin] = useState(''); const [carregandoResetSenhaAdmin, setCarregandoResetSenhaAdmin] = useState(false);
   const [dadosAuditoria, setDadosAuditoria] = useState(null); const [carregandoAuditoria, setCarregandoAuditoria] = useState(false); const [erroAuditoria, setErroAuditoria] = useState(''); const [filtrosAuditoria, setFiltrosAuditoria] = useState({ dias: 7, aba: 'acessos' }); const [auditoriaDetalhe, setAuditoriaDetalhe] = useState(null);
   const [modalRelatorioAuditoriaAberto, setModalRelatorioAuditoriaAberto] = useState(false);
   const [gerandoRelatorioAuditoria, setGerandoRelatorioAuditoria] = useState(false);
   const [erroRelatorioAuditoria, setErroRelatorioAuditoria] = useState('');
   const [configRelatorioAuditoria, setConfigRelatorioAuditoria] = useState(() => criarConfigRelatorioAuditoria(7));
 
-  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [carregandoAutomacaoRotas, setCarregandoAutomacaoRotas] = useState(false); const [statusBasesVD, setStatusBasesVD] = useState({}); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivosBaseAdicoes, setArquivosBaseAdicoes] = useState([]); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoEudora, setCarregandoAutomacaoEudora] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [ligandoRoboVd, setLigandoRoboVd] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
+  const [arquivoPedidos, setArquivoPedidos] = useState(null); const [arquivoRotas, setArquivoRotas] = useState(null); const [statusBaseRotas, setStatusBaseRotas] = useState(null); const [carregandoAutomacaoRotas, setCarregandoAutomacaoRotas] = useState(false); const [statusBasesVD, setStatusBasesVD] = useState({}); const [arquivoMetas, setArquivoMetas] = useState(null); const [arquivoConsultores, setArquivoConsultores] = useState(null); const [arquivoBaseAtiva, setArquivoBaseAtiva] = useState(null); const [arquivosBaseAdicoes, setArquivosBaseAdicoes] = useState([]); const [arquivoRevendedores, setArquivoRevendedores] = useState(null); const [arquivoSkusIaf, setArquivoSkusIaf] = useState(null); const [arquivosVendasMake, setArquivosVendasMake] = useState([]); const [arquivosVendasCabelo, setArquivosVendasCabelo] = useState([]); const [arquivoVendasMultimarcas, setArquivoVendasMultimarcas] = useState(null); const [arquivoVendasEudora, setArquivoVendasEudora] = useState(null); const [mensagemUpload, setMensagemUpload] = useState(''); const [erroUpload, setErroUpload] = useState(''); const [carregandoUpload, setCarregandoUpload] = useState(false); const [carregandoAutomacaoPedidos, setCarregandoAutomacaoPedidos] = useState(false); const [carregandoAutomacaoMake, setCarregandoAutomacaoMake] = useState(false); const [carregandoAutomacaoCabelo, setCarregandoAutomacaoCabelo] = useState(false); const [carregandoAutomacaoEudora, setCarregandoAutomacaoEudora] = useState(false); const [carregandoAutomacaoMultimarcas, setCarregandoAutomacaoMultimarcas] = useState(false); const [ligandoRoboVd, setLigandoRoboVd] = useState(false); const [modalMultimarcasAberto, setModalMultimarcasAberto] = useState(false); const [statusMultimarcas, setStatusMultimarcas] = useState(''); const multimarcasUsuarioRef = useRef(null); const multimarcasSenhaRef = useRef(null); const multimarcasSecretRef = useRef(null); const [modalMetasReaisAberto, setModalMetasReaisAberto] = useState(false); const [visaoCadastro, setVisaoCadastro] = useState('geral');
 
   const [ciclos, setCiclos] = useState([]); const [cicloForm, setCicloForm] = useState(cicloFormVazio); const [cicloEditando, setCicloEditando] = useState(null); const [mensagemCiclo, setMensagemCiclo] = useState(''); const [erroCiclo, setErroCiclo] = useState(''); const [carregandoCiclos, setCarregandoCiclos] = useState(false); const [modalEditarCicloAberto, setModalEditarCicloAberto] = useState(false); const [modalExcluirCicloAberto, setModalExcluirCicloAberto] = useState(false); const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloSelecionadoVD, setCicloSelecionadoVD] = useState(
@@ -11426,6 +11434,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     event?.preventDefault?.();
     const usuario = String(multimarcasUsuarioRef.current?.value || '').trim();
     const senha = String(multimarcasSenhaRef.current?.value || '').trim();
+    const totpSecret = String(multimarcasSecretRef.current?.value || '').trim();
     const ciclo = cicloUploadVD || obterCicloReferenciaAtual();
 
     if (!usuario || !senha) {
@@ -11447,6 +11456,7 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       payload: {
         usuario,
         senha,
+        totpSecret,
         ciclo,
         apiUrl: API_URL,
         token: lerTokenPersistido(),
@@ -11605,12 +11615,15 @@ const enviarArquivo = async (tipo) => {
     setErroUsuarios('');
 
     const perfil = String(novoUsuario.perfil || 'visualizador').toLowerCase();
-    const area = normalizarAreaGestao(novoUsuario.area_gestao, perfil);
-    const estruturasNormalizadas = normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas)
-      .filter((item) => area === 'AMBOS' || item.area === area);
+    const veTudo = formVisualizadorVeTudo(novoUsuario);
+    const area = veTudo ? 'AMBOS' : normalizarAreaGestao(novoUsuario.area_gestao, perfil);
+    const estruturasNormalizadas = veTudo
+      ? []
+      : normalizarEstruturasPermitidasUsuario(novoUsuario.estruturas_permitidas)
+          .filter((item) => area === 'AMBOS' || item.area === area);
 
-    if (perfil === 'visualizador' && !estruturasNormalizadas.length) {
-      setErroUsuarios('Selecione pelo menos uma estrutura para o visualizador.');
+    if (perfil === 'visualizador' && !veTudo && !estruturasNormalizadas.length) {
+      setErroUsuarios('Marque "Só estruturas específicas" e escolha ao menos uma, ou selecione "Todos os canais e estruturas".');
       return;
     }
     if (perfil === 'consultor' && (!String(novoUsuario.id_colaborador_vd || '').trim() || !estruturasNormalizadas.length)) {
@@ -11637,6 +11650,7 @@ const enviarArquivo = async (tipo) => {
         area_gestao: 'VD',
         estruturas_permitidas: [],
         id_colaborador_vd: '',
+        escopoVisualizador: 'especificas',
       });
       await carregarUsuarios();
     } catch (erro) {
@@ -11645,11 +11659,14 @@ const enviarArquivo = async (tipo) => {
   };
 
   const abrirEditarUsuario = (usuario) => {
+    const estruturasUsuario = normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas);
+    const perfilUsuario = String(usuario?.perfil || '').toLowerCase();
     setUsuarioEditando({
       ...usuario,
       perfil_original: usuario?.perfil,
       area_gestao: normalizarAreaGestao(usuario?.area_gestao, usuario?.perfil),
-      estruturas_permitidas: normalizarEstruturasPermitidasUsuario(usuario?.estruturas_permitidas),
+      estruturas_permitidas: estruturasUsuario,
+      escopoVisualizador: perfilUsuario === 'visualizador' && !estruturasUsuario.length ? 'tudo' : 'especificas',
     });
     setErroUsuarios('');
     setErroModalAcesso('');
@@ -11669,13 +11686,16 @@ const enviarArquivo = async (tipo) => {
     setErroModalAcesso('');
 
     const perfil = String(usuarioEditando?.perfil || 'visualizador').toLowerCase();
-    const area = normalizarAreaGestao(usuarioEditando?.area_gestao, perfil);
-    const estruturasNormalizadas = normalizarEstruturasPermitidasUsuario(usuarioEditando?.estruturas_permitidas)
-      .filter((item) => area === 'AMBOS' || item.area === area);
+    const veTudo = formVisualizadorVeTudo(usuarioEditando);
+    const area = veTudo ? 'AMBOS' : normalizarAreaGestao(usuarioEditando?.area_gestao, perfil);
+    const estruturasNormalizadas = veTudo
+      ? []
+      : normalizarEstruturasPermitidasUsuario(usuarioEditando?.estruturas_permitidas)
+          .filter((item) => area === 'AMBOS' || item.area === area);
 
     // Os avisos aparecem dentro da janela (antes ficavam atrás dela e parecia que "não salvava").
-    if (perfil === 'visualizador' && !estruturasNormalizadas.length) {
-      setErroModalAcesso('Visualizador precisa de pelo menos uma estrutura. Marque abaixo ou mude o perfil.');
+    if (perfil === 'visualizador' && !veTudo && !estruturasNormalizadas.length) {
+      setErroModalAcesso('Marque "Só estruturas específicas" e escolha ao menos uma, ou selecione "Todos os canais e estruturas".');
       return;
     }
     if (perfil === 'consultor' && (!String(usuarioEditando?.id_colaborador_vd || '').trim() || !estruturasNormalizadas.length)) {
@@ -16573,7 +16593,7 @@ const enviarArquivo = async (tipo) => {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wide text-[#048187] mb-1">Atualização automática</p>
                 <h2 className="text-xl font-black text-gray-700">Atualizar MULTIMARCAS via VDI</h2>
-                <p className="text-sm text-gray-400 font-semibold mt-1">As credenciais serão usadas somente nesta execução.</p>
+                <p className="text-sm text-gray-400 font-semibold mt-1">Usuário e senha são usados só nesta execução. A chave do autenticador fica salva apenas neste computador.</p>
               </div>
               <button type="button" disabled={carregandoAutomacaoMultimarcas} onClick={() => setModalMultimarcasAberto(false)} className="w-9 h-9 rounded-xl bg-gray-50 text-gray-400 hover:text-gray-600 flex items-center justify-center disabled:opacity-40"><X size={18} /></button>
             </div>
@@ -16585,6 +16605,11 @@ const enviarArquivo = async (tipo) => {
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Senha VDI</label>
                 <input ref={multimarcasSenhaRef} type="password" autoComplete="current-password" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] font-bold" placeholder="Digite sua senha" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wide text-gray-400 mb-1.5">Chave do autenticador <span className="text-gray-300 normal-case">(opcional)</span></label>
+                <input ref={multimarcasSecretRef} type="password" autoComplete="off" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-gray-700 outline-none focus:border-[#048187] font-bold tracking-widest" placeholder="Em branco = digitar o código na hora" />
+                <p className="text-[11px] font-semibold text-gray-400 mt-1.5"><b>Com a chave</b>, o robô preenche o código (MFA) sozinho (fica salva só neste PC). <b>Em branco</b>, ele pausa e você digita os 6 dígitos do app na aba do VDI.</p>
               </div>
               <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs font-bold text-gray-500">Ciclo: {cicloUploadVD || obterCicloReferenciaAtual() || '-'}</div>
               {statusMultimarcas && <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs font-bold text-blue-700">{statusMultimarcas}</div>}
@@ -17844,6 +17869,9 @@ const enviarArquivo = async (tipo) => {
               setNovoUsuario({
                 ...novoUsuario,
                 perfil,
+                escopoVisualizador: perfil === 'visualizador'
+                  ? (novoUsuario.escopoVisualizador || 'especificas')
+                  : 'especificas',
                 area_gestao: perfil === 'admin'
                   ? 'AMBOS'
                   : (perfil === 'consultor' ? 'VD' : (novoUsuario.area_gestao || 'VD')),
@@ -17871,7 +17899,7 @@ const enviarArquivo = async (tipo) => {
                   .filter((item) => area === 'AMBOS' || item.area === area),
               });
             }}
-            disabled={novoUsuario.perfil === 'admin' || novoUsuario.perfil === 'consultor'}
+            disabled={novoUsuario.perfil === 'admin' || novoUsuario.perfil === 'consultor' || formVisualizadorVeTudo(novoUsuario)}
             className="border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
             title="Define quais notificações de meta este usuário receberá."
           >
@@ -17910,14 +17938,52 @@ const enviarArquivo = async (tipo) => {
               <p className="mt-2 text-xs font-bold text-[#048187]">Visão Geral: somente os indicadores desse consultor. Rotas: todos os pedidos da estrutura vinculada.</p>
             </div>
           ) : novoUsuario.perfil !== 'admin' && (
-            <div className="md:col-span-2 xl:col-span-6">
-              <SeletorEscopoUsuario
-                area={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
-                opcoes={opcoesEscopoUsuarios}
-                selecionadas={novoUsuario.estruturas_permitidas}
-                onChange={(estruturas_permitidas) => setNovoUsuario({ ...novoUsuario, estruturas_permitidas })}
-                carregando={carregandoOpcoesEscopoUsuarios}
-              />
+            <div className="md:col-span-2 xl:col-span-6 space-y-3">
+              {novoUsuario.perfil === 'visualizador' && (
+                <div className="rounded-xl border border-[#d9eff0] bg-[#fbfefe] p-4">
+                  <label className="text-xs font-black uppercase text-gray-500 block mb-3">O que este visualizador enxerga</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      { id: 'tudo', titulo: 'Todos os canais e estruturas', desc: 'Vê VD e LOJA inteiros, só leitura. Não atualiza bases nem cadastra pessoas. Ideal para diretoria/sucessor.' },
+                      { id: 'especificas', titulo: 'Só estruturas específicas', desc: 'Vê apenas as estruturas/PDVs que você marcar abaixo.' },
+                    ].map((opt) => {
+                      const ativo = (novoUsuario.escopoVisualizador || 'especificas') === opt.id;
+                      return (
+                        <label
+                          key={opt.id}
+                          className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer ${ativo ? 'bg-[#f1fbfb] border-[#048187]' : 'bg-white border-gray-200 hover:border-[#048187]'}`}
+                        >
+                          <input
+                            type="radio"
+                            name="escopoVisualizadorCriar"
+                            checked={ativo}
+                            onChange={() => setNovoUsuario({
+                              ...novoUsuario,
+                              escopoVisualizador: opt.id,
+                              area_gestao: opt.id === 'tudo' ? 'AMBOS' : (novoUsuario.area_gestao === 'AMBOS' || !novoUsuario.area_gestao ? 'VD' : novoUsuario.area_gestao),
+                              estruturas_permitidas: opt.id === 'tudo' ? [] : novoUsuario.estruturas_permitidas,
+                            })}
+                            className="w-4 h-4 mt-0.5 accent-[#048187]"
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-bold text-gray-700">{opt.titulo}</span>
+                            <span className="block text-[11px] font-semibold text-gray-400 mt-0.5">{opt.desc}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {!formVisualizadorVeTudo(novoUsuario) && (
+                <SeletorEscopoUsuario
+                  area={normalizarAreaGestao(novoUsuario.area_gestao, novoUsuario.perfil)}
+                  opcoes={opcoesEscopoUsuarios}
+                  selecionadas={novoUsuario.estruturas_permitidas}
+                  onChange={(estruturas_permitidas) => setNovoUsuario({ ...novoUsuario, estruturas_permitidas })}
+                  carregando={carregandoOpcoesEscopoUsuarios}
+                />
+              )}
             </div>
           )}
           <button
@@ -25534,6 +25600,9 @@ const enviarArquivo = async (tipo) => {
                       setUsuarioEditando({
                         ...usuarioEditando,
                         perfil,
+                        escopoVisualizador: perfil === 'visualizador'
+                          ? (usuarioEditando.escopoVisualizador || 'especificas')
+                          : 'especificas',
                         area_gestao: perfil === 'admin'
                           ? 'AMBOS'
                           : (perfil === 'consultor' ? 'VD' : (usuarioEditando.area_gestao || 'VD')),
@@ -25572,7 +25641,7 @@ const enviarArquivo = async (tipo) => {
                           .filter((item) => area === 'AMBOS' || item.area === area),
                       });
                     }}
-                    disabled={['admin', 'consultor', 'campanha'].includes(usuarioEditando.perfil)}
+                    disabled={['admin', 'consultor', 'campanha'].includes(usuarioEditando.perfil) || formVisualizadorVeTudo(usuarioEditando)}
                     className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#048187] disabled:bg-gray-100 disabled:text-gray-400"
                   >
                     {AREAS_GESTAO.map((area) => (
@@ -25640,13 +25709,51 @@ const enviarArquivo = async (tipo) => {
                       Gestor com estrutura marcada vira gestor de unidade e passa a ver só essas estruturas. Para um gestor de núcleo (ex.: N2 + N3), deixe sem estrutura e marque os núcleos em "Configurar abas".
                     </div>
                   )}
-                  <SeletorEscopoUsuario
-                    area={normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil)}
-                    opcoes={opcoesEscopoUsuarios}
-                    selecionadas={usuarioEditando.estruturas_permitidas}
-                    onChange={(estruturas_permitidas) => setUsuarioEditando({ ...usuarioEditando, estruturas_permitidas })}
-                    carregando={carregandoOpcoesEscopoUsuarios}
-                  />
+                  {usuarioEditando.perfil === 'visualizador' && (
+                    <div className="rounded-xl border border-[#d9eff0] bg-[#fbfefe] p-4">
+                      <label className="text-xs font-black uppercase text-gray-500 block mb-3">O que este visualizador enxerga</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {[
+                          { id: 'tudo', titulo: 'Todos os canais e estruturas', desc: 'Vê VD e LOJA inteiros, só leitura. Não atualiza bases nem cadastra pessoas. Ideal para diretoria/sucessor.' },
+                          { id: 'especificas', titulo: 'Só estruturas específicas', desc: 'Vê apenas as estruturas/PDVs que você marcar abaixo.' },
+                        ].map((opt) => {
+                          const ativo = (usuarioEditando.escopoVisualizador || 'especificas') === opt.id;
+                          return (
+                            <label
+                              key={opt.id}
+                              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer ${ativo ? 'bg-[#f1fbfb] border-[#048187]' : 'bg-white border-gray-200 hover:border-[#048187]'}`}
+                            >
+                              <input
+                                type="radio"
+                                name="escopoVisualizadorEditar"
+                                checked={ativo}
+                                onChange={() => setUsuarioEditando({
+                                  ...usuarioEditando,
+                                  escopoVisualizador: opt.id,
+                                  area_gestao: opt.id === 'tudo' ? 'AMBOS' : (usuarioEditando.area_gestao === 'AMBOS' || !usuarioEditando.area_gestao ? 'VD' : usuarioEditando.area_gestao),
+                                  estruturas_permitidas: opt.id === 'tudo' ? [] : usuarioEditando.estruturas_permitidas,
+                                })}
+                                className="w-4 h-4 mt-0.5 accent-[#048187]"
+                              />
+                              <span className="min-w-0">
+                                <span className="block text-sm font-bold text-gray-700">{opt.titulo}</span>
+                                <span className="block text-[11px] font-semibold text-gray-400 mt-0.5">{opt.desc}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {!formVisualizadorVeTudo(usuarioEditando) && (
+                    <SeletorEscopoUsuario
+                      area={normalizarAreaGestao(usuarioEditando.area_gestao, usuarioEditando.perfil)}
+                      opcoes={opcoesEscopoUsuarios}
+                      selecionadas={usuarioEditando.estruturas_permitidas}
+                      onChange={(estruturas_permitidas) => setUsuarioEditando({ ...usuarioEditando, estruturas_permitidas })}
+                      carregando={carregandoOpcoesEscopoUsuarios}
+                    />
+                  )}
                 </>
               )}
 
