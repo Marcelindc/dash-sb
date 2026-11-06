@@ -1018,6 +1018,64 @@ const formatarDataHoraBR = (valor) => {
     minute: '2-digit',
   }).format(data);
 };
+// Bases (tipo_base do controle de uploads) que alimentam cada indicador VD.
+// O modal do indicador mostra quando cada uma delas foi enviada pela última vez.
+const ROTULOS_BASE_VD = {
+  PEDIDOS: 'Base Pedidos',
+  VENDAS_MAKE: 'Base MAKE',
+  VENDAS_CABELO: 'Base CABELO',
+  VENDAS_MULTIMARCAS: 'Base Multimarcas',
+  VENDAS_EUDORA: 'Base Eudora',
+  BASE_ATIVA: 'Base Ativa',
+  BASE_ADICOES: 'Base Adições',
+};
+const BASES_INDICADOR_VD = {
+  MAKE: ['PEDIDOS', 'VENDAS_MAKE'],
+  CABELO: ['PEDIDOS', 'VENDAS_CABELO'],
+  MULTIMARCAS: ['PEDIDOS', 'VENDAS_MULTIMARCAS'],
+  ATIVIDADE: ['PEDIDOS', 'BASE_ATIVA'],
+  EUDORA: ['VENDAS_EUDORA'],
+  ADICOES: ['PEDIDOS', 'BASE_ADICOES'],
+  INDICADORES: ['PEDIDOS', 'VENDAS_MAKE', 'VENDAS_CABELO', 'VENDAS_MULTIMARCAS', 'BASE_ATIVA'],
+};
+// Títulos dos modais: "MAKE Geral", "MULTIMARCAS - Estrutura", "Fulano • EUDORA", "Atividade Fulano".
+// Faturamento, Realizado, Tendência, RPA, Ticket e UPA saem só de Pedidos.
+const basesDoIndicadorVD = (titulo) => {
+  const texto = String(titulo || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  const partes = texto.split('•');
+  const palavra = (partes.length > 1 ? partes[partes.length - 1] : texto).trim().split(/[\s-]+/)[0] || '';
+  return BASES_INDICADOR_VD[palavra.startsWith('MULTI') ? 'MULTIMARCAS' : palavra] || ['PEDIDOS'];
+};
+const formatarDataHoraAtualizacao = (valor) => {
+  if (!valor) return '';
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return '';
+  const partes = Object.fromEntries(new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Fortaleza',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(data).map((parte) => [parte.type, parte.value]));
+  return `${partes.day}/${partes.month}/${partes.year} às ${partes.hour}:${partes.minute}`;
+};
+const DataAtualizacaoBases = ({ bases = [], atualizacoes }) => {
+  if (!bases.length || atualizacoes?.erro) return null;
+  return (
+    <div className="text-right space-y-0.5" title="Data e hora do último envio de cada base usada neste indicador">
+      {bases.map((tipo) => {
+        const quando = formatarDataHoraAtualizacao(atualizacoes?.itens?.[tipo]);
+        return (
+          <p key={tipo} className="text-[10px] sm:text-[11px] font-bold text-gray-400 sm:whitespace-nowrap">
+            {ROTULOS_BASE_VD[tipo] || tipo}:{' '}
+            <span className="text-gray-600">{quando || (atualizacoes?.carregando ? '...' : 'sem envio neste ciclo')}</span>
+          </p>
+        );
+      })}
+    </div>
+  );
+};
 const calcularUpa = (totalItens, atividadeRealizada) => {
   const itens = Number(totalItens || 0);
   const atividade = Number(atividadeRealizada || 0);
@@ -5869,6 +5927,7 @@ export default function App() {
   const cidadesAbortControllerRef = useRef(null);
   const detalheMetaAbortControllerRef = useRef(null);
   const [modalEudoraAberto, setModalEudoraAberto] = useState(false);
+  const [atualizacoesBasesVD, setAtualizacoesBasesVD] = useState({ ciclo: '', itens: {}, carregando: false, erro: false });
   const [detalheEudora, setDetalheEudora] = useState(null);
   const [carregandoDetalheEudora, setCarregandoDetalheEudora] = useState(false);
   const [erroDetalheEudora, setErroDetalheEudora] = useState('');
@@ -11016,6 +11075,19 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
     carregarDetalheMeta(estruturaSalva, filtrosAtivos, false);
   }, [usuarioLogado, telaAtual, visaoMetas, detalheMeta]);
 
+  const basesModalValorExpandido = modalValorExpandido.bases ?? basesDoIndicadorVD(modalValorExpandido.titulo);
+  const modalIndicadorVDAberto = Boolean(
+    (modalDetalhes?.bases || []).length
+    || (modalValorExpandido.aberto && basesModalValorExpandido.length)
+    || modalRealizadoDiarioVD.aberto
+    || modalEudoraAberto
+    || modalDesempenhoDetalhado.aberto
+  );
+  useEffect(() => {
+    if (!usuarioLogado || !modalIndicadorVDAberto) return;
+    carregarAtualizacoesBasesVD(cicloVisualizacaoVDRef.current || cicloSelecionadoVD || filtrosAtivos?.ciclo);
+  }, [usuarioLogado, modalIndicadorVDAberto]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setErroLogin('');
@@ -11493,10 +11565,10 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       return {};
     }
     try {
-      const resposta = await axios.get(`${API_URL}/ciclos/${encodeURIComponent(ciclo)}/uploads`, {
+      const resposta = await axios.get(`${API_URL}/ciclos/${encodeURIComponent(ciclo)}/ultimas-atualizacoes`, {
         params: { area: 'VD', _t: Date.now() },
       });
-      const uploads = Array.isArray(resposta.data?.uploads) ? resposta.data.uploads : [];
+      const uploads = Array.isArray(resposta.data?.atualizacoes) ? resposta.data.atualizacoes : [];
       const maisRecentes = {};
       uploads.forEach((item) => {
         const tipo = String(item?.tipo_base || '').trim().toUpperCase();
@@ -11509,6 +11581,33 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       console.error('Erro ao carregar status das bases VD:', erro);
       setStatusBasesVD({});
       return {};
+    }
+  };
+
+  // Data do último envio de cada base do ciclo, para os modais dos indicadores.
+  // Busca de novo a cada abertura: o robô atualiza as bases ao longo do dia.
+  const carregarAtualizacoesBasesVD = async (cicloAlvo = '') => {
+    const ciclo = String(cicloAlvo || '').trim();
+    if (!ciclo) return;
+    setAtualizacoesBasesVD((atual) => ({
+      ciclo,
+      itens: atual.ciclo === ciclo ? atual.itens : {},
+      carregando: true,
+      erro: false,
+    }));
+    try {
+      const { data } = await axios.get(`${API_URL}/ciclos/${encodeURIComponent(ciclo)}/ultimas-atualizacoes`, {
+        params: { area: 'VD', _t: Date.now() },
+      });
+      const itens = {};
+      (Array.isArray(data?.atualizacoes) ? data.atualizacoes : []).forEach((item) => {
+        const tipo = String(item?.tipo_base || '').trim().toUpperCase();
+        if (tipo) itens[tipo] = item?.criado_em || '';
+      });
+      setAtualizacoesBasesVD((atual) => (atual.ciclo === ciclo ? { ciclo, itens, carregando: false, erro: false } : atual));
+    } catch (erro) {
+      console.error('Erro ao carregar a data de atualização das bases VD:', erro);
+      setAtualizacoesBasesVD((atual) => (atual.ciclo === ciclo ? { ...atual, carregando: false, erro: true } : atual));
     }
   };
 
@@ -11777,7 +11876,8 @@ const enviarArquivo = async (tipo) => {
   const abrirExcluirConsultor = (consultor) => { setConsultorParaExcluir(consultor); setModalExcluirConsultorAberto(true); };
   const confirmarExclusaoConsultor = async () => { if (!consultorParaExcluir) return; setErroGestaoConsultor(''); setMensagemConsultor(''); try { await axios.delete(`${API_URL}/consultores/${consultorParaExcluir.id}`); setModalExcluirConsultorAberto(false); setConsultorParaExcluir(null); setMensagemConsultor('Excluído.'); limparCachesDados(); await carregarListaConsultores(); } catch (erro) { setErroGestaoConsultor(erro.response?.data?.detail || 'Erro.'); } };
 
-  const abrirModalValExp = (tit, valStr, desc, detalhes = [], formula = '') => setModalValorExpandido({ aberto: true, titulo: tit, valorTexto: valStr, descricao: desc, detalhes, formula });
+  // bases: sem informar, vêm do título (basesDoIndicadorVD); [] não mostra data de atualização.
+  const abrirModalValExp = (tit, valStr, desc, detalhes = [], formula = '', bases) => setModalValorExpandido({ aberto: true, titulo: tit, valorTexto: valStr, descricao: desc, detalhes, formula, bases });
   const fecharModalValExp = () => {
     setErroRelatorioIaf('');
     setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null, relatorioIaf: null });
@@ -11864,6 +11964,7 @@ const enviarArquivo = async (tipo) => {
       titulo: 'Realizado Total',
       subtitulo: '',
       tipo: 'realizado_total_acumulado',
+      bases: ['PEDIDOS'],
       itens: [
         { label: 'Realizado', valor: formatarMoeda(realizado) },
         { label: 'Meta faturamento', valor: formatarMoeda(meta) },
@@ -12358,6 +12459,7 @@ const enviarArquivo = async (tipo) => {
       titulo: 'Tendência',
       subtitulo: 'Projeção final com plano inteligente de recuperação',
       tipo: 'tendencia',
+      bases: ['PEDIDOS'],
       itens: [
         { label: 'Tendência', valor: formatarMoeda(dados?.tendencia_ciclo) },
         { label: 'Gap', valor: formatarMoeda(dados?.gap_tendencia) }
@@ -12571,6 +12673,7 @@ const enviarArquivo = async (tipo) => {
     titulo: 'Cancelados',
     subtitulo: 'Pedidos Cancelados',
     tipo: 'cancelados',
+    bases: ['PEDIDOS'],
     itens: [{ label: 'Quantidade', valor: dados?.total_cancelados }],
     motivos_cancelamento: dados?.motivos_cancelamento,
   });
@@ -13782,7 +13885,10 @@ const enviarArquivo = async (tipo) => {
                 <h2 className="text-2xl font-black text-gray-700">Resultado Eudora</h2>
                 <p className="text-sm font-semibold text-gray-400">Ciclo {detalheEudora?.ciclo || filtrosAtivos?.ciclo || cicloSelecionadoVD || '-'}</p>
               </div>
-              <button type="button" onClick={() => setModalEudoraAberto(false)} className="w-10 h-10 rounded-full bg-gray-50 text-gray-400 hover:text-gray-700 flex items-center justify-center"><X size={20} /></button>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <button type="button" onClick={() => setModalEudoraAberto(false)} className="w-10 h-10 rounded-full bg-gray-50 text-gray-400 hover:text-gray-700 flex items-center justify-center"><X size={20} /></button>
+                <DataAtualizacaoBases bases={BASES_INDICADOR_VD.EUDORA} atualizacoes={atualizacoesBasesVD} />
+              </div>
             </div>
             <div className="overflow-y-auto p-5 sm:p-7 space-y-6">
               {carregandoDetalheEudora ? (
@@ -20248,7 +20354,8 @@ const enviarArquivo = async (tipo) => {
         linhas?.[0]?.valor || '-',
         'Detalhamento do indicador da LOJA.',
         linhas,
-        formula
+        formula,
+        []
       );
     };
 
@@ -23714,16 +23821,19 @@ const enviarArquivo = async (tipo) => {
                 </h2>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setModalRealizadoDiarioVD((atual) => ({
-                  ...atual,
-                  aberto: false,
-                }))}
-                className="w-10 h-10 rounded-full bg-[#fff3f5] hover:bg-[#ffe5eb] text-[#7c1f31] hover:text-[#7c1f31] flex items-center justify-center shrink-0"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModalRealizadoDiarioVD((atual) => ({
+                    ...atual,
+                    aberto: false,
+                  }))}
+                  className="w-10 h-10 rounded-full bg-[#fff3f5] hover:bg-[#ffe5eb] text-[#7c1f31] hover:text-[#7c1f31] flex items-center justify-center shrink-0"
+                >
+                  <X size={20} />
+                </button>
+                <DataAtualizacaoBases bases={['PEDIDOS']} atualizacoes={atualizacoesBasesVD} />
+              </div>
             </div>
 
             <div className="p-5 sm:p-7 overflow-y-auto space-y-6 bg-[#f7fafb]">
@@ -24397,13 +24507,16 @@ const enviarArquivo = async (tipo) => {
                   Resultado consolidado por núcleo, com abertura por estruturas e consultores.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setModalDesempenhoDetalhado((atual) => ({ ...atual, aberto: false }))}
-                className="w-10 h-10 rounded-full bg-[#fff3f5] hover:bg-[#ffe5eb] text-[#7c1f31] hover:text-[#7c1f31] flex items-center justify-center shrink-0"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModalDesempenhoDetalhado((atual) => ({ ...atual, aberto: false }))}
+                  className="w-10 h-10 rounded-full bg-[#fff3f5] hover:bg-[#ffe5eb] text-[#7c1f31] hover:text-[#7c1f31] flex items-center justify-center shrink-0"
+                >
+                  <X size={20} />
+                </button>
+                <DataAtualizacaoBases bases={['PEDIDOS']} atualizacoes={atualizacoesBasesVD} />
+              </div>
             </div>
 
             <div className="px-5 sm:px-7 py-4 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 shrink-0 bg-[#fbfdfd]">
@@ -24512,8 +24625,8 @@ const enviarArquivo = async (tipo) => {
       {modalValorExpandido.aberto && (
         <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
           <div className={`w-full ${modalValorExpandido.indicadorIaf ? 'max-w-7xl' : 'max-w-xl'} max-h-[92dvh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col`}>
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
-              <div>
+            <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100 shrink-0">
+              <div className="min-w-0">
                 <h3 className="text-2xl font-bold text-gray-700">{modalValorExpandido.titulo}</h3>
                 {modalValorExpandido.indicadorIaf && (
                   <p className="mt-1 text-xs font-bold text-gray-400">
@@ -24525,23 +24638,26 @@ const enviarArquivo = async (tipo) => {
                 )}
                 {modalValorExpandido.descricao && (<p className="mt-1 text-sm text-gray-400">{modalValorExpandido.descricao}</p>)}
               </div>
-              <div className="flex items-center gap-3 shrink-0">
-                {modalValorExpandido.relatorioIaf && !modalValorExpandido.carregando && !modalValorExpandido.erro && (
-                  <div className="flex flex-col items-end">
-                    <button
-                      type="button"
-                      onClick={baixarRelatorioIaf}
-                      disabled={baixandoRelatorioIaf}
-                      title="Baixar a planilha com todas as revendedoras desta contagem: quem ativou e quem fez o 1º pedido do indicador"
-                      className="px-4 py-2.5 rounded-xl bg-[#048187] hover:bg-[#036b70] text-white text-sm font-black inline-flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-wait"
-                    >
-                      {baixandoRelatorioIaf ? <Loader2 size={17} className="animate-spin" /> : <FileSpreadsheet size={17} />}
-                      <span className="hidden sm:inline">{baixandoRelatorioIaf ? 'Gerando...' : 'Gerar relatório'}</span>
-                    </button>
-                    {erroRelatorioIaf && (<p className="mt-1 max-w-xs text-right text-xs font-bold text-red-600">{erroRelatorioIaf}</p>)}
-                  </div>
-                )}
-                <button type="button" onClick={fecharModalValExp} className="w-10 h-10 rounded-full hover:bg-gray-50 text-gray-400 flex items-center justify-center"><X size={20} /></button>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <div className="flex items-center gap-3">
+                  {modalValorExpandido.relatorioIaf && !modalValorExpandido.carregando && !modalValorExpandido.erro && (
+                    <div className="flex flex-col items-end">
+                      <button
+                        type="button"
+                        onClick={baixarRelatorioIaf}
+                        disabled={baixandoRelatorioIaf}
+                        title="Baixar a planilha com todas as revendedoras desta contagem: quem ativou e quem fez o 1º pedido do indicador"
+                        className="px-4 py-2.5 rounded-xl bg-[#048187] hover:bg-[#036b70] text-white text-sm font-black inline-flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-wait"
+                      >
+                        {baixandoRelatorioIaf ? <Loader2 size={17} className="animate-spin" /> : <FileSpreadsheet size={17} />}
+                        <span className="hidden sm:inline">{baixandoRelatorioIaf ? 'Gerando...' : 'Gerar relatório'}</span>
+                      </button>
+                      {erroRelatorioIaf && (<p className="mt-1 max-w-xs text-right text-xs font-bold text-red-600">{erroRelatorioIaf}</p>)}
+                    </div>
+                  )}
+                  <button type="button" onClick={fecharModalValExp} className="w-10 h-10 rounded-full hover:bg-gray-50 text-gray-400 flex items-center justify-center"><X size={20} /></button>
+                </div>
+                <DataAtualizacaoBases bases={basesModalValorExpandido} atualizacoes={atualizacoesBasesVD} />
               </div>
             </div>
 
@@ -24732,9 +24848,12 @@ const enviarArquivo = async (tipo) => {
                   <p className="text-sm text-gray-400 mt-1 leading-relaxed">{modalDetalhes.subtitulo}</p>
                 ) : null}
               </div>
-              <button onClick={() => setModalDetalhes(null)} className="text-[#7c1f31] hover:text-[#7c1f31] bg-[#fff3f5] rounded-full p-2 shrink-0 hover:bg-[#ffe5eb]">
-                <X size={20} />
-              </button>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <button onClick={() => setModalDetalhes(null)} className="text-[#7c1f31] hover:text-[#7c1f31] bg-[#fff3f5] rounded-full p-2 shrink-0 hover:bg-[#ffe5eb]">
+                  <X size={20} />
+                </button>
+                <DataAtualizacaoBases bases={modalDetalhes.bases || []} atualizacoes={atualizacoesBasesVD} />
+              </div>
             </div>
 
             <div className="p-5 sm:p-6 space-y-5 overflow-y-auto">
