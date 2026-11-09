@@ -611,6 +611,18 @@
   .dash-kpis-topo > .kpi-topo-largo { grid-column: auto; }
 }
 
+/* 5 cards (Metas por Estruturas): 3 colunas no tablet, linha única a partir de 900px. */
+@container (min-width: 700px) {
+  .dash-kpis-topo.dash-kpis-topo-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container (min-width: 900px) {
+  .dash-kpis-topo.dash-kpis-topo-5 {
+    grid-template-columns:
+      minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+  .dash-kpis-topo-5 > .kpi-topo-largo { grid-column: auto; }
+}
+
 .kpi-topo-card {
   container-type: inline-size;
   display: flex;

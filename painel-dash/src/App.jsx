@@ -14709,138 +14709,38 @@ const enviarArquivo = async (tipo) => {
         </div>
         {erroMetas && (<div className="rounded-xl p-4 font-medium text-sm bg-red-50 border border-red-100 text-red-600">{erroMetas}</div>)}
         {visaoMetas === 'estruturas' && (
-          <div className="dash-dashboard-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-            <CardMini
-              titulo="Faturamento Geral"
-              valor={formatarAbrev(dadosMetas?.realizado_total_geral)}
-              percentual={calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral)}
-              labelMeta="Meta Faturamento:"
-              valorMeta={formatarAbrev(dadosMetas?.meta_total_geral)}
-              onClickExpandir={abrirDetalheFaturamentoGeralMetas}
+          <GradeCardsTopo cincoCards>
+            <CardKpi titulo="Faturamento Geral" valor={formatarAbrev(dadosMetas?.realizado_total_geral)} percentual={calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral)} cor={corPorFaixaMeta(calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral))} labelMeta="Meta Faturamento" valorMeta={formatarAbrev(dadosMetas?.meta_total_geral)} onAbrir={abrirDetalheFaturamentoGeralMetas} />
+            <CardKpi titulo="Realizado Diário" valor={formatarAbrev(dados?.realizado_diario)} percentual={calcPerc(dados?.realizado_diario, dados?.meta_diaria)} cor={corPorFaixaMeta(calcPerc(dados?.realizado_diario, dados?.meta_diaria))} labelMeta="Meta Diária" valorMeta={formatarAbrev(dados?.meta_diaria)} onAbrir={abrirDetalheRealizadoDiarioMetas} />
+            <CardKpi titulo="Eudora Geral" valor={formatarAbrev(eudoraGeral)} percentual={percentualEudoraGeral} cor={corPorFaixaMeta(percentualEudoraGeral)} labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraGeralPercentual, 1)}%)`} valorMeta={formatarAbrev(metaEudoraGeralValor)} onAbrir={abrirDetalheEudoraGeralMetas} />
+            <CardIndicadores
+              onAbrir={() => abrirModalValExp(
+                'Indicadores',
+                `${formatarNumeroBR(percentualAtividadeGeral, 1)}%`,
+                'Resumo dos indicadores das estruturas.',
+                [
+                  { label: 'MAKE', valor: `${formatarNumeroBR(percentualMakeGeral, 1)}% · meta ${formatarNumeroBR(metaMakeGeralPercentual, 1)}%` },
+                  { label: 'CABELO', valor: `${formatarNumeroBR(percentualCabeloGeral, 1)}% · meta ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%` },
+                  { label: 'MULTIMARCAS', valor: `${formatarNumeroBR(percentualMultimarcasGeral, 1)}% · meta ${formatarNumeroBR(metaMultimarcasGeralPercentual, 1)}%` },
+                  { label: 'ATIVIDADE', valor: `${formatarNumeroBR(percentualAtividadeGeral, 1)}% · meta ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%` },
+                ]
+              )}
+              itens={[
+                { id: 'make', nome: 'Make', icone: 'make', valor: percentualMakeGeral, meta: metaMakeGeralPercentual, atingimento: calcPerc(percentualMakeGeral, metaMakeGeralPercentual), cor: corPorFaixaMeta(calcPerc(percentualMakeGeral, metaMakeGeralPercentual)), onClick: () => abrirDetIndicadorDashboard('MAKE') },
+                { id: 'cabelo', nome: 'Cabelo', icone: 'cabelo', valor: percentualCabeloGeral, meta: metaCabeloGeralPercentual, atingimento: calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual), cor: corPorFaixaMeta(calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)), onClick: () => abrirDetIndicadorDashboard('CABELO') },
+                { id: 'multi', nome: 'Multi', icone: 'multi', valor: percentualMultimarcasGeral, meta: metaMultimarcasGeralPercentual, atingimento: calcPerc(percentualMultimarcasGeral, metaMultimarcasGeralPercentual), cor: corPorFaixaMeta(calcPerc(percentualMultimarcasGeral, metaMultimarcasGeralPercentual)), onClick: () => abrirDetIndicadorDashboard('MULTIMARCAS') },
+                { id: 'atividade', nome: 'Atividade', icone: 'atividade', valor: percentualAtividadeGeral, meta: metaAtividadeGeralPercentual, atingimento: calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual), cor: corPorFaixaMeta(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)), onClick: () => abrirDetAtiv() },
+              ]}
             />
-
-            <CardMini
-              titulo="Realizado Diário"
-              valor={formatarAbrev(dados?.realizado_diario)}
-              percentual={calcPerc(dados?.realizado_diario, dados?.meta_diaria)}
-              labelMeta="Meta Diária:"
-              valorMeta={formatarAbrev(dados?.meta_diaria)}
-              onClickExpandir={abrirDetalheRealizadoDiarioMetas}
+            <CardDesempenho
+              onAbrir={() => abrirDesempenhoDetalhado('RPA')}
+              itens={[
+                { nome: 'RPA', valor: formatarMoeda(rpaGeral), cor: corPorFaixaMeta(calcPerc(rpaGeral, dadosMetas?.meta_rpa_geral)), onClick: () => abrirDesempenhoDetalhado('RPA') },
+                { nome: 'Tkt. médio', valor: formatarMoeda(tktGeral), cor: corPorFaixaMeta(calcPerc(tktGeral, dadosMetas?.meta_tkt_medio_geral)), onClick: () => abrirDesempenhoDetalhado('TKT') },
+                { nome: 'UPA', valor: formatarNumeroBR(upaGeral, 1), cor: corPorFaixaMeta(calcPerc(upaGeral, dadosMetas?.meta_upa_geral)), onClick: () => abrirDesempenhoDetalhado('UPA') },
+              ]}
             />
-
-            <CardMini
-              titulo="Eudora Geral"
-              valor={formatarAbrev(eudoraGeral)}
-              percentual={percentualEudoraGeral}
-              labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraGeralPercentual, 1)}%):`}
-              valorMeta={formatarAbrev(metaEudoraGeralValor)}
-              onClickExpandir={abrirDetalheEudoraGeralMetas}
-            />
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 transition-all hover:shadow-md p-2.5">
-              <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
-                <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</h3>
-                <Eye size={14} className="text-white shrink-0" />
-              </div>
-              <div className="p-2.5 pt-3 grid grid-cols-2 gap-2 flex-1">
-                <button
-                  type="button"
-                  onClick={() => abrirDetIndicadorDashboard('MAKE')}
-                  className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
-                  style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualMakeGeral, metaMakeGeralPercentual)) }}
-                  title={`MAKE: ${formatarNumeroBR(percentualMakeGeral, 1)}% | Meta: ${formatarNumeroBR(metaMakeGeralPercentual, 1)}%`}
-                >
-                  <span className="text-[9px] sm:text-[10px] font-medium truncate">MAKE</span>
-                  <span className="text-[9px] sm:text-[10px] font-medium shrink-0">{percentualMakeGeral.toFixed(1)}%</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => abrirDetIndicadorDashboard('CABELO')}
-                  className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
-                  style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualCabeloGeral, metaCabeloGeralPercentual)) }}
-                  title={`CABELO: ${formatarNumeroBR(percentualCabeloGeral, 1)}% | Meta: ${formatarNumeroBR(metaCabeloGeralPercentual, 1)}%`}
-                >
-                  <span className="text-[9px] sm:text-[10px] font-medium truncate">CABELO</span>
-                  <span className="text-[9px] sm:text-[10px] font-medium shrink-0">{percentualCabeloGeral.toFixed(1)}%</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => abrirDetIndicadorDashboard('MULTIMARCAS')}
-                  className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
-                  style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualMultimarcasGeral, metaMultimarcasGeralPercentual)) }}
-                  title={`MULTIMARCAS: ${formatarNumeroBR(percentualMultimarcasGeral, 1)}% | Meta: ${formatarNumeroBR(metaMultimarcasGeralPercentual, 1)}%`}
-                >
-                  <span className="text-[8px] sm:text-[9px] font-medium truncate">MULTI.</span>
-                  <span className="text-[9px] sm:text-[10px] font-medium shrink-0">{percentualMultimarcasGeral.toFixed(1)}%</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={abrirDetAtiv}
-                  className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-all min-w-0 hover:brightness-95"
-                  style={{ backgroundColor: corPorFaixaMeta(calcPerc(percentualAtividadeGeral, metaAtividadeGeralPercentual)) }}
-                  title={`ATIVIDADE: ${formatarNumeroBR(percentualAtividadeGeral, 1)}% | Meta: ${formatarNumeroBR(metaAtividadeGeralPercentual, 1)}%`}
-                >
-                  <span className="text-[9px] sm:text-[10px] font-medium truncate">ATIV.</span>
-                  <span className="text-[9px] sm:text-[10px] font-medium shrink-0">{percentualAtividadeGeral.toFixed(1)}%</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 transition-all hover:shadow-md p-2.5">
-              <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
-                <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Desempenho</h3>
-              </div>
-              <div className="p-2.5 pt-3 space-y-1.5 flex-1">
-                <button
-                  type="button"
-                  onClick={() => abrirDesempenhoDetalhado('RPA')}
-                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
-                  title={`RPA: ${formatarMoeda(rpaGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_rpa_geral)}`}
-                >
-                  <span className="text-[9px] sm:text-[10px] font-medium uppercase truncate">RPA</span>
-                  <span
-                    className="text-[9px] sm:text-[10px] font-medium shrink-0"
-                    style={{ color: corPorFaixaMeta(calcPerc(rpaGeral, dadosMetas?.meta_rpa_geral)) }}
-                  >
-                    {formatarMoeda(rpaGeral)}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => abrirDesempenhoDetalhado('TKT')}
-                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
-                  title={`Ticket Médio: ${formatarMoeda(tktGeral)} | Meta: ${formatarMoeda(dadosMetas?.meta_tkt_medio_geral)}`}
-                >
-                  <span className="text-[9px] sm:text-[10px] font-medium uppercase truncate">TKT MÉD.</span>
-                  <span
-                    className="text-[9px] sm:text-[10px] font-medium shrink-0"
-                    style={{ color: corPorFaixaMeta(calcPerc(tktGeral, dadosMetas?.meta_tkt_medio_geral)) }}
-                  >
-                    {formatarMoeda(tktGeral)}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => abrirDesempenhoDetalhado('UPA')}
-                  className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"
-                  title={`UPA: ${formatarNumeroBR(upaGeral, 1)} | Meta: ${formatarNumeroBR(dadosMetas?.meta_upa_geral, 1)}`}
-                >
-                  <span className="text-[9px] sm:text-[10px] font-medium uppercase truncate">UPA</span>
-                  <span
-                    className="text-[9px] sm:text-[10px] font-medium shrink-0"
-                    style={{ color: corPorFaixaMeta(calcPerc(upaGeral, dadosMetas?.meta_upa_geral)) }}
-                  >
-                    {upaGeral.toFixed(1)}
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
+          </GradeCardsTopo>
         )}
         
         {visaoMetas === 'estruturas' && (

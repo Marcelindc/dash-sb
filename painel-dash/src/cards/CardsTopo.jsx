@@ -57,9 +57,10 @@ const Rodape = ({ label, valor, cor = '#334155', onClick, tituloClique, emLinha 
 );
 
 // Grade dos 7 cards: o layout segue a largura da área (não da janela), então funciona com ou sem menu lateral.
-export const GradeCardsTopo = ({ children }) => (
+// cincoCards: Metas por Estruturas (sem Tendência e Pedidos).
+export const GradeCardsTopo = ({ children, cincoCards = false }) => (
   <div className="dash-kpis-topo-area">
-    <div className="dash-kpis-topo">{children}</div>
+    <div className={`dash-kpis-topo ${cincoCards ? 'dash-kpis-topo-5' : ''}`}>{children}</div>
   </div>
 );
 
