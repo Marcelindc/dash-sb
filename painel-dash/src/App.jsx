@@ -15,6 +15,7 @@ import TelaGestaoNucleo from './telas/TelaGestaoNucleo';
 import TelaSolicitacoes from './telas/TelaSolicitacoes';
 import TelaRotas from './telas/TelaRotas';
 import TelaAdicoes from './telas/TelaAdicoes';
+import { GradeCardsTopo, CardKpi, CardTendencia, CardPedidos, CardIndicadores, CardDesempenho } from './cards/CardsTopo';
 
 import './dashboard-refinado.css';
 
@@ -12765,6 +12766,7 @@ const enviarArquivo = async (tipo) => {
     const metaTicket = Number(dadosMetas?.meta_tkt_medio_geral || metaResolvida?.tkt_medio || 0);
     const metaUpa = Number(dadosMetas?.meta_upa_geral || metaResolvida?.upa || 0);
     const tendenciaPositiva = Number(dados?.gap_tendencia || 0) >= 0;
+    const tendenciaAtingeMeta = calcPerc(dados?.tendencia_ciclo || 0, dados?.meta_ciclo || metaTotal) >= 100;
 
     const meiosCaptacao = [...(dados?.meios_captacao || [])]
       .sort((a, b) => Number(b?.value || 0) - Number(a?.value || 0));
@@ -12853,151 +12855,39 @@ const enviarArquivo = async (tipo) => {
           </div>
         )}
 
-        <div className="dash-dashboard-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-3">
-          <CardMini
-            titulo="Realizado Total"
-            valor={formatarAbrev(realizadoTotal)}
-            percentual={pTotal}
-            labelMeta="Meta Faturamento:"
-            valorMeta={formatarAbrev(metaTotal)}
-            onClickExpandir={abrirDetRealizadoTotal}
+        <GradeCardsTopo>
+          <CardKpi titulo="Realizado Total" valor={formatarAbrev(realizadoTotal)} percentual={pTotal} cor={corPorFaixaMeta(pTotal)} labelMeta="Meta Faturamento" valorMeta={formatarAbrev(metaTotal)} onAbrir={abrirDetRealizadoTotal} />
+          <CardKpi titulo="Realizado Diário" valor={formatarAbrev(realizadoHoje)} percentual={pDia} cor={corPorFaixaMeta(pDia)} labelMeta="Meta Diária da Estrutura" valorMeta={formatarAbrev(metaHoje)} onAbrir={abrirDetRealizadoDiario} />
+          <CardKpi titulo="Realizado Eudora" valor={formatarAbrev(dados?.realizado_eudora || 0)} percentual={pEudora} cor={corPorFaixaMeta(pEudora)} labelMeta={`Meta Eudora (${formatarNumeroBR(dados?.meta_eudora_percentual || 20, 1)}%)`} valorMeta={formatarAbrev(dados?.meta_eudora || 0)} onAbrir={abrirDetalheEudora} />
+          <CardTendencia valor={formatarAbrev(dados?.tendencia_ciclo || 0)} cor={tendenciaAtingeMeta ? '#16a34a' : '#ef4444'} positiva={tendenciaAtingeMeta} icone={tendenciaPositiva ? TrendingUp : TrendingDown} status={dados?.status_tendencia || 'Sem tendência'} labelGap="Gap Tendência" valorGap={formatarAbrev(dados?.gap_tendencia || 0)} onAbrir={abrirDetTendencia} />
+          <CardPedidos totalPedidos={formatarNumeroBR(totalPedidos, 0)} ativados={formatarNumeroBR(ativados, 0)} cancelados={formatarNumeroBR(dados?.total_cancelados || 0, 0)} />
+          <CardIndicadores
+            onAbrir={() => abrirModalValExp(
+              `Indicadores - ${escopoTexto}`,
+              `${formatarNumeroBR(pAtividade, 1)}%`,
+              'Resumo dos indicadores da estrutura vinculada.',
+              [
+                { label: 'MAKE', valor: `${formatarNumeroBR(pMake, 1)}%` },
+                { label: 'CABELO', valor: `${formatarNumeroBR(pCabelo, 1)}%` },
+                { label: 'MULTI.', valor: `${formatarNumeroBR(pMulti, 1)}%` },
+                { label: 'ATIV.', valor: `${formatarNumeroBR(pAtividade, 1)}%` },
+              ]
+            )}
+            itens={[
+              { id: 'make', nome: 'Make', icone: 'make', valor: pMake, meta: metaMake, atingimento: calcPerc(pMake, metaMake), cor: corPorFaixaMeta(calcPerc(pMake, metaMake)), onClick: () => abrirDetIndicadorDashboard('MAKE', { titulo: `MAKE - ${escopoTexto}` }) },
+              { id: 'cabelo', nome: 'Cabelo', icone: 'cabelo', valor: pCabelo, meta: metaCabelo, atingimento: calcPerc(pCabelo, metaCabelo), cor: corPorFaixaMeta(calcPerc(pCabelo, metaCabelo)), onClick: () => abrirDetIndicadorDashboard('CABELO', { titulo: `CABELO - ${escopoTexto}` }) },
+              { id: 'multi', nome: 'Multi', icone: 'multi', valor: pMulti, meta: metaMulti, atingimento: calcPerc(pMulti, metaMulti), cor: corPorFaixaMeta(calcPerc(pMulti, metaMulti)), onClick: () => abrirDetIndicadorDashboard('MULTIMARCAS', { titulo: `MULTIMARCAS - ${escopoTexto}` }) },
+              { id: 'atividade', nome: 'Atividade', icone: 'atividade', valor: pAtividade, meta: metaAtividade, atingimento: calcPerc(pAtividade, metaAtividade), cor: corPorFaixaMeta(calcPerc(pAtividade, metaAtividade)), onClick: () => abrirDetAtiv({ titulo: `Atividade - ${escopoTexto}`, estruturas: estruturasEscopoGerenteVD }) },
+            ]}
           />
-          <CardMini
-            titulo="Realizado Diário"
-            valor={formatarAbrev(realizadoHoje)}
-            percentual={pDia}
-            labelMeta="Meta Diária da Estrutura:"
-            valorMeta={formatarAbrev(metaHoje)}
-            onClickExpandir={abrirDetRealizadoDiario}
+          <CardDesempenho
+            itens={[
+              { nome: 'RPA', valor: formatarMoeda(rpa), cor: corPorFaixaMeta(calcPerc(rpa, metaRpa)) },
+              { nome: 'Tkt. médio', valor: formatarMoeda(ticket), cor: corPorFaixaMeta(calcPerc(ticket, metaTicket)) },
+              { nome: 'UPA', valor: formatarNumeroBR(upa, 1), cor: corPorFaixaMeta(calcPerc(upa, metaUpa)) },
+            ]}
           />
-          <CardMini
-            titulo="Realizado Eudora"
-            valor={formatarAbrev(dados?.realizado_eudora || 0)}
-            percentual={pEudora}
-            labelMeta={`Meta Eudora (${Number(dados?.meta_eudora_percentual || 20).toFixed(1)}%):`}
-            valorMeta={formatarAbrev(dados?.meta_eudora || 0)}
-            onClickExpandir={abrirDetalheEudora}
-          />
-          <CardMini
-            titulo="Tendência"
-            valor={formatarAbrev(dados?.tendencia_ciclo || 0)}
-            percentual={calcPerc(dados?.tendencia_ciclo || 0, dados?.meta_ciclo || metaTotal)}
-            labelMeta="Gap Tendência:"
-            valorMeta={formatarAbrev(dados?.gap_tendencia || 0)}
-            onClickExpandir={abrirDetTendencia}
-            isTendencia
-            tendenciaIcon={tendenciaPositiva ? TrendingUp : TrendingDown}
-            tendenciaStatus={dados?.status_tendencia || 'Sem tendência'}
-          />
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0">
-            <div className="grid grid-cols-2 flex-1">
-              <div className="p-3 border-r border-gray-100 flex flex-col justify-center">
-                <p className="text-[10px] font-bold uppercase text-gray-500">Total pedidos</p>
-                <p className="mt-1 text-2xl font-black text-[#048187]">{formatarNumeroBR(totalPedidos, 0)}</p>
-              </div>
-              <div className="p-3 flex flex-col justify-center">
-                <p className="text-[10px] font-bold uppercase text-gray-500">Ativados</p>
-                <p className="mt-1 text-2xl font-black text-[#048187]">{formatarNumeroBR(ativados, 0)}</p>
-              </div>
-            </div>
-            <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-              <span className="text-[9px] font-black uppercase text-gray-400">Cancelados</span>
-              <span className="text-sm font-black text-[#7c1f31]">{formatarNumeroBR(dados?.total_cancelados || 0, 0)}</span>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5 min-h-[142px] overflow-hidden">
-            <div className="bg-[#048187] rounded-[14px] px-3 py-2 flex items-center justify-between gap-2 min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</p>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  abrirModalValExp(
-                    `Indicadores - ${escopoTexto}`,
-                    `${formatarNumeroBR(pAtividade, 1)}%`,
-                    'Resumo dos indicadores da estrutura vinculada.',
-                    [
-                      { label: 'MAKE', valor: `${formatarNumeroBR(pMake, 1)}%` },
-                      { label: 'CABELO', valor: `${formatarNumeroBR(pCabelo, 1)}%` },
-                      { label: 'MULTI.', valor: `${formatarNumeroBR(pMulti, 1)}%` },
-                      { label: 'ATIV.', valor: `${formatarNumeroBR(pAtividade, 1)}%` },
-                    ]
-                  );
-                }}
-                className="text-white shrink-0 cursor-pointer"
-                title="Ver resumo dos indicadores"
-              >
-                <Eye size={14} />
-              </button>
-            </div>
-            <div className="p-2.5 pt-3 grid grid-cols-2 gap-2 flex-1">
-              {[
-                {
-                  nome: 'MAKE',
-                  valor: pMake,
-                  atingimento: calcPerc(pMake, metaMake),
-                  onClick: () => abrirDetIndicadorDashboard('MAKE', {
-                    titulo: `MAKE - ${escopoTexto}`,
-                  }),
-                },
-                {
-                  nome: 'CABELO',
-                  valor: pCabelo,
-                  atingimento: calcPerc(pCabelo, metaCabelo),
-                  onClick: () => abrirDetIndicadorDashboard('CABELO', {
-                    titulo: `CABELO - ${escopoTexto}`,
-                  }),
-                },
-                {
-                  nome: 'MULTI.',
-                  valor: pMulti,
-                  atingimento: calcPerc(pMulti, metaMulti),
-                  onClick: () => abrirDetIndicadorDashboard('MULTIMARCAS', {
-                    titulo: `MULTIMARCAS - ${escopoTexto}`,
-                  }),
-                },
-                {
-                  nome: 'ATIV.',
-                  valor: pAtividade,
-                  atingimento: calcPerc(pAtividade, metaAtividade),
-                  onClick: () => abrirDetAtiv({
-                    titulo: `Atividade - ${escopoTexto}`,
-                    estruturas: estruturasEscopoGerenteVD,
-                  }),
-                },
-              ].map(({ nome, valor, atingimento, onClick }) => (
-                <button
-                  key={nome}
-                  type="button"
-                  onClick={onClick}
-                  className="relative z-[2] w-full rounded-lg px-2.5 py-1.5 flex items-center justify-between text-white transition-all hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#048187]/30 cursor-pointer"
-                  style={{ backgroundColor: corPorFaixaMeta(atingimento) }}
-                  title={`Abrir detalhamento de ${nome}`}
-                >
-                  <span className="text-[9px] font-black">{nome}</span>
-                  <span className="text-[9px] font-black">{formatarNumeroBR(valor, 1)}%</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2.5 min-h-[142px] overflow-hidden">
-            <div className="bg-[#048187] rounded-[14px] px-3 py-2 flex items-center justify-between gap-2 min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-wide text-white truncate">Desempenho</p>
-            </div>
-            <div className="p-2 pt-2.5 space-y-1 flex-1">
-              {[
-                ['RPA', formatarMoeda(rpa), calcPerc(rpa, metaRpa)],
-                ['TKT MÉD.', formatarMoeda(ticket), calcPerc(ticket, metaTicket)],
-                ['UPA', formatarNumeroBR(upa, 1), calcPerc(upa, metaUpa)],
-              ].map(([nome, valor, atingimento]) => (
-                <div key={nome} className="rounded border border-gray-100 bg-[#fcfbf7] px-2 py-1 flex items-center justify-between min-h-[24px]">
-                  <span className="text-[9px] font-black text-gray-600">{nome}</span>
-                  <span className="text-[9px] font-black" style={{ color: corPorFaixaMeta(atingimento) }}>{valor}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        </GradeCardsTopo>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
@@ -13477,7 +13367,8 @@ const enviarArquivo = async (tipo) => {
     const corRpaDashboard = corPorFaixaMeta(calcPerc(rpaDashboard, resumoMetasDashboard?.meta_rpa_geral));
     const corTktDashboard = corPorFaixaMeta(calcPerc(tktDashboard, resumoMetasDashboard?.meta_tkt_medio_geral));
     const corUpaDashboard = corPorFaixaMeta(calcPerc(upaDashboard, resumoMetasDashboard?.meta_upa_geral));
-    const mCap = [...(dados.meios_captacao || [])].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)); const rMar = [...(dados.realizado_por_marca || [])].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)); const rEst = [...(dados.realizado_por_estrutura || [])].sort((a, b) => Number(b.ValorPraticado || 0) - Number(a.ValorPraticado || 0)); const vCan = [...(dados.vendas_por_canal || [])].sort((a, b) => Number(b.receita_total || 0) - Number(a.receita_total || 0));
+    const tendenciaAtingeMetaDashboard = calcPerc(dados.tendencia_ciclo, dados.meta_ciclo || metaFaturamentoDashboard) >= 100;
+    const mCap =[...(dados.meios_captacao || [])].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)); const rMar = [...(dados.realizado_por_marca || [])].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)); const rEst = [...(dados.realizado_por_estrutura || [])].sort((a, b) => Number(b.ValorPraticado || 0) - Number(a.ValorPraticado || 0)); const vCan = [...(dados.vendas_por_canal || [])].sort((a, b) => Number(b.receita_total || 0) - Number(a.receita_total || 0));
     const tCap = mCap.reduce((acc, curr) => acc + Number(curr.value || 0), 0); const altEst = Math.max(300, rEst.length * 48);
     const consDataDash = [...(dados.realizado_por_consultor || [])].sort((a, b) => Number(b.ValorPraticado || 0) - Number(a.ValorPraticado || 0));
 
@@ -13680,38 +13571,46 @@ const enviarArquivo = async (tipo) => {
           </div>
           <p className="text-xs font-medium text-gray-400 text-left sm:text-right">{dados.ultima_atualizacao_pedidos ? `Última atualização (Base Pedidos): ${dados.ultima_atualizacao_pedidos}` : 'Nenhum upload de Pedidos'}</p>
         </div>
-        <div className="dash-dashboard-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-3">
-          <CardMini titulo="Realizado Total" valor={formatarAbrev(dados.valor_total)} percentual={pTot} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(metaFaturamentoDashboard)} onClickExpandir={abrirDetRealizadoTotal} />
-          <CardMini titulo="Realizado Diário" valor={formatarAbrev(dados.realizado_diario || 0)} percentual={pDia} labelMeta="Meta Diária:" valorMeta={formatarAbrev(dados.meta_diaria || 0)} onClickExpandir={abrirDetRealizadoDiario} />
-          <CardMini titulo="Realizado Eudora" valor={formatarAbrev(dados.realizado_eudora || 0)} percentual={pEudora} labelMeta={`Meta Eudora (${Number(dados.meta_eudora_percentual || 20).toFixed(1)}%):`} valorMeta={formatarAbrev(dados.meta_eudora || 0)} onClickExpandir={abrirDetalheEudora} />
-          <CardMini titulo="Tendência" valor={formatarAbrev(dados.tendencia_ciclo || 0)} percentual={calcPerc(dados.tendencia_ciclo, dados.meta_ciclo || metaFaturamentoDashboard)} labelMeta="Gap Tendência:" valorMeta={formatarAbrev(dados.gap_tendencia || 0)} onClickExpandir={abrirDetTendencia} isTendencia tendenciaIcon={tPos ? TrendingUp : TrendingDown} tendenciaStatus={dados.status_tendencia || 'Sem tendência'} />
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full min-w-0 transition-transform hover:shadow-md min-h-[168px]">
-            <div className="grid grid-cols-2 flex-1 min-w-0"><div className="p-3 sm:p-4 border-r border-gray-100 min-w-0 flex flex-col justify-center"><h3 className="text-[10px] font-bold uppercase text-gray-500 mb-1 truncate pr-1">Total pedidos</h3><p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-[#048187] tracking-tighter truncate">{Number(dados.total_pedidos || 0).toLocaleString('pt-BR')}</p></div><div className="p-3 sm:p-4 relative min-w-0 flex flex-col justify-center"><button onClick={abrirDetAtiv} className="absolute top-2 right-2 text-[#048187] hover:text-[#036b70] bg-[#e6f6f7] p-1.5 rounded-full z-10"><Eye size={12} /></button><h3 className="text-[10px] font-bold uppercase text-gray-500 mb-1 pr-4 truncate">Ativados</h3><p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-[#048187] tracking-tighter truncate">{Number(dados.revendedores_ativados || 0).toLocaleString('pt-BR')}</p></div></div>
-            <div className="p-2 sm:p-3 border-t border-gray-50 bg-gray-50/50 flex items-center justify-between min-w-0 gap-2"><p className="text-[9px] font-bold text-gray-400 uppercase truncate">Cancelados</p><button onClick={abrirDetCancelados} className="text-sm font-bold text-[#712231] hover:underline tracking-tighter flex items-center gap-1 truncate">{Number(dados.total_cancelados || 0).toLocaleString('pt-BR')} <Eye size={14}/></button></div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 transition-transform hover:shadow-md p-2.5">
-            <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
-              <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Indicadores</h3>
-              <Eye size={14} className="text-white shrink-0" />
-            </div>
-            <div className="p-2.5 pt-3 grid grid-cols-2 gap-2 flex-1">
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('MAKE')} className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMakeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">MAKE</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMk.toFixed(1)}%</span></button>
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('CABELO')} className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corCabeloDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">CABELO</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pCb.toFixed(1)}%</span></button>
-              <button type="button" onClick={() => abrirDetIndicadorDashboard('MULTIMARCAS')} className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corMultimarcasDashboard }}><span className="text-[8px] sm:text-[9px] font-bold truncate">MULTI.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{pMulti.toFixed(1)}%</span></button>
-              <button type="button" onClick={abrirDetAtiv} className="w-full text-white rounded-lg px-2.5 py-1.5 flex justify-between items-center transition-colors min-w-0" style={{ backgroundColor: corAtividadeDashboard }}><span className="text-[9px] sm:text-[10px] font-bold truncate">ATIV.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0">{Number(dados.percentual_atividade_geral || 0).toFixed(1)}%</span></button>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 transition-transform hover:shadow-md p-2.5">
-            <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
-              <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate">Desempenho</h3>
-            </div>
-            <div className="p-2.5 pt-3 space-y-1.5 flex-1">
-              <button type="button" onClick={() => abrirDetDesempenhoDashboard('RPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">RPA</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corRpaDashboard }}>{formatarMoeda(rpaDashboard)}</span></button>
-              <button type="button" onClick={() => abrirDetDesempenhoDashboard('TKT')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">TKT MÉD.</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corTktDashboard }}>{formatarMoeda(tktDashboard)}</span></button>
-              <button type="button" onClick={() => abrirDetDesempenhoDashboard('UPA')} className="w-full bg-[#fcfbf7] border border-gray-100 text-gray-700 rounded-lg px-2.5 py-1.5 flex justify-between items-center min-w-0 hover:bg-[#e6f6f7] transition-colors"><span className="text-[9px] sm:text-[10px] font-bold uppercase truncate">UPA</span><span className="text-[9px] sm:text-[10px] font-bold shrink-0" style={{ color: corUpaDashboard }}>{Number(upaDashboard).toFixed(1)}</span></button>
-            </div>
-          </div>
-        </div>
+        <GradeCardsTopo>
+          <CardKpi titulo="Realizado Total" valor={formatarAbrev(dados.valor_total)} percentual={pTot} cor={corPorFaixaMeta(pTot)} labelMeta="Meta Faturamento" valorMeta={formatarAbrev(metaFaturamentoDashboard)} onAbrir={abrirDetRealizadoTotal} />
+          <CardKpi titulo="Realizado Diário" valor={formatarAbrev(dados.realizado_diario || 0)} percentual={pDia} cor={corPorFaixaMeta(pDia)} labelMeta="Meta Diária" valorMeta={formatarAbrev(dados.meta_diaria || 0)} onAbrir={abrirDetRealizadoDiario} />
+          <CardKpi titulo="Realizado Eudora" valor={formatarAbrev(dados.realizado_eudora || 0)} percentual={pEudora} cor={corPorFaixaMeta(pEudora)} labelMeta={`Meta Eudora (${formatarNumeroBR(dados.meta_eudora_percentual || 20, 1)}%)`} valorMeta={formatarAbrev(dados.meta_eudora || 0)} onAbrir={abrirDetalheEudora} />
+          <CardTendencia valor={formatarAbrev(dados.tendencia_ciclo || 0)} cor={tendenciaAtingeMetaDashboard ? '#16a34a' : '#ef4444'} positiva={tendenciaAtingeMetaDashboard} icone={tPos ? TrendingUp : TrendingDown} status={dados.status_tendencia || 'Sem tendência'} labelGap="Gap Tendência" valorGap={formatarAbrev(dados.gap_tendencia || 0)} onAbrir={abrirDetTendencia} />
+          <CardPedidos
+            totalPedidos={formatarNumeroBR(dados.total_pedidos, 0)}
+            ativados={formatarNumeroBR(dados.revendedores_ativados, 0)}
+            cancelados={formatarNumeroBR(dados.total_cancelados, 0)}
+            onAbrirAtivados={() => abrirDetAtiv()}
+            onAbrirCancelados={abrirDetCancelados}
+          />
+          <CardIndicadores
+            onAbrir={() => abrirModalValExp(
+              'Indicadores',
+              `${formatarNumeroBR(dados.percentual_atividade_geral, 1)}%`,
+              'Resumo dos indicadores com os filtros atuais.',
+              [
+                { label: 'MAKE', valor: `${formatarNumeroBR(pMk, 1)}% · meta ${formatarNumeroBR(metaMakeDashboard, 1)}%` },
+                { label: 'CABELO', valor: `${formatarNumeroBR(pCb, 1)}% · meta ${formatarNumeroBR(metaCabeloDashboard, 1)}%` },
+                { label: 'MULTIMARCAS', valor: `${formatarNumeroBR(pMulti, 1)}% · meta ${formatarNumeroBR(metaMultimarcasDashboard, 1)}%` },
+                { label: 'ATIVIDADE', valor: `${formatarNumeroBR(dados.percentual_atividade_geral, 1)}% · meta ${formatarNumeroBR(metaAtividadeDashboard, 1)}%` },
+              ]
+            )}
+            itens={[
+              { id: 'make', nome: 'Make', icone: 'make', valor: pMk, meta: metaMakeDashboard, atingimento: atingimentoMakeDashboard, cor: corMakeDashboard, onClick: () => abrirDetIndicadorDashboard('MAKE') },
+              { id: 'cabelo', nome: 'Cabelo', icone: 'cabelo', valor: pCb, meta: metaCabeloDashboard, atingimento: atingimentoCabeloDashboard, cor: corCabeloDashboard, onClick: () => abrirDetIndicadorDashboard('CABELO') },
+              { id: 'multi', nome: 'Multi', icone: 'multi', valor: pMulti, meta: metaMultimarcasDashboard, atingimento: atingimentoMultimarcasDashboard, cor: corMultimarcasDashboard, onClick: () => abrirDetIndicadorDashboard('MULTIMARCAS') },
+              { id: 'atividade', nome: 'Atividade', icone: 'atividade', valor: Number(dados.percentual_atividade_geral || 0), meta: metaAtividadeDashboard, atingimento: atingimentoAtividadeDashboard, cor: corAtividadeDashboard, onClick: () => abrirDetAtiv() },
+            ]}
+          />
+          <CardDesempenho
+            onAbrir={() => abrirDetDesempenhoDashboard('RPA')}
+            itens={[
+              { nome: 'RPA', valor: formatarMoeda(rpaDashboard), cor: corRpaDashboard, onClick: () => abrirDetDesempenhoDashboard('RPA') },
+              { nome: 'Tkt. médio', valor: formatarMoeda(tktDashboard), cor: corTktDashboard, onClick: () => abrirDetDesempenhoDashboard('TKT') },
+              { nome: 'UPA', valor: formatarNumeroBR(upaDashboard, 1), cor: corUpaDashboard, onClick: () => abrirDetDesempenhoDashboard('UPA') },
+            ]}
+          />
+        </GradeCardsTopo>
 
         <div className="dash-dashboard-charts grid grid-cols-1 lg:grid-cols-4 gap-4 xl:gap-6 mt-6">
           <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6 min-w-0">

@@ -580,3 +580,123 @@
     min-height: 140px !important;
   }
 }
+
+
+/* ==========================================================================
+   V2 — cards do topo da Visão Geral VD e do Acompanhamento VD (src/cards/CardsTopo.jsx)
+   Pela largura da área (container query), não da janela:
+   até 700px: 2 colunas · até 1150px: 4 colunas (Indicadores ocupa 2) · acima: uma linha só.
+   ========================================================================== */
+
+.dash-kpis-topo-area { container-type: inline-size; }
+
+.dash-kpis-topo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+  gap: .6rem;
+}
+.dash-kpis-topo > .kpi-topo-largo { grid-column: span 2; }
+
+@container (min-width: 700px) {
+  .dash-kpis-topo { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@container (min-width: 1150px) {
+  .dash-kpis-topo {
+    grid-template-columns:
+      minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)
+      minmax(0, .85fr) minmax(0, 1.5fr) minmax(0, .95fr);
+  }
+  .dash-kpis-topo > .kpi-topo-largo { grid-column: auto; }
+}
+
+.kpi-topo-card {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 150px;
+  padding: .5rem;
+  background: #fff;
+  border: 1px solid #e6eef0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .05);
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+.kpi-topo-card:hover {
+  box-shadow: 0 10px 24px rgba(4, 129, 135, .10);
+  transform: translateY(-1px);
+}
+
+.kpi-topo-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  min-width: 0;
+  min-height: 30px;
+  padding: .3rem .35rem .3rem .65rem;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #048187 0%, #0a979d 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+
+.kpi-topo-olho {
+  background: rgba(255, 255, 255, .16);
+  transition: background-color .15s ease;
+}
+.kpi-topo-olho:hover { background: rgba(255, 255, 255, .3); }
+
+.kpi-topo-corpo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: .55rem .35rem .45rem;
+}
+
+/* O valor encolhe junto com o card: em telas de 1280–1440px os 7 cards dividem a linha. */
+.kpi-topo-valor {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: clamp(15px, 12.5cqi, 22px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.kpi-topo-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  min-width: 0;
+  margin: 0 .2rem;
+  padding: .4rem .15rem 0;
+  border-top: 1px dashed #e3eaec;
+}
+
+/* Card estreito: rótulo em cima, valor embaixo, para nenhum dos dois ser cortado. */
+@container (max-width: 219px) {
+  .kpi-topo-rodape:not(.kpi-topo-rodape-linha) {
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    padding-top: .3rem;
+  }
+}
+
+.kpi-topo-barra { transition: width .6s ease; }
+.kpi-topo-anel { transition: stroke-dashoffset .6s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-topo-card,
+  .kpi-topo-barra,
+  .kpi-topo-anel { transition: none; }
+  .kpi-topo-card:hover { transform: none; }
+}
