@@ -613,14 +613,14 @@
 
 /* 5 cards (Metas por Estruturas): 3 colunas no tablet, linha única a partir de 900px. */
 @container (min-width: 700px) {
-  .dash-kpis-topo.dash-kpis-topo-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dash-kpis-topo.dash-kpis-topo-cinco { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @container (min-width: 900px) {
-  .dash-kpis-topo.dash-kpis-topo-5 {
+  .dash-kpis-topo.dash-kpis-topo-cinco {
     grid-template-columns:
       minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
   }
-  .dash-kpis-topo-5 > .kpi-topo-largo { grid-column: auto; }
+  .dash-kpis-topo-cinco > .kpi-topo-largo { grid-column: auto; }
 }
 
 /* 7 cards do mesmo tamanho (LOJA Geral): 4 colunas no tablet, linha única acima de 1150px. */
@@ -722,6 +722,18 @@
     padding-top: .3rem;
   }
 }
+
+/* Rodapé do card Indicadores: um % embaixo de cada anel, na mesma linha dos outros rodapés. */
+.kpi-topo-rodape.kpi-topo-rodape-grade {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .25rem;
+  align-items: end;
+}
+
+/* Anel do indicador: ocupa a coluna até 64px; ícone em ~38% do anel. */
+.kpi-topo-anel-caixa { width: min(100%, 64px); aspect-ratio: 1 / 1; }
+.kpi-topo-anel-icone { width: 38%; height: 38%; }
 
 .kpi-topo-barra { transition: width .6s ease; }
 .kpi-topo-anel { transition: stroke-dashoffset .6s ease; }

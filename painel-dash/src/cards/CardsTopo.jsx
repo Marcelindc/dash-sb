@@ -130,14 +130,15 @@ export const CardPedidos = ({ totalPedidos, ativados, cancelados, onAbrirAtivado
   </Casca>
 );
 
+// O anel ocupa a largura da coluna até 64px (CSS kpi-topo-anel-caixa); o desenho escala pelo viewBox.
 const AnelIndicador = ({ atingimento, cor, children }) => {
   const tamanho = 46;
-  const espessura = 4.5;
+  const espessura = 4.2;
   const raio = (tamanho - espessura) / 2;
   const circunferencia = 2 * Math.PI * raio;
   return (
-    <span className="relative inline-flex items-center justify-center shrink-0" style={{ width: tamanho, height: tamanho }}>
-      <svg width={tamanho} height={tamanho} viewBox={`0 0 ${tamanho} ${tamanho}`} className="absolute inset-0 -rotate-90" aria-hidden="true">
+    <span className="kpi-topo-anel-caixa relative inline-flex items-center justify-center shrink-0">
+      <svg viewBox={`0 0 ${tamanho} ${tamanho}`} className="absolute inset-0 w-full h-full -rotate-90" aria-hidden="true">
         <circle cx={tamanho / 2} cy={tamanho / 2} r={raio} fill="none" stroke="#edf2f3" strokeWidth={espessura} />
         <circle
           className="kpi-topo-anel"
@@ -159,30 +160,37 @@ const AnelIndicador = ({ atingimento, cor, children }) => {
 
 // itens: [{ id, nome, icone, valor (% do indicador), meta, atingimento, cor, onClick }]
 // No celular e no tablet ocupa 2 colunas (kpi-topo-largo) para os 4 anéis caberem.
-// mostrarMeta: escreve a meta embaixo de cada % (detalhe da estrutura em Metas).
+// Os % ficam no rodapé, na mesma linha do rodapé dos outros cards (Meta, Gap, Cancelados).
+// mostrarMeta: escreve "Meta x%" em cima de cada % (detalhe da estrutura em Metas), como rótulo e valor dos outros rodapés.
 export const CardIndicadores = ({ itens, onAbrir, mostrarMeta = false }) => (
   <Casca titulo="Indicadores" onAbrir={onAbrir} tituloOlho="Ver resumo dos indicadores" className="kpi-topo-largo">
     <div className="kpi-topo-corpo">
       <div className="grid grid-cols-4 gap-1">
-      {itens.map(({ id, nome, icone, valor, meta, atingimento, cor, onClick }) => (
-        <button
-          key={id}
-          type="button"
-          onClick={onClick}
-          className="group flex flex-col items-center gap-1 min-w-0 rounded-xl py-1 hover:bg-[#f3f8f8] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#048187]/30"
-          title={`${nome}: ${formatarPercentual(valor)}${meta ? ` (meta ${formatarPercentual(meta)})` : ''} — abrir detalhamento`}
-        >
-          <span className="max-w-full text-[8.5px] font-bold uppercase tracking-wide text-[#64748b] truncate">{nome}</span>
-          <AnelIndicador atingimento={atingimento} cor={cor}>
-            <IconeIndicador nome={icone} />
-          </AnelIndicador>
-          <span className="text-[11px] leading-none font-black" style={{ color: cor }}>{formatarPercentual(valor)}</span>
-          {mostrarMeta ? (
-            <span className="max-w-full text-[8.5px] leading-none font-bold text-[#94a3b8] truncate">meta {formatarPercentual(meta)}</span>
-          ) : null}
-        </button>
-      ))}
+        {itens.map(({ id, nome, icone, valor, meta, atingimento, cor, onClick }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={onClick}
+            className="w-full flex flex-col items-center gap-1 min-w-0 rounded-xl py-1 hover:bg-[#f3f8f8] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#048187]/30"
+            title={`${nome}: ${formatarPercentual(valor)}${meta ? ` (meta ${formatarPercentual(meta)})` : ''} — abrir detalhamento`}
+          >
+            <span className="max-w-full text-[8.5px] font-bold uppercase tracking-wide text-[#64748b] truncate">{nome}</span>
+            <AnelIndicador atingimento={atingimento} cor={cor}>
+              <span className="kpi-topo-anel-icone inline-flex"><IconeIndicador nome={icone} tamanho="100%" /></span>
+            </AnelIndicador>
+          </button>
+        ))}
       </div>
+    </div>
+    <div className="kpi-topo-rodape kpi-topo-rodape-grade">
+      {itens.map(({ id, valor, meta, cor }) => (
+        <div key={id} className="flex flex-col items-center gap-[1px] min-w-0">
+          {mostrarMeta ? (
+            <span className="max-w-full text-[9px] font-bold uppercase text-[#94a3b8] truncate">Meta {formatarPercentual(meta)}</span>
+          ) : null}
+          <span className="text-[11px] font-black" style={{ color: cor }}>{formatarPercentual(valor)}</span>
+        </div>
+      ))}
     </div>
   </Casca>
 );
