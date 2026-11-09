@@ -628,6 +628,15 @@
   .dash-kpis-topo.dash-kpis-topo-iguais { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 }
 
+/* Detalhe da estrutura em Metas: Faturamento, Eudora, Indicadores (largo), RPA, Ticket, UPA, Adições. */
+@container (min-width: 1150px) {
+  .dash-kpis-topo.dash-kpis-topo-detalhe {
+    grid-template-columns:
+      minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr)
+      minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
 /* 4 por linha (Histórico, 8 cards). */
 @container (min-width: 700px) {
   .dash-kpis-topo.dash-kpis-topo-quatro { grid-template-columns: repeat(4, minmax(0, 1fr)); }

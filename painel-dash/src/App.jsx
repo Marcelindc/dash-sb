@@ -3824,45 +3824,6 @@ const TooltipGrafico = ({ active, payload }) => {
   return null;
 };
 
-const CardMetaNova = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpandir }) => {
-  const percentualNumero = Number(percentual || 0);
-  const percFix = Math.min(percentualNumero, 100);
-  const corDesempenho = percentual !== undefined ? corPorFaixaMeta(percentualNumero) : '#048187';
-  return (
-    <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full min-w-0 transition-all hover:shadow-md">
-      <div className="min-w-0">
-        <div className="flex items-center justify-between mb-0.5 min-w-0">
-          <h3 className="text-[10px] font-bold uppercase text-gray-500 truncate pr-1 tracking-wide">{titulo}</h3>
-          {onClickExpandir && (
-            <button
-              type="button"
-              onClick={onClickExpandir}
-              className="text-[#048187] hover:text-[#036b70] bg-[#e6f6f7] p-1.5 rounded-full shrink-0 transition-colors"
-            >
-              <Eye size={14} />
-            </button>
-          )}
-        </div>
-        <p className="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tighter truncate leading-tight mt-0.5" style={{ color: corDesempenho }}>{valor}</p>
-        {percentual !== undefined && (
-          <div className="mt-1.5">
-            <p className="text-[9px] sm:text-[10px] font-bold truncate mb-1" style={{ color: corDesempenho }}>
-              {percentualNumero.toFixed(1)}% <span className="text-gray-400 font-medium">da meta</span>
-            </p>
-            <div className="w-full bg-gray-100 h-1 rounded-full">
-              <div className="h-1 rounded-full" style={{ width: `${percFix}%`, backgroundColor: corDesempenho }} />
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="mt-3 flex items-center justify-between min-w-0 gap-2 border-t border-gray-50 pt-2">
-        <p className="text-[8px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
-        <p className="text-[9px] font-bold text-gray-700 truncate">{valorMeta}</p>
-      </div>
-    </div>
-  );
-};
-
 const CardVersus = ({ titulo, val1, val2, desc1, desc2, formataVal, isPerc }) => {
   const v1 = Number(val1 || 0); const v2 = Number(val2 || 0); const total = v1 + v2; const p1 = total > 0 ? (v1 / total) * 100 : 50; const p2 = total > 0 ? (v2 / total) * 100 : 50; const diff = v1 - v2;
   return (
@@ -14914,23 +14875,39 @@ const enviarArquivo = async (tipo) => {
                 <h2 className="text-xl sm:text-2xl font-medium text-gray-700 break-words">{detalheMeta.estrutura}</h2>
                 <p className="text-sm text-gray-400 mt-1">{descricaoResumoDetalhe}</p>
               </div>
-              <div className="overflow-x-auto pb-2 mb-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#ccecee transparent' }}>
-                <div className="grid grid-cols-10 gap-4 min-w-[1860px]">
-                <CardMetaNova titulo="Faturamento Estrutura" valor={formatarAbrev(detalheMeta.realizado)} percentual={calcPerc(detalheMeta.realizado, detalheMeta.meta?.receita)} labelMeta="Meta Faturamento:" valorMeta={formatarAbrev(detalheMeta.meta?.receita)} onClickExpandir={abrirDetalheFaturamentoEstruturaMetas} />
-                <CardMetaNova titulo="EUDORA" valor={formatarAbrev(eudoraDetalhe)} percentual={percentualEudoraDetalhe} labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraDetalhePercentual, 1)}%):`} valorMeta={formatarAbrev(metaEudoraDetalheValor)} onClickExpandir={abrirDetalheEudoraEstruturaMetas} />
-                <CardMetaNova titulo="Atividade" valor={`${percentualAtividadeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual)} labelMeta="Meta Atividade:" valorMeta={`${metaAtividadeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('Atividade', `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%`, 'Atividade = revendedoras ativadas dividido pela base ativa da estrutura.', [{ label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) }, { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedoras necessárias`)} />
-                <CardMetaNova titulo="MAKE" valor={`${percentualMakeDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual)} labelMeta="Meta MAKE:" valorMeta={`${metaMakeDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('MAKE', `${formatarNumeroBR(percentualMakeDetalhe, 1)}%`, 'MAKE = revendedoras ativadas da estrutura que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeDetalhe, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual), 1)}%` }, { label: 'Ativas no corte de MAKE', valor: formatarNumeroBR(atividadeMakeDetalhe, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) }, { label: 'Falta para a meta MAKE', valor: formatarFaltamAtivar(faltamMakeDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedoras necessárias com MAKE`)} />
-                <CardMetaNova titulo="CABELO" valor={`${percentualCabeloDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual)} labelMeta="Meta CABELO:" valorMeta={`${metaCabeloDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirModalValExp('CABELO', `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%`, 'CABELO = revendedoras ativadas da estrutura que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloDetalhe, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual), 1)}%` }, { label: 'Ativas no corte de CABELO', valor: formatarNumeroBR(atividadeCabeloDetalhe, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) }, { label: 'Falta para a meta CABELO', valor: formatarFaltamAtivar(faltamCabeloDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedoras necessárias com CABELO`)} />
-                <CardMetaNova titulo="MULTIMARCAS" valor={`${percentualMultimarcasDetalhe.toFixed(1)}%`} percentual={calcPerc(percentualMultimarcasDetalhe, metaMultimarcasDetalhePercentual)} labelMeta="Meta MULTI.:" valorMeta={`${metaMultimarcasDetalhePercentual.toFixed(1)}%`} onClickExpandir={() => abrirDetIndicadorDashboard('MULTIMARCAS', {
+              <div className="mb-6">
+                <GradeCardsTopo variante="detalhe">
+                  <CardKpi titulo="Faturamento" valor={formatarAbrev(detalheMeta.realizado)} percentual={calcPerc(detalheMeta.realizado, detalheMeta.meta?.receita)} cor={corPorFaixaMeta(calcPerc(detalheMeta.realizado, detalheMeta.meta?.receita))} labelMeta="Meta Faturamento" valorMeta={formatarAbrev(detalheMeta.meta?.receita)} onAbrir={abrirDetalheFaturamentoEstruturaMetas} />
+                  <CardKpi titulo="Eudora" valor={formatarAbrev(eudoraDetalhe)} percentual={percentualEudoraDetalhe} cor={corPorFaixaMeta(percentualEudoraDetalhe)} labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraDetalhePercentual, 1)}%)`} valorMeta={formatarAbrev(metaEudoraDetalheValor)} onAbrir={abrirDetalheEudoraEstruturaMetas} />
+                  <CardIndicadores
+                    mostrarMeta
+                    onAbrir={() => abrirModalValExp(
+                      `Indicadores - ${detalheMeta?.estrutura || estruturaSelecionada || 'Estrutura'}`,
+                      `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%`,
+                      'Resumo dos indicadores da estrutura.',
+                      [
+                        { label: 'MAKE', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}% · meta ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` },
+                        { label: 'CABELO', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}% · meta ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` },
+                        { label: 'MULTIMARCAS', valor: `${formatarNumeroBR(percentualMultimarcasDetalhe, 1)}% · meta ${formatarNumeroBR(metaMultimarcasDetalhePercentual, 1)}%` },
+                        { label: 'ATIVIDADE', valor: `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}% · meta ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` },
+                      ]
+                    )}
+                    itens={[
+                    { id: 'make', nome: 'Make', icone: 'make', valor: percentualMakeDetalhe, meta: metaMakeDetalhePercentual, atingimento: calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual), cor: corPorFaixaMeta(calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual)), onClick: () => abrirModalValExp('MAKE', `${formatarNumeroBR(percentualMakeDetalhe, 1)}%`, 'MAKE = revendedoras ativadas da estrutura que compraram/incluíram itens de MAKE dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com MAKE', valor: formatarNumeroBR(makeDetalhe, 0) }, { label: '% MAKE atual', valor: `${formatarNumeroBR(percentualMakeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualMakeDetalhe, metaMakeDetalhePercentual), 1)}%` }, { label: 'Ativas no corte de MAKE', valor: formatarNumeroBR(atividadeMakeDetalhe, 0) }, { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMakeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaMakeDetalhe, 0) }, { label: 'Falta para a meta MAKE', valor: formatarFaltamAtivar(faltamMakeDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaMakeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaMakeDetalhe, 0)} revendedoras necessárias com MAKE`) },
+                    { id: 'cabelo', nome: 'Cabelo', icone: 'cabelo', valor: percentualCabeloDetalhe, meta: metaCabeloDetalhePercentual, atingimento: calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual), cor: corPorFaixaMeta(calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual)), onClick: () => abrirModalValExp('CABELO', `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%`, 'CABELO = revendedoras ativadas da estrutura que compraram/incluíram itens de CABELO dividido pelo total de revendedoras ativadas da estrutura.', [{ label: 'Revendedoras com CABELO', valor: formatarNumeroBR(cabeloDetalhe, 0) }, { label: '% CABELO atual', valor: `${formatarNumeroBR(percentualCabeloDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualCabeloDetalhe, metaCabeloDetalhePercentual), 1)}%` }, { label: 'Ativas no corte de CABELO', valor: formatarNumeroBR(atividadeCabeloDetalhe, 0) }, { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaCabeloDetalhe, 0) }, { label: 'Falta para a meta CABELO', valor: formatarFaltamAtivar(faltamCabeloDetalhe) }], `${formatarNumeroBR(atividadeDetalhe, 0)} revendedoras ativadas × ${formatarNumeroBR(metaCabeloDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaCabeloDetalhe, 0)} revendedoras necessárias com CABELO`) },
+                    { id: 'multi', nome: 'Multi', icone: 'multi', valor: percentualMultimarcasDetalhe, meta: metaMultimarcasDetalhePercentual, atingimento: calcPerc(percentualMultimarcasDetalhe, metaMultimarcasDetalhePercentual), cor: corPorFaixaMeta(calcPerc(percentualMultimarcasDetalhe, metaMultimarcasDetalhePercentual)), onClick: () => abrirDetIndicadorDashboard('MULTIMARCAS', {
                   estruturas: Array.isArray(detalheMeta?.estruturas_vinculadas) && detalheMeta.estruturas_vinculadas.length > 0
                     ? detalheMeta.estruturas_vinculadas
                     : [detalheMeta?.estrutura || estruturaSelecionada].filter(Boolean),
                   titulo: `MULTIMARCAS - ${detalheMeta?.estrutura || estruturaSelecionada || 'Estrutura'}`,
-                })} />
-                <CardMetaNova titulo="RPA" valor={formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0)} percentual={calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.rpa)} labelMeta="Meta RPA:" valorMeta={formatarMoeda(detalheMeta.meta?.rpa)} onClickExpandir={abrirDetalheRpaEstruturaMetas} />
-                <CardMetaNova titulo="Ticket Médio" valor={formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0)} percentual={calcPerc(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0, detalheMeta.meta?.tkt_medio)} labelMeta="Meta Tkt Médio:" valorMeta={formatarMoeda(detalheMeta.meta?.tkt_medio)} onClickExpandir={abrirDetalheTicketEstruturaMetas} />
-                <CardMetaNova titulo="UPA" valor={upaDetalhe.toFixed(1)} percentual={calcPerc(upaDetalhe, detalheMeta.meta?.upa)} labelMeta="Meta UPA:" valorMeta={Number(detalheMeta.meta?.upa||0).toFixed(1)} onClickExpandir={abrirDetalheUpaEstruturaMetas} />
-                <CardMetaNova titulo="Adições" valor={formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).realizado, 0)} percentual={obterInfoAdicoesEstrutura(detalheMeta).percentual} labelMeta="Meta Adições:" valorMeta={formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).meta, 0)} onClickExpandir={() => abrirModalValExp(
+                }) },
+                    { id: 'atividade', nome: 'Atividade', icone: 'atividade', valor: percentualAtividadeDetalhe, meta: metaAtividadeDetalhePercentual, atingimento: calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual), cor: corPorFaixaMeta(calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual)), onClick: () => abrirModalValExp('Atividade', `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%`, 'Atividade = revendedoras ativadas dividido pela base ativa da estrutura.', [{ label: 'Revendedoras ativadas', valor: formatarNumeroBR(atividadeDetalhe, 0) }, { label: '% atividade atual', valor: `${formatarNumeroBR(percentualAtividadeDetalhe, 1)}%` }, { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(percentualAtividadeDetalhe, metaAtividadeDetalhePercentual), 1)}%` }, { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaDetalhe, 0) }, { label: 'Meta atividade', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` }, { label: 'Meta em revendedoras', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) }, { label: 'Falta para a meta', valor: formatarFaltamAtivar(faltamAtivarDetalhe) }], `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedoras necessárias`) },
+                    ]}
+                  />
+                  <CardKpi titulo="RPA" valor={formatarMoeda(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0)} percentual={calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.rpa)} cor={corPorFaixaMeta(calcPerc(detalheMeta?.atividade_realizada > 0 ? detalheMeta?.realizado / detalheMeta?.atividade_realizada : 0, detalheMeta.meta?.rpa))} labelMeta="Meta RPA" valorMeta={formatarMoeda(detalheMeta.meta?.rpa)} onAbrir={abrirDetalheRpaEstruturaMetas} />
+                  <CardKpi titulo="Ticket Médio" valor={formatarMoeda(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0)} percentual={calcPerc(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0, detalheMeta.meta?.tkt_medio)} cor={corPorFaixaMeta(calcPerc(detalheMeta?.quantidade_pedidos > 0 ? detalheMeta?.realizado / detalheMeta?.quantidade_pedidos : 0, detalheMeta.meta?.tkt_medio))} labelMeta="Meta Tkt Médio" valorMeta={formatarMoeda(detalheMeta.meta?.tkt_medio)} onAbrir={abrirDetalheTicketEstruturaMetas} />
+                  <CardKpi titulo="UPA" valor={formatarNumeroBR(upaDetalhe, 1)} percentual={calcPerc(upaDetalhe, detalheMeta.meta?.upa)} cor={corPorFaixaMeta(calcPerc(upaDetalhe, detalheMeta.meta?.upa))} labelMeta="Meta UPA" valorMeta={formatarNumeroBR(detalheMeta.meta?.upa, 1)} onAbrir={abrirDetalheUpaEstruturaMetas} />
+                  <CardKpi titulo="Adições" valor={formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).realizado, 0)} percentual={obterInfoAdicoesEstrutura(detalheMeta).percentual} cor={corPorFaixaMeta(obterInfoAdicoesEstrutura(detalheMeta).percentual)} labelMeta="Meta Adições" valorMeta={formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).meta, 0)} onAbrir={() => abrirModalValExp(
                   `ADIÇÕES - ${detalheMeta?.estrutura || estruturaSelecionada || 'Estrutura'}`,
                   formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).realizado, 0),
                   'Indicador calculado por (Inícios + Reinícios) - I6.',
@@ -14941,7 +14918,7 @@ const enviarArquivo = async (tipo) => {
                     { label: 'Falta para a meta', valor: obterInfoAdicoesEstrutura(detalheMeta).meta > 0 ? formatarNumeroBR(obterInfoAdicoesEstrutura(detalheMeta).falta, 0) : 'Sem meta cadastrada' },
                   ]
                 )} />
-                </div>
+                </GradeCardsTopo>
               </div>
             </div>
 

@@ -59,6 +59,7 @@ const Rodape = ({ label, valor, cor = '#334155', onClick, tituloClique, emLinha 
 // Grade dos cards: o layout segue a largura da área (não da janela), então funciona com ou sem menu lateral.
 // variante: '' = 7 cards do VD (Indicadores mais largo) · 'cinco' = Metas por Estruturas
 //           'iguais' = 7 cards do mesmo tamanho (LOJA Geral) · 'quatro' = 4 por linha (Histórico)
+//           'detalhe' = detalhe da estrutura em Metas (Indicadores na 3ª posição)
 export const GradeCardsTopo = ({ children, variante = '' }) => (
   <div className="dash-kpis-topo-area">
     <div className={`dash-kpis-topo ${variante ? `dash-kpis-topo-${variante}` : ''}`}>{children}</div>
@@ -158,7 +159,8 @@ const AnelIndicador = ({ atingimento, cor, children }) => {
 
 // itens: [{ id, nome, icone, valor (% do indicador), meta, atingimento, cor, onClick }]
 // No celular e no tablet ocupa 2 colunas (kpi-topo-largo) para os 4 anéis caberem.
-export const CardIndicadores = ({ itens, onAbrir }) => (
+// mostrarMeta: escreve a meta embaixo de cada % (detalhe da estrutura em Metas).
+export const CardIndicadores = ({ itens, onAbrir, mostrarMeta = false }) => (
   <Casca titulo="Indicadores" onAbrir={onAbrir} tituloOlho="Ver resumo dos indicadores" className="kpi-topo-largo">
     <div className="kpi-topo-corpo">
       <div className="grid grid-cols-4 gap-1">
@@ -175,6 +177,9 @@ export const CardIndicadores = ({ itens, onAbrir }) => (
             <IconeIndicador nome={icone} />
           </AnelIndicador>
           <span className="text-[11px] leading-none font-black" style={{ color: cor }}>{formatarPercentual(valor)}</span>
+          {mostrarMeta ? (
+            <span className="max-w-full text-[8.5px] leading-none font-bold text-[#94a3b8] truncate">meta {formatarPercentual(meta)}</span>
+          ) : null}
         </button>
       ))}
       </div>
