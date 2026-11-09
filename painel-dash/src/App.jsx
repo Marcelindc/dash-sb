@@ -20326,7 +20326,7 @@ const enviarArquivo = async (tipo) => {
         cards: [
           { label: 'Falta para meta', valor: formatarMoeda(valorFaltante) },
           { label: 'Média necessária/dia', valor: formatarMoeda(mediaNecessaria) },
-          { label: 'Dias restantes', valor: formatarNumeroBR(diasRestantes, 0) },
+          { label: 'Dias úteis ponderados', valor: diasRestantes.toLocaleString('pt-BR') },
           { label: '% da meta diária', valor: `${formatarNumeroBR(percentualMetaDiaria, 1)}%` }
         ],
         sugestoes
