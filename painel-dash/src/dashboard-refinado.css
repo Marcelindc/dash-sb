@@ -623,6 +623,16 @@
   .dash-kpis-topo-5 > .kpi-topo-largo { grid-column: auto; }
 }
 
+/* 7 cards do mesmo tamanho (LOJA Geral): 4 colunas no tablet, linha única acima de 1150px. */
+@container (min-width: 1150px) {
+  .dash-kpis-topo.dash-kpis-topo-iguais { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+
+/* 4 por linha (Histórico, 8 cards). */
+@container (min-width: 700px) {
+  .dash-kpis-topo.dash-kpis-topo-quatro { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
 .kpi-topo-card {
   container-type: inline-size;
   display: flex;
@@ -681,6 +691,7 @@
   font-weight: 700;
   letter-spacing: -.02em;
 }
+.kpi-topo-valor-longo { font-size: clamp(13px, 9cqi, 20px); }
 
 .kpi-topo-rodape {
   display: flex;

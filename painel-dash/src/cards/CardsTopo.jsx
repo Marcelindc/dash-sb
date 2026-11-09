@@ -51,30 +51,35 @@ const Rodape = ({ label, valor, cor = '#334155', onClick, tituloClique, emLinha 
         {valor} <Eye size={12} className="shrink-0" />
       </button>
     ) : (
-      <span className="text-[11px] font-black whitespace-nowrap shrink-0" style={{ color: cor }}>{valor}</span>
+      <span className="max-w-full text-[11px] font-black truncate shrink-0" style={{ color: cor }} title={String(valor ?? '')}>{valor}</span>
     )}
   </div>
 );
 
-// Grade dos 7 cards: o layout segue a largura da área (não da janela), então funciona com ou sem menu lateral.
-// cincoCards: Metas por Estruturas (sem Tendência e Pedidos).
-export const GradeCardsTopo = ({ children, cincoCards = false }) => (
+// Grade dos cards: o layout segue a largura da área (não da janela), então funciona com ou sem menu lateral.
+// variante: '' = 7 cards do VD (Indicadores mais largo) · 'cinco' = Metas por Estruturas
+//           'iguais' = 7 cards do mesmo tamanho (LOJA Geral) · 'quatro' = 4 por linha (Histórico)
+export const GradeCardsTopo = ({ children, variante = '' }) => (
   <div className="dash-kpis-topo-area">
-    <div className={`dash-kpis-topo ${cincoCards ? 'dash-kpis-topo-5' : ''}`}>{children}</div>
+    <div className={`dash-kpis-topo ${variante ? `dash-kpis-topo-${variante}` : ''}`}>{children}</div>
   </div>
 );
 
 // Realizado Total / Diário / Eudora: valor, barra até a meta e a meta no rodapé.
-export const CardKpi = ({ titulo, valor, cor, percentual, labelMeta, valorMeta, onAbrir }) => (
+// Sem percentual (cards do Histórico sem meta), fica só o valor.
+export const CardKpi = ({ titulo, valor, cor = '#048187', percentual = null, labelMeta, valorMeta, onAbrir }) => (
   <Casca titulo={titulo} onAbrir={onAbrir}>
     <div className="kpi-topo-corpo">
-      <p className="kpi-topo-valor" style={{ color: cor }} title={valor}>{valor}</p>
-      <div className="mt-2.5 flex items-center gap-2 min-w-0">
-        <div className="flex-1 h-1.5 rounded-full bg-[#edf2f3] overflow-hidden">
-          <div className="kpi-topo-barra h-full rounded-full" style={{ width: `${limitarPercentual(percentual)}%`, backgroundColor: cor }} />
+      {/* Valor por extenso (Histórico: R$ 10.412.330,55) usa letra menor para caber no celular. */}
+      <p className={`kpi-topo-valor ${String(valor ?? '').length > 13 ? 'kpi-topo-valor-longo' : ''}`} style={{ color: cor }} title={valor}>{valor}</p>
+      {percentual !== null && percentual !== undefined ? (
+        <div className="mt-2.5 flex items-center gap-2 min-w-0">
+          <div className="flex-1 h-1.5 rounded-full bg-[#edf2f3] overflow-hidden">
+            <div className="kpi-topo-barra h-full rounded-full" style={{ width: `${limitarPercentual(percentual)}%`, backgroundColor: cor }} />
+          </div>
+          <span className="text-[10px] font-black shrink-0" style={{ color: cor }}>{formatarPercentual(percentual)}</span>
         </div>
-        <span className="text-[10px] font-black shrink-0" style={{ color: cor }}>{formatarPercentual(percentual)}</span>
-      </div>
+      ) : null}
     </div>
     <Rodape label={labelMeta} valor={valorMeta} />
   </Casca>

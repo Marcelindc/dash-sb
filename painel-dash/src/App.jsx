@@ -3863,81 +3863,6 @@ const CardMetaNova = ({ titulo, valor, percentual, labelMeta, valorMeta, onClick
   );
 };
 
-const CardMini = ({ titulo, valor, percentual, labelMeta, valorMeta, onClickExpandir, isTendencia, tendenciaIcon: TIcon, tendenciaStatus }) => {
-  const percentualNumero = Number(percentual || 0);
-  const percentualDisponivel = percentual !== undefined;
-  const corDesempenho = isTendencia
-    ? (percentualNumero >= 100 ? '#16a34a' : '#ef4444')
-    : (percentualDisponivel ? corPorFaixaMeta(percentualNumero) : '#048187');
-
-  return (
-    <div
-      className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2 transition-all hover:shadow-md ${onClickExpandir ? 'cursor-pointer' : ''}`}
-      onClick={onClickExpandir || undefined}
-      onKeyDown={(e) => { if (onClickExpandir && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClickExpandir(); } }}
-      role={onClickExpandir ? 'button' : undefined}
-      tabIndex={onClickExpandir ? 0 : undefined}
-    >
-      <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 min-w-0">
-        <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate pr-1">{titulo}</h3>
-        {onClickExpandir ? (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onClickExpandir(); }}
-            className="relative z-[3] text-white/90 hover:text-white shrink-0 cursor-pointer"
-            title={`Ver detalhes de ${titulo}`}
-          >
-            <Eye size={13} />
-          </button>
-        ) : null}
-      </div>
-
-      <div className="px-1.5 pt-2 pb-0 flex flex-col flex-1 min-w-0">
-        {isTendencia ? (
-          <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <div className="flex items-center justify-center gap-1 min-w-0">
-              <p
-                className="text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
-                style={{ color: corDesempenho }}
-              >
-                {valor}
-              </p>
-              {TIcon ? (
-                <TIcon size={15} className="shrink-0" style={{ color: corDesempenho }} />
-              ) : null}
-            </div>
-            <p className="mt-2 text-[9px] font-bold text-center truncate" style={{ color: corDesempenho }}>
-              {tendenciaStatus}
-            </p>
-          </div>
-        ) : (
-          <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <p
-              className="w-full text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
-              style={{ color: corDesempenho }}
-            >
-              {valor}
-            </p>
-            {percentualDisponivel ? (
-              <p
-                className="mt-2 w-full pr-1 text-[9px] sm:text-[10px] font-extrabold leading-none text-right truncate"
-                style={{ color: corDesempenho }}
-              >
-                {percentualNumero.toFixed(1)}%
-              </p>
-            ) : null}
-          </div>
-        )}
-
-        <div className="mt-auto pt-2 flex items-center justify-between min-w-0 gap-2 border-t border-gray-100">
-          <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta}</p>
-          <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta}</p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const CardVersus = ({ titulo, val1, val2, desc1, desc2, formataVal, isPerc }) => {
   const v1 = Number(val1 || 0); const v2 = Number(val2 || 0); const total = v1 + v2; const p1 = total > 0 ? (v1 / total) * 100 : 50; const p2 = total > 0 ? (v2 / total) * 100 : 50; const diff = v1 - v2;
   return (
@@ -14709,7 +14634,7 @@ const enviarArquivo = async (tipo) => {
         </div>
         {erroMetas && (<div className="rounded-xl p-4 font-medium text-sm bg-red-50 border border-red-100 text-red-600">{erroMetas}</div>)}
         {visaoMetas === 'estruturas' && (
-          <GradeCardsTopo cincoCards>
+          <GradeCardsTopo variante="cinco">
             <CardKpi titulo="Faturamento Geral" valor={formatarAbrev(dadosMetas?.realizado_total_geral)} percentual={calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral)} cor={corPorFaixaMeta(calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral))} labelMeta="Meta Faturamento" valorMeta={formatarAbrev(dadosMetas?.meta_total_geral)} onAbrir={abrirDetalheFaturamentoGeralMetas} />
             <CardKpi titulo="Realizado Diário" valor={formatarAbrev(dados?.realizado_diario)} percentual={calcPerc(dados?.realizado_diario, dados?.meta_diaria)} cor={corPorFaixaMeta(calcPerc(dados?.realizado_diario, dados?.meta_diaria))} labelMeta="Meta Diária" valorMeta={formatarAbrev(dados?.meta_diaria)} onAbrir={abrirDetalheRealizadoDiarioMetas} />
             <CardKpi titulo="Eudora Geral" valor={formatarAbrev(eudoraGeral)} percentual={percentualEudoraGeral} cor={corPorFaixaMeta(percentualEudoraGeral)} labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraGeralPercentual, 1)}%)`} valorMeta={formatarAbrev(metaEudoraGeralValor)} onAbrir={abrirDetalheEudoraGeralMetas} />
@@ -19816,16 +19741,16 @@ const enviarArquivo = async (tipo) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <CardMini titulo="Valor praticado" valor={formatarMoeda(resumo.faturamento_total)} percentual={resumo.percentual_faturamento} labelMeta="Meta" valorMeta={formatarMoeda(resumo.meta_faturamento_total)} />
-                <CardMini titulo="Valor líquido" valor={formatarMoeda(valorLiquidoTotalHistorico)} labelMeta="Pedidos" valorMeta={Number(resumo.qtd_pedidos || 0).toLocaleString('pt-BR')} />
-                <CardMini titulo="Atividade" valor={Number(resumo.atividade_total || 0).toLocaleString('pt-BR')} percentual={resumo.percentual_atividade} labelMeta="Base ativa" valorMeta={Number(baseAtivaTotalHistorico || 0).toLocaleString('pt-BR')} />
-                <CardMini titulo="RPA" valor={formatarMoeda(resumo.rpa_total)} labelMeta="Atividade" valorMeta={`${Number(resumo.percentual_atividade || 0).toFixed(1)}%`} />
-                <CardMini titulo="Ticket médio" valor={formatarMoeda(resumo.ticket_medio_total)} labelMeta="Pedidos" valorMeta={Number(resumo.qtd_pedidos || 0).toLocaleString('pt-BR')} />
-                <CardMini titulo="UPA" valor={Number(resumo.upa_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} labelMeta="Itens por ativo" valorMeta="Ciclo fechado" />
-                <CardMini titulo="Meta do ciclo" valor={formatarMoeda(resumo.meta_faturamento_total)} labelMeta="Atingimento" valorMeta={`${Number(resumo.percentual_faturamento || 0).toFixed(1)}%`} />
-                <CardMini titulo="Estruturas" valor={Number(resumo.qtd_estruturas || 0).toLocaleString('pt-BR')} labelMeta="Núcleos" valorMeta={nucleosHistorico.map((item) => item.nucleo).join(' · ')} />
-              </div>
+              <GradeCardsTopo variante="quatro">
+                <CardKpi titulo="Valor praticado" valor={formatarMoeda(resumo.faturamento_total)} percentual={Number(resumo.percentual_faturamento || 0)} cor={corPorFaixaMeta(resumo.percentual_faturamento)} labelMeta="Meta" valorMeta={formatarMoeda(resumo.meta_faturamento_total)} />
+                <CardKpi titulo="Valor líquido" valor={formatarMoeda(valorLiquidoTotalHistorico)} labelMeta="Pedidos" valorMeta={formatarNumeroBR(resumo.qtd_pedidos, 0)} />
+                <CardKpi titulo="Atividade" valor={formatarNumeroBR(resumo.atividade_total, 0)} percentual={Number(resumo.percentual_atividade || 0)} cor={corPorFaixaMeta(resumo.percentual_atividade)} labelMeta="Base ativa" valorMeta={formatarNumeroBR(baseAtivaTotalHistorico, 0)} />
+                <CardKpi titulo="RPA" valor={formatarMoeda(resumo.rpa_total)} labelMeta="Atividade" valorMeta={`${formatarNumeroBR(resumo.percentual_atividade, 1)}%`} />
+                <CardKpi titulo="Ticket médio" valor={formatarMoeda(resumo.ticket_medio_total)} labelMeta="Pedidos" valorMeta={formatarNumeroBR(resumo.qtd_pedidos, 0)} />
+                <CardKpi titulo="UPA" valor={formatarNumeroBR(resumo.upa_total, 2)} labelMeta="Itens por ativo" valorMeta="Ciclo fechado" />
+                <CardKpi titulo="Meta do ciclo" valor={formatarMoeda(resumo.meta_faturamento_total)} labelMeta="Atingimento" valorMeta={`${formatarNumeroBR(resumo.percentual_faturamento, 1)}%`} />
+                <CardKpi titulo="Estruturas" valor={formatarNumeroBR(resumo.qtd_estruturas, 0)} labelMeta="Núcleos" valorMeta={nucleosHistorico.map((item) => String(item.nucleo || '').replace(/^n[uú]cleo\s*/i, 'N')).join(' · ')} />
+              </GradeCardsTopo>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -20289,81 +20214,6 @@ const enviarArquivo = async (tipo) => {
         ],
         plano
       });
-    };
-
-    const CardLoja = ({ titulo, valor, meta, percentual, labelMeta, valorMeta, onDetalhes, isTendencia = false, tendenciaIcon: TIcon, tendenciaStatus }) => {
-      const percentualNumero = Number(percentual || 0);
-      const percentualDisponivel = percentual !== undefined;
-      const corDesempenho = isTendencia
-        ? (percentualNumero >= 100 ? '#16a34a' : '#ef4444')
-        : (percentualDisponivel ? corPorFaixaMeta(percentualNumero) : '#048187');
-
-      return (
-        <div
-          className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full min-w-0 p-2 transition-all hover:shadow-md ${onDetalhes ? 'cursor-pointer' : ''}`}
-          onClick={onDetalhes || undefined}
-          onKeyDown={(e) => { if (onDetalhes && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onDetalhes(); } }}
-          role={onDetalhes ? 'button' : undefined}
-          tabIndex={onDetalhes ? 0 : undefined}
-        >
-          <div className="bg-[#048187] rounded-[14px] px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 min-w-0">
-            <h3 className="text-[10px] font-black uppercase tracking-wide text-white truncate pr-1">{titulo}</h3>
-            {onDetalhes ? (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onDetalhes(); }}
-                className="relative z-[3] text-white/90 hover:text-white shrink-0 cursor-pointer"
-                title={`Ver detalhes de ${titulo}`}
-              >
-                <Eye size={13} />
-              </button>
-            ) : null}
-          </div>
-
-          <div className="px-1.5 pt-2 pb-0 flex flex-col flex-1 min-w-0">
-            {isTendencia ? (
-              <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <div className="flex items-center justify-center gap-1 min-w-0">
-                  <p
-                    className="text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
-                    style={{ color: corDesempenho }}
-                  >
-                    {valor}
-                  </p>
-                  {TIcon ? (
-                    <TIcon size={15} className="shrink-0" style={{ color: corDesempenho }} />
-                  ) : null}
-                </div>
-                <p className="mt-2 text-[9px] font-bold text-center truncate" style={{ color: corDesempenho }}>
-                  {tendenciaStatus}
-                </p>
-              </div>
-            ) : (
-              <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <p
-                  className="w-full text-[20px] font-extrabold tracking-tight leading-none text-center truncate"
-                  style={{ color: corDesempenho }}
-                >
-                  {valor}
-                </p>
-                {percentualDisponivel ? (
-                  <p
-                    className="mt-2 w-full pr-1 text-[9px] sm:text-[10px] font-extrabold leading-none text-right truncate"
-                    style={{ color: corDesempenho }}
-                  >
-                    {formatarNumeroBR(percentualNumero || 0, 1)}%
-                  </p>
-                ) : null}
-              </div>
-            )}
-
-            <div className="mt-auto pt-2 flex items-center justify-between min-w-0 gap-2 border-t border-gray-100">
-              <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{labelMeta || 'Meta:'}</p>
-              <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 truncate">{valorMeta || meta || '-'}</p>
-            </div>
-          </div>
-        </div>
-      );
     };
 
 // LOJA_VISUAL_GRAFICO_V2_SEGURO
@@ -21811,93 +21661,91 @@ const enviarArquivo = async (tipo) => {
 
         {!carregandoLoja && abaLoja === 'geral' && (
           <>
-            <div className="dash-dashboard-kpis dash-loja-geral-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-3">
-              <CardLoja
-                titulo="Faturamento realizado"
+            <GradeCardsTopo variante="iguais">
+              <CardKpi
+                titulo="Faturamento"
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.faturamento_realizado)}
-                meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_faturamento)}
-                percentual={resumoCardsLoja.percentual_faturamento}
-                labelMeta="Meta faturamento:"
+                percentual={Number(resumoCardsLoja.percentual_faturamento || 0)}
+                cor={corPorFaixaMeta(resumoCardsLoja.percentual_faturamento)}
+                labelMeta="Meta faturamento"
                 valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_faturamento)}
-                onDetalhes={() => abrirDetalheCardLoja('Faturamento LOJA', [
+                onAbrir={() => abrirDetalheCardLoja('Faturamento LOJA', [
                   { label: 'Realizado', valor: formatarMoeda(resumoCardsLoja.faturamento_realizado || 0) },
                   { label: 'Meta ciclo', valor: formatarMoeda(resumoCardsLoja.meta_faturamento || 0) },
                   { label: '% da meta', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_faturamento || 0, 1)}%` },
                   { label: 'Falta para a meta', valor: formatarMoeda(resumoCardsLoja.deficit_faturamento || 0) }
                 ], 'Faturamento LOJA = soma da coluna GMV-GMV da base de vendas.')}
               />
-              <CardLoja
+              <CardKpi
                 titulo="Venda diária"
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.realizado_diario || 0)}
-                meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_diaria || 0)}
                 percentual={calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0)}
-                labelMeta="Meta diária:"
+                cor={corPorFaixaMeta(calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0))}
+                labelMeta="Meta diária"
                 valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_diaria || 0)}
-                onDetalhes={abrirDetalheVendaDiariaLoja}
+                onAbrir={abrirDetalheVendaDiariaLoja}
               />
-              <CardLoja
-                titulo="Tendência"
+              <CardTendencia
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.tendencia || 0)}
-                meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_faturamento || 0)}
-                percentual={calcPerc(resumoCardsLoja.tendencia || 0, resumoCardsLoja.meta_faturamento || 0)}
-                labelMeta="Gap tendência:"
-                valorMeta={formatarMoedaCompactaCard(Math.abs(resumoCardsLoja.gap_tendencia || 0))}
-                isTendencia
-                tendenciaIcon={Number(resumoCardsLoja.gap_tendencia || 0) >= 0 ? TrendingUp : TrendingDown}
-                tendenciaStatus={Number(resumoCardsLoja.gap_tendencia || 0) >= 0 ? 'Tendência positiva' : 'Risco de não bater'}
-                onDetalhes={abrirDetTendenciaLoja}
+                cor={calcPerc(resumoCardsLoja.tendencia || 0, resumoCardsLoja.meta_faturamento || 0) >= 100 ? '#16a34a' : '#ef4444'}
+                positiva={calcPerc(resumoCardsLoja.tendencia || 0, resumoCardsLoja.meta_faturamento || 0) >= 100}
+                icone={Number(resumoCardsLoja.gap_tendencia || 0) >= 0 ? TrendingUp : TrendingDown}
+                status={Number(resumoCardsLoja.gap_tendencia || 0) >= 0 ? 'Tendência positiva' : 'Risco de não bater'}
+                labelGap="Gap tendência"
+                valorGap={formatarMoedaCompactaCard(Math.abs(resumoCardsLoja.gap_tendencia || 0))}
+                onAbrir={abrirDetTendenciaLoja}
               />
-              <CardLoja
+              <CardKpi
                 titulo="Skin"
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.skin_realizado || 0)}
-                meta={formatarMoedaCompactaCard(resumoCardsLoja.meta_skin || 0)}
-                percentual={resumoCardsLoja.percentual_skin || 0}
-                labelMeta="Meta skin:"
+                percentual={Number(resumoCardsLoja.percentual_skin || 0)}
+                cor={corPorFaixaMeta(resumoCardsLoja.percentual_skin || 0)}
+                labelMeta="Meta skin"
                 valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_skin || 0)}
-                onDetalhes={() => abrirDetalheCardLoja('Skin LOJA', [
+                onAbrir={() => abrirDetalheCardLoja('Skin LOJA', [
                   { label: 'Realizado Skin', valor: formatarMoeda(resumoCardsLoja.skin_realizado || 0) },
                   { label: 'Meta Skin', valor: formatarMoeda(resumoCardsLoja.meta_skin || 0) },
                   { label: '% Skin', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_skin || 0, 1)}%` }
                 ], 'Skin = soma da aba CONSULTOR, coluna RECEITA (R$), ignorando linhas de total.')}
               />
-              <CardLoja
+              <CardKpi
                 titulo="Boleto médio"
                 valor={formatarMoeda(resumoCardsLoja.boleto_medio || 0)}
-                meta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA)}
                 percentual={calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA)}
-                labelMeta="Meta boleto:"
+                cor={corPorFaixaMeta(calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA))}
+                labelMeta="Meta boleto"
                 valorMeta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA)}
-                onDetalhes={() => abrirDetalheCardLoja('Boleto médio LOJA', [
+                onAbrir={() => abrirDetalheCardLoja('Boleto médio LOJA', [
                   { label: 'Boleto médio', valor: formatarMoeda(resumoCardsLoja.boleto_medio || 0) },
                   { label: 'Meta boleto', valor: formatarMoeda(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA) },
                   { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA), 1)}%` },
                   { label: 'Qtd de boletos/pedidos', valor: formatarNumeroBR(resumoCardsLoja.pedidos || 0, 0) }
                 ], 'Boleto médio = GMV-GMV / GMV-Qtd de boletos.')}
               />
-              <CardLoja
+              <CardKpi
                 titulo="Itens por boleto"
                 valor={formatarNumeroBR(resumoCardsLoja.itens_por_boleto || 0, 2)}
-                meta={formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1)}
                 percentual={calcPerc(resumoCardsLoja.itens_por_boleto || 0, resumoCardsLoja.meta_itens_boleto || 4)}
-                labelMeta="Meta itens:"
+                cor={corPorFaixaMeta(calcPerc(resumoCardsLoja.itens_por_boleto || 0, resumoCardsLoja.meta_itens_boleto || 4))}
+                labelMeta="Meta itens"
                 valorMeta={formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1)}
-                onDetalhes={() => abrirDetalheCardLoja('Itens por boleto LOJA', [
+                onAbrir={() => abrirDetalheCardLoja('Itens por boleto LOJA', [
                   { label: 'Itens por boleto', valor: formatarNumeroBR(resumoCardsLoja.itens_por_boleto || 0, 2) },
                   { label: 'Meta itens', valor: formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1) },
                   { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.itens_por_boleto || 0, resumoCardsLoja.meta_itens_boleto || 4), 1)}%` },
                   { label: 'Regra', valor: 'Coluna GMV-Itens por boleto' }
                 ], 'Itens/Boleto usa a coluna GMV-Itens por boleto da base de vendas.')}
               />
-              <CardLoja
+              <CardKpi
                 titulo="Serviços"
                 valor={formatarNumeroBR(resumoCardsLoja.servicos_realizado_mes || 0, 0)}
-                meta={formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)}
-                percentual={resumoCardsLoja.percentual_servicos || 0}
-                labelMeta="Meta mensal:"
+                percentual={Number(resumoCardsLoja.percentual_servicos || 0)}
+                cor={corPorFaixaMeta(resumoCardsLoja.percentual_servicos || 0)}
+                labelMeta="Meta mensal"
                 valorMeta={formatarNumeroBR(resumoCardsLoja.meta_servicos_mes || 100, 0)}
-                onDetalhes={() => setModalServicosLojaAberto(true)}
+                onAbrir={() => setModalServicosLojaAberto(true)}
               />
-            </div>
+            </GradeCardsTopo>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 -mt-1">
               <p className="text-xs text-gray-400 font-bold">
