@@ -744,3 +744,86 @@
   .kpi-topo-anel { transition: none; }
   .kpi-topo-card:hover { transform: none; }
 }
+
+/* JANELAS_DETALHE_V1 — quadros do topo das janelas de detalhe (Meta, Realizado, % em meia-lua, Falta).
+   A grade segue a largura da janela (container), não a da tela. */
+.resumo-detalhe-area { container-type: inline-size; }
+
+.resumo-detalhe {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem;
+}
+
+@container (min-width: 600px) {
+  .resumo-detalhe { grid-template-columns: repeat(var(--resumo-colunas-medio, 4), minmax(0, 1fr)); gap: .85rem; }
+}
+
+@container (min-width: 940px) {
+  .resumo-detalhe { grid-template-columns: repeat(var(--resumo-colunas, 4), minmax(0, 1fr)); gap: 1rem; }
+}
+
+.resumo-detalhe-card {
+  container-type: inline-size;
+  min-width: 0;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: .4rem;
+  padding: .8rem 1rem;
+  border-radius: 14px;
+  background: #fcfbf7;
+  border: 1px solid #f0ede4;
+}
+
+.resumo-detalhe-rotulo {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.resumo-detalhe-valor {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #048187;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resumo-detalhe-nota { margin: 0; font-size: 11px; font-weight: 700; line-height: 1.25; }
+
+/* % da meta: rótulo em cima e meia-lua encostada na base do quadro, com o % dentro. */
+.resumo-detalhe-card-medidor {
+  align-items: center;
+  justify-content: space-between;
+  gap: .3rem;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+.resumo-detalhe-card-medidor .resumo-detalhe-rotulo { text-align: center; }
+
+.resumo-detalhe-medidor { position: relative; display: block; width: min(100%, 136px); }
+.resumo-detalhe-medidor svg { display: block; width: 100%; height: auto; }
+.resumo-detalhe-medidor-arco { transition: stroke-dashoffset .7s ease; }
+.resumo-detalhe-medidor-texto {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1px;
+  text-align: center;
+  font-size: clamp(13px, 12cqi, 18px);
+  font-weight: 700;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resumo-detalhe-medidor-arco { transition: none; }
+}

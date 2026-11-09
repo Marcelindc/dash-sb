@@ -16,6 +16,7 @@ import TelaSolicitacoes from './telas/TelaSolicitacoes';
 import TelaRotas from './telas/TelaRotas';
 import TelaAdicoes from './telas/TelaAdicoes';
 import { GradeCardsTopo, CardKpi, CardTendencia, CardPedidos, CardIndicadores, CardDesempenho } from './cards/CardsTopo';
+import { ResumoDetalhe, TabelaAcumulado } from './cards/DetalheCards';
 
 import './dashboard-refinado.css';
 
@@ -3777,6 +3778,37 @@ const corPorFaixaMeta = (percentual) => {
   if (valor < 80) return '#7c1f31';
   if (valor < 96) return '#ff6f03';
   return '#048187';
+};
+// Quadros do topo das janelas de detalhe (ResumoDetalhe): o "% da meta" vira meia-lua na cor da faixa e,
+// no padrão Realizado, Meta, % da meta, a Meta vem primeiro (Meta, Realizado, %, Falta).
+const ROTULO_PERCENTUAL_DA_META = /^% (da meta|realizado da meta)/i;
+const prepararResumoDetalhe = (itens = []) => {
+  const lista = (Array.isArray(itens) ? itens : []).filter(Boolean).map((item) => {
+    if (item.percentual == null && !ROTULO_PERCENTUAL_DA_META.test(String(item.label || ''))) return item;
+    const percentual = item.percentual ?? Number(String(item.valor ?? '').replace(/[^\d,-]/g, '').replace(',', '.'));
+    if (!Number.isFinite(percentual)) return item;
+    return { ...item, medidor: true, percentual, cor: item.cor || corPorFaixaMeta(percentual) };
+  });
+  if (lista[2]?.medidor && /^meta/i.test(String(lista[1]?.label || '')) && !/^meta/i.test(String(lista[0]?.label || ''))) {
+    [lista[0], lista[1]] = [lista[1], lista[0]];
+  }
+  return lista;
+};
+// Tabela "Acumulado por" com meta (TabelaAcumulado): % de cada linha sobre a própria meta e, no total, o valor das
+// linhas com meta sobre a soma das metas — sempre na cor da faixa.
+const completarPercentualMeta = (linhas = [], totalMeta = 0) => {
+  const linhasComPercentual = linhas.map((linha) => {
+    const percentualMeta = Number(linha.meta || 0) > 0 ? calcPerc(linha.valor, linha.meta) : null;
+    return { ...linha, percentualMeta, corMeta: percentualMeta == null ? null : corPorFaixaMeta(percentualMeta) };
+  });
+  const valorComMeta = linhasComPercentual.reduce((acc, linha) => acc + (linha.percentualMeta == null ? 0 : Number(linha.valor || 0)), 0);
+  const percentualMetaTotal = Number(totalMeta || 0) > 0 ? calcPerc(valorComMeta, totalMeta) : null;
+  return {
+    linhas: linhasComPercentual,
+    totalMeta,
+    percentualMetaTotal,
+    corMetaTotal: percentualMetaTotal == null ? null : corPorFaixaMeta(percentualMetaTotal),
+  };
 };
 const calcularQtdMetaAtividade = (baseAtiva, metaPercentual) => {
   const base = Number(baseAtiva || 0);
@@ -11819,11 +11851,39 @@ const enviarArquivo = async (tipo) => {
     }
   };
   
-  const abrirDetRealizadoTotal = () => {
+  // Meta de cada linha do "Acumulado por estrutura": casa o nome do Dashboard (rótulo oficial da equipe) com o
+  // nome da meta ou de uma estrutura vinculada. Sem o prefixo ("N1 - ", "3011 - ") só vale quando um único bloco
+  // de meta tem aquele nome — equipes homônimas em núcleos diferentes (EDNA N1/N3) ficam sem palpite.
+  const criarBuscaMetaEstrutura = (estruturasMeta = []) => {
+    const chave = (valor) => normalizarChaveAcompanhamento(valor).replace(/[^a-z0-9]+/g, ' ').trim();
+    const chaveSemPrefixo = (valor) => {
+      const texto = String(valor || '');
+      return chave(texto.includes('-') ? texto.split('-').slice(1).join('-') : texto);
+    };
+    const porNome = new Map();
+    const porNomeSemPrefixo = new Map();
+    const registrar = (mapa, nome, item) => {
+      if (!nome) return;
+      if (!mapa.has(nome)) mapa.set(nome, new Set());
+      mapa.get(nome).add(item);
+    };
+    estruturasMeta.forEach((item) => {
+      [item?.estrutura, item?.nome_meta, ...(Array.isArray(item?.estruturas_vinculadas) ? item.estruturas_vinculadas : [])]
+        .forEach((nome) => {
+          registrar(porNome, chave(nome), item);
+          registrar(porNomeSemPrefixo, chaveSemPrefixo(nome), item);
+        });
+    });
+    const unico = (conjunto) => (conjunto?.size === 1 ? [...conjunto][0] : null);
+    return (nomeEstrutura) => unico(porNome.get(chave(nomeEstrutura))) || unico(porNomeSemPrefixo.get(chaveSemPrefixo(nomeEstrutura)));
+  };
+
+  const abrirDetRealizadoTotal = async () => {
     const realizado = Number(dados?.valor_total || 0);
     const meta = Number(metaFaturamentoDashboard || 0);
     const percentual = calcPerc(realizado, meta);
     const falta = Math.max(meta - realizado, 0);
+    const abertura = Date.now();
 
     const estruturasAcumuladas = [
       ...(dados?.realizado_por_estrutura || [])
@@ -11847,32 +11907,75 @@ const enviarArquivo = async (tipo) => {
         percentual: realizado > 0 ? (Number(item?.ValorPraticado || 0) / realizado) * 100 : 0,
       }));
 
-    setModalDetalhes({
-      titulo: 'Realizado Total',
-      subtitulo: '',
-      tipo: 'realizado_total_acumulado',
-      bases: ['PEDIDOS'],
-      itens: [
-        { label: 'Realizado', valor: formatarMoeda(realizado) },
-        { label: 'Meta faturamento', valor: formatarMoeda(meta) },
-        { label: '% da meta', valor: `${formatarNumeroBR(percentual, 1)}%` },
-        { label: 'Falta para a meta', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' }
-      ],
-      secoesTabelas: [
-        {
-          titulo: 'Acumulado por estrutura',
-          cor: '#048187',
-          totalRotulo: 'TOTAL DAS ESTRUTURAS',
-          linhas: estruturasAcumuladas,
-        },
-        {
-          titulo: 'Acumulado por consultor',
-          cor: '#5c4b8a',
-          totalRotulo: 'TOTAL DOS CONSULTORES',
-          linhas: consultoresAcumulados,
+    // Sem nome que case, a meta do escopo só vale quando a tela mostra uma estrutura só (gestor ou filtro de uma estrutura).
+    const escopoUmaEstrutura = modoGerenteVD || (filtrosAtivos?.estruturas || []).length === 1;
+    const montarDetalhe = (estruturasMeta, carregandoMeta) => {
+      const buscarMeta = criarBuscaMetaEstrutura(estruturasMeta);
+      const metasSomadas = new Set();
+      let totalMeta = 0;
+      const linhasEstrutura = estruturasAcumuladas.map((linha) => {
+        const itemMeta = buscarMeta(linha.nome);
+        const metaLinha = Number(itemMeta?.receita || 0);
+        if (itemMeta && !metasSomadas.has(itemMeta)) {
+          metasSomadas.add(itemMeta);
+          totalMeta += metaLinha;
         }
-      ]
-    });
+        return { ...linha, meta: metaLinha };
+      });
+      if (!carregandoMeta && linhasEstrutura.length === 1 && !linhasEstrutura[0].meta && escopoUmaEstrutura && meta > 0) {
+        linhasEstrutura[0] = { ...linhasEstrutura[0], meta };
+        totalMeta = meta;
+      }
+      return {
+        titulo: 'Realizado Total',
+        subtitulo: '',
+        tipo: 'realizado_total_acumulado',
+        abertura,
+        bases: ['PEDIDOS'],
+        itens: [
+          { label: 'Meta faturamento', valor: formatarMoeda(meta) },
+          { label: 'Realizado', valor: formatarMoeda(realizado) },
+          { label: '% da meta', valor: `${formatarNumeroBR(percentual, 1)}%`, percentual },
+          { label: 'Falta para a meta', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' }
+        ],
+        secoesTabelas: [
+          {
+            titulo: 'Acumulado por estrutura',
+            cor: '#048187',
+            totalRotulo: 'TOTAL DAS ESTRUTURAS',
+            mostrarMeta: true,
+            carregandoMeta,
+            ...completarPercentualMeta(linhasEstrutura, totalMeta),
+          },
+          {
+            titulo: 'Acumulado por consultor',
+            cor: '#5c4b8a',
+            totalRotulo: 'TOTAL DOS CONSULTORES',
+            linhas: consultoresAcumulados,
+          }
+        ]
+      };
+    };
+
+    // As metas por estrutura normalmente já vieram com o Dashboard; se ainda não, busca o resumo de metas
+    // (mesmo ciclo e filtros, escopo do usuário aplicado no servidor) e completa a coluna Meta.
+    const estruturasMetaCarregadas = Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : [];
+    setModalDetalhes(montarDetalhe(estruturasMetaCarregadas, !estruturasMetaCarregadas.length));
+    if (estruturasMetaCarregadas.length) return;
+
+    let estruturasMetaBuscadas = [];
+    try {
+      const ciclo = String(cicloVisualizacaoVDRef.current || cicloSelecionadoVD || filtrosAtivos?.ciclo || '').trim();
+      const resposta = await axios.post(
+        `${API_URL}/metas/resumo`,
+        { ...filtrosAtivos, ciclo },
+        { headers: { 'X-Ciclo-VD': ciclo }, timeout: 45000 }
+      );
+      estruturasMetaBuscadas = Array.isArray(resposta.data?.estruturas) ? resposta.data.estruturas : [];
+    } catch (erro) {
+      console.warn('Metas por estrutura indisponíveis no Realizado Total:', erro);
+    }
+    setModalDetalhes((atual) => (atual?.abertura === abertura ? montarDetalhe(estruturasMetaBuscadas, false) : atual));
   };
   const enriquecerDetalheDiario = (respostaRapida, metasApi = dadosMetas, consultoresMetaExtra = [], metaResolvidaExtra = null) => {
     const diasTotal = Math.max(
@@ -13682,20 +13785,19 @@ const enviarArquivo = async (tipo) => {
                 <div className="rounded-xl bg-red-50 border border-red-100 p-4 text-red-600 font-bold">{erroDetalheEudora}</div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                    {[
-                      ['Realizado', formatarMoeda(detalheEudora?.resumo?.realizado || 0)],
-                      ['Meta Eudora', formatarMoeda(detalheEudora?.resumo?.meta || 0)],
-                      ['% atingido', `${Number(detalheEudora?.resumo?.percentual || 0).toFixed(1)}%`],
-                      ['Falta para a meta', formatarMoeda(detalheEudora?.resumo?.falta || 0)],
-                      ['Pedidos Eudora', Number(detalheEudora?.resumo?.pedidos || 0).toLocaleString('pt-BR')],
-                    ].map(([label, value]) => (
-                      <div key={label} className="rounded-xl border border-gray-100 bg-[#fbfefe] p-4">
-                        <p className="text-[10px] font-black uppercase text-gray-400">{label}</p>
-                        <p className="mt-2 text-xl font-black text-[#048187]">{value}</p>
-                      </div>
-                    ))}
-                  </div>
+                  <ResumoDetalhe
+                    itens={prepararResumoDetalhe([
+                      { label: 'Meta Eudora', valor: formatarMoeda(detalheEudora?.resumo?.meta || 0) },
+                      { label: 'Realizado', valor: formatarMoeda(detalheEudora?.resumo?.realizado || 0) },
+                      {
+                        label: '% da meta',
+                        valor: `${formatarNumeroBR(detalheEudora?.resumo?.percentual || 0, 1)}%`,
+                        percentual: Number(detalheEudora?.resumo?.percentual || 0),
+                      },
+                      { label: 'Falta para a meta', valor: formatarMoeda(detalheEudora?.resumo?.falta || 0) },
+                      { label: 'Pedidos Eudora', valor: formatarNumeroBR(detalheEudora?.resumo?.pedidos || 0, 0) },
+                    ])}
+                  />
                   {(detalheEudora?.nucleos || []).map((bloco) => (
                     <section key={bloco.nucleo} className="rounded-2xl border border-gray-100 overflow-hidden">
                       <div className="bg-[#dff4f5] px-5 py-3 flex items-center justify-between gap-3">
@@ -20060,6 +20162,60 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
+    // Faturamento LOJA no mesmo formato do Realizado Total VD: quadros + acumulado por unidade (com a meta de cada PDV)
+    // e por consultora. As listas já chegam no escopo do usuário e com os filtros da tela aplicados.
+    const abrirDetalheFaturamentoLoja = () => {
+      const realizado = Number(resumoCardsLoja.faturamento_realizado || 0);
+      const meta = Number(resumoCardsLoja.meta_faturamento || 0);
+      const percentual = Number(resumoCardsLoja.percentual_faturamento || calcPerc(realizado, meta));
+      const falta = Math.max(meta - realizado, 0);
+      const acumular = (lista, nomeDe, comMeta) => {
+        const ordenada = [...lista].sort((a, b) => Number(b?.realizado || 0) - Number(a?.realizado || 0));
+        const total = ordenada.reduce((acc, item) => acc + Number(item?.realizado || 0), 0);
+        return ordenada.map((item, indice) => ({
+          posicao: indice + 1,
+          nome: nomeDe(item),
+          ...(comMeta ? { meta: Number(item?.meta_faturamento || 0) } : {}),
+          valor: Number(item?.realizado || 0),
+          percentual: total > 0 ? (Number(item?.realizado || 0) / total) * 100 : 0,
+        }));
+      };
+      setModalDetalhes({
+        titulo: 'Faturamento LOJA',
+        subtitulo: 'Faturamento LOJA = soma da coluna GMV-GMV da base de vendas.',
+        tipo: 'realizado_total_acumulado',
+        bases: [],
+        itens: [
+          { label: 'Meta faturamento', valor: formatarMoeda(meta) },
+          { label: 'Realizado', valor: formatarMoeda(realizado) },
+          { label: '% da meta', valor: `${formatarNumeroBR(percentual, 1)}%`, percentual },
+          { label: 'Falta para a meta', valor: falta > 0 ? formatarMoeda(falta) : 'Meta batida' }
+        ],
+        secoesTabelas: [
+          {
+            titulo: 'Acumulado por unidade',
+            cor: '#048187',
+            totalRotulo: 'TOTAL DAS UNIDADES',
+            mostrarMeta: true,
+            ...completarPercentualMeta(
+              acumular(unidadesFiltradas, (u) => `${u.codigo_pdv} - ${u.cidade || u.nome_loja || ''}`.trim(), true),
+              unidadesFiltradas.reduce((acc, item) => acc + Number(item?.meta_faturamento || 0), 0)
+            ),
+          },
+          {
+            titulo: 'Acumulado por consultora',
+            cor: '#5c4b8a',
+            totalRotulo: 'TOTAL DAS CONSULTORAS',
+            linhas: acumular(
+              consultorasFiltradas.filter((c) => Number(c?.realizado || 0) > 0),
+              (c) => c.nome_consultora || c.id_consultora || 'Não informada',
+              false
+            ),
+          }
+        ]
+      });
+    };
+
     const abrirDetalheVendaDiariaLoja = () => {
       const pdvs = Array.isArray(
         dadosLoja?.venda_diaria_pdvs
@@ -21646,12 +21802,7 @@ const enviarArquivo = async (tipo) => {
                 cor={corPorFaixaMeta(resumoCardsLoja.percentual_faturamento)}
                 labelMeta="Meta faturamento"
                 valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_faturamento)}
-                onAbrir={() => abrirDetalheCardLoja('Faturamento LOJA', [
-                  { label: 'Realizado', valor: formatarMoeda(resumoCardsLoja.faturamento_realizado || 0) },
-                  { label: 'Meta ciclo', valor: formatarMoeda(resumoCardsLoja.meta_faturamento || 0) },
-                  { label: '% da meta', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_faturamento || 0, 1)}%` },
-                  { label: 'Falta para a meta', valor: formatarMoeda(resumoCardsLoja.deficit_faturamento || 0) }
-                ], 'Faturamento LOJA = soma da coluna GMV-GMV da base de vendas.')}
+                onAbrir={abrirDetalheFaturamentoLoja}
               />
               <CardKpi
                 titulo="Venda diária"
@@ -21682,7 +21833,7 @@ const enviarArquivo = async (tipo) => {
                 onAbrir={() => abrirDetalheCardLoja('Skin LOJA', [
                   { label: 'Realizado Skin', valor: formatarMoeda(resumoCardsLoja.skin_realizado || 0) },
                   { label: 'Meta Skin', valor: formatarMoeda(resumoCardsLoja.meta_skin || 0) },
-                  { label: '% Skin', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_skin || 0, 1)}%` }
+                  { label: '% da meta', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_skin || 0, 1)}%` }
                 ], 'Skin = soma da aba CONSULTOR, coluna RECEITA (R$), ignorando linhas de total.')}
               />
               <CardKpi
@@ -23467,60 +23618,25 @@ const enviarArquivo = async (tipo) => {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Realizado hoje
-                  </p>
-                  <p className="text-2xl font-black text-[#048187] mt-2">
-                    {formatarMoeda(
-                      modalRealizadoDiarioVD.resumo?.realizado_hoje || 0
-                    )}
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Meta diária
-                  </p>
-                  <p className="text-2xl font-black text-gray-700 mt-2">
-                    {formatarMoeda(
-                      modalRealizadoDiarioVD.resumo?.meta_diaria || 0
-                    )}
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Atingimento
-                  </p>
-                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
-                    {formatarNumeroBR(
-                      modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
-                      1
-                    )}%
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Falta para a meta diária
-                  </p>
-                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
-                    {
-                      Number(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) <= 0
-                        ? 'Sem meta cadastrada'
-                        : Number(
-                            modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0
-                          ) > 0
-                          ? formatarMoeda(
-                              modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0
-                            )
-                          : 'Meta batida'
-                    }
-                  </p>
-                </div>
-              </div>
+              <ResumoDetalhe
+                itens={prepararResumoDetalhe([
+                  { label: 'Meta diária', valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) },
+                  { label: 'Realizado hoje', valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.realizado_hoje || 0) },
+                  {
+                    label: '% da meta diária',
+                    valor: `${formatarNumeroBR(modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0, 1)}%`,
+                    percentual: Number(modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0),
+                  },
+                  {
+                    label: 'Falta para a meta diária',
+                    valor: Number(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) <= 0
+                      ? 'Sem meta cadastrada'
+                      : Number(modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0) > 0
+                        ? formatarMoeda(modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0)
+                        : 'Meta batida',
+                  },
+                ])}
+              />
 
               <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-500">
                 <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
@@ -23864,61 +23980,23 @@ const enviarArquivo = async (tipo) => {
             </div>
 
             <div className="p-5 sm:p-7 overflow-y-auto space-y-6 bg-[#f7fafb]">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="bg-white rounded-xl border border-gray-100 p-4">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Venda total do dia
-                  </p>
-                  <p className="text-2xl font-black text-[#048187] mt-2">
-                    {formatarMoeda(modalVendaDiariaLoja.total || 0)}
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-100 p-4">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Meta diária
-                  </p>
-                  <p className="text-2xl font-black text-gray-700 mt-2">
-                    {formatarMoeda(modalVendaDiariaLoja.meta || 0)}
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-100 p-4">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Atingimento
-                  </p>
-                  <p className="text-2xl font-black text-[#7c1f31] mt-2">
-                    {formatarNumeroBR(
-                      calcPerc(
-                        modalVendaDiariaLoja.total || 0,
-                        modalVendaDiariaLoja.meta || 0
-                      ),
-                      1
-                    )}%
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-100 p-4">
-                  <p className="text-[10px] font-black uppercase text-gray-400">
-                    Data de referência
-                  </p>
-                  <p className="text-xl font-black text-gray-700 mt-2">
-                    {formatarDataBR(
-                      modalVendaDiariaLoja.dataReferencia
-                      || new Date().toISOString().slice(0, 10)
-                    )}
-                  </p>
-                  <p className={`text-[10px] font-black mt-2 ${
-                    modalVendaDiariaLoja.conferida
-                      ? 'text-[#048187]'
-                      : 'text-orange-600'
-                  }`}>
-                    {modalVendaDiariaLoja.conferida
-                      ? '✓ Total conferido com PDVs e consultores'
-                      : 'Conferência da composição indisponível'}
-                  </p>
-                </div>
-              </div>
+              <ResumoDetalhe
+                itens={prepararResumoDetalhe([
+                  { label: 'Meta diária', valor: formatarMoeda(modalVendaDiariaLoja.meta || 0) },
+                  { label: 'Venda total do dia', valor: formatarMoeda(modalVendaDiariaLoja.total || 0) },
+                  {
+                    label: '% da meta diária',
+                    valor: `${formatarNumeroBR(calcPerc(modalVendaDiariaLoja.total || 0, modalVendaDiariaLoja.meta || 0), 1)}%`,
+                    percentual: calcPerc(modalVendaDiariaLoja.total || 0, modalVendaDiariaLoja.meta || 0),
+                  },
+                  {
+                    label: 'Data de referência',
+                    valor: formatarDataBR(modalVendaDiariaLoja.dataReferencia || new Date().toISOString().slice(0, 10)),
+                    nota: modalVendaDiariaLoja.conferida ? '✓ Total conferido com PDVs e consultores' : 'Conferência da composição indisponível',
+                    corNota: modalVendaDiariaLoja.conferida ? '#048187' : '#ea580c',
+                  },
+                ])}
+              />
 
               <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <div className="px-5 py-4 bg-[#dff5f6] flex flex-wrap items-center justify-between gap-3">
@@ -24248,7 +24326,7 @@ const enviarArquivo = async (tipo) => {
 
       {modalValorExpandido.aberto && (
         <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
-          <div className={`w-full ${modalValorExpandido.indicadorIaf ? 'max-w-7xl' : 'max-w-xl'} max-h-[92dvh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col`}>
+          <div className={`w-full ${modalValorExpandido.indicadorIaf ? 'max-w-7xl' : 'max-w-4xl'} max-h-[92dvh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col`}>
             <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100 shrink-0">
               <div className="min-w-0">
                 <h3 className="text-2xl font-bold text-gray-700">{modalValorExpandido.titulo}</h3>
@@ -24297,22 +24375,34 @@ const enviarArquivo = async (tipo) => {
                 </div>
               ) : (
                 <>
-                  <div className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-6">
-                    <p className="text-sm font-bold uppercase tracking-wide text-gray-400">
-                      {modalValorExpandido.indicadorIaf ? '% ativação' : 'Valor completo'}
-                    </p>
-                    <h4 className="mt-3 text-4xl font-extrabold text-[#048187] break-words">{modalValorExpandido.valorTexto}</h4>
-                  </div>
+                  {modalValorExpandido.indicadorIaf ? (
+                    <>
+                      <div className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-6">
+                        <p className="text-sm font-bold uppercase tracking-wide text-gray-400">% ativação</p>
+                        <h4 className="mt-3 text-4xl font-extrabold text-[#048187] break-words">{modalValorExpandido.valorTexto}</h4>
+                      </div>
 
-                  {Array.isArray(modalValorExpandido.detalhes) && modalValorExpandido.detalhes.length > 0 && (
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${modalValorExpandido.indicadorIaf ? 'lg:grid-cols-7' : 'lg:grid-cols-3'} gap-3`}>
-                      {modalValorExpandido.detalhes.map((item) => (
-                        <div key={item.label} className="rounded-xl bg-gray-50 border border-gray-100 p-4 min-w-0">
-                          <p className="text-[10px] font-black uppercase text-gray-400 tracking-wide">{item.label}</p>
-                          <p className="mt-1 text-lg font-black text-gray-700 break-words">{item.valor}</p>
+                      {Array.isArray(modalValorExpandido.detalhes) && modalValorExpandido.detalhes.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
+                          {modalValorExpandido.detalhes.map((item) => (
+                            <div key={item.label} className="rounded-xl bg-gray-50 border border-gray-100 p-4 min-w-0">
+                              <p className="text-[10px] font-black uppercase text-gray-400 tracking-wide">{item.label}</p>
+                              <p className="mt-1 text-lg font-black text-gray-700 break-words">{item.valor}</p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
+                  ) : (
+                    // O valor principal quase sempre repete um dos quadros; só vira quadro próprio quando não repete.
+                    <ResumoDetalhe
+                      itens={prepararResumoDetalhe([
+                        ...((modalValorExpandido.detalhes || []).some((item) => item?.valor === modalValorExpandido.valorTexto)
+                          ? []
+                          : [{ label: 'Valor', valor: modalValorExpandido.valorTexto }]),
+                        ...(modalValorExpandido.detalhes || []),
+                      ])}
+                    />
                   )}
 
                   {modalValorExpandido.formula && (
@@ -24481,14 +24571,7 @@ const enviarArquivo = async (tipo) => {
             </div>
 
             <div className="p-5 sm:p-6 space-y-5 overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {modalDetalhes.itens.map((item) => (
-                  <div key={item.label} className="bg-[#fcfbf7] border border-gray-100 rounded-xl p-4 min-w-0">
-                    <p className="text-xs font-bold uppercase text-gray-400 mb-1">{item.label}</p>
-                    <p className="text-xl sm:text-2xl font-bold text-[#048187] whitespace-nowrap overflow-hidden text-ellipsis">{item.valor}</p>
-                  </div>
-                ))}
-              </div>
+              <ResumoDetalhe itens={prepararResumoDetalhe(modalDetalhes.itens)} />
 
               {modalDetalhes.tipo === 'tendencia' && modalDetalhes.plano && (
                 <div className={`rounded-2xl border p-5 ${modalDetalhes.plano.status === 'risco' ? 'bg-red-50/70 border-red-100' : 'bg-green-50/70 border-green-100'}`}>
@@ -24555,50 +24638,9 @@ const enviarArquivo = async (tipo) => {
                 </div>
               )}
 
-              {modalDetalhes.secoesTabelas?.map((secao) => {
-                const totalSecao = (secao.linhas || []).reduce((acc, item) => acc + Number(item.valor || 0), 0);
-                return (
-                  <section key={secao.titulo} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                    <div className="px-5 py-4 border-b border-gray-100">
-                      <h3 className="font-black text-gray-700">{secao.titulo}</h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[720px] text-sm">
-                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                          <tr>
-                            <th className="px-5 py-3 text-left">Posição</th>
-                            <th className="px-5 py-3 text-left">Nome</th>
-                            <th className="px-5 py-3 text-right">Valor acumulado</th>
-                            <th className="px-5 py-3 text-right">% do realizado</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {(secao.linhas || []).map((item) => (
-                            <tr key={`${secao.titulo}-${item.posicao}-${item.nome}`} className="hover:bg-[#f8fcfc]">
-                              <td className="px-5 py-3 font-black" style={{ color: secao.cor }}>{item.posicao}º</td>
-                              <td className="px-5 py-3 font-black text-gray-700">{item.nome}</td>
-                              <td className="px-5 py-3 text-right font-black" style={{ color: secao.cor }}>{formatarMoeda(item.valor || 0)}</td>
-                              <td className="px-5 py-3 text-right font-black text-gray-600">{formatarNumeroBR(item.percentual || 0, 1)}%</td>
-                            </tr>
-                          ))}
-                          {!(secao.linhas || []).length && (
-                            <tr>
-                              <td colSpan="4" className="px-5 py-10 text-center text-gray-400 font-semibold">Nenhum dado disponível.</td>
-                            </tr>
-                          )}
-                        </tbody>
-                        <tfoot className="bg-[#f7fafb]">
-                          <tr>
-                            <td colSpan="2" className="px-5 py-4 font-black text-gray-600">{secao.totalRotulo}</td>
-                            <td className="px-5 py-4 text-right font-black" style={{ color: secao.cor }}>{formatarMoeda(totalSecao)}</td>
-                            <td className="px-5 py-4 text-right font-black text-gray-600">100,0%</td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </section>
-                );
-              })}
+              {modalDetalhes.secoesTabelas?.map((secao) => (
+                <TabelaAcumulado key={secao.titulo} secao={secao} />
+              ))}
             </div>
 
           </div>
