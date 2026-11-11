@@ -17,6 +17,7 @@ import TelaRotas from './telas/TelaRotas';
 import TelaAdicoes from './telas/TelaAdicoes';
 import { GradeCardsTopo, CardKpi, CardTendencia, CardPedidos, CardIndicadores, CardDesempenho } from './cards/CardsTopo';
 import { ResumoDetalhe, TabelaAcumulado } from './cards/DetalheCards';
+import { RankingIndividualConsultores } from './cards/RankingIndividual';
 
 import './dashboard-refinado.css';
 
@@ -12715,7 +12716,6 @@ const enviarArquivo = async (tipo) => {
     const metaResolvida = acompanhamentoVD.meta_resolvida || {};
     const diarioResumo = acompanhamentoVD.diario?.resumo || {};
     const consultores = Array.isArray(acompanhamentoVD.consultores) ? acompanhamentoVD.consultores : [];
-    const diarioConsultores = Array.isArray(acompanhamentoVD.diario?.consultores) ? acompanhamentoVD.diario.consultores : [];
     const adicoesEstruturasGerente = Array.isArray(resumoAdicoesMetas?.estruturas) ? resumoAdicoesMetas.estruturas : [];
 
     const metaTotal = Number(
@@ -12763,57 +12763,36 @@ const enviarArquivo = async (tipo) => {
       .sort((a, b) => Number(b?.value || 0) - Number(a?.value || 0));
     const totalMeios = meiosCaptacao.reduce((soma, item) => soma + Number(item?.value || 0), 0);
 
-    const localizarDiarioConsultor = (consultor) => {
-      const id = String(consultor?.id_colaborador || consultor?.id_consultor || '').trim();
-      const nome = normalizarChaveAcompanhamento(consultor?.nome_exibicao || consultor?.nome || consultor?.consultor);
-      return diarioConsultores.find((item) => {
-        const idItem = String(item?.id_consultor || item?.id_colaborador || '').trim();
-        const nomeItem = normalizarChaveAcompanhamento(item?.consultor || item?.nome);
-        return (id && idItem && id === idItem) || (nome && nomeItem && nome === nomeItem);
-      }) || {};
+    // Ranking individual com a mesma conta da tela Metas: cada consultor usa a base ativa e as metas
+    // da estrutura dele (vêm no resumo de metas, já filtrado para a unidade do gestor).
+    const estruturasMetasGerente = Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : [];
+    const detalheUnicoGerente = estruturasMetasGerente.length === 1
+      ? montarFallbackDetalheMeta(estruturasMetasGerente[0]?.estrutura || estruturasMetasGerente[0]?.nome_meta)
+      : null;
+    const detalheTotalGerente = {
+      estrutura: escopoTexto,
+      base_ativa: Number(dadosMetas?.base_ativa_total_geral || 0),
+      meta: {
+        receita: metaTotal,
+        atividade: metaAtividade,
+        make: metaMake,
+        cabelo: metaCabelo,
+        multimarcas: metaMulti,
+        eudora: Number(dadosMetas?.meta_eudora_geral || dados?.meta_eudora_percentual || 20),
+        rpa: metaRpa,
+        tkt_medio: metaTicket,
+        upa: metaUpa,
+      },
     };
-
-    const IndicadorConsultor = ({ titulo, meta, realizado, percentual, moeda = false, decimal = 1, onDetalhe = null }) => (
-      <div className="rounded-xl border border-gray-100 bg-white p-3 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-[9px] font-black uppercase tracking-wide text-gray-500 truncate">{titulo}</p>
-          {onDetalhe && (
-            <button
-              type="button"
-              onClick={onDetalhe}
-              className="shrink-0 w-6 h-6 rounded-lg bg-[#e6f6f7] text-[#048187] hover:bg-[#d0f0f1] inline-flex items-center justify-center transition-colors"
-              title={`Ver detalhes de ${titulo}`}
-            >
-              <Eye size={12} />
-            </button>
-          )}
-        </div>
-        <div className="mt-2">
-          <p className="text-[8px] font-black uppercase text-gray-400">Meta</p>
-          <p className="text-[12px] font-black text-[#7c1f31] truncate" title={String(meta)}>
-            {moeda ? formatarMoeda(meta) : typeof meta === 'number' ? formatarNumeroBR(meta, decimal) : meta}
-          </p>
-        </div>
-        <div className="mt-2 border-t border-gray-100 pt-2">
-          <p className="text-[8px] font-black uppercase text-gray-400">Realizado</p>
-          <p className="text-[12px] font-black truncate" style={{ color: corPorFaixaMeta(percentual) }} title={String(realizado)}>
-            {moeda ? formatarMoeda(realizado) : typeof realizado === 'number' ? formatarNumeroBR(realizado, decimal) : realizado}
-          </p>
-        </div>
-        <div className="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-          <div
-            className="h-full rounded-full"
-            style={{
-              width: `${Math.min(Math.max(Number(percentual || 0), 0), 100)}%`,
-              backgroundColor: corPorFaixaMeta(percentual),
-            }}
-          />
-        </div>
-        <p className="mt-1 text-[8px] font-black text-right" style={{ color: corPorFaixaMeta(percentual) }}>
-          {formatarNumeroBR(percentual, 1)}% da meta
-        </p>
-      </div>
-    );
+    const detalhesEstruturaGerente = new Map();
+    const obterDetalheConsultorGerente = (consultor) => {
+      if (detalheUnicoGerente) return detalheUnicoGerente;
+      const chave = String(consultor?.estrutura || '').trim();
+      if (!detalhesEstruturaGerente.has(chave)) {
+        detalhesEstruturaGerente.set(chave, (chave && montarFallbackDetalheMeta(chave)) || detalheTotalGerente);
+      }
+      return detalhesEstruturaGerente.get(chave);
+    };
 
     return (
       <div className="space-y-5 animate-fade-in">
@@ -13075,211 +13054,13 @@ const enviarArquivo = async (tipo) => {
           </div>
         )}
 
-        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h2 className="text-lg font-black text-gray-700 text-center border-b border-gray-100 pb-3">Ranking individual</h2>
-          {(acompanhamentoVD.carregando || acompanhamentoVD.carregandoConsultores) ? (
-            <div className="py-12 flex items-center justify-center gap-3 text-[#048187] font-black">
-              <Loader2 size={20} className="animate-spin" /> Atualizando acompanhamento...
-            </div>
-          ) : !consultores.length ? (
-            <div className="py-12 text-center text-sm font-bold text-gray-400">Nenhum consultor encontrado para esta estrutura.</div>
-          ) : (
-            <div className="mt-4 space-y-4">
-              {consultores.map((consultor, indice) => {
-                const dia = localizarDiarioConsultor(consultor);
-                const metaCiclo = Number(consultor?.meta_individual || consultor?.meta_faturamento || consultor?.meta_ciclo || consultor?.meta || 0);
-                const realizadoCiclo = Number(consultor?.realizado || consultor?.faturamento_realizado || 0);
-                const metaDiaria = Number(dia?.meta_diaria || dia?.meta_hoje || consultor?.meta_diaria || (metaCiclo > 0 ? metaCiclo / diasTotal : 0));
-                const vendidoHoje = Number(dia?.vendido_hoje || dia?.realizado || consultor?.vendido_hoje || 0);
-                const atividadeRealizada = Number(consultor?.atividade_realizada || consultor?.ativos || 0);
-                const atividadePct = Number(consultor?.percentual_atividade || 0);
-                const makeRealizado = Number(consultor?.make_realizado || 0);
-                const makePct = Number(consultor?.percentual_make || 0);
-                const cabeloRealizado = Number(consultor?.cabelo_realizado || 0);
-                const cabeloPct = Number(consultor?.percentual_cabelo || 0);
-                const eudoraReal = Number(consultor?.eudora_realizado || 0);
-                const rpaConsultor = Number(consultor?.rpa || 0);
-                const ticketConsultor = Number(consultor?.tkt_medio || consultor?.ticket_medio || 0);
-                const upaConsultor = Number(consultor?.upa || 0);
-                const nomeConsultorExibicao = consultor?.nome_exibicao || consultor?.nome || consultor?.consultor || 'Consultor';
-                const baseAtivaConsultor = Math.max(Number(consultor?.base_ativa || consultor?.base_ativa_total || consultor?.ativos_base || atividadeRealizada || 0), 0);
-                const metaAtividadeQtdConsultor = Math.ceil((baseAtivaConsultor * Number(metaAtividade || 0)) / 100);
-                const makeMetaQtdConsultor = Math.ceil((atividadeRealizada * Number(metaMake || 0)) / 100);
-                const cabeloMetaQtdConsultor = Math.ceil((atividadeRealizada * Number(metaCabelo || 0)) / 100);
-                const pedidosConsultor = Number(consultor?.quantidade_pedidos || 0);
-                const totalItensConsultor = Number(consultor?.total_itens || 0);
-                const faturamentoNecessarioRpaConsultor = Number(metaRpa || 0) * atividadeRealizada;
-                const faturamentoNecessarioTicketConsultor = Number(metaTicket || 0) * pedidosConsultor;
-                const itensNecessariosUpaConsultor = Number(metaUpa || 0) * atividadeRealizada;
-
-                return (
-                  <article key={`${consultor?.id_colaborador || consultor?.nome || indice}`} className="rounded-2xl border border-gray-100 bg-[#fffefa] p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-7 h-7 rounded-full bg-[#048187] text-white inline-flex items-center justify-center text-xs font-black">{indice + 1}</span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-black text-gray-800 truncate">{consultor?.nome_exibicao || consultor?.nome || consultor?.consultor || 'Consultor'}</p>
-                          <p className="text-[10px] font-bold text-gray-400 truncate">ID {consultor?.id_colaborador || consultor?.id_consultor || '-'} • Meta diária {formatarAbrev(metaDiaria)} • Hoje {formatarAbrev(vendidoHoje)}</p>
-                        </div>
-                      </div>
-                      <span className="text-lg font-black text-[#048187]">{formatarNumeroBR(calcPerc(realizadoCiclo, metaCiclo), 2)}%</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
-                      <IndicadorConsultor
-                        titulo="Faturamento"
-                        meta={metaCiclo}
-                        realizado={realizadoCiclo}
-                        percentual={calcPerc(realizadoCiclo, metaCiclo)}
-                        moeda
-                        onDetalhe={() => abrirModalValExp(
-                          `${nomeConsultorExibicao} • FATURAMENTO`,
-                          formatarMoeda(realizadoCiclo),
-                          'Acompanhe quanto falta para bater a meta de faturamento do ciclo.',
-                          [
-                            { label: 'Meta de faturamento', valor: formatarMoeda(metaCiclo) },
-                            { label: 'Realizado', valor: formatarMoeda(realizadoCiclo) },
-                            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(realizadoCiclo, metaCiclo), 1)}%` },
-                            { label: 'Falta para a meta', valor: Math.max(metaCiclo - realizadoCiclo, 0) > 0 ? formatarMoeda(Math.max(metaCiclo - realizadoCiclo, 0)) : 'Meta batida' },
-                          ]
-                        )}
-                      />
-                      <IndicadorConsultor
-                        titulo="Eudora"
-                        meta={Number(consultor?.meta_eudora_valor || 0)}
-                        realizado={eudoraReal}
-                        percentual={calcPerc(eudoraReal, Number(consultor?.meta_eudora_valor || 0))}
-                        moeda
-                        onDetalhe={() => abrirModalValExp(
-                          `${nomeConsultorExibicao} • EUDORA`,
-                          formatarMoeda(eudoraReal),
-                          'Mostra o realizado de Eudora versus a meta do consultor.',
-                          [
-                            { label: 'Meta Eudora', valor: formatarMoeda(Number(consultor?.meta_eudora_valor || 0)) },
-                            { label: 'Realizado Eudora', valor: formatarMoeda(eudoraReal) },
-                            { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(eudoraReal, Number(consultor?.meta_eudora_valor || 0)), 1)}%` },
-                            { label: 'Falta para a meta', valor: Math.max(Number(consultor?.meta_eudora_valor || 0) - eudoraReal, 0) > 0 ? formatarMoeda(Math.max(Number(consultor?.meta_eudora_valor || 0) - eudoraReal, 0)) : 'Meta batida' },
-                          ]
-                        )}
-                      />
-                      <IndicadorConsultor
-                        titulo="Atividade"
-                        meta={`${formatarNumeroBR(metaAtividade, 1)}%`}
-                        realizado={`${formatarNumeroBR(atividadeRealizada, 0)} rev. • ${formatarNumeroBR(atividadePct, 1)}%`}
-                        percentual={calcPerc(atividadePct, metaAtividade)}
-                        onDetalhe={() => abrirModalValExp(
-                          `${nomeConsultorExibicao} • ATIVIDADE`,
-                          `${formatarNumeroBR(atividadePct, 1)}%`,
-                          'Atividade compara os revendedores ativados com a base ativa vinculada ao consultor.',
-                          [
-                            { label: 'Base ativa', valor: formatarNumeroBR(baseAtivaConsultor, 0) },
-                            { label: 'Ativados', valor: formatarNumeroBR(atividadeRealizada, 0) },
-                            { label: 'Meta % atividade', valor: `${formatarNumeroBR(metaAtividade, 1)}%` },
-                            { label: 'Ativação ideal', valor: formatarNumeroBR(metaAtividadeQtdConsultor, 0) },
-                            { label: 'Saldo', valor: Math.max(metaAtividadeQtdConsultor - atividadeRealizada, 0) > 0 ? `Faltam ${formatarNumeroBR(Math.max(metaAtividadeQtdConsultor - atividadeRealizada, 0), 0)}` : 'Meta batida' },
-                          ]
-                        )}
-                      />
-                      <IndicadorConsultor
-                        titulo="MAKE"
-                        meta={`${formatarNumeroBR(metaMake, 1)}%`}
-                        realizado={`${formatarNumeroBR(makeRealizado, 0)} rev. • ${formatarNumeroBR(makePct, 1)}%`}
-                        percentual={calcPerc(makePct, metaMake)}
-                        onDetalhe={() => abrirModalValExp(
-                          `${nomeConsultorExibicao} • MAKE`,
-                          `${formatarNumeroBR(makePct, 1)}%`,
-                          'MAKE considera a proporção de revendedores ativados com compra da marca.',
-                          [
-                            { label: 'Meta MAKE', valor: `${formatarNumeroBR(metaMake, 1)}%` },
-                            { label: 'Revendedores com MAKE', valor: formatarNumeroBR(makeRealizado, 0) },
-                            { label: 'Meta em revendedores', valor: formatarNumeroBR(makeMetaQtdConsultor, 0) },
-                            { label: '% atual', valor: `${formatarNumeroBR(makePct, 1)}%` },
-                            { label: 'Falta para a meta', valor: Math.max(makeMetaQtdConsultor - makeRealizado, 0) > 0 ? `${formatarNumeroBR(Math.max(makeMetaQtdConsultor - makeRealizado, 0), 0)} rev.` : 'Meta batida' },
-                          ]
-                        )}
-                      />
-                      <IndicadorConsultor
-                        titulo="CABELO"
-                        meta={`${formatarNumeroBR(metaCabelo, 1)}%`}
-                        realizado={`${formatarNumeroBR(cabeloRealizado, 0)} rev. • ${formatarNumeroBR(cabeloPct, 1)}%`}
-                        percentual={calcPerc(cabeloPct, metaCabelo)}
-                        onDetalhe={() => abrirModalValExp(
-                          `${nomeConsultorExibicao} • CABELO`,
-                          `${formatarNumeroBR(cabeloPct, 1)}%`,
-                          'CABELO considera a proporção de revendedores ativados com compra da marca.',
-                          [
-                            { label: 'Meta CABELO', valor: `${formatarNumeroBR(metaCabelo, 1)}%` },
-                            { label: 'Revendedores com CABELO', valor: formatarNumeroBR(cabeloRealizado, 0) },
-                            { label: 'Meta em revendedores', valor: formatarNumeroBR(cabeloMetaQtdConsultor, 0) },
-                            { label: '% atual', valor: `${formatarNumeroBR(cabeloPct, 1)}%` },
-                            { label: 'Falta para a meta', valor: Math.max(cabeloMetaQtdConsultor - cabeloRealizado, 0) > 0 ? `${formatarNumeroBR(Math.max(cabeloMetaQtdConsultor - cabeloRealizado, 0), 0)} rev.` : 'Meta batida' },
-                          ]
-                        )}
-                      />
-                      <IndicadorConsultor
-                        titulo="RPA"
-                        meta={metaRpa}
-                        realizado={rpaConsultor}
-                        percentual={calcPerc(rpaConsultor, metaRpa)}
-                        moeda
-                        onDetalhe={() => abrirModalValExp(
-                          `${nomeConsultorExibicao} • RPA`,
-                          formatarMoeda(rpaConsultor),
-                          'RPA é o faturamento dividido pelos revendedores ativados.',
-                          [
-                            { label: 'Meta RPA', valor: formatarMoeda(metaRpa) },
-                            { label: 'RPA atual', valor: formatarMoeda(rpaConsultor) },
-                            { label: 'Ativados', valor: formatarNumeroBR(atividadeRealizada, 0) },
-                            { label: 'Faturamento ideal para bater a meta', valor: formatarMoeda(faturamentoNecessarioRpaConsultor) },
-                            { label: 'Falta em faturamento', valor: Math.max(faturamentoNecessarioRpaConsultor - realizadoCiclo, 0) > 0 ? formatarMoeda(Math.max(faturamentoNecessarioRpaConsultor - realizadoCiclo, 0)) : 'Meta batida' },
-                          ]
-                        )}
-                      />
-                      <IndicadorConsultor
-                        titulo="Ticket médio"
-                        meta={metaTicket}
-                        realizado={ticketConsultor}
-                        percentual={calcPerc(ticketConsultor, metaTicket)}
-                        moeda
-                        onDetalhe={() => abrirModalValExp(
-                          `${nomeConsultorExibicao} • TICKET MÉDIO`,
-                          formatarMoeda(ticketConsultor),
-                          'Ticket médio é o faturamento dividido pela quantidade de pedidos.',
-                          [
-                            { label: 'Meta ticket médio', valor: formatarMoeda(metaTicket) },
-                            { label: 'Ticket atual', valor: formatarMoeda(ticketConsultor) },
-                            { label: 'Pedidos', valor: formatarNumeroBR(pedidosConsultor, 0) },
-                            { label: 'Faturamento ideal para a meta', valor: formatarMoeda(faturamentoNecessarioTicketConsultor) },
-                            { label: 'Falta em faturamento', valor: Math.max(faturamentoNecessarioTicketConsultor - realizadoCiclo, 0) > 0 ? formatarMoeda(Math.max(faturamentoNecessarioTicketConsultor - realizadoCiclo, 0)) : 'Meta batida' },
-                          ]
-                        )}
-                      />
-                      <IndicadorConsultor
-                        titulo="UPA"
-                        meta={metaUpa}
-                        realizado={upaConsultor}
-                        percentual={calcPerc(upaConsultor, metaUpa)}
-                        onDetalhe={() => abrirModalValExp(
-                          `${nomeConsultorExibicao} • UPA`,
-                          formatarNumeroBR(upaConsultor, 1),
-                          'UPA representa itens por revendedor ativado.',
-                          [
-                            { label: 'Meta UPA', valor: formatarNumeroBR(metaUpa, 1) },
-                            { label: 'UPA atual', valor: formatarNumeroBR(upaConsultor, 1) },
-                            { label: 'Ativados', valor: formatarNumeroBR(atividadeRealizada, 0) },
-                            { label: 'Itens totais', valor: formatarNumeroBR(totalItensConsultor, 0) },
-                            { label: 'Itens ideais para bater a meta', valor: formatarNumeroBR(itensNecessariosUpaConsultor, 0) },
-                            { label: 'Falta em itens', valor: Math.max(itensNecessariosUpaConsultor - totalItensConsultor, 0) > 0 ? formatarNumeroBR(Math.max(itensNecessariosUpaConsultor - totalItensConsultor, 0), 0) : 'Meta batida' },
-                          ]
-                        )}
-                      />
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        <RankingIndividualConsultores
+          consultores={consultores}
+          obterDetalhe={obterDetalheConsultorGerente}
+          abrirModalValExp={abrirModalValExp}
+          carregando={acompanhamentoVD.carregando || acompanhamentoVD.carregandoConsultores}
+          mensagemVazia="Nenhum consultor encontrado para esta estrutura."
+        />
 
         <BlocoSupervisoresER supervisores={acompanhamentoVD.supervisores} />
 
@@ -14055,17 +13836,6 @@ const enviarArquivo = async (tipo) => {
 
     const textoFaltaMoeda = (valor) => Number(valor || 0) > 0 ? formatarMoeda(valor) : 'Meta batida';
     const textoFaltaQtd = (valor) => Number(valor || 0) > 0 ? formatarNumeroBR(valor, 0) : 'Meta batida';
-    const calcularMetaDistribuida = (metaTotal, peso, casas = 0) => {
-      const valor = Number(metaTotal || 0) * (Number(peso || 0) / 100);
-      if (casas === 0) return Math.round(valor);
-      return Number(valor.toFixed(casas));
-    };
-    const obterPesoRanking = (item) => {
-      const pesoInformado = Number(item?.peso_meta || 0);
-      if (pesoInformado > 0) return pesoInformado;
-      if (consOriginais.length > 0) return 100 / consOriginais.length;
-      return 100;
-    };
     const nomeEquipeFallback = detalheMeta?.estrutura
       ? (String(detalheMeta.estrutura).toUpperCase().startsWith('EQUIPE') ? String(detalheMeta.estrutura) : `EQUIPE ${detalheMeta.estrutura}`)
       : 'EQUIPE';
@@ -14094,55 +13864,6 @@ const enviarArquivo = async (tipo) => {
     const descricaoResumoDetalhe = possuiConsultoresDetalhados
       ? 'Resumo da estrutura e resultado individual dos consultores.'
       : 'Resumo da estrutura e resultado consolidado da equipe.';
-    const obterCorDesempenho = (percentual) => {
-      const valor = Number(percentual || 0);
-      if (valor < 70) return '#7c1f31';
-      if (valor < 91) return '#ff6f03';
-      return '#048187';
-    };
-
-    const CardIndicadorRanking = ({ titulo, meta, realizado, percentualMeta, onClickExpandir }) => {
-      const percentualSeguro = Number(percentualMeta || 0);
-      const percentualBarra = Math.max(0, Math.min(percentualSeguro, 100));
-      const faltaPercentual = Math.max(100 - percentualSeguro, 0);
-      const corDesempenho = obterCorDesempenho(percentualSeguro);
-
-      return (
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500">{titulo}:</p>
-            <button
-              type="button"
-              onClick={onClickExpandir}
-              className="text-[#048187] hover:text-[#026a6e] transition-colors"
-              title={`Ver detalhes de ${titulo}`}
-            >
-              <Eye size={16} />
-            </button>
-          </div>
-          <div className="mt-3 space-y-2">
-            <div>
-              <p className="text-[11px] uppercase font-semibold text-gray-400">Meta:</p>
-              <p className="text-[13px] sm:text-[14px] font-semibold text-gray-700 mt-0.5 break-words leading-tight">{meta}</p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase font-semibold text-gray-400">Realizado:</p>
-              <p className="text-[13px] sm:text-[14px] font-semibold mt-0.5 break-words leading-tight" style={{ color: corDesempenho }}>{realizado}</p>
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-center justify-between gap-3 text-[11px] font-semibold flex-wrap">
-              <span style={{ color: corDesempenho }}>{formatarNumeroBR(percentualSeguro, 1)}% da meta</span>
-              <span style={{ color: corDesempenho }}>{percentualSeguro >= 100 ? 'Meta batida' : `Falta ${formatarNumeroBR(faltaPercentual, 1)}%`}</span>
-            </div>
-            <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-300" style={{ width: `${percentualBarra}%`, backgroundColor: corDesempenho }} />
-            </div>
-          </div>
-        </div>
-      );
-    };
-
     const abrirDetalheFaturamentoGeralMetas = () => {
       const realizado = Number(dadosMetas?.realizado_total_geral || 0);
       const meta = Number(dadosMetas?.meta_total_geral || 0);
@@ -15024,282 +14745,11 @@ const enviarArquivo = async (tipo) => {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 sm:p-6">
-              <h2 className="text-lg font-medium text-gray-700 text-center mb-4 border-b border-gray-100 pb-3">Ranking individual</h2>
-              <div className="space-y-4">
-                {cons.map((c, idx) => {
-                  const trend = obterTendenciaVisual(c.id_colaborador);
-                  const pesoConsultor = obterPesoRanking(c);
-                  const faturamentoRealizado = Number(c.realizado || 0);
-                  const faturamentoMeta = Number(c.meta_individual || 0);
-                  const atividadeRealizadaItem = Number(c.atividade_realizada || 0);
-                  const percentualAtividadeItem = Number(c.percentual_atividade || 0);
-                  const metaAtividadeItem = c.tipo_fallback_estrutura ? qtdMetaAtividadeDetalhe : calcularMetaDistribuida(qtdMetaAtividadeDetalhe, pesoConsultor, 0);
-                  const percentualMetaAtividadeItem = metaAtividadeDetalhePercentual;
-                  const makeRealizadoItem = Number(c.make_realizado || 0);
-                  const percentualMakeItem = Number(c.percentual_make || 0);
-                  const percentualMetaMakeItem = metaMakeDetalhePercentual;
-                  const atividadeMakeBaseItem = Number(c.atividade_make_base || atividadeRealizadaItem);
-                  const metaMakeItem = Math.ceil((atividadeMakeBaseItem * percentualMetaMakeItem) / 100);
-                  const cabeloRealizadoItem = Number(c.cabelo_realizado || 0);
-                  const percentualCabeloItem = Number(c.percentual_cabelo || 0);
-                  const percentualMetaCabeloItem = metaCabeloDetalhePercentual;
-                  const atividadeCabeloBaseItem = Number(c.atividade_cabelo_base || atividadeRealizadaItem);
-                  const metaCabeloItem = Math.ceil((atividadeCabeloBaseItem * percentualMetaCabeloItem) / 100);
-                  const rpaRealizadoItem = atividadeRealizadaItem > 0 ? faturamentoRealizado / atividadeRealizadaItem : 0;
-                  const ticketRealizadoItem = Number(c.quantidade_pedidos || 0) > 0 ? faturamentoRealizado / Number(c.quantidade_pedidos || 0) : 0;
-                  const upaRealizadoItem = calcularUpa(Number(c.total_itens || 0), atividadeRealizadaItem);
-                  const percentualFaturamentoItem = calcPerc(faturamentoRealizado, faturamentoMeta);
-                  const faltaFaturamentoItem = Math.max(faturamentoMeta - faturamentoRealizado, 0);
-                  const percentualMetaAtividadeAtingido = calcPerc(percentualAtividadeItem, percentualMetaAtividadeItem);
-                  const faltamAtivarItem = Math.max(metaAtividadeItem - atividadeRealizadaItem, 0);
-                  const percentualMetaMakeAtingido = calcPerc(makeRealizadoItem, metaMakeItem);
-                  const faltamMakeItem = Math.max(metaMakeItem - makeRealizadoItem, 0);
-                  const percentualMetaCabeloAtingido = calcPerc(cabeloRealizadoItem, metaCabeloItem);
-                  const faltamCabeloItem = Math.max(metaCabeloItem - cabeloRealizadoItem, 0);
-                  const metaEudoraPercentualItem = Number(c.meta_eudora || metaEudoraDetalhePercentual || 20);
-                  const metaEudoraValorItem = Number(c.meta_eudora_valor || (faturamentoMeta * metaEudoraPercentualItem / 100));
-                  const eudoraRealizadoItem = Number(c.eudora_realizado || 0);
-                  const percentualMetaEudoraAtingido = Number(c.percentual_eudora || calcPerc(eudoraRealizadoItem, metaEudoraValorItem));
-                  const faltamEudoraItem = Math.max(metaEudoraValorItem - eudoraRealizadoItem, 0);
-                  const pedidosEudoraItem = Number(c.pedidos_eudora || 0);
-                  const metaRpaItem = Number(detalheMeta?.meta?.rpa || 0);
-                  const percentualMetaRpaAtingido = calcPerc(rpaRealizadoItem, metaRpaItem);
-                  const faturamentoNecessarioRpaItem = metaRpaItem * atividadeRealizadaItem;
-                  const faltamFaturarRpaItem = Math.max(faturamentoNecessarioRpaItem - faturamentoRealizado, 0);
-                  const metaTicketItem = Number(detalheMeta?.meta?.tkt_medio || 0);
-                  const percentualMetaTicketAtingido = calcPerc(ticketRealizadoItem, metaTicketItem);
-                  const faturamentoNecessarioTicketItem = metaTicketItem * Number(c.quantidade_pedidos || 0);
-                  const faltamFaturarTicketItem = Math.max(faturamentoNecessarioTicketItem - faturamentoRealizado, 0);
-                  const metaUpaItem = Number(detalheMeta?.meta?.upa || 0);
-                  const percentualMetaUpaAtingido = calcPerc(upaRealizadoItem, metaUpaItem);
-                  const itensNecessariosUpaItem = metaUpaItem * atividadeRealizadaItem;
-                  const faltamItensUpaItem = Math.max(itensNecessariosUpaItem - Number(c.total_itens || 0), 0);
-
-                  const abrirDetalheFaturamentoRanking = () => abrirModalValExp(
-                    `Faturamento ${obterNomeExibicaoConsultor(c)}`,
-                    formatarMoeda(faturamentoRealizado),
-                    'Detalhamento do faturamento realizado versus a meta individual.',
-                    [
-                      { label: 'Meta faturamento', valor: formatarMoeda(faturamentoMeta) },
-                      { label: 'Realizado', valor: formatarMoeda(faturamentoRealizado) },
-                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualFaturamentoItem, 1)}%` },
-                      { label: 'Falta para a meta', valor: faltaFaturamentoItem > 0 ? formatarMoeda(faltaFaturamentoItem) : 'Meta batida' },
-                    ],
-                    `${formatarMoeda(faturamentoRealizado)} ÷ ${formatarMoeda(faturamentoMeta)} = ${formatarNumeroBR(percentualFaturamentoItem, 1)}% da meta`
-                  );
-
-                  const abrirDetalheAtividadeRanking = () => abrirModalValExp(
-                    `Atividade ${obterNomeExibicaoConsultor(c)}`,
-                    `${formatarNumeroBR(percentualAtividadeItem, 1)}%`,
-                    'Atividade calculada com base na meta percentual, na base ativa da estrutura e na distribuição individual pelo peso do consultor quando aplicável.',
-                    [
-                      { label: 'Base ativa da estrutura', valor: formatarNumeroBR(baseAtivaDetalhe, 0) },
-                      { label: 'Meta atividade da estrutura', valor: `${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}%` },
-                      { label: 'Meta em revendedores da estrutura', valor: formatarNumeroBR(qtdMetaAtividadeDetalhe, 0) },
-                      { label: c.tipo_fallback_estrutura ? 'Meta da equipe' : 'Peso do consultor', valor: c.tipo_fallback_estrutura ? '100,00%' : `${formatarNumeroBR(pesoConsultor, 2)}%` },
-                      { label: 'Meta individual em revendedores', valor: formatarNumeroBR(metaAtividadeItem, 0) },
-                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
-                      { label: '% atividade realizado', valor: `${formatarNumeroBR(percentualAtividadeItem, 1)}%` },
-                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaAtividadeAtingido, 1)}%` },
-                      { label: 'Falta para a meta', valor: faltamAtivarItem > 0 ? `${formatarNumeroBR(faltamAtivarItem, 0)} revendedores` : 'Meta batida' },
-                    ],
-                    c.tipo_fallback_estrutura
-                      ? `${formatarNumeroBR(baseAtivaDetalhe, 0)} × ${formatarNumeroBR(metaAtividadeDetalhePercentual, 1)}% = ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} revendedores necessários`
-                      : `Meta individual: ${formatarNumeroBR(qtdMetaAtividadeDetalhe, 0)} × ${formatarNumeroBR(pesoConsultor, 2)}% = ${formatarNumeroBR(metaAtividadeItem, 0)} revendedores`
-                  );
-
-                  const abrirDetalheMakeRanking = () => abrirModalValExp(
-                    `MAKE ${obterNomeExibicaoConsultor(c)}`,
-                    `${formatarNumeroBR(percentualMakeItem, 1)}%`,
-                    'MAKE calculado sobre a atividade do próprio consultor: revendedores ativados pelo consultor × meta percentual de MAKE.',
-                    [
-                      { label: 'Revendedores ativados pelo consultor', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
-                      { label: 'Meta MAKE (%)', valor: `${formatarNumeroBR(percentualMetaMakeItem, 1)}%` },
-                      { label: 'Meta individual com MAKE', valor: formatarNumeroBR(metaMakeItem, 0) },
-                      { label: 'Revendedores com MAKE', valor: formatarNumeroBR(makeRealizadoItem, 0) },
-                      { label: '% MAKE realizado', valor: `${formatarNumeroBR(percentualMakeItem, 1)}%` },
-                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaMakeAtingido, 1)}%` },
-                      { label: 'Falta para a meta MAKE', valor: faltamMakeItem > 0 ? `${formatarNumeroBR(faltamMakeItem, 0)} revendedores` : 'Meta batida' },
-                    ],
-                    `${formatarNumeroBR(atividadeRealizadaItem, 0)} ativados × ${formatarNumeroBR(percentualMetaMakeItem, 1)}% = ${formatarNumeroBR(metaMakeItem, 0)} revendedores necessários com MAKE`
-                  );
-
-                  const abrirDetalheCabeloRanking = () => abrirModalValExp(
-                    `CABELO ${obterNomeExibicaoConsultor(c)}`,
-                    `${formatarNumeroBR(percentualCabeloItem, 1)}%`,
-                    'CABELO calculado sobre a atividade do próprio consultor: revendedores ativados pelo consultor × meta percentual de CABELO.',
-                    [
-                      { label: 'Revendedores ativados pelo consultor', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
-                      { label: 'Meta CABELO (%)', valor: `${formatarNumeroBR(percentualMetaCabeloItem, 1)}%` },
-                      { label: 'Meta individual com CABELO', valor: formatarNumeroBR(metaCabeloItem, 0) },
-                      { label: 'Revendedores com CABELO', valor: formatarNumeroBR(cabeloRealizadoItem, 0) },
-                      { label: '% CABELO realizado', valor: `${formatarNumeroBR(percentualCabeloItem, 1)}%` },
-                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaCabeloAtingido, 1)}%` },
-                      { label: 'Falta para a meta CABELO', valor: faltamCabeloItem > 0 ? `${formatarNumeroBR(faltamCabeloItem, 0)} revendedores` : 'Meta batida' },
-                    ],
-                    `${formatarNumeroBR(atividadeRealizadaItem, 0)} ativados × ${formatarNumeroBR(percentualMetaCabeloItem, 1)}% = ${formatarNumeroBR(metaCabeloItem, 0)} revendedores necessários com CABELO`
-                  );
-
-                  const abrirDetalheEudoraRanking = () => abrirModalValExp(
-                    `Eudora ${obterNomeExibicaoConsultor(c)}`,
-                    formatarMoeda(eudoraRealizadoItem),
-                    '',
-                    [
-                      { label: 'Meta Eudora (% do faturamento)', valor: `${formatarNumeroBR(metaEudoraPercentualItem, 1)}%` },
-                      { label: 'Meta Eudora', valor: formatarMoeda(metaEudoraValorItem) },
-                      { label: 'Realizado Eudora', valor: formatarMoeda(eudoraRealizadoItem) },
-                      { label: '% da meta', valor: `${formatarNumeroBR(percentualMetaEudoraAtingido, 1)}%` },
-                      { label: 'Pedidos Eudora', valor: formatarNumeroBR(pedidosEudoraItem, 0) },
-                      { label: 'Falta para a meta', valor: faltamEudoraItem > 0 ? formatarMoeda(faltamEudoraItem) : 'Meta batida' },
-                    ]
-                  );
-
-                  const abrirDetalheRpaRanking = () => abrirModalValExp(
-                    `RPA ${obterNomeExibicaoConsultor(c)}`,
-                    formatarMoeda(rpaRealizadoItem),
-                    'RPA calculado pelo faturamento realizado dividido pelos revendedores ativados.',
-                    [
-                      { label: 'Meta RPA', valor: formatarMoeda(metaRpaItem) },
-                      { label: 'RPA realizado', valor: formatarMoeda(rpaRealizadoItem) },
-                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaRpaAtingido, 1)}%` },
-                      { label: 'Faturamento realizado', valor: formatarMoeda(faturamentoRealizado) },
-                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
-                      { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessarioRpaItem) },
-                      { label: 'Falta para a meta', valor: faltamFaturarRpaItem > 0 ? formatarMoeda(faltamFaturarRpaItem) : 'Meta batida' },
-                    ],
-                    `${formatarMoeda(faturamentoRealizado)} ÷ ${formatarNumeroBR(atividadeRealizadaItem, 0)} = ${formatarMoeda(rpaRealizadoItem)} | Meta: ${formatarNumeroBR(atividadeRealizadaItem, 0)} × ${formatarMoeda(metaRpaItem)} = ${formatarMoeda(faturamentoNecessarioRpaItem)}`
-                  );
-
-                  const abrirDetalheTicketRanking = () => abrirModalValExp(
-                    `Ticket Médio ${obterNomeExibicaoConsultor(c)}`,
-                    formatarMoeda(ticketRealizadoItem),
-                    'Ticket médio calculado pelo faturamento realizado dividido pela quantidade de pedidos.',
-                    [
-                      { label: 'Meta ticket médio', valor: formatarMoeda(metaTicketItem) },
-                      { label: 'Ticket médio realizado', valor: formatarMoeda(ticketRealizadoItem) },
-                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaTicketAtingido, 1)}%` },
-                      { label: 'Faturamento realizado', valor: formatarMoeda(faturamentoRealizado) },
-                      { label: 'Quantidade de pedidos', valor: formatarNumeroBR(Number(c.quantidade_pedidos || 0), 0) },
-                      { label: 'Receita necessária para a meta', valor: formatarMoeda(faturamentoNecessarioTicketItem) },
-                      { label: 'Falta para a meta', valor: faltamFaturarTicketItem > 0 ? formatarMoeda(faltamFaturarTicketItem) : 'Meta batida' },
-                    ],
-                    `${formatarMoeda(faturamentoRealizado)} ÷ ${formatarNumeroBR(Number(c.quantidade_pedidos || 0), 0)} = ${formatarMoeda(ticketRealizadoItem)} | Meta: ${formatarNumeroBR(Number(c.quantidade_pedidos || 0), 0)} × ${formatarMoeda(metaTicketItem)} = ${formatarMoeda(faturamentoNecessarioTicketItem)}`
-                  );
-
-                  const abrirDetalheUpaRanking = () => abrirModalValExp(
-                    `UPA ${obterNomeExibicaoConsultor(c)}`,
-                    formatarNumeroBR(upaRealizadoItem, 1),
-                    'UPA calculado pelo total de itens vendidos dividido pelos revendedores ativados.',
-                    [
-                      { label: 'Meta UPA', valor: formatarNumeroBR(metaUpaItem, 1) },
-                      { label: 'UPA realizado', valor: formatarNumeroBR(upaRealizadoItem, 1) },
-                      { label: '% realizado da meta', valor: `${formatarNumeroBR(percentualMetaUpaAtingido, 1)}%` },
-                      { label: 'Itens vendidos', valor: formatarNumeroBR(Number(c.total_itens || 0), 0) },
-                      { label: 'Revendedores ativados', valor: formatarNumeroBR(atividadeRealizadaItem, 0) },
-                      { label: 'Itens necessários', valor: formatarNumeroBR(itensNecessariosUpaItem, 0) },
-                      { label: 'Falta para a meta', valor: faltamItensUpaItem > 0 ? formatarNumeroBR(faltamItensUpaItem, 0) : 'Meta batida' },
-                    ],
-                    `${formatarNumeroBR(Number(c.total_itens || 0), 0)} ÷ ${formatarNumeroBR(atividadeRealizadaItem, 0)} = ${formatarNumeroBR(upaRealizadoItem, 1)} | Meta: ${formatarNumeroBR(atividadeRealizadaItem, 0)} × ${formatarNumeroBR(metaUpaItem, 1)} = ${formatarNumeroBR(itensNecessariosUpaItem, 0)} itens`
-                  );
-
-                  return (
-                    <div key={`${c.id_colaborador}-${idx}`} className="border border-gray-100 rounded-xl p-4 bg-[#fcfbf7] min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4 min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-7 h-7 rounded-full bg-[#048187] text-white text-xs font-medium flex items-center justify-center shrink-0">{idx + 1}</span>
-                          <div className="min-w-0">
-                            <h3 className="text-sm font-medium text-gray-700 truncate">{obterNomeExibicaoConsultor(c)}</h3>
-                            <p className="text-xs text-gray-400 truncate">
-                              {c.tipo_fallback_estrutura
-                                ? `Resultado consolidado da equipe • Pedidos: ${c.quantidade_pedidos || 0}`
-                                : `ID: ${c.id_colaborador} • Peso: ${Number(c.peso_meta || 0).toFixed(2)}% • Pedidos: ${c.quantidade_pedidos}`}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <p className="text-lg font-medium text-[#048187] whitespace-nowrap">{Number(c.percentual || 0).toFixed(2)}%</p>
-                          {!c.tipo_fallback_estrutura && trend.val > 0 && (trend.up ? <ArrowUpRight size={18} className="text-green-500" /> : <ArrowDownRight size={18} className="text-red-500" />)}
-                        </div>
-                      </div>
-
-                      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
-                        <CardIndicadorRanking
-                          titulo="Faturamento"
-                          meta={formatarAbrev(faturamentoMeta)}
-                          realizado={formatarAbrev(faturamentoRealizado)}
-                          percentualMeta={percentualFaturamentoItem}
-                          corRealizado="text-[#048187]"
-                          corBarra="#048187"
-                          onClickExpandir={abrirDetalheFaturamentoRanking}
-                        />
-                        <CardIndicadorRanking
-                          titulo="Eudora"
-                          meta={formatarMoeda(metaEudoraValorItem)}
-                          realizado={formatarMoeda(eudoraRealizadoItem)}
-                          percentualMeta={percentualMetaEudoraAtingido}
-                          onClickExpandir={abrirDetalheEudoraRanking}
-                        />
-                        <CardIndicadorRanking
-                          titulo="Atividade"
-                          meta={`${formatarNumeroBR(metaAtividadeItem, 0)} rev. • ${formatarNumeroBR(percentualMetaAtividadeItem, 1)}%`}
-                          realizado={`${formatarNumeroBR(atividadeRealizadaItem, 0)} rev. • ${formatarNumeroBR(percentualAtividadeItem, 1)}%`}
-                          percentualMeta={percentualMetaAtividadeAtingido}
-                          corRealizado="text-[#F97316]"
-                          corBarra="#F97316"
-                          onClickExpandir={abrirDetalheAtividadeRanking}
-                        />
-                        <CardIndicadorRanking
-                          titulo="MAKE"
-                          meta={`${formatarNumeroBR(metaMakeItem, 0)} rev. • ${formatarNumeroBR(percentualMetaMakeItem, 1)}%`}
-                          realizado={`${formatarNumeroBR(makeRealizadoItem, 0)} rev. • ${formatarNumeroBR(percentualMakeItem, 1)}%`}
-                          percentualMeta={percentualMetaMakeAtingido}
-                          corRealizado="text-[#048187]"
-                          corBarra="#048187"
-                          onClickExpandir={abrirDetalheMakeRanking}
-                        />
-                        <CardIndicadorRanking
-                          titulo="Cabelo"
-                          meta={`${formatarNumeroBR(metaCabeloItem, 0)} rev. • ${formatarNumeroBR(percentualMetaCabeloItem, 1)}%`}
-                          realizado={`${formatarNumeroBR(cabeloRealizadoItem, 0)} rev. • ${formatarNumeroBR(percentualCabeloItem, 1)}%`}
-                          percentualMeta={percentualMetaCabeloAtingido}
-                          corRealizado="text-[#712231]"
-                          corBarra="#712231"
-                          onClickExpandir={abrirDetalheCabeloRanking}
-                        />
-                        <CardIndicadorRanking
-                          titulo="RPA"
-                          meta={formatarMoeda(metaRpaItem)}
-                          realizado={formatarMoeda(rpaRealizadoItem)}
-                          percentualMeta={percentualMetaRpaAtingido}
-                          corRealizado="text-gray-700"
-                          corBarra="#257B9C"
-                          onClickExpandir={abrirDetalheRpaRanking}
-                        />
-                        <CardIndicadorRanking
-                          titulo="Ticket Médio"
-                          meta={formatarMoeda(metaTicketItem)}
-                          realizado={formatarMoeda(ticketRealizadoItem)}
-                          percentualMeta={percentualMetaTicketAtingido}
-                          corRealizado="text-gray-700"
-                          corBarra="#257B9C"
-                          onClickExpandir={abrirDetalheTicketRanking}
-                        />
-                        <CardIndicadorRanking
-                          titulo="UPA"
-                          meta={formatarNumeroBR(metaUpaItem, 1)}
-                          realizado={formatarNumeroBR(upaRealizadoItem, 1)}
-                          percentualMeta={percentualMetaUpaAtingido}
-                          corRealizado="text-gray-700"
-                          corBarra="#257B9C"
-                          onClickExpandir={abrirDetalheUpaRanking}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <RankingIndividualConsultores
+              consultores={cons}
+              obterDetalhe={() => detalheMeta}
+              abrirModalValExp={abrirModalValExp}
+            />
 
             <BlocoSupervisoresER supervisores={detalheMeta?.supervisores} />
 
