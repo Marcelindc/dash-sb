@@ -25,6 +25,9 @@ import './dashboard-refinado.css';
 const CelebracaoMeta = React.lazy(() => import('./celebracao/CelebracaoMeta'));
 // Avisos da Campanha Incentivo 2026 (indicador atingido, quase lá, caiu): também só baixa quando houver.
 const AvisosCampanha2026 = React.lazy(() => import('./campanha/AvisosCampanha2026'));
+// Vídeo-anúncio do canal VD (1x por dia) e o resultado dele no Painel ADM: só baixam quando usados.
+const AnuncioVideoVD = React.lazy(() => import('./anuncio/AnuncioVideoVD'));
+const RelatorioAnuncioVideo = React.lazy(() => import('./anuncio/RelatorioAnuncioVideo'));
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
 const TELA_ATUAL_STORAGE_KEY = 'dashSbTelaAtual';
@@ -5614,6 +5617,62 @@ export default function App() {
   const fecharCelebracoesMeta = (ids) => {
     setCelebracoesMeta([]);
     if (ids?.length) axios.post(`${API_URL}/notificacoes/celebracoes/vistas`, { ids }).catch(() => {});
+  };
+
+  // Vídeo-anúncio do canal VD: o backend decide quem vê e quando (1x por dia, horário de Brasília).
+  // Com o DASH já aberto, a próxima checagem é agendada para o horário exato que o backend devolve.
+  const [anuncioVideo, setAnuncioVideo] = useState(null); // { anuncio, simulacao }
+  const anuncioVideoAbertoRef = useRef(false);
+  const anuncioVideoResolvidoRef = useRef(new Set()); // id|dia já resolvidos nesta sessão (pulou, viu ou deu erro)
+  useEffect(() => { anuncioVideoAbertoRef.current = Boolean(anuncioVideo); }, [anuncioVideo]);
+  useEffect(() => {
+    if (!usuarioLogado?.id) {
+      setAnuncioVideo(null);
+      return undefined;
+    }
+    let ativo = true;
+    let timerAgendado = null;
+    let ultimaBusca = 0;
+    const buscar = async () => {
+      if (!ativo || document.hidden || anuncioVideoAbertoRef.current) return;
+      ultimaBusca = Date.now();
+      try {
+        const { data } = await axios.get(`${API_URL}/anuncios/video/pendente`, { params: { _t: Date.now() } });
+        if (!ativo) return;
+        const anuncio = data?.anuncio;
+        if (anuncio?.video_url && !anuncioVideoResolvidoRef.current.has(`${anuncio.id}|${anuncio.dia}`)) {
+          setAnuncioVideo((atual) => atual || { anuncio, simulacao: false });
+          return;
+        }
+        const segundos = Number(data?.proxima_verificacao_segundos);
+        if (Number.isFinite(segundos) && segundos > 0 && segundos <= 6 * 3600) {
+          window.clearTimeout(timerAgendado);
+          timerAgendado = window.setTimeout(buscar, segundos * 1000 + Math.random() * 15000);
+        }
+      } catch {
+        // O vídeo é um extra: se falhar, o DASH segue normalmente.
+      }
+    };
+    const aoVoltarParaAba = () => {
+      if (!document.hidden && Date.now() - ultimaBusca > 60000) buscar();
+    };
+    const timerInicial = window.setTimeout(buscar, 4000);
+    const intervalo = window.setInterval(buscar, 600000);
+    document.addEventListener('visibilitychange', aoVoltarParaAba);
+    return () => {
+      ativo = false;
+      window.clearTimeout(timerInicial);
+      window.clearTimeout(timerAgendado);
+      window.clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', aoVoltarParaAba);
+    };
+  }, [usuarioLogado?.id]);
+
+  const fecharAnuncioVideo = () => {
+    if (anuncioVideo?.anuncio && !anuncioVideo.simulacao) {
+      anuncioVideoResolvidoRef.current.add(`${anuncioVideo.anuncio.id}|${anuncioVideo.anuncio.dia}`);
+    }
+    setAnuncioVideo(null);
   };
 
   // Avisos da Campanha Incentivo 2026 para consultor e gestor de unidade (o backend decide o que é novo).
@@ -17132,6 +17191,10 @@ const enviarArquivo = async (tipo) => {
           <CardAuditoria titulo="Erros" valor={resumo.erros_24h || 0} subtitulo="últimas 24h" icone={AlertCircle} perigo={Number(resumo.erros_24h || 0) > 0} onDetalhes={() => setFiltrosAuditoria((atual) => ({ ...atual, aba: 'erros' }))} />
         </div>
 
+        <React.Suspense fallback={null}>
+          <RelatorioAnuncioVideo apiUrl={API_URL} aoVerPrevia={(anuncio) => setAnuncioVideo({ anuncio, simulacao: true })} />
+        </React.Suspense>
+
         <div className="grid grid-cols-1 xl:grid-cols-[1.22fr_1.06fr_.82fr] gap-5 items-stretch">
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 min-w-0">
             <h3 className="text-base sm:text-lg font-black text-[#404446] text-center uppercase tracking-wide mb-4">Telas mais usadas:</h3>
@@ -25021,13 +25084,25 @@ const enviarArquivo = async (tipo) => {
         </div>
       )}
 
-      {celebracoesMeta.length > 0 && (
+      {anuncioVideo && (
+        <React.Suspense fallback={null}>
+          <AnuncioVideoVD
+            key={`${anuncioVideo.anuncio.id}|${anuncioVideo.anuncio.dia}|${anuncioVideo.simulacao ? 'previa' : 'real'}`}
+            anuncio={anuncioVideo.anuncio}
+            simulacao={anuncioVideo.simulacao}
+            apiUrl={API_URL}
+            aoFechar={fecharAnuncioVideo}
+          />
+        </React.Suspense>
+      )}
+
+      {celebracoesMeta.length > 0 && !anuncioVideo && (
         <React.Suspense fallback={null}>
           <CelebracaoMeta itens={celebracoesMeta} aoFechar={fecharCelebracoesMeta} />
         </React.Suspense>
       )}
 
-      {avisosCampanha.itens.length > 0 && celebracoesMeta.length === 0 && (
+      {avisosCampanha.itens.length > 0 && celebracoesMeta.length === 0 && !anuncioVideo && (
         <React.Suspense fallback={null}>
           <AvisosCampanha2026
             itens={avisosCampanha.itens}
