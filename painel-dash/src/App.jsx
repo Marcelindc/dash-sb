@@ -12795,7 +12795,19 @@ const enviarArquivo = async (tipo) => {
     );
     const pTotal = calcPerc(realizadoTotal, metaTotal);
     const pDia = calcPerc(realizadoHoje, metaHoje);
-    const pEudora = calcPerc(dados?.realizado_eudora || 0, dados?.meta_eudora || 0);
+    // Eudora com a mesma conta da tela Metas: meta de faturamento de cada estrutura da unidade × % Eudora.
+    // A meta que vinha do Dashboard (dados.meta_eudora) só somava estruturas com venda Eudora e casava pelo nome.
+    const metaEudoraPercentual = Number(dadosMetas?.meta_eudora_geral || dados?.meta_eudora_percentual || 20);
+    const metaEudoraValor = Number(
+      dadosMetas?.meta_eudora_valor_geral
+      || (metaTotal > 0 ? metaTotal * metaEudoraPercentual / 100 : 0)
+      || dados?.meta_eudora
+      || 0
+    );
+    const realizadoEudora = Number(dadosMetas?.eudora_total_geral || dados?.realizado_eudora || 0);
+    const pedidosEudora = Number(dadosMetas?.pedidos_eudora_total_geral || 0);
+    const pEudora = calcPerc(realizadoEudora, metaEudoraValor);
+    const faltaEudora = Math.max(metaEudoraValor - realizadoEudora, 0);
     const pMake = Number(dados?.percentual_make || 0);
     const pCabelo = Number(dados?.percentual_cabelo || 0);
     const pMulti = Number(dados?.percentual_multimarcas || 0);
@@ -12837,7 +12849,7 @@ const enviarArquivo = async (tipo) => {
         make: metaMake,
         cabelo: metaCabelo,
         multimarcas: metaMulti,
-        eudora: Number(dadosMetas?.meta_eudora_geral || dados?.meta_eudora_percentual || 20),
+        eudora: metaEudoraPercentual,
         rpa: metaRpa,
         tkt_medio: metaTicket,
         upa: metaUpa,
@@ -12885,7 +12897,27 @@ const enviarArquivo = async (tipo) => {
         <GradeCardsTopo>
           <CardKpi titulo="Realizado Total" valor={formatarAbrev(realizadoTotal)} percentual={pTotal} cor={corPorFaixaMeta(pTotal)} labelMeta="Meta Faturamento" valorMeta={formatarAbrev(metaTotal)} onAbrir={abrirDetRealizadoTotal} />
           <CardKpi titulo="Realizado Diário" valor={formatarAbrev(realizadoHoje)} percentual={pDia} cor={corPorFaixaMeta(pDia)} labelMeta="Meta Diária da Estrutura" valorMeta={formatarAbrev(metaHoje)} onAbrir={abrirDetRealizadoDiario} />
-          <CardKpi titulo="Realizado Eudora" valor={formatarAbrev(dados?.realizado_eudora || 0)} percentual={pEudora} cor={corPorFaixaMeta(pEudora)} labelMeta={`Meta Eudora (${formatarNumeroBR(dados?.meta_eudora_percentual || 20, 1)}%)`} valorMeta={formatarAbrev(dados?.meta_eudora || 0)} onAbrir={abrirDetalheEudora} />
+          <CardKpi
+            titulo="Realizado Eudora"
+            valor={formatarAbrev(realizadoEudora)}
+            percentual={pEudora}
+            cor={corPorFaixaMeta(pEudora)}
+            labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraPercentual, 1)}%)`}
+            valorMeta={formatarAbrev(metaEudoraValor)}
+            onAbrir={() => abrirModalValExp(
+              `Eudora - ${escopoTexto}`,
+              formatarMoeda(realizadoEudora),
+              '',
+              [
+                { label: 'Realizado Eudora', valor: formatarMoeda(realizadoEudora) },
+                { label: 'Meta Eudora', valor: formatarMoeda(metaEudoraValor) },
+                { label: 'Meta Eudora (% do faturamento)', valor: `${formatarNumeroBR(metaEudoraPercentual, 1)}%` },
+                { label: '% da meta', valor: `${formatarNumeroBR(pEudora, 1)}%` },
+                { label: 'Pedidos Eudora', valor: formatarNumeroBR(pedidosEudora, 0) },
+                { label: 'Falta para a meta', valor: faltaEudora > 0 ? formatarMoeda(faltaEudora) : 'Meta batida' },
+              ]
+            )}
+          />
           <CardTendencia valor={formatarAbrev(dados?.tendencia_ciclo || 0)} cor={tendenciaAtingeMeta ? '#16a34a' : '#ef4444'} positiva={tendenciaAtingeMeta} icone={tendenciaPositiva ? TrendingUp : TrendingDown} status={dados?.status_tendencia || 'Sem tendência'} labelGap="Gap Tendência" valorGap={formatarAbrev(dados?.gap_tendencia || 0)} onAbrir={abrirDetTendencia} />
           <CardPedidos totalPedidos={formatarNumeroBR(totalPedidos, 0)} ativados={formatarNumeroBR(ativados, 0)} cancelados={formatarNumeroBR(dados?.total_cancelados || 0, 0)} />
           <CardIndicadores
