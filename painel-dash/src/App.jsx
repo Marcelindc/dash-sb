@@ -18,6 +18,7 @@ import TelaAdicoes from './telas/TelaAdicoes';
 import { GradeCardsTopo, CardKpi, CardTendencia, CardPedidos, CardIndicadores, CardDesempenho } from './cards/CardsTopo';
 import { ResumoDetalhe, TabelaAcumulado } from './cards/DetalheCards';
 import { RankingIndividualConsultores } from './cards/RankingIndividual';
+import EstruturasDoDia from './cards/EstruturasDoDia';
 
 import './dashboard-refinado.css';
 
@@ -12038,6 +12039,18 @@ const enviarArquivo = async (tipo) => {
     setModalDetalhes((atual) => (atual?.abertura === abertura ? montarDetalhe(estruturasMetaBuscadas, false) : atual));
   };
   const enriquecerDetalheDiario = (respostaRapida, metasApi = dadosMetas, consultoresMetaExtra = [], metaResolvidaExtra = null) => {
+    // Desde 12/11/2026 o servidor já manda a meta diária (gap, só seg–sex) de cada estrutura da Metas e dos
+    // consultores dela — a mesma conta do card. A montagem local abaixo fica só para respostas antigas.
+    const metaDiariaServidor = respostaRapida?.meta_diaria_por_estrutura;
+    if (metaDiariaServidor && Array.isArray(metaDiariaServidor.estruturas)) {
+      return {
+        estruturas: metaDiariaServidor.estruturas,
+        consultores: [],
+        nucleos: Array.isArray(metaDiariaServidor.nucleos) ? metaDiariaServidor.nucleos : [],
+        meta_diaria_estruturas: Number(metaDiariaServidor.meta_diaria || 0),
+        dia_util: metaDiariaServidor.dia_util !== false,
+      };
+    }
     const diasTotal = Math.max(
       Number(dados?.dias_total || respostaRapida?.resumo?.dias_total || 1),
       1
@@ -12280,9 +12293,17 @@ const enviarArquivo = async (tipo) => {
     let consultoresParaEnriquecer = Array.isArray(consultoresMeta) ? consultoresMeta : [];
     let metaResolvidaParaEnriquecer = acompanhamentoVD.meta_resolvida || null;
 
-    // Garante a divisão diária individual mesmo quando o usuário abre o olho
-    // antes de o ranking terminar de carregar. A resposta fica em cache.
-    if (modoGerenteVD && !consultoresParaEnriquecer.length) {
+    const resposta = await axios.post(
+      `${API_URL}/dashboard/realizado-diario-rapido`,
+      filtrosDetalhe,
+      { headers: { 'X-Ciclo-VD': ciclo }, timeout: 45000 }
+    );
+    const rapido = resposta.data || {};
+    const servidorTrouxeMetaDiaria = Array.isArray(rapido?.meta_diaria_por_estrutura?.estruturas);
+
+    // Resposta antiga (sem a meta diária do servidor): garante a divisão diária individual do gestor
+    // mesmo quando ele abre o olho antes de o ranking terminar de carregar.
+    if (!servidorTrouxeMetaDiaria && modoGerenteVD && !consultoresParaEnriquecer.length) {
       try {
         const respostaConsultores = await axios.post(
           `${API_URL}/gerente-vd/consultores`,
@@ -12298,12 +12319,6 @@ const enviarArquivo = async (tipo) => {
       }
     }
 
-    const resposta = await axios.post(
-      `${API_URL}/dashboard/realizado-diario-rapido`,
-      filtrosDetalhe,
-      { headers: { 'X-Ciclo-VD': ciclo }, timeout: 30000 }
-    );
-    const rapido = resposta.data || {};
     const enriquecido = enriquecerDetalheDiario(
       rapido,
       metasApi,
@@ -12341,6 +12356,7 @@ const enviarArquivo = async (tipo) => {
       ciclo: cicloDetalhe,
       filtros_aplicados: {},
       dias_total: Number(dados?.dias_total || 0),
+      dia_util: dados?.dia_util !== false,
     };
 
     const chave = `${String(usuarioLogado?.email || usuarioLogado?.id || '')}|${gerarChaveFiltros(filtrosDetalhe)}`;
@@ -12430,11 +12446,10 @@ const enviarArquivo = async (tipo) => {
       return Number.isNaN(d.getTime()) ? null : d;
     };
 
+    // Só segunda a sexta é dia de venda (12/11/2026); sábado e domingo são bônus.
     const pesoDiaLocal = (data) => {
       const dia = data.getDay();
-      if (dia >= 1 && dia <= 5) return 1;
-      if (dia === 6) return 0.5;
-      return 0;
+      return dia >= 1 && dia <= 5 ? 1 : 0;
     };
 
     const somarDiasPonderados = (inicio, fim) => {
@@ -12477,7 +12492,7 @@ const enviarArquivo = async (tipo) => {
       ];
     } else {
       titulo = 'Plano sugerido para recuperar a meta';
-      resumo = `Faltam ${formatarMoeda(valorFaltante)} para bater a meta do ciclo. Para recuperar, venda em média ${formatarMoeda(mediaNecessaria)} por dia útil ponderado até o fim do ciclo.`;
+      resumo = `Faltam ${formatarMoeda(valorFaltante)} para bater a meta do ciclo. Para recuperar, venda em média ${formatarMoeda(mediaNecessaria)} por dia útil (segunda a sexta) até o fim do ciclo. O que vender no fim de semana é bônus.`;
       sugestoes = [
         `Recuperar o gap de tendência de ${formatarMoeda(Math.abs(gap))}.`,
         faltaHoje > 0
@@ -12496,7 +12511,7 @@ const enviarArquivo = async (tipo) => {
       cards: [
         { label: 'Falta para meta', valor: formatarMoeda(valorFaltante) },
         { label: 'Média necessária/dia', valor: formatarMoeda(mediaNecessaria) },
-        { label: 'Dias úteis ponderados', valor: diasRestantes.toLocaleString('pt-BR') },
+        { label: 'Dias úteis restantes (seg–sex)', valor: diasRestantes.toLocaleString('pt-BR') },
         { label: '% da meta diária', valor: `${percentualMetaDiaria.toFixed(1)}%` }
       ],
       sugestoes
@@ -12787,12 +12802,10 @@ const enviarArquivo = async (tipo) => {
     );
     const realizadoTotal = Number(dados?.valor_total || 0);
     const realizadoHoje = Number(diarioResumo?.realizado_hoje ?? dados?.realizado_diario ?? 0);
-    const diasTotal = Math.max(Number(dados?.dias_total || diarioResumo?.dias_total || 1), 1);
-    const metaHoje = Number(
-      diarioResumo?.meta_diaria
-      || dados?.meta_diaria
-      || (metaTotal > 0 ? metaTotal / diasTotal : 0)
-    );
+    // Meta do dia vem do servidor (soma das estruturas, gap, só seg–sex). Sem a divisão local meta/dias,
+    // que dava outra conta. Fim de semana: sem meta, o que vender é bônus.
+    const diaUtilHoje = dados?.dia_util !== false;
+    const metaHoje = diaUtilHoje ? Number(dados?.meta_diaria ?? diarioResumo?.meta_diaria ?? 0) : 0;
     const pTotal = calcPerc(realizadoTotal, metaTotal);
     const pDia = calcPerc(realizadoHoje, metaHoje);
     // Eudora com a mesma conta da tela Metas: meta de faturamento de cada estrutura da unidade × % Eudora.
@@ -12896,7 +12909,7 @@ const enviarArquivo = async (tipo) => {
 
         <GradeCardsTopo>
           <CardKpi titulo="Realizado Total" valor={formatarAbrev(realizadoTotal)} percentual={pTotal} cor={corPorFaixaMeta(pTotal)} labelMeta="Meta Faturamento" valorMeta={formatarAbrev(metaTotal)} onAbrir={abrirDetRealizadoTotal} />
-          <CardKpi titulo="Realizado Diário" valor={formatarAbrev(realizadoHoje)} percentual={pDia} cor={corPorFaixaMeta(pDia)} labelMeta="Meta Diária da Estrutura" valorMeta={formatarAbrev(metaHoje)} onAbrir={abrirDetRealizadoDiario} />
+          <CardKpi titulo="Realizado Diário" valor={formatarAbrev(realizadoHoje)} percentual={diaUtilHoje ? pDia : null} cor={diaUtilHoje ? corPorFaixaMeta(pDia) : '#16a34a'} labelMeta={diaUtilHoje ? 'Meta do Dia da Estrutura' : 'Fim de semana · bônus'} valorMeta={diaUtilHoje ? formatarAbrev(metaHoje) : '—'} onAbrir={abrirDetRealizadoDiario} />
           <CardKpi
             titulo="Realizado Eudora"
             valor={formatarAbrev(realizadoEudora)}
@@ -13434,7 +13447,7 @@ const enviarArquivo = async (tipo) => {
         </div>
         <GradeCardsTopo>
           <CardKpi titulo="Realizado Total" valor={formatarAbrev(dados.valor_total)} percentual={pTot} cor={corPorFaixaMeta(pTot)} labelMeta="Meta Faturamento" valorMeta={formatarAbrev(metaFaturamentoDashboard)} onAbrir={abrirDetRealizadoTotal} />
-          <CardKpi titulo="Realizado Diário" valor={formatarAbrev(dados.realizado_diario || 0)} percentual={pDia} cor={corPorFaixaMeta(pDia)} labelMeta="Meta Diária" valorMeta={formatarAbrev(dados.meta_diaria || 0)} onAbrir={abrirDetRealizadoDiario} />
+          <CardKpi titulo="Realizado Diário" valor={formatarAbrev(dados.realizado_diario || 0)} percentual={dados.dia_util === false ? null : pDia} cor={dados.dia_util === false ? '#16a34a' : corPorFaixaMeta(pDia)} labelMeta={dados.dia_util === false ? 'Fim de semana · bônus' : 'Meta do Dia'} valorMeta={dados.dia_util === false ? '—' : formatarAbrev(dados.meta_diaria || 0)} onAbrir={abrirDetRealizadoDiario} />
           <CardKpi titulo="Realizado Eudora" valor={formatarAbrev(dados.realizado_eudora || 0)} percentual={pEudora} cor={corPorFaixaMeta(pEudora)} labelMeta={`Meta Eudora (${formatarNumeroBR(dados.meta_eudora_percentual || 20, 1)}%)`} valorMeta={formatarAbrev(dados.meta_eudora || 0)} onAbrir={abrirDetalheEudora} />
           <CardTendencia valor={formatarAbrev(dados.tendencia_ciclo || 0)} cor={tendenciaAtingeMetaDashboard ? '#16a34a' : '#ef4444'} positiva={tendenciaAtingeMetaDashboard} icone={tPos ? TrendingUp : TrendingDown} status={dados.status_tendencia || 'Sem tendência'} labelGap="Gap Tendência" valorGap={formatarAbrev(dados.gap_tendencia || 0)} onAbrir={abrirDetTendencia} />
           <CardPedidos
@@ -13974,24 +13987,6 @@ const enviarArquivo = async (tipo) => {
       );
     };
 
-    const abrirDetalheRealizadoDiarioMetas = () => {
-      const realizado = Number(dados?.realizado_diario || 0);
-      const meta = Number(dados?.meta_diaria || 0);
-      const percentual = calcPerc(realizado, meta);
-      const faltam = Math.max(meta - realizado, 0);
-      abrirModalValExp(
-        'Realizado Diário',
-        formatarMoeda(realizado),
-        'Receita total do dia atual.',
-        [
-          { label: 'Realizado hoje', valor: formatarMoeda(realizado) },
-          { label: 'Meta diária', valor: formatarMoeda(meta) },
-          { label: '% da meta diária', valor: `${formatarNumeroBR(percentual, 1)}%` },
-          { label: 'Falta para a meta diária', valor: textoFaltaMoeda(faltam) }
-        ],
-        meta > 0 ? `${formatarMoeda(realizado)} ÷ ${formatarMoeda(meta)} = ${formatarNumeroBR(percentual, 1)}% da meta diária` : 'Meta diária não cadastrada.'
-      );
-    };
 
     const abrirDetalheEudoraGeralMetas = () => abrirModalValExp(
       'Eudora Geral',
@@ -14511,7 +14506,7 @@ const enviarArquivo = async (tipo) => {
         {visaoMetas === 'estruturas' && (
           <GradeCardsTopo variante="cinco">
             <CardKpi titulo="Faturamento Geral" valor={formatarAbrev(dadosMetas?.realizado_total_geral)} percentual={calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral)} cor={corPorFaixaMeta(calcPerc(dadosMetas?.realizado_total_geral, dadosMetas?.meta_total_geral))} labelMeta="Meta Faturamento" valorMeta={formatarAbrev(dadosMetas?.meta_total_geral)} onAbrir={abrirDetalheFaturamentoGeralMetas} />
-            <CardKpi titulo="Realizado Diário" valor={formatarAbrev(dados?.realizado_diario)} percentual={calcPerc(dados?.realizado_diario, dados?.meta_diaria)} cor={corPorFaixaMeta(calcPerc(dados?.realizado_diario, dados?.meta_diaria))} labelMeta="Meta Diária" valorMeta={formatarAbrev(dados?.meta_diaria)} onAbrir={abrirDetalheRealizadoDiarioMetas} />
+            <CardKpi titulo="Realizado Diário" valor={formatarAbrev(dados?.realizado_diario)} percentual={dados?.dia_util === false ? null : calcPerc(dados?.realizado_diario, dados?.meta_diaria)} cor={dados?.dia_util === false ? '#16a34a' : corPorFaixaMeta(calcPerc(dados?.realizado_diario, dados?.meta_diaria))} labelMeta={dados?.dia_util === false ? 'Fim de semana · bônus' : 'Meta do Dia'} valorMeta={dados?.dia_util === false ? '—' : formatarAbrev(dados?.meta_diaria)} onAbrir={abrirDetRealizadoDiario} />
             <CardKpi titulo="Eudora Geral" valor={formatarAbrev(eudoraGeral)} percentual={percentualEudoraGeral} cor={corPorFaixaMeta(percentualEudoraGeral)} labelMeta={`Meta Eudora (${formatarNumeroBR(metaEudoraGeralPercentual, 1)}%)`} valorMeta={formatarAbrev(metaEudoraGeralValor)} onAbrir={abrirDetalheEudoraGeralMetas} />
             <CardIndicadores
               onAbrir={() => abrirModalValExp(
@@ -19643,12 +19638,21 @@ const enviarArquivo = async (tipo) => {
       const metaItensBoleto = mediaValoresLoja(itens, 'meta_itens_boleto') || Number(resumo.meta_itens_boleto || 4);
       const diasPassados = Math.max(Number(resumo.dias_passados || 0), 0);
       const diasTotal = Math.max(Number(resumo.dias_total || 0), 0);
-      const tendencia = diasPassados > 0 && diasTotal > 0
-        ? (faturamento / diasPassados) * diasTotal
-        : (Number(resumo.faturamento_realizado || 0) > 0 ? (Number(resumo.tendencia || 0) * faturamento) / Number(resumo.faturamento_realizado || 1) : faturamento);
-      const metaDiaria = Number(resumo.dias_restantes || 0) > 0
-        ? Math.max(metaFaturamento - faturamento, 0) / Number(resumo.dias_restantes || 1)
-        : 0;
+      // Desde 12/11/2026 cada PDV traz do servidor a meta diária (gap, só seg–sex) e a tendência (com bônus
+      // de fim de semana); o resumo filtrado soma os PDVs. A conta local fica só para listas sem esses campos.
+      const itensComDiaria = itens.length > 0 && itens.every((item) => item?.meta_diaria !== undefined && item?.tendencia !== undefined);
+      const tendencia = itensComDiaria
+        ? itens.reduce((acc, item) => acc + Number(item?.tendencia || 0), 0)
+        : diasPassados > 0 && diasTotal > 0
+          ? (faturamento / diasPassados) * diasTotal
+          : (Number(resumo.faturamento_realizado || 0) > 0 ? (Number(resumo.tendencia || 0) * faturamento) / Number(resumo.faturamento_realizado || 1) : faturamento);
+      const metaDiaria = resumo.dia_util === false
+        ? 0
+        : itensComDiaria
+          ? itens.reduce((acc, item) => acc + Number(item?.meta_diaria || 0), 0)
+          : Number(resumo.dias_restantes || 0) > 0
+            ? Math.max(metaFaturamento - faturamento, 0) / Number(resumo.dias_restantes || 1)
+            : 0;
 
       return {
         ...resumo,
@@ -19871,7 +19875,7 @@ const enviarArquivo = async (tipo) => {
         cards: [
           { label: 'Falta para meta', valor: formatarMoeda(valorFaltante) },
           { label: 'Média necessária/dia', valor: formatarMoeda(mediaNecessaria) },
-          { label: 'Dias úteis ponderados', valor: diasRestantes.toLocaleString('pt-BR') },
+          { label: 'Dias úteis restantes (seg–sex)', valor: diasRestantes.toLocaleString('pt-BR') },
           { label: '% da meta diária', valor: `${formatarNumeroBR(percentualMetaDiaria, 1)}%` }
         ],
         sugestoes
@@ -21352,10 +21356,10 @@ const enviarArquivo = async (tipo) => {
               <CardKpi
                 titulo="Venda diária"
                 valor={formatarMoedaCompactaCard(resumoCardsLoja.realizado_diario || 0)}
-                percentual={calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0)}
-                cor={corPorFaixaMeta(calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0))}
-                labelMeta="Meta diária"
-                valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_diaria || 0)}
+                percentual={resumoCardsLoja.dia_util === false ? null : calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0)}
+                cor={resumoCardsLoja.dia_util === false ? '#16a34a' : corPorFaixaMeta(calcPerc(resumoCardsLoja.realizado_diario || 0, resumoCardsLoja.meta_diaria || 0))}
+                labelMeta={resumoCardsLoja.dia_util === false ? 'Fim de semana · bônus' : 'Meta do dia'}
+                valorMeta={resumoCardsLoja.dia_util === false ? '—' : formatarMoedaCompactaCard(resumoCardsLoja.meta_diaria || 0)}
                 onAbrir={abrirDetalheVendaDiariaLoja}
               />
               <CardTendencia
@@ -23164,23 +23168,29 @@ const enviarArquivo = async (tipo) => {
               )}
 
               <ResumoDetalhe
-                itens={prepararResumoDetalhe([
-                  { label: 'Meta diária', valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) },
-                  { label: 'Realizado hoje', valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.realizado_hoje || 0) },
-                  {
-                    label: '% da meta diária',
-                    valor: `${formatarNumeroBR(modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0, 1)}%`,
-                    percentual: Number(modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0),
-                  },
-                  {
-                    label: 'Falta para a meta diária',
-                    valor: Number(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) <= 0
-                      ? 'Sem meta cadastrada'
-                      : Number(modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0) > 0
-                        ? formatarMoeda(modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0)
-                        : 'Meta batida',
-                  },
-                ])}
+                itens={prepararResumoDetalhe(modalRealizadoDiarioVD.resumo?.dia_util === false
+                  ? [
+                    { label: 'Meta do dia', valor: 'Fim de semana' },
+                    { label: 'Vendido hoje (bônus)', valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.realizado_hoje || 0) },
+                    { label: 'Como conta', valor: 'Baixa a meta de segunda' },
+                  ]
+                  : [
+                    { label: 'Meta do dia', valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) },
+                    { label: 'Realizado hoje', valor: formatarMoeda(modalRealizadoDiarioVD.resumo?.realizado_hoje || 0) },
+                    {
+                      label: '% da meta do dia',
+                      valor: `${formatarNumeroBR(modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0, 1)}%`,
+                      percentual: Number(modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0),
+                    },
+                    {
+                      label: 'Falta para a meta do dia',
+                      valor: Number(modalRealizadoDiarioVD.resumo?.meta_diaria || 0) <= 0
+                        ? 'Meta do ciclo batida'
+                        : Number(modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0) > 0
+                          ? formatarMoeda(modalRealizadoDiarioVD.resumo?.falta_meta_diaria || 0)
+                          : 'Meta batida',
+                    },
+                  ])}
               />
 
               <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-500">
@@ -23200,17 +23210,18 @@ const enviarArquivo = async (tipo) => {
                 <span className={`rounded-full border px-3 py-2 ${
                   modalRealizadoDiarioVD.conferencia?.meios_ok
                   && modalRealizadoDiarioVD.conferencia?.estruturas_ok
-                  && modalRealizadoDiarioVD.conferencia?.consultores_ok
                     ? 'bg-green-50 border-green-100 text-green-700'
                     : 'bg-orange-50 border-orange-100 text-orange-700'
                 }`}>
                   {
                     modalRealizadoDiarioVD.conferencia?.meios_ok
                     && modalRealizadoDiarioVD.conferencia?.estruturas_ok
-                    && modalRealizadoDiarioVD.conferencia?.consultores_ok
                       ? '✓ Todos os detalhamentos fecham com o total'
                       : 'Conferindo composição do resultado'
                   }
+                </span>
+                <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                  Meta do dia: só segunda a sexta · fim de semana é bônus
                 </span>
               </div>
 
@@ -23249,7 +23260,7 @@ const enviarArquivo = async (tipo) => {
                             <th className="px-5 py-3 text-left">Meio de captação</th>
                             <th className="px-5 py-3 text-right">Pedidos</th>
                             <th className="px-5 py-3 text-right">Vendido hoje</th>
-                            <th className="px-5 py-3 text-right">Meta diária</th><th className="px-5 py-3 text-right">% da meta</th><th className="px-5 py-3 text-right">Falta</th>
+                            <th className="px-5 py-3 text-right">Participação no dia</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -23273,18 +23284,12 @@ const enviarArquivo = async (tipo) => {
                               <td className="px-5 py-3 text-right font-black text-gray-600">
                                 {formatarNumeroBR(item.participacao || 0, 1)}%
                               </td>
-                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
-                                {formatarNumeroBR(
-                                  modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
-                                  1
-                                )}%
-                              </td>
                             </tr>
                           ))}
 
                           {!modalRealizadoDiarioVD.meios_captacao.length && (
                             <tr>
-                              <td colSpan="6" className="px-5 py-10 text-center text-gray-400 font-semibold">
+                              <td colSpan="5" className="px-5 py-10 text-center text-gray-400 font-semibold">
                                 Nenhuma venda encontrada por meio de captação.
                               </td>
                             </tr>
@@ -23303,12 +23308,6 @@ const enviarArquivo = async (tipo) => {
                             <td className="px-5 py-4 text-right font-black text-[#048187]">
                               100,0%
                             </td>
-                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
-                              {formatarNumeroBR(
-                                modalRealizadoDiarioVD.resumo?.percentual_atingimento || 0,
-                                1
-                              )}%
-                            </td>
                           </tr>
                         </tfoot>
                       </table>
@@ -23318,179 +23317,39 @@ const enviarArquivo = async (tipo) => {
                   {modalRealizadoDiarioVD.nucleos?.length > 0 && (
                     <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
                       <div className="px-5 py-4 bg-[#edf8f8]">
-                        <h3 className="font-black text-[#048187]">Meta diária por núcleo</h3>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">Meta, realizado e falta de cada núcleo no dia.</p>
+                        <h3 className="font-black text-[#048187]">Meta do dia por núcleo</h3>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">A meta do dia de cada núcleo é a soma das estruturas dele.</p>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[760px] text-sm">
                           <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                            <tr><th className="px-5 py-3 text-left">Núcleo</th><th className="px-5 py-3 text-right">Meta diária</th><th className="px-5 py-3 text-right">Realizado hoje</th><th className="px-5 py-3 text-right">% da meta</th><th className="px-5 py-3 text-right">Falta</th></tr>
+                            <tr><th className="px-5 py-3 text-left">Núcleo</th><th className="px-5 py-3 text-right">Meta do dia</th><th className="px-5 py-3 text-right">Realizado hoje</th><th className="px-5 py-3 text-right">% da meta</th><th className="px-5 py-3 text-right">Falta</th></tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
-                            {modalRealizadoDiarioVD.nucleos.map((item, indice) => (
-                              <tr key={`nucleo-dia-${indice}`}>
-                                <td className="px-5 py-3 font-black text-gray-700">{item.nucleo}</td>
-                                <td className="px-5 py-3 text-right font-black">{formatarMoeda(item.meta_hoje || 0)}</td>
-                                <td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.vendido_hoje || 0)}</td>
-                                <td className="px-5 py-3 text-right font-black">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
-                                <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarMoeda(item.gap_meta_diaria || 0)}</td>
-                              </tr>
-                            ))}
+                            {modalRealizadoDiarioVD.nucleos.map((item, indice) => {
+                              const fimDeSemana = modalRealizadoDiarioVD.resumo?.dia_util === false;
+                              const semMeta = Number(item.meta_hoje || 0) <= 0;
+                              return (
+                                <tr key={`nucleo-dia-${indice}`}>
+                                  <td className="px-5 py-3 font-black text-gray-700">{item.nucleo}</td>
+                                  <td className="px-5 py-3 text-right font-black">{fimDeSemana || semMeta ? '—' : formatarMoeda(item.meta_hoje || 0)}</td>
+                                  <td className="px-5 py-3 text-right font-black text-[#048187]">{formatarMoeda(item.vendido_hoje || 0)}</td>
+                                  <td className="px-5 py-3 text-right font-black">{fimDeSemana || semMeta ? '—' : `${formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%`}</td>
+                                  <td className={`px-5 py-3 text-right font-black ${fimDeSemana ? 'text-[#15803d]' : 'text-[#7c1f31]'}`}>{fimDeSemana ? 'Bônus' : semMeta ? '—' : formatarMoeda(item.gap_meta_diaria || 0)}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
                     </section>
                   )}
 
-                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                    <div className="px-5 py-4 bg-[#e9f4f8] flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h3 className="font-black text-[#257B9C]">
-                          Vendas por estrutura
-                        </h3>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">
-                          Quanto cada estrutura vendeu na data de referência.
-                        </p>
-                      </div>
-                      <span className="text-xs font-black text-[#257B9C]">
-                        {modalRealizadoDiarioVD.estruturas.length} estrutura(s)
-                      </span>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[760px] text-sm">
-                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                          <tr>
-                            <th className="px-5 py-3 text-left">Posição</th>
-                            <th className="px-5 py-3 text-left">Estrutura</th>
-                            <th className="px-5 py-3 text-right">Pedidos</th>
-                            <th className="px-5 py-3 text-right">Vendido hoje</th>
-                            <th className="px-5 py-3 text-right">Meta diária</th><th className="px-5 py-3 text-right">% da meta</th><th className="px-5 py-3 text-right">Falta</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {modalRealizadoDiarioVD.estruturas.map((item, indice) => (
-                            <tr
-                              key={`estrutura-dia-${item.estrutura}-${indice}`}
-                              className="hover:bg-[#f8fcfc]"
-                            >
-                              <td className="px-5 py-3 font-black text-[#257B9C]">
-                                {item.posicao || indice + 1}º
-                              </td>
-                              <td className="px-5 py-3 font-black text-gray-700">
-                                {item.estrutura || 'Não informada'}
-                              </td>
-                              <td className="px-5 py-3 text-right font-bold text-gray-600">
-                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-[#257B9C]">
-                                {formatarMoeda(item.realizado || 0)}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-gray-700">{formatarMoeda(item.meta_hoje || 0)}</td>
-                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
-                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarMoeda(item.gap_meta_diaria || 0)}</td>
-                            </tr>
-                          ))}
-
-                          {!modalRealizadoDiarioVD.estruturas.length && (
-                            <tr>
-                              <td colSpan="7" className="px-5 py-10 text-center text-gray-400 font-semibold">
-                                Nenhuma venda encontrada por estrutura.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                        <tfoot className="bg-[#f5fafd]">
-                          <tr>
-                            <td colSpan="3" className="px-5 py-4 font-black text-gray-600">TOTAL DAS ESTRUTURAS</td>
-                            <td className="px-5 py-4 text-right font-black text-[#257B9C]">{formatarMoeda(modalRealizadoDiarioVD.conferencia?.total_estruturas || 0)}</td>
-                            <td className="px-5 py-4 text-right font-black text-gray-700">{formatarMoeda(modalRealizadoDiarioVD.estruturas.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0))}</td>
-                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">{formatarNumeroBR(calcPerc(modalRealizadoDiarioVD.conferencia?.total_estruturas || 0, modalRealizadoDiarioVD.estruturas.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0)), 1)}%</td>
-                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">{formatarMoeda(Math.max(modalRealizadoDiarioVD.estruturas.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0) - Number(modalRealizadoDiarioVD.conferencia?.total_estruturas || 0), 0))}</td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </section>
-
-                  <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                    <div className="px-5 py-4 bg-[#f1eef8] flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h3 className="font-black text-[#5c4b8a]">
-                          Vendas por consultor
-                        </h3>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">
-                          Resultado individual e estrutura onde o pedido foi finalizado.
-                        </p>
-                      </div>
-                      <span className="text-xs font-black text-[#5c4b8a]">
-                        {modalRealizadoDiarioVD.consultores.length} consultor(es)
-                      </span>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[980px] text-sm">
-                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                          <tr>
-                            <th className="px-5 py-3 text-left">Posição</th>
-                            <th className="px-5 py-3 text-left">ID</th>
-                            <th className="px-5 py-3 text-left">Consultor</th>
-                            <th className="px-5 py-3 text-left">Estrutura</th>
-                            <th className="px-5 py-3 text-right">Pedidos</th>
-                            <th className="px-5 py-3 text-right">Vendido hoje</th>
-                            <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {modalRealizadoDiarioVD.consultores.map((item, indice) => (
-                            <tr
-                              key={`consultor-vd-dia-${item.id_consultor}-${item.estrutura}-${indice}`}
-                              className="hover:bg-[#fbfaff]"
-                            >
-                              <td className="px-5 py-3 font-black text-[#5c4b8a]">
-                                {item.posicao || indice + 1}º
-                              </td>
-                              <td className="px-5 py-3 font-black text-[#048187]">
-                                {item.id_consultor || '-'}
-                              </td>
-                              <td className="px-5 py-3 font-black text-gray-700">
-                                {item.consultor || 'Não identificado'}
-                              </td>
-                              <td className="px-5 py-3 font-bold text-gray-500">
-                                {item.estrutura || 'Não informada'}
-                              </td>
-                              <td className="px-5 py-3 text-right font-bold text-gray-600">
-                                {Number(item.pedidos || 0).toLocaleString('pt-BR')}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-[#5c4b8a]">
-                                {formatarMoeda(item.realizado || 0)}
-                              </td>
-                              <td className="px-5 py-3 text-right font-black text-gray-700">{formatarMoeda(item.meta_hoje || 0)}</td>
-                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%</td>
-                              <td className="px-5 py-3 text-right font-black text-[#7c1f31]">{formatarMoeda(item.gap_meta_diaria || 0)}</td>
-                            </tr>
-                          ))}
-
-                          {!modalRealizadoDiarioVD.consultores.length && (
-                            <tr>
-                              <td colSpan="9" className="px-5 py-10 text-center text-gray-400 font-semibold">
-                                Nenhuma venda encontrada por consultor.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                        <tfoot className="bg-[#faf8fd]">
-                          <tr>
-                            <td colSpan="5" className="px-5 py-4 font-black text-gray-600">TOTAL DOS CONSULTORES</td>
-                            <td className="px-5 py-4 text-right font-black text-[#5c4b8a]">{formatarMoeda(modalRealizadoDiarioVD.conferencia?.total_consultores || 0)}</td>
-                            <td className="px-5 py-4 text-right font-black text-gray-700">{formatarMoeda(modalRealizadoDiarioVD.consultores.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0))}</td>
-                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">{formatarNumeroBR(calcPerc(modalRealizadoDiarioVD.conferencia?.total_consultores || 0, modalRealizadoDiarioVD.consultores.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0)), 1)}%</td>
-                            <td className="px-5 py-4 text-right font-black text-[#7c1f31]">{formatarMoeda(Math.max(modalRealizadoDiarioVD.consultores.reduce((soma, item) => soma + Number(item.meta_hoje || 0), 0) - Number(modalRealizadoDiarioVD.conferencia?.total_consultores || 0), 0))}</td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </section>
+                  {/* Estruturas com a meta do dia e, no +, os consultores de cada uma (12/11/2026). */}
+                  <EstruturasDoDia
+                    estruturas={modalRealizadoDiarioVD.estruturas}
+                    diaUtil={modalRealizadoDiarioVD.resumo?.dia_util !== false}
+                  />
                 </>
               )}
             </div>
