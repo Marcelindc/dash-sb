@@ -36,6 +36,18 @@ const TELAS_ATUALIZACAO_AUTOMATICA_VD = new Set([
   'Dashboard', 'Metas', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Adições', 'Ranking',
   'Comparativo', 'VendasCidades', 'Revendedores', 'Base',
 ]);
+// Janela da Venda diária da LOJA: a mesma tabela da VD (EstruturasDoDia), com os nomes da LOJA.
+const ROTULOS_DIA_LOJA = {
+  titulo: 'Vendas por unidade',
+  item: 'Unidade',
+  itens: 'unidade(s)',
+  pedidos: 'Boletos',
+  pessoa: 'Consultora',
+  pessoas: 'consultoras',
+  artigo: 'as',
+  total: 'TOTAL DAS UNIDADES',
+  vazio: 'Nenhuma unidade com meta ou venda no dia.',
+};
 const CHAVES_FILTROS_LISTA = ['nucleos', 'unidades', 'estruturas', 'consultores', 'situacoes', 'meios_captacao', 'modelos_comerciais', 'canais_venda'];
 const RelatorioAnuncioVideo = React.lazy(() => import('./anuncio/RelatorioAnuncioVideo'));
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
@@ -6104,6 +6116,9 @@ export default function App() {
     dataReferencia: '',
     pdvs: [],
     consultores: [],
+    unidades: [],
+    diaUtil: true,
+    ciclo: '',
     conferida: false,
   });
   const [configRelatorioLoja, setConfigRelatorioLoja] = useState(CONFIG_RELATORIO_LOJA_PADRAO);
@@ -19860,8 +19875,28 @@ const enviarArquivo = async (tipo) => {
         ? dadosLoja.venda_diaria_consultores
         : [];
 
+      // 13/11/2026: mesmo formato da VD — unidade com a meta do dia e, no "+", as consultoras.
+      const unidades = Array.isArray(dadosLoja?.meta_diaria_unidades)
+        ? dadosLoja.meta_diaria_unidades
+        : pdvs.map((pdv, indice) => ({
+          estrutura: pdv.cidade || pdv.nome_loja || pdv.codigo_pdv,
+          nucleo: pdv.codigo_pdv,
+          meta_id: pdv.codigo_pdv,
+          posicao: pdv.posicao || indice + 1,
+          vendido_hoje: Number(pdv.realizado_diario || 0),
+          meta_hoje: 0,
+          pedidos: 0,
+          sem_meta: true,
+          consultores: consultores
+            .filter((c) => String(c.codigo_pdv || '') === String(pdv.codigo_pdv || ''))
+            .map((c) => ({ id_consultor: c.id_consultora, consultor: c.nome_consultora, vendido_hoje: Number(c.realizado_diario || 0), meta_hoje: 0, pedidos: 0, sem_meta_individual: true })),
+        }));
+
       setModalVendaDiariaLoja({
         aberto: true,
+        unidades,
+        diaUtil: dadosLoja?.resumo?.dia_util !== false,
+        ciclo: dadosLoja?.resumo?.ciclo || cicloSelecionadoLoja || '',
         total: Number(
           resumoCardsLoja?.realizado_diario || 0
         ),
@@ -23466,218 +23501,54 @@ const enviarArquivo = async (tipo) => {
             </div>
 
             <div className="p-5 sm:p-7 overflow-y-auto space-y-6 bg-[#f7fafb]">
-              <ResumoDetalhe
-                itens={prepararResumoDetalhe([
-                  { label: 'Meta diária', valor: formatarMoeda(modalVendaDiariaLoja.meta || 0) },
-                  { label: 'Venda total do dia', valor: formatarMoeda(modalVendaDiariaLoja.total || 0) },
-                  {
-                    label: '% da meta diária',
-                    valor: `${formatarNumeroBR(calcPerc(modalVendaDiariaLoja.total || 0, modalVendaDiariaLoja.meta || 0), 1)}%`,
-                    percentual: calcPerc(modalVendaDiariaLoja.total || 0, modalVendaDiariaLoja.meta || 0),
-                  },
-                  {
-                    label: 'Data de referência',
-                    valor: formatarDataBR(modalVendaDiariaLoja.dataReferencia || new Date().toISOString().slice(0, 10)),
-                    nota: modalVendaDiariaLoja.conferida ? '✓ Total conferido com PDVs e consultores' : 'Conferência da composição indisponível',
-                    corNota: modalVendaDiariaLoja.conferida ? '#048187' : '#ea580c',
-                  },
-                ])}
+              {(() => {
+                const meta = Number(modalVendaDiariaLoja.meta || 0);
+                const total = Number(modalVendaDiariaLoja.total || 0);
+                const dataVenda = modalVendaDiariaLoja.dataReferencia || new Date().toISOString().slice(0, 10);
+                const ehHoje = String(dataVenda).slice(0, 10) === dataHojeLocalLoja();
+                const rotuloVendido = ehHoje ? 'Realizado hoje' : `Realizado em ${formatarDataBR(dataVenda)}`;
+                const percentual = calcPerc(total, meta);
+                return (
+                  <ResumoDetalhe
+                    itens={prepararResumoDetalhe(modalVendaDiariaLoja.diaUtil === false
+                      ? [
+                        { label: 'Meta do dia', valor: 'Fim de semana' },
+                        { label: `${rotuloVendido} (bônus)`, valor: formatarMoeda(total) },
+                        { label: 'Como conta', valor: 'Baixa a meta de segunda' },
+                      ]
+                      : [
+                        { label: 'Meta do dia', valor: formatarMoeda(meta) },
+                        { label: rotuloVendido, valor: formatarMoeda(total) },
+                        { label: '% da meta do dia', valor: `${formatarNumeroBR(percentual, 1)}%`, percentual },
+                        {
+                          label: 'Falta para a meta do dia',
+                          valor: meta <= 0 ? 'Meta do ciclo batida' : total >= meta ? 'Meta batida' : formatarMoeda(meta - total),
+                        },
+                      ])}
+                  />
+                );
+              })()}
+
+              <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-500">
+                <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                  Data da venda: {formatarDataBR(modalVendaDiariaLoja.dataReferencia || new Date().toISOString().slice(0, 10))}
+                </span>
+                {modalVendaDiariaLoja.ciclo ? (
+                  <span className="rounded-full bg-white border border-gray-100 px-3 py-2">Ciclo: {modalVendaDiariaLoja.ciclo}</span>
+                ) : null}
+                <span className={`rounded-full border px-3 py-2 ${modalVendaDiariaLoja.conferida ? 'bg-green-50 border-green-100 text-green-700' : 'bg-orange-50 border-orange-100 text-orange-700'}`}>
+                  {modalVendaDiariaLoja.conferida ? '✓ Total conferido com unidades e consultoras' : 'Conferência da composição indisponível'}
+                </span>
+                <span className="rounded-full bg-white border border-gray-100 px-3 py-2">
+                  Meta do dia: só segunda a sexta · fim de semana é bônus
+                </span>
+              </div>
+
+              <EstruturasDoDia
+                estruturas={modalVendaDiariaLoja.unidades || []}
+                diaUtil={modalVendaDiariaLoja.diaUtil !== false}
+                rotulos={ROTULOS_DIA_LOJA}
               />
-
-              <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="px-5 py-4 bg-[#dff5f6] flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-black text-[#048187]">
-                      Venda diária por PDV
-                    </h3>
-                    <p className="text-xs text-gray-500 font-semibold mt-1">
-                      A soma desta tabela corresponde ao valor total do card.
-                    </p>
-                  </div>
-                  <span className="text-xs font-black text-[#048187]">
-                    {modalVendaDiariaLoja.pdvs.length} PDV(s)
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                      <tr>
-                        <th className="px-5 py-3 text-left">Posição</th>
-                        <th className="px-5 py-3 text-left">PDV</th>
-                        <th className="px-5 py-3 text-left">Loja</th>
-                        <th className="px-5 py-3 text-right">Venda do dia</th>
-                        <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {modalVendaDiariaLoja.pdvs.map((item, indice) => (
-                        <tr key={`pdv-dia-${item.codigo_pdv || indice}`} className="hover:bg-[#f8fcfc]">
-                          <td className="px-5 py-3 font-black text-[#048187]">
-                            {item.posicao || indice + 1}º
-                          </td>
-                          <td className="px-5 py-3 font-black text-gray-700">
-                            {item.codigo_pdv || '-'}
-                          </td>
-                          <td className="px-5 py-3">
-                            <p className="font-black text-gray-700">
-                              {item.cidade || item.nome_loja || '-'}
-                            </p>
-                            <p className="text-[10px] text-gray-400 font-bold mt-0.5">
-                              {item.nome_loja || '-'}
-                            </p>
-                          </td>
-                          <td className="px-5 py-3 text-right font-black text-[#048187]">
-                            {formatarMoeda(item.realizado_diario || 0)}
-                          </td>
-                          <td className="px-5 py-3 text-right font-black text-gray-600">
-                            {formatarNumeroBR(item.participacao || 0, 1)}%
-                          </td>
-                          <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
-                            {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
-                          </td>
-                        </tr>
-                      ))}
-
-                      {!modalVendaDiariaLoja.pdvs.length && (
-                        <tr>
-                          <td colSpan="6" className="px-5 py-10 text-center text-gray-400 font-semibold">
-                            Nenhuma venda diária encontrada por PDV.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                    <tfoot className="bg-[#f2fbfb]">
-                      <tr>
-                        <td colSpan="3" className="px-5 py-4 font-black text-gray-600">
-                          TOTAL DOS PDVs
-                        </td>
-                        <td className="px-5 py-4 text-right font-black text-[#048187]">
-                          {formatarMoeda(
-                            modalVendaDiariaLoja.pdvs.reduce(
-                              (total, item) => total + Number(item.realizado_diario || 0),
-                              0
-                            )
-                          )}
-                        </td>
-                        <td className="px-5 py-4 text-right font-black text-[#048187]">
-                          100,0%
-                        </td>
-                        <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
-                          {formatarNumeroBR(
-                            calcPerc(
-                              modalVendaDiariaLoja.total || 0,
-                              modalVendaDiariaLoja.meta || 0
-                            ),
-                            1
-                          )}%
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </section>
-
-              <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="px-5 py-4 bg-[#e9f4f8] flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-black text-[#257B9C]">
-                      Venda diária por consultor
-                    </h3>
-                    <p className="text-xs text-gray-500 font-semibold mt-1">
-                      Resultado individual, com o PDV onde a venda aconteceu.
-                    </p>
-                  </div>
-                  <span className="text-xs font-black text-[#257B9C]">
-                    {modalVendaDiariaLoja.consultores.length} consultor(es)
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[900px] text-sm">
-                    <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
-                      <tr>
-                        <th className="px-5 py-3 text-left">Posição</th>
-                        <th className="px-5 py-3 text-left">ID</th>
-                        <th className="px-5 py-3 text-left">Consultor</th>
-                        <th className="px-5 py-3 text-left">PDV da venda</th>
-                        <th className="px-5 py-3 text-right">Venda do dia</th>
-                        <th className="px-5 py-3 text-right">% do realizado</th><th className="px-5 py-3 text-right">% da meta diária</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {modalVendaDiariaLoja.consultores.map((item, indice) => (
-                        <tr
-                          key={`consultor-dia-${item.codigo_pdv || ''}-${item.id_consultora || indice}`}
-                          className="hover:bg-[#f8fcfc]"
-                        >
-                          <td className="px-5 py-3 font-black text-[#257B9C]">
-                            {item.posicao || indice + 1}º
-                          </td>
-                          <td className="px-5 py-3 font-black text-[#048187]">
-                            {item.id_consultora || '-'}
-                          </td>
-                          <td className="px-5 py-3 font-black text-gray-700">
-                            {item.nome_consultora || '-'}
-                          </td>
-                          <td className="px-5 py-3">
-                            <p className="font-black text-gray-700">
-                              {item.codigo_pdv || '-'}
-                            </p>
-                            <p className="text-[10px] text-gray-400 font-bold mt-0.5">
-                              {item.nome_pdv || '-'}
-                            </p>
-                          </td>
-                          <td className="px-5 py-3 text-right font-black text-[#257B9C]">
-                            {formatarMoeda(item.realizado_diario || 0)}
-                          </td>
-                          <td className="px-5 py-3 text-right font-black text-gray-600">
-                            {formatarNumeroBR(item.participacao || 0, 1)}%
-                          </td>
-                          <td className="px-5 py-3 text-right font-black text-[#7c1f31]">
-                            {formatarNumeroBR(item.percentual_meta_diaria || 0, 1)}%
-                          </td>
-                        </tr>
-                      ))}
-
-                      {!modalVendaDiariaLoja.consultores.length && (
-                        <tr>
-                          <td colSpan="7" className="px-5 py-10 text-center text-gray-400 font-semibold">
-                            Nenhuma venda diária encontrada por consultor.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                    <tfoot className="bg-[#f5fafd]">
-                      <tr>
-                        <td colSpan="4" className="px-5 py-4 font-black text-gray-600">
-                          TOTAL DOS CONSULTORES
-                        </td>
-                        <td className="px-5 py-4 text-right font-black text-[#257B9C]">
-                          {formatarMoeda(
-                            modalVendaDiariaLoja.consultores.reduce(
-                              (total, item) => total + Number(item.realizado_diario || 0),
-                              0
-                            )
-                          )}
-                        </td>
-                        <td className="px-5 py-4 text-right font-black text-[#257B9C]">
-                          100,0%
-                        </td>
-                        <td className="px-5 py-4 text-right font-black text-[#7c1f31]">
-                          {formatarNumeroBR(
-                            calcPerc(
-                              modalVendaDiariaLoja.total || 0,
-                              modalVendaDiariaLoja.meta || 0
-                            ),
-                            1
-                          )}%
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </section>
             </div>
 
           </div>

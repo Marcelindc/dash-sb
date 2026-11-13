@@ -1,4 +1,6 @@
-// Janela do Realizado Diário (VD): estruturas com a meta do dia e, no "+", os consultores de cada uma.
+// Janela do Realizado Diário (VD) e da Venda diária (LOJA): estruturas/unidades com a meta do dia e, no "+",
+// os consultores de cada uma. A LOJA passa `rotulos` (Unidade, Boletos, Consultora) e o servidor manda
+// /loja/dashboard → meta_diaria_unidades no mesmo formato.
 // Os números vêm prontos do servidor (/dashboard/realizado-diario-rapido → meta_diaria_por_estrutura):
 // meta do dia = (meta do ciclo − vendido até ontem) ÷ dias úteis que faltam, só segunda a sexta.
 // Sábado e domingo não têm meta: o que vende neles é bônus e baixa a meta dos próximos dias úteis.
@@ -70,7 +72,25 @@ function ResumoLinhaCelular({ item, diaUtil }) {
   );
 }
 
-export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abertasIniciais = [] }) {
+const ROTULOS_VD = {
+  titulo: 'Vendas por estrutura',
+  item: 'Estrutura',
+  itens: 'estrutura(s)',
+  pedidos: 'Pedidos',
+  pessoa: 'Consultor',
+  pessoas: 'consultores',
+  artigo: 'os',
+  total: 'TOTAL DAS ESTRUTURAS',
+  vazio: 'Nenhuma estrutura com meta ou venda no dia.',
+};
+
+// Etiqueta cinza ao lado do nome (ex.: "sem meta individual", "meta na unidade 123").
+const Etiqueta = ({ texto, pequena = false }) => (
+  <span className={`${pequena ? 'shrink-0 text-[9px]' : 'ml-2 text-[10px]'} rounded-full bg-gray-100 px-2 py-0.5 font-black text-gray-500`}>{texto}</span>
+);
+
+export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abertasIniciais = [], rotulos = {} }) {
+  const r = { ...ROTULOS_VD, ...rotulos };
   const [abertas, setAbertas] = useState(() => new Set(abertasIniciais));
   const alternar = (chave) => setAbertas((atual) => {
     const proximo = new Set(atual);
@@ -87,14 +107,14 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
     <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
       <div className="px-5 py-4 bg-[#e9f4f8] flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="font-black text-[#257B9C]">Vendas por estrutura</h3>
+          <h3 className="font-black text-[#257B9C]">{r.titulo}</h3>
           <p className="text-xs text-gray-500 font-semibold mt-1">
             {diaUtil
-              ? 'Meta do dia = o que falta da meta do ciclo até ontem ÷ dias úteis restantes (seg–sex). Clique no + para ver os consultores.'
+              ? `Meta do dia = o que falta da meta do ciclo até ontem ÷ dias úteis restantes (seg–sex). Clique no + para ver ${r.artigo} ${r.pessoas}.`
               : 'Fim de semana: não há meta do dia. O que vender hoje é bônus e baixa a meta dos próximos dias úteis.'}
           </p>
         </div>
-        <span className="text-xs font-black text-[#257B9C]">{estruturas.length} estrutura(s)</span>
+        <span className="text-xs font-black text-[#257B9C]">{estruturas.length} {r.itens}</span>
       </div>
 
       <ul className="sm:hidden divide-y divide-gray-100">
@@ -108,7 +128,7 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
                 type="button"
                 onClick={() => consultores.length && alternar(chave)}
                 aria-expanded={aberta}
-                aria-label={`${aberta ? 'Esconder' : 'Ver'} consultores de ${item?.estrutura || 'estrutura'}`}
+                aria-label={`${aberta ? 'Esconder' : 'Ver'} ${r.pessoas} de ${item?.estrutura || r.item}`}
                 className="w-full text-left px-4 py-3 flex items-start gap-3"
               >
                 <span className={`mt-0.5 w-7 h-7 shrink-0 rounded-full inline-flex items-center justify-center bg-[#e9f4f8] text-[#257B9C] ${consultores.length ? '' : 'opacity-30'}`}>
@@ -129,7 +149,7 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
                     <li key={`celular-${chave}-${consultor?.id_consultor || posicao}`} className="px-3 py-2.5">
                       <span className="flex items-center gap-2 min-w-0">
                         <span className="text-[12px] font-bold text-gray-700 truncate">{consultor?.consultor || 'Não identificado'}</span>
-                        {consultor?.sem_meta_individual && <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-black text-gray-500">sem meta</span>}
+                        {consultor?.tag ? <Etiqueta texto={consultor.tag} pequena /> : consultor?.sem_meta_individual && <Etiqueta texto="sem meta" pequena />}
                       </span>
                       <ResumoLinhaCelular item={consultor} diaUtil={diaUtil} />
                     </li>
@@ -140,7 +160,7 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
           );
         })}
         <li className="px-4 py-3 bg-[#f5fafd]">
-          <p className="text-[11px] font-black text-gray-600">TOTAL DAS ESTRUTURAS</p>
+          <p className="text-[11px] font-black text-gray-600">{r.total}</p>
           <ResumoLinhaCelular item={{ meta_hoje: metaTotal, vendido_hoje: totalVendido }} diaUtil={diaUtil} />
         </li>
       </ul>
@@ -149,10 +169,10 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
         <table className="w-full min-w-[820px] text-sm">
           <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
             <tr>
-              <th className="pl-4 pr-1 py-3 w-10" aria-label="Ver consultores" />
+              <th className="pl-4 pr-1 py-3 w-10" aria-label={`Ver ${r.pessoas}`} />
               <th className="px-2 py-3 text-left">Posição</th>
-              <th className="px-4 py-3 text-left">Estrutura</th>
-              <th className="px-4 py-3 text-right">Pedidos</th>
+              <th className="px-4 py-3 text-left">{r.item}</th>
+              <th className="px-4 py-3 text-right">{r.pedidos}</th>
               <th className="px-4 py-3 text-right">Vendido hoje</th>
               <th className="px-4 py-3 text-right">Meta do dia</th>
               <th className="px-4 py-3 text-right">% da meta</th>
@@ -173,8 +193,8 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
                         onClick={() => alternar(chave)}
                         disabled={!consultores.length}
                         aria-expanded={aberta}
-                        aria-label={`${aberta ? 'Esconder' : 'Ver'} consultores de ${item?.estrutura || 'estrutura'}`}
-                        title={consultores.length ? (aberta ? 'Esconder consultores' : 'Ver consultores') : 'Sem consultores com meta ou venda hoje'}
+                        aria-label={`${aberta ? 'Esconder' : 'Ver'} ${r.pessoas} de ${item?.estrutura || r.item}`}
+                        title={consultores.length ? `${aberta ? 'Esconder' : 'Ver'} ${r.pessoas}` : `Sem ${r.pessoas} com meta ou venda hoje`}
                         className="w-7 h-7 rounded-full inline-flex items-center justify-center bg-[#e9f4f8] text-[#257B9C] hover:bg-[#d6ebf3] disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         {aberta ? <Minus size={15} strokeWidth={3} /> : <Plus size={15} strokeWidth={3} />}
@@ -198,8 +218,8 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
                           <table className="w-full text-[13px]">
                             <thead className="bg-[#f1eef8] text-[10px] uppercase text-[#5c4b8a] font-black">
                               <tr>
-                                <th className="px-4 py-2 text-left">Consultor</th>
-                                <th className="px-4 py-2 text-right">Pedidos</th>
+                                <th className="px-4 py-2 text-left">{r.pessoa}</th>
+                                <th className="px-4 py-2 text-right">{r.pedidos}</th>
                                 <th className="px-4 py-2 text-right">Vendido hoje</th>
                                 <th className="px-4 py-2 text-right">Meta do dia</th>
                                 <th className="px-4 py-2 text-right">% da meta</th>
@@ -211,9 +231,7 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
                                 <tr key={`${chave}-${consultor?.id_consultor || posicao}`}>
                                   <td className="px-4 py-2 font-bold text-gray-700">
                                     {consultor?.consultor || 'Não identificado'}
-                                    {consultor?.sem_meta_individual && (
-                                      <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">sem meta individual</span>
-                                    )}
+                                    {consultor?.tag ? <Etiqueta texto={consultor.tag} /> : consultor?.sem_meta_individual && <Etiqueta texto="sem meta individual" />}
                                   </td>
                                   <td className="px-4 py-2 text-right font-bold text-gray-600">{formatarNumeroBR(consultor?.pedidos || 0)}</td>
                                   <td className="px-4 py-2 text-right font-black text-[#5c4b8a]">{formatarMoeda(consultor?.vendido_hoje || 0)}</td>
@@ -231,13 +249,13 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
             })}
             {!estruturas.length && (
               <tr>
-                <td colSpan={8} className="px-5 py-10 text-center text-gray-400 font-semibold">Nenhuma estrutura com meta ou venda no dia.</td>
+                <td colSpan={8} className="px-5 py-10 text-center text-gray-400 font-semibold">{r.vazio}</td>
               </tr>
             )}
           </tbody>
           <tfoot className="bg-[#f5fafd]">
             <tr>
-              <td colSpan={4} className="px-4 py-4 font-black text-gray-600">TOTAL DAS ESTRUTURAS</td>
+              <td colSpan={4} className="px-4 py-4 font-black text-gray-600">{r.total}</td>
               <td className="px-4 py-4 text-right font-black text-[#257B9C]">{formatarMoeda(totalVendido)}</td>
               {diaUtil ? (
                 <>
