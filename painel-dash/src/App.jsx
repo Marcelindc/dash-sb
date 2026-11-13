@@ -28,6 +28,7 @@ const CelebracaoMeta = React.lazy(() => import('./celebracao/CelebracaoMeta'));
 const AvisosCampanha2026 = React.lazy(() => import('./campanha/AvisosCampanha2026'));
 // Vídeo-anúncio do canal VD (1x por dia) e o resultado dele no Painel ADM: só baixam quando usados.
 const AnuncioVideoVD = React.lazy(() => import('./anuncio/AnuncioVideoVD'));
+const ComunicadoTela = React.lazy(() => import('./anuncio/ComunicadoTela'));
 const RelatorioAnuncioVideo = React.lazy(() => import('./anuncio/RelatorioAnuncioVideo'));
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
@@ -5674,6 +5675,63 @@ export default function App() {
       anuncioVideoResolvidoRef.current.add(`${anuncioVideo.anuncio.id}|${anuncioVideo.anuncio.dia}`);
     }
     setAnuncioVideo(null);
+  };
+
+  // Comunicados na tela (texto, 1x por pessoa): o backend decide quem vê e a partir de que horas;
+  // com o DASH aberto, a próxima checagem é agendada para o horário que o backend devolve.
+  const [comunicadoTela, setComunicadoTela] = useState(null);
+  const comunicadoAbertoRef = useRef(false);
+  const comunicadoResolvidoRef = useRef(new Set()); // ids já fechados nesta sessão
+  useEffect(() => { comunicadoAbertoRef.current = Boolean(comunicadoTela); }, [comunicadoTela]);
+  useEffect(() => {
+    if (!usuarioLogado?.id) {
+      setComunicadoTela(null);
+      return undefined;
+    }
+    let ativo = true;
+    let timerAgendado = null;
+    let ultimaBusca = 0;
+    const buscar = async () => {
+      if (!ativo || document.hidden || comunicadoAbertoRef.current) return;
+      ultimaBusca = Date.now();
+      try {
+        const { data } = await axios.get(`${API_URL}/comunicados/pendente`, { params: { _t: Date.now() } });
+        if (!ativo) return;
+        const comunicado = data?.comunicado;
+        if (comunicado?.id && !comunicadoResolvidoRef.current.has(comunicado.id)) {
+          setComunicadoTela((atual) => atual || comunicado);
+          return;
+        }
+        const segundos = Number(data?.proxima_verificacao_segundos);
+        if (Number.isFinite(segundos) && segundos > 0 && segundos <= 6 * 3600) {
+          window.clearTimeout(timerAgendado);
+          timerAgendado = window.setTimeout(buscar, segundos * 1000 + Math.random() * 15000);
+        }
+      } catch {
+        // O comunicado é um extra: se falhar, o DASH segue normalmente.
+      }
+    };
+    const aoVoltarParaAba = () => {
+      if (!document.hidden && Date.now() - ultimaBusca > 60000) buscar();
+    };
+    const timerInicial = window.setTimeout(buscar, 5000);
+    const intervalo = window.setInterval(buscar, 600000);
+    document.addEventListener('visibilitychange', aoVoltarParaAba);
+    return () => {
+      ativo = false;
+      window.clearTimeout(timerInicial);
+      window.clearTimeout(timerAgendado);
+      window.clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', aoVoltarParaAba);
+    };
+  }, [usuarioLogado?.id]);
+
+  const fecharComunicadoTela = () => {
+    if (comunicadoTela?.id) {
+      comunicadoResolvidoRef.current.add(comunicadoTela.id);
+      axios.post(`${API_URL}/comunicados/visto`, { comunicado_id: comunicadoTela.id }).catch(() => {});
+    }
+    setComunicadoTela(null);
   };
 
   // Avisos da Campanha Incentivo 2026 para consultor e gestor de unidade (o backend decide o que é novo).
@@ -24987,13 +25045,19 @@ const enviarArquivo = async (tipo) => {
         </React.Suspense>
       )}
 
-      {celebracoesMeta.length > 0 && !anuncioVideo && (
+      {comunicadoTela && !anuncioVideo && (
+        <React.Suspense fallback={null}>
+          <ComunicadoTela comunicado={comunicadoTela} aoFechar={fecharComunicadoTela} />
+        </React.Suspense>
+      )}
+
+      {celebracoesMeta.length > 0 && !anuncioVideo && !comunicadoTela && (
         <React.Suspense fallback={null}>
           <CelebracaoMeta itens={celebracoesMeta} aoFechar={fecharCelebracoesMeta} />
         </React.Suspense>
       )}
 
-      {avisosCampanha.itens.length > 0 && celebracoesMeta.length === 0 && !anuncioVideo && (
+      {avisosCampanha.itens.length > 0 && celebracoesMeta.length === 0 && !anuncioVideo && !comunicadoTela && (
         <React.Suspense fallback={null}>
           <AvisosCampanha2026
             itens={avisosCampanha.itens}

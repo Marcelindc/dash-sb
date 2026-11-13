@@ -158,10 +158,14 @@ const AnelIndicador = ({ atingimento, cor, children }) => {
   );
 };
 
-// itens: [{ id, nome, icone, valor (% do indicador), meta, atingimento, cor, onClick }]
+// 13/11/2026: o número embaixo do anel é o % DA META (anel cheio = 100% da meta), igual ao "% da meta"
+// das janelas de detalhe. Ex.: Atividade 34,0% com meta 54,0% aparece 63,0%. Sem meta: "—".
+const textoDaMeta = (atingimento, meta) => (Number(meta) > 0 ? formatarPercentual(atingimento) : '—');
+
+// itens: [{ id, nome, icone, valor (% do indicador), meta, atingimento (% da meta), cor, onClick }]
 // No celular e no tablet ocupa 2 colunas (kpi-topo-largo) para os 4 anéis caberem.
 // Os % ficam no rodapé, na mesma linha do rodapé dos outros cards (Meta, Gap, Cancelados).
-// mostrarMeta: escreve "Meta x%" em cima de cada % (detalhe da estrutura em Metas), como rótulo e valor dos outros rodapés.
+// mostrarMeta: escreve "atual / meta" em cima de cada % (detalhe da estrutura em Metas), como rótulo e valor dos outros rodapés.
 export const CardIndicadores = ({ itens, onAbrir, mostrarMeta = false }) => (
   <Casca titulo="Indicadores" onAbrir={onAbrir} tituloOlho="Ver resumo dos indicadores" className="kpi-topo-largo">
     <div className="kpi-topo-corpo">
@@ -172,7 +176,7 @@ export const CardIndicadores = ({ itens, onAbrir, mostrarMeta = false }) => (
             type="button"
             onClick={onClick}
             className="w-full flex flex-col items-center gap-1 min-w-0 rounded-xl py-1 hover:bg-[#f3f8f8] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#048187]/30"
-            title={`${nome}: ${formatarPercentual(valor)}${meta ? ` (meta ${formatarPercentual(meta)})` : ''} — abrir detalhamento`}
+            title={`${nome}: ${Number(meta) > 0 ? `${formatarPercentual(atingimento)} da meta (atual ${formatarPercentual(valor)} · meta ${formatarPercentual(meta)})` : `${formatarPercentual(valor)} (sem meta)`} — abrir detalhamento`}
           >
             <span className="max-w-full text-[8.5px] font-bold uppercase tracking-wide text-[#64748b] truncate">{nome}</span>
             <AnelIndicador atingimento={atingimento} cor={cor}>
@@ -183,12 +187,14 @@ export const CardIndicadores = ({ itens, onAbrir, mostrarMeta = false }) => (
       </div>
     </div>
     <div className="kpi-topo-rodape kpi-topo-rodape-grade">
-      {itens.map(({ id, valor, meta, cor }) => (
-        <div key={id} className="flex flex-col items-center gap-[1px] min-w-0">
+      {itens.map(({ id, nome, valor, meta, atingimento, cor }) => (
+        <div key={id} className="flex flex-col items-center gap-[1px] min-w-0" title={`${nome}: % da meta`}>
           {mostrarMeta ? (
-            <span className="max-w-full text-[9px] font-bold uppercase text-[#94a3b8] truncate">Meta {formatarPercentual(meta)}</span>
+            <span className="max-w-full text-[9px] font-bold uppercase text-[#94a3b8] truncate" title={`Atual ${formatarPercentual(valor)} · meta ${formatarPercentual(meta)}`}>
+              {formatarPercentual(valor)} / {formatarPercentual(meta)}
+            </span>
           ) : null}
-          <span className="text-[11px] font-black" style={{ color: cor }}>{formatarPercentual(valor)}</span>
+          <span className="text-[11px] font-black" style={{ color: cor }}>{textoDaMeta(atingimento, meta)}</span>
         </div>
       ))}
     </div>
