@@ -16,6 +16,7 @@ import TelaSolicitacoes from './telas/TelaSolicitacoes';
 import TelaRotas from './telas/TelaRotas';
 import TelaAdicoes from './telas/TelaAdicoes';
 import { GradeCardsTopo, CardKpi, CardTendencia, CardPedidos, CardIndicadores, CardDesempenho } from './cards/CardsTopo';
+import { useAtualizarComBaseNova, useRecarregarComVersaoNova } from './sistema/atualizacaoAutomatica';
 import { ResumoDetalhe, TabelaAcumulado } from './cards/DetalheCards';
 import { RankingIndividualConsultores } from './cards/RankingIndividual';
 import EstruturasDoDia from './cards/EstruturasDoDia';
@@ -29,6 +30,13 @@ const AvisosCampanha2026 = React.lazy(() => import('./campanha/AvisosCampanha202
 // Vídeo-anúncio do canal VD (1x por dia) e o resultado dele no Painel ADM: só baixam quando usados.
 const AnuncioVideoVD = React.lazy(() => import('./anuncio/AnuncioVideoVD'));
 const ComunicadoTela = React.lazy(() => import('./anuncio/ComunicadoTela'));
+
+// Telas que se atualizam sozinhas quando entra base nova (como o botão "Atualizar").
+const TELAS_ATUALIZACAO_AUTOMATICA_VD = new Set([
+  'Dashboard', 'Metas', 'AcompanhamentoVD', 'PrimeiroPedidoCaptacao', 'Adições', 'Ranking',
+  'Comparativo', 'VendasCidades', 'Revendedores', 'Base',
+]);
+const CHAVES_FILTROS_LISTA = ['nucleos', 'unidades', 'estruturas', 'consultores', 'situacoes', 'meios_captacao', 'modelos_comerciais', 'canais_venda'];
 const RelatorioAnuncioVideo = React.lazy(() => import('./anuncio/RelatorioAnuncioVideo'));
 const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8001' : 'https://xc3lin-dash-sb-api.hf.space')).replace(/\/$/, '');
 const TOKEN_STORAGE_KEY = 'dashSbAccessToken';
@@ -10803,6 +10811,22 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
       setAtualizandoTelaAtual(false);
     }
   };
+
+  // Base nova (VD ou LOJA): a tela atual se atualiza sozinha. Versão nova do site: F5 sozinho
+  // quando é seguro (ver sistema/atualizacaoAutomatica.js).
+  const areaAtualizacaoAutomatica = !usuarioLogado ? ''
+    : telaEhLoja(telaAtual) ? 'loja'
+      : telaAtual === 'CampanhaIncentivo2026' ? 'ambos'
+        : TELAS_ATUALIZACAO_AUTOMATICA_VD.has(telaAtual) ? 'vd' : '';
+  useAtualizarComBaseNova({
+    ativo: Boolean(usuarioLogado?.id),
+    apiUrl: API_URL,
+    area: areaAtualizacaoAutomatica,
+    atualizar: atualizarTelaAtualAgora,
+  });
+  const semFiltrosAplicados = !CHAVES_FILTROS_LISTA.some((chave) => (filtrosAtivos?.[chave] || []).length > 0)
+    && !filtrosAtivos?.data_inicio && !filtrosAtivos?.data_fim;
+  useRecarregarComVersaoNova({ podeRecarregar: () => semFiltrosAplicados });
 
   const carregarHistoricoCiclo = async (
     cicloParam = cicloHistoricoSelecionado
