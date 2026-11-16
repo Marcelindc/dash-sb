@@ -20,6 +20,7 @@ import { useAtualizarComBaseNova, useRecarregarComVersaoNova } from './sistema/a
 import { ResumoDetalhe, TabelaAcumulado } from './cards/DetalheCards';
 import { RankingIndividualConsultores } from './cards/RankingIndividual';
 import EstruturasDoDia from './cards/EstruturasDoDia';
+import CadastroEstruturasPorCodigo from './cadastro/CadastroEstruturasPorCodigo';
 
 import './dashboard-refinado.css';
 
@@ -16413,7 +16414,12 @@ const enviarArquivo = async (tipo) => {
       return (
         <div className="space-y-6 animate-fade-in">
           <CabecalhoSubCadastro titulo="Estruturas e Núcleos" icone={Target} />
-          <CadastroEstruturasV2 apiUrl={API_URL} onAtualizacao={() => { limparCachesDados(); carregarOpcoesFiltros(true); }} />
+          {/* Estruturas por código (16/11/2026): admin e gestor; os demais seguem na tela antiga. */}
+          <CadastroEstruturasPorCodigo
+            apiUrl={API_URL}
+            onAtualizacao={() => { limparCachesDados(); carregarOpcoesFiltros(true); }}
+            telaAntiga={<CadastroEstruturasV2 apiUrl={API_URL} onAtualizacao={() => { limparCachesDados(); carregarOpcoesFiltros(true); }} />}
+          />
         </div>
       );
     }
