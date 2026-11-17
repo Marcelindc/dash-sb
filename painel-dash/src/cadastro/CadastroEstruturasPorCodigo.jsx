@@ -81,6 +81,24 @@ export default function CadastroEstruturasPorCodigo({ apiUrl, onAtualizacao, tel
     executar(() => axios.post(`${apiUrl}/cadastro-v2/estruturas-por-codigo/codigo/${codigo.cod}`, { acao, nome_sgi: codigo.nome_sgi || '' }));
   };
 
+  // Consultores dentro da estrutura: cada ação salva na hora e a mensagem aparece no próprio painel.
+  const acaoConsultor = async (requisicao) => {
+    try {
+      const { data } = await requisicao();
+      await carregar();
+      if (onAtualizacao) onAtualizacao();
+      return { ok: true, mensagem: data?.mensagem || 'Salvo.' };
+    } catch (err) {
+      return { ok: false, erro: err.response?.data?.detail || 'Não foi possível salvar.' };
+    }
+  };
+  const rotaConsultores = (estrutura) => `${apiUrl}/cadastro-v2/estruturas-por-codigo/${estrutura.id}/consultores`;
+  const acoesConsultores = {
+    incluir: (estrutura, corpo) => acaoConsultor(() => axios.post(rotaConsultores(estrutura), corpo)),
+    editar: (estrutura, idColaborador, corpo) => acaoConsultor(() => axios.put(`${rotaConsultores(estrutura)}/${encodeURIComponent(idColaborador)}`, corpo)),
+    remover: (estrutura, consultor) => acaoConsultor(() => axios.delete(`${rotaConsultores(estrutura)}/${encodeURIComponent(consultor.id_colaborador)}`)),
+  };
+
   if (semPermissao) {
     return telaAntiga || <div className="rounded-2xl bg-white p-8 text-center text-sm text-gray-500">Somente administradores e gestores alteram o cadastro de estruturas.</div>;
   }
@@ -96,6 +114,7 @@ export default function CadastroEstruturasPorCodigo({ apiUrl, onAtualizacao, tel
       aoLigarCodigo={aoLigarCodigo}
       aoMarcarFora={(c) => situacao(c, 'fora', `Deixar ${c.cod_exibicao} (${c.nome_sgi}) fora dos núcleos? Ele continua no total da VD, mas não entra em núcleo, meta nem ranking.`)}
       aoInativarCodigo={(c) => situacao(c, 'inativar', `Inativar o código ${c.cod_exibicao} (${c.nome_sgi}) a partir do ciclo ${dados?.ciclo_atual || 'atual'}? Os ciclos anteriores ficam como eram.`)}
+      acoesConsultores={acoesConsultores}
     />
   );
 }

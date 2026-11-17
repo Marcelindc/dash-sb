@@ -12,6 +12,36 @@ export const somenteDigitos = (v) => String(v || '').replace(/\D/g, '').replace(
 export const formatarCodigo = (v) => { const d = somenteDigitos(v); return d ? Number(d).toLocaleString('pt-BR') : ''; };
 export const nomeComparavel = (v) => String(v || '').replace(/\s+/g, ' ').trim().toUpperCase();
 export const tipoCurto = (t) => TIPOS.find((x) => x.valor === t)?.curto || t || 'Força de Vendas';
+// ID do consultor no SGI: "23885959" -> "23.885.959" (zeros à esquerda não mudam a pessoa).
+export const formatarIdConsultor = (v) => formatarCodigo(v) || String(v || '').trim();
+export const mesmoIdConsultor = (a, b) => Boolean(somenteDigitos(a)) && somenteDigitos(a) === somenteDigitos(b);
+export const STATUS_CONSULTOR = [
+  { valor: 'ativo', rotulo: 'Ativo' },
+  { valor: 'ferias', rotulo: 'Férias' },
+  { valor: 'inativo', rotulo: 'Inativo' },
+];
+export const FUNCOES_CONSULTOR = [
+  { valor: 'CONSULTOR', rotulo: 'Consultor' },
+  { valor: 'SUPERVISOR', rotulo: 'Supervisor' },
+];
+
+/** Consultor cadastrado com um ID e o SGI fechando os pedidos dele com outro (ex.: 2385959 × 23885959). */
+export function idsDiferentesDaEstrutura(estrutura) {
+  return (estrutura?.sugestoes_consultores || [])
+    .filter((s) => s.cadastro_com_outro_id && Number(s.cadastro_com_outro_id.equipe_id) === Number(estrutura.id))
+    .map((s) => ({ ...s, estrutura_id: estrutura.id, estrutura_nome: estrutura.nome, id_cadastro: s.cadastro_com_outro_id.id_colaborador }));
+}
+
+/** Onde a pessoa (pelo ID) já está cadastrada, fora desta estrutura. */
+export function consultorEmOutraEstrutura(dados, idColaborador, estruturaId) {
+  if (!somenteDigitos(idColaborador)) return null;
+  for (const e of dados?.estruturas || []) {
+    if (Number(e.id) === Number(estruturaId)) continue;
+    const c = (e.consultores || []).find((x) => mesmoIdConsultor(x.id_colaborador, idColaborador));
+    if (c) return { ...c, estrutura_id: e.id, estrutura_nome: e.nome };
+  }
+  return null;
+}
 
 // ---------- regras puras (testáveis sem tela) ----------
 
@@ -28,6 +58,7 @@ export function calcularPendencias(dados) {
     semCodigo: estruturas.filter((e) => !(e.codigos || []).some((c) => !c.inativo)),
     semResponsavel: estruturas.filter((e) => !e.lider && !e.usuario_id),
     semMeta: estruturas.filter((e) => !e.tem_meta_ciclo && (e.codigos || []).some((c) => c.veio_no_ciclo)),
+    idsDiferentes: estruturas.flatMap(idsDiferentesDaEstrutura),
   };
 }
 

@@ -7121,6 +7121,9 @@ export default function App() {
     return {
       estrutura: item.estrutura || estrutura,
       nome_meta_real: item.estrutura || estrutura,
+      // Id da meta: a Adições do detalhe casa pela meta (pelo nome sumia quando a estrutura foi renomeada).
+      meta_id: item.meta_id ?? item.id ?? '',
+      equipe_consolidada_id: item.equipe_consolidada_id ?? '',
       meta_origem: 'resumo_imediato',
       sem_meta_cadastrada: Boolean(item.sem_meta_cadastrada),
       estruturas_vinculadas: item.estruturas_vinculadas || [estrutura],
@@ -7252,10 +7255,13 @@ export default function App() {
       { headers: { 'X-Ciclo-VD': cicloSolicitado }, signal: controller.signal, timeout: 45000 }
     ).then((resposta) => {
       if (String(cicloVisualizacaoVDRef.current || cicloSolicitado) !== cicloSolicitado) return fallback;
-      setDetalheMeta(resposta.data);
+      const detalhe = resposta.data && !resposta.data.meta_id && fallback?.meta_id
+        ? { ...resposta.data, meta_id: fallback.meta_id, equipe_consolidada_id: resposta.data.equipe_consolidada_id ?? fallback.equipe_consolidada_id }
+        : resposta.data;
+      setDetalheMeta(detalhe);
       setEstruturaSelecionada(estrutura);
-      setCacheDetalheMetas((prev) => ({ ...prev, [chaveCache]: resposta.data }));
-      return resposta.data;
+      setCacheDetalheMetas((prev) => ({ ...prev, [chaveCache]: detalhe }));
+      return detalhe;
     }).catch((erro) => {
       if (erro?.code === 'ERR_CANCELED' || erro?.name === 'CanceledError') return fallback;
       console.error('Erro detalhe estrutura:', erro);
