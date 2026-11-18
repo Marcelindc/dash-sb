@@ -20,7 +20,8 @@ import { useAtualizarComBaseNova, useRecarregarComVersaoNova } from './sistema/a
 import { ResumoDetalhe, TabelaAcumulado } from './cards/DetalheCards';
 import { RankingIndividualConsultores } from './cards/RankingIndividual';
 import { ResumoIndicadorIaf } from './cards/ResumoIndicadorIaf';
-import BaixarRelatorioIndicador from './relatorios/BaixarRelatorioIndicador';
+import BaixarRelatorio from './relatorios/BaixarRelatorio';
+import { colunaExtra, criarCasador, dadosDoDia, definicaoIaf, definicaoValorMeta, nucleoCurto, ROTULOS_LOJA } from './relatorios/definicoes';
 import EstruturasDoDia from './cards/EstruturasDoDia';
 import CadastroEstruturasPorCodigo from './cadastro/CadastroEstruturasPorCodigo';
 
@@ -5992,6 +5993,10 @@ export default function App() {
   const detalheMetaAbortControllerRef = useRef(null);
   const [modalEudoraAberto, setModalEudoraAberto] = useState(false);
   const [atualizacoesBasesVD, setAtualizacoesBasesVD] = useState({ ciclo: '', itens: {}, carregando: false, erro: false });
+  // Os relatórios (imagem/Excel) são montados quando a pessoa abre a nuvem: leem a data da base daqui.
+  const atualizacoesBasesVDRef = useRef(atualizacoesBasesVD);
+  useEffect(() => { atualizacoesBasesVDRef.current = atualizacoesBasesVD; }, [atualizacoesBasesVD]);
+  const textoBaseRelatorioVD = (tipo) => formatarDataHoraAtualizacao(atualizacoesBasesVDRef.current?.itens?.[tipo]);
   const [detalheEudora, setDetalheEudora] = useState(null);
   const [carregandoDetalheEudora, setCarregandoDetalheEudora] = useState(false);
   const [erroDetalheEudora, setErroDetalheEudora] = useState('');
@@ -11971,10 +11976,11 @@ const enviarArquivo = async (tipo) => {
   const confirmarExclusaoConsultor = async () => { if (!consultorParaExcluir) return; setErroGestaoConsultor(''); setMensagemConsultor(''); try { await axios.delete(`${API_URL}/consultores/${consultorParaExcluir.id}`); setModalExcluirConsultorAberto(false); setConsultorParaExcluir(null); setMensagemConsultor('Excluído.'); limparCachesDados(); await carregarListaConsultores(); } catch (erro) { setErroGestaoConsultor(erro.response?.data?.detail || 'Erro.'); } };
 
   // bases: sem informar, vêm do título (basesDoIndicadorVD); [] não mostra data de atualização.
-  const abrirModalValExp = (tit, valStr, desc, detalhes = [], formula = '', bases) => setModalValorExpandido({ aberto: true, titulo: tit, valorTexto: valStr, descricao: desc, detalhes, formula, bases });
+  // relatorio: definição do relatório em imagem/Excel (src/relatorios/definicoes.js) — mostra a nuvem no cabeçalho.
+  const abrirModalValExp = (tit, valStr, desc, detalhes = [], formula = '', bases, relatorio = null) => setModalValorExpandido({ aberto: true, titulo: tit, valorTexto: valStr, descricao: desc, detalhes, formula, bases, relatorio });
   const fecharModalValExp = () => {
     setErroRelatorioIaf('');
-    setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null, relatorioIaf: null });
+    setModalValorExpandido({ aberto: false, titulo: '', valorTexto: '', descricao: '', detalhes: [], formula: '', carregando: false, erro: '', indicadorIaf: null, relatorioIaf: null, relatorio: null });
   };
 
   // Planilha com todas as revendedoras que formam o resultado do modal
@@ -12053,6 +12059,46 @@ const enviarArquivo = async (tipo) => {
     return (nomeEstrutura) => unico(porNome.get(chave(nomeEstrutura))) || unico(porNomeSemPrefixo.get(chaveSemPrefixo(nomeEstrutura)));
   };
 
+  // Relatório (imagem/Excel): estruturas com a meta da Metas e, em "Estrutura e consultores", o ranking
+  // individual (realizado e meta de cada consultor) casado pelo mesmo bloco de meta da estrutura.
+  const montarRelatorioRealizadoTotal = (linhasEstrutura, buscarMeta, rankingConsultores) => () => {
+    const chavePorBloco = new Map();
+    const itensRelatorio = linhasEstrutura.map((linha, indice) => {
+      const itemMeta = buscarMeta(linha.nome);
+      const chave = `e:${indice}`;
+      if (itemMeta && !chavePorBloco.has(itemMeta)) chavePorBloco.set(itemMeta, chave);
+      return {
+        chave,
+        nome: String(linha.nome || '').toUpperCase(),
+        grupoLista: nucleoCurto(itemMeta?.nucleo),
+        valor: Number(linha.valor || 0),
+        meta: Number(linha.meta || 0) > 0 ? Number(linha.meta) : null,
+      };
+    });
+    const pessoasPorChave = new Map();
+    (rankingConsultores || []).forEach((consultor, indice) => {
+      const itemMeta = buscarMeta(consultor?.estrutura);
+      const chave = itemMeta ? chavePorBloco.get(itemMeta) : null;
+      if (!chave) return;
+      const id = String(consultor?.id_colaborador || '').trim();
+      pessoasPorChave.set(chave, [...(pessoasPorChave.get(chave) || []), {
+        chave: `c:${id || indice}`,
+        nome: String(consultor?.nome_exibicao || consultor?.nome_social || consultor?.nome || id || 'Consultor').toUpperCase(),
+        sub: id ? `ID ${id}` : '',
+        estrutura: String(consultor?.estrutura || '').toUpperCase(),
+        valor: Number(consultor?.realizado || 0),
+        meta: Number(consultor?.meta_individual || 0) > 0 ? Number(consultor.meta_individual) : null,
+      }]);
+    });
+    return definicaoValorMeta({
+      titulo: 'REALIZADO TOTAL',
+      arquivo: 'Realizado_Total',
+      ciclo: String(cicloVisualizacaoVDRef.current || cicloSelecionadoVD || filtrosAtivos?.ciclo || ''),
+      baseAtualizada: textoBaseRelatorioVD('PEDIDOS'),
+      itens: itensRelatorio,
+      grupos: Array.from(pessoasPorChave.entries()).map(([chave, pessoas]) => ({ chave, pessoas })),
+    });
+  };
   const abrirDetRealizadoTotal = async () => {
     const realizado = Number(dados?.valor_total || 0);
     const meta = Number(metaFaturamentoDashboard || 0);
@@ -12084,7 +12130,7 @@ const enviarArquivo = async (tipo) => {
 
     // Sem nome que case, a meta do escopo só vale quando a tela mostra uma estrutura só (gestor ou filtro de uma estrutura).
     const escopoUmaEstrutura = modoGerenteVD || (filtrosAtivos?.estruturas || []).length === 1;
-    const montarDetalhe = (estruturasMeta, carregandoMeta) => {
+    const montarDetalhe = (estruturasMeta, carregandoMeta, rankingConsultores = []) => {
       const buscarMeta = criarBuscaMetaEstrutura(estruturasMeta);
       const metasSomadas = new Set();
       let totalMeta = 0;
@@ -12107,6 +12153,7 @@ const enviarArquivo = async (tipo) => {
         tipo: 'realizado_total_acumulado',
         abertura,
         bases: ['PEDIDOS'],
+        relatorio: carregandoMeta ? null : montarRelatorioRealizadoTotal(linhasEstrutura, buscarMeta, rankingConsultores),
         itens: [
           { label: 'Meta faturamento', valor: formatarMoeda(meta) },
           { label: 'Realizado', valor: formatarMoeda(realizado) },
@@ -12135,10 +12182,12 @@ const enviarArquivo = async (tipo) => {
     // As metas por estrutura normalmente já vieram com o Dashboard; se ainda não, busca o resumo de metas
     // (mesmo ciclo e filtros, escopo do usuário aplicado no servidor) e completa a coluna Meta.
     const estruturasMetaCarregadas = Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : [];
-    setModalDetalhes(montarDetalhe(estruturasMetaCarregadas, !estruturasMetaCarregadas.length));
+    const rankingCarregado = Array.isArray(dadosMetas?.ranking_consultores) ? dadosMetas.ranking_consultores : [];
+    setModalDetalhes(montarDetalhe(estruturasMetaCarregadas, !estruturasMetaCarregadas.length, rankingCarregado));
     if (estruturasMetaCarregadas.length) return;
 
     let estruturasMetaBuscadas = [];
+    let rankingBuscado = [];
     try {
       const ciclo = String(cicloVisualizacaoVDRef.current || cicloSelecionadoVD || filtrosAtivos?.ciclo || '').trim();
       const resposta = await axios.post(
@@ -12147,10 +12196,11 @@ const enviarArquivo = async (tipo) => {
         { headers: { 'X-Ciclo-VD': ciclo }, timeout: 45000 }
       );
       estruturasMetaBuscadas = Array.isArray(resposta.data?.estruturas) ? resposta.data.estruturas : [];
+      rankingBuscado = Array.isArray(resposta.data?.ranking_consultores) ? resposta.data.ranking_consultores : [];
     } catch (erro) {
       console.warn('Metas por estrutura indisponíveis no Realizado Total:', erro);
     }
-    setModalDetalhes((atual) => (atual?.abertura === abertura ? montarDetalhe(estruturasMetaBuscadas, false) : atual));
+    setModalDetalhes((atual) => (atual?.abertura === abertura ? montarDetalhe(estruturasMetaBuscadas, false, rankingBuscado) : atual));
   };
   const enriquecerDetalheDiario = (respostaRapida, metasApi = dadosMetas, consultoresMetaExtra = [], metaResolvidaExtra = null) => {
     // Desde 12/11/2026 o servidor já manda a meta diária (gap, só seg–sex) de cada estrutura da Metas e dos
@@ -13771,6 +13821,55 @@ const enviarArquivo = async (tipo) => {
                 <p className="text-[10px] font-black uppercase tracking-wider text-[#048187]">VD — EUDORA</p>
                 <h2 className="text-2xl font-black text-gray-700">Resultado Eudora</h2>
                 <p className="text-sm font-semibold text-gray-400">Ciclo {detalheEudora?.ciclo || filtrosAtivos?.ciclo || cicloSelecionadoVD || '-'}</p>
+                {!carregandoDetalheEudora && !erroDetalheEudora && (detalheEudora?.nucleos || []).length > 0 && (
+                  <div className="mt-2">
+                    <BaixarRelatorio
+                      geradoPor={usuarioLogado?.nome || usuarioLogado?.email || ''}
+                      definicao={() => {
+                        const itens = [];
+                        const grupos = [];
+                        (detalheEudora?.nucleos || []).forEach((bloco) => {
+                          const itensBloco = (bloco.estruturas || []).map((item) => ({
+                            chave: `${bloco.nucleo}|${item.estrutura}`,
+                            nome: String(item.estrutura || '').toUpperCase(),
+                            grupoLista: nucleoCurto(bloco.nucleo),
+                            valor: Number(item.realizado || 0),
+                            meta: Number(item.meta || 0) > 0 ? Number(item.meta) : null,
+                            pedidos: Number(item.pedidos || 0),
+                          }));
+                          itens.push(...itensBloco);
+                          // Consultor → estrutura do mesmo núcleo, pelo nome sem o código.
+                          const casar = criarCasador(itensBloco);
+                          const porChave = new Map();
+                          (bloco.consultores || []).forEach((consultor, indice) => {
+                            const alvo = casar(consultor.estrutura);
+                            if (!alvo) return;
+                            porChave.set(alvo.chave, [...(porChave.get(alvo.chave) || []), {
+                              chave: `c:${consultor.consultor}:${indice}`,
+                              nome: String(consultor.consultor || 'Não informado').toUpperCase(),
+                              estrutura: String(consultor.estrutura || '').toUpperCase(),
+                              valor: Number(consultor.realizado || 0),
+                              meta: null,
+                              pedidos: Number(consultor.pedidos || 0),
+                            }]);
+                          });
+                          porChave.forEach((pessoas, chave) => grupos.push({ chave, pessoas }));
+                        });
+                        return definicaoValorMeta({
+                          titulo: 'REALIZADO EUDORA',
+                          arquivo: 'Eudora',
+                          ciclo: detalheEudora?.ciclo || filtrosAtivos?.ciclo || cicloSelecionadoVD || '',
+                          baseAtualizada: textoBaseRelatorioVD('VENDAS_EUDORA'),
+                          itens,
+                          grupos,
+                          colunasExtras: [colunaExtra('pedidos', 'PEDIDOS', 'inteiro', { antes: true })],
+                          cartoesExtras: (linha) => [{ rotulo: 'PEDIDOS', valor: Number(linha.pedidos || 0).toLocaleString('pt-BR'), cor: '#4b5563' }],
+                          extrasSemPessoa: (item, pessoas) => ({ pedidos: Math.max(Number(item.pedidos || 0) - pessoas.reduce((soma, pessoa) => soma + Number(pessoa.pedidos || 0), 0), 0) }),
+                        });
+                      }}
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <button type="button" onClick={() => setModalEudoraAberto(false)} className="w-10 h-10 rounded-full bg-gray-50 text-gray-400 hover:text-gray-700 flex items-center justify-center"><X size={20} /></button>
@@ -13904,6 +14003,9 @@ const enviarArquivo = async (tipo) => {
           ? (item?.nome_exibicao || item?.nome_social || item?.nome || item?.id_colaborador || 'Consultor')
           : (item?.estrutura || 'Estrutura'),
         estrutura: tipo === 'consultores' ? String(item?.estrutura || '') : '',
+        // Estrutura (bloco da Metas) a que a linha pertence: junta consultor e estrutura no relatório.
+        grupo: tipo === 'consultores' ? String(estruturaReferencia?.estrutura || '') : String(item?.estrutura || ''),
+        idColaborador: tipo === 'consultores' ? String(item?.id_colaborador || '') : '',
         nucleo,
         valor,
         meta,
@@ -14097,7 +14199,15 @@ const enviarArquivo = async (tipo) => {
           { label: '% da meta', valor: `${formatarNumeroBR(percentual, 1)}%` },
           { label: 'Falta para a meta', valor: textoFaltaMoeda(faltam) }
         ],
-        meta > 0 ? `${formatarMoeda(realizado)} ÷ ${formatarMoeda(meta)} = ${formatarNumeroBR(percentual, 1)}% da meta` : 'Meta de faturamento não cadastrada.'
+        meta > 0 ? `${formatarMoeda(realizado)} ÷ ${formatarMoeda(meta)} = ${formatarNumeroBR(percentual, 1)}% da meta` : 'Meta de faturamento não cadastrada.',
+        ['PEDIDOS'],
+        // Mesmo relatório do Realizado Total, com as estruturas e o ranking individual da própria Metas.
+        (() => {
+          const estruturasMeta = Array.isArray(dadosMetas?.estruturas) ? dadosMetas.estruturas : [];
+          if (!estruturasMeta.length) return null;
+          const linhas = estruturasMeta.map((item) => ({ nome: item?.estrutura || item?.nome_meta || 'Estrutura', valor: Number(item?.realizado || 0), meta: Number(item?.receita || 0) }));
+          return montarRelatorioRealizadoTotal(linhas, criarBuscaMetaEstrutura(estruturasMeta), dadosMetas?.ranking_consultores || []);
+        })()
       );
     };
 
@@ -19819,16 +19929,109 @@ const enviarArquivo = async (tipo) => {
       });
     };
 
-    const abrirDetalheCardLoja = (titulo, linhas = [], formula = '') => {
+    const abrirDetalheCardLoja = (titulo, linhas = [], formula = '', relatorio = null) => {
       abrirModalValExp(
         titulo,
         linhas?.[0]?.valor || '-',
         'Detalhamento do indicador da LOJA.',
         linhas,
         formula,
-        []
+        [],
+        relatorio
       );
     };
+
+    // Relatório em imagem da LOJA (só PNG, 18/11/2026): unidades e, em "Unidade e consultoras", as consultoras de
+    // cada PDV — as mesmas listas da tela (escopo do usuário e filtros aplicados).
+    const nomeUnidadeRelatorio = (u) => `${u?.codigo_pdv || ''}${u?.cidade || u?.nome_loja ? ` - ${u.cidade || u.nome_loja}` : ''}`.toUpperCase();
+    const metaOuNulo = (valor) => (Number(valor || 0) > 0 ? Number(valor) : null);
+    const relatorioLoja = ({
+      titulo, arquivo, tipoValor = 'moeda', rotulos = {}, valorUnidade, metaUnidade, valorConsultora, metaConsultora,
+      colunasExtras = [], extrasUnidade, extrasConsultora, somavel = true, mostrarFalta = true, comConsultoras = true,
+    }) => () => {
+      const itens = unidadesFiltradas.map((u) => ({
+        chave: `u:${u.codigo_pdv}`,
+        nome: nomeUnidadeRelatorio(u),
+        valor: Number(valorUnidade(u) || 0),
+        meta: metaUnidade ? metaOuNulo(metaUnidade(u)) : null,
+        ...(extrasUnidade ? extrasUnidade(u) : {}),
+      }));
+      const grupos = comConsultoras
+        ? unidadesFiltradas.map((u) => ({
+          chave: `u:${u.codigo_pdv}`,
+          pessoas: consultorasFiltradas
+            .filter((c) => String(c.codigo_pdv_oficial || c.codigo_pdv || '') === String(u.codigo_pdv || ''))
+            .map((c, indice) => ({
+              chave: `c:${c.id_consultora || `${c.nome_consultora}:${indice}`}`,
+              nome: String(c.nome_consultora || 'Consultora').toUpperCase(),
+              sub: c.id_consultora ? `ID ${c.id_consultora}` : '',
+              estrutura: nomeUnidadeRelatorio(u),
+              valor: Number(valorConsultora(c) || 0),
+              meta: metaConsultora ? metaOuNulo(metaConsultora(c, u)) : null,
+              ...(extrasConsultora ? extrasConsultora(c) : {}),
+            })),
+        }))
+        : [];
+      return definicaoValorMeta({
+        titulo,
+        arquivo,
+        tipoValor,
+        somavel,
+        mostrarFalta,
+        ciclo: dadosLoja?.resumo?.ciclo || cicloSelecionadoLoja || '',
+        baseAtualizada: formatarDataHoraAtualizacao(resumoCardsLoja.ultima_atualizacao),
+        formatos: ['png'],
+        rotulos: { ...ROTULOS_LOJA, ...rotulos },
+        itens,
+        grupos,
+        colunasExtras,
+        detalheSemPessoa: 'Vendas sem consultora identificada',
+      });
+    };
+    const metaSkinLoja = (item) => Number(item?.meta_skin || 0) || calcularMetaSkinLoja(item?.meta_faturamento || 0, obterPercentualMetaSkinLoja(item));
+    const metaBoletoLoja = (item, unidade) => Number(item?.meta_boleto_medio || unidade?.meta_boleto_medio || resumo.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA);
+    const metaItensLoja = (item, unidade) => Number(item?.meta_itens_boleto || unidade?.meta_itens_boleto || resumo.meta_itens_boleto || 4);
+    const relatorioSkinLoja = relatorioLoja({
+      titulo: 'SKIN',
+      arquivo: 'Skin_LOJA',
+      rotulos: { valor: 'REALIZADO SKIN', meta: 'META SKIN' },
+      valorUnidade: (u) => u.realizado_skin,
+      metaUnidade: metaSkinLoja,
+      valorConsultora: (c) => c.realizado_skin,
+      metaConsultora: (c) => metaSkinLoja(c),
+    });
+    const relatorioBoletoLoja = relatorioLoja({
+      titulo: 'BOLETO MÉDIO',
+      arquivo: 'Boleto_Medio_LOJA',
+      somavel: false,
+      mostrarFalta: false,
+      rotulos: { valor: 'BOLETO MÉDIO', meta: 'META BOLETO' },
+      valorUnidade: (u) => u.boleto_medio,
+      metaUnidade: (u) => metaBoletoLoja(u),
+      valorConsultora: (c) => c.boleto_medio,
+      metaConsultora: (c, u) => metaBoletoLoja(c, u),
+      colunasExtras: [
+        colunaExtra('boletos', 'BOLETOS', 'inteiro'),
+        colunaExtra('faturamento', 'FATURAMENTO', 'moeda', { padrao: false }),
+      ],
+      extrasUnidade: (u) => ({ boletos: Number(u.qtd_boletos || u.pedidos || 0), faturamento: Number(u.realizado || 0) }),
+      extrasConsultora: (c) => ({ boletos: Number(c.qtd_boletos || c.pedidos || 0), faturamento: Number(c.realizado || 0) }),
+    });
+    const relatorioItensLoja = relatorioLoja({
+      titulo: 'ITENS POR BOLETO',
+      arquivo: 'Itens_por_Boleto_LOJA',
+      tipoValor: 'decimal2',
+      somavel: false,
+      mostrarFalta: false,
+      rotulos: { valor: 'ITENS POR BOLETO', meta: 'META ITENS' },
+      valorUnidade: (u) => u.itens_por_boleto,
+      metaUnidade: (u) => metaItensLoja(u),
+      valorConsultora: (c) => c.itens_por_boleto,
+      metaConsultora: (c, u) => metaItensLoja(c, u),
+      colunasExtras: [colunaExtra('boletos', 'BOLETOS', 'inteiro')],
+      extrasUnidade: (u) => ({ boletos: Number(u.qtd_boletos || u.pedidos || 0) }),
+      extrasConsultora: (c) => ({ boletos: Number(c.qtd_boletos || c.pedidos || 0) }),
+    });
 
     // Faturamento LOJA no mesmo formato do Realizado Total VD: quadros + acumulado por unidade (com a meta de cada PDV)
     // e por consultora. As listas já chegam no escopo do usuário e com os filtros da tela aplicados.
@@ -19853,6 +20056,14 @@ const enviarArquivo = async (tipo) => {
         subtitulo: 'Faturamento LOJA = soma da coluna GMV-GMV da base de vendas.',
         tipo: 'realizado_total_acumulado',
         bases: [],
+        relatorio: relatorioLoja({
+          titulo: 'FATURAMENTO',
+          arquivo: 'Faturamento_LOJA',
+          valorUnidade: (u) => u.realizado,
+          metaUnidade: (u) => u.meta_faturamento,
+          valorConsultora: (c) => c.realizado,
+          metaConsultora: (c) => c.meta_faturamento,
+        }),
         itens: [
           { label: 'Meta faturamento', valor: formatarMoeda(meta) },
           { label: 'Realizado', valor: formatarMoeda(realizado) },
@@ -19919,6 +20130,7 @@ const enviarArquivo = async (tipo) => {
         unidades,
         diaUtil: dadosLoja?.resumo?.dia_util !== false,
         ciclo: dadosLoja?.resumo?.ciclo || cicloSelecionadoLoja || '',
+        atualizacao: resumoCardsLoja?.ultima_atualizacao || '',
         total: Number(
           resumoCardsLoja?.realizado_diario || 0
         ),
@@ -20027,6 +20239,19 @@ const enviarArquivo = async (tipo) => {
         titulo: 'Tendência LOJA',
         subtitulo: 'Projeção final com plano inteligente de recuperação para cliente final',
         tipo: 'tendencia',
+        relatorio: relatorioLoja({
+          titulo: 'TENDÊNCIA',
+          arquivo: 'Tendencia_LOJA',
+          rotulos: { valor: 'TENDÊNCIA', meta: 'META', falta: 'GAP' },
+          valorUnidade: (u) => u.tendencia,
+          metaUnidade: (u) => u.meta_faturamento,
+          valorConsultora: (c) => c.tendencia,
+          metaConsultora: (c) => c.meta_faturamento,
+          comConsultoras: consultorasFiltradas.some((c) => c?.tendencia !== undefined && c?.tendencia !== null),
+          colunasExtras: [colunaExtra('realizado', 'REALIZADO', 'moeda', { antes: true })],
+          extrasUnidade: (u) => ({ realizado: Number(u.realizado || 0) }),
+          extrasConsultora: (c) => ({ realizado: Number(c.realizado || 0) }),
+        }),
         itens: [
           { label: 'Tendência', valor: formatarMoeda(resumoCardsLoja?.tendencia || 0) },
           { label: 'Meta ciclo', valor: formatarMoeda(resumoCardsLoja?.meta_faturamento || 0) },
@@ -21522,7 +21747,7 @@ const enviarArquivo = async (tipo) => {
                   { label: 'Realizado Skin', valor: formatarMoeda(resumoCardsLoja.skin_realizado || 0) },
                   { label: 'Meta Skin', valor: formatarMoeda(resumoCardsLoja.meta_skin || 0) },
                   { label: '% da meta', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_skin || 0, 1)}%` }
-                ], 'Skin = soma da aba CONSULTOR, coluna RECEITA (R$), ignorando linhas de total.')}
+                ], 'Skin = soma da aba CONSULTOR, coluna RECEITA (R$), ignorando linhas de total.', relatorioSkinLoja)}
               />
               <CardKpi
                 titulo="Boleto médio"
@@ -21536,7 +21761,7 @@ const enviarArquivo = async (tipo) => {
                   { label: 'Meta boleto', valor: formatarMoeda(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA) },
                   { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA), 1)}%` },
                   { label: 'Qtd de boletos/pedidos', valor: formatarNumeroBR(resumoCardsLoja.pedidos || 0, 0) }
-                ], 'Boleto médio = GMV-GMV / GMV-Qtd de boletos.')}
+                ], 'Boleto médio = GMV-GMV / GMV-Qtd de boletos.', relatorioBoletoLoja)}
               />
               <CardKpi
                 titulo="Itens por boleto"
@@ -21550,7 +21775,7 @@ const enviarArquivo = async (tipo) => {
                   { label: 'Meta itens', valor: formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1) },
                   { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.itens_por_boleto || 0, resumoCardsLoja.meta_itens_boleto || 4), 1)}%` },
                   { label: 'Regra', valor: 'Coluna GMV-Itens por boleto' }
-                ], 'Itens/Boleto usa a coluna GMV-Itens por boleto da base de vendas.')}
+                ], 'Itens/Boleto usa a coluna GMV-Itens por boleto da base de vendas.', relatorioItensLoja)}
               />
               <CardKpi
                 titulo="Serviços"
@@ -21603,6 +21828,47 @@ const enviarArquivo = async (tipo) => {
                   <p className="text-xs text-gray-400 font-bold mt-1">
                     Competência {formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos)} • detalhamento completo por PDV e por consultor.
                   </p>
+                  {servicosPdvFiltrados.length > 0 && (
+                    <div className="mt-2">
+                      <BaixarRelatorio
+                        geradoPor={usuarioLogado?.nome || usuarioLogado?.email || ''}
+                        definicao={() => {
+                          const nomePdv = (item) => `${item?.codigo_pdv || ''}${item?.cidade || item?.nome_loja ? ` - ${item.cidade || item.nome_loja}` : ''}`.toUpperCase();
+                          const itens = servicosPdvFiltrados.map((item) => ({
+                            chave: `s:${item.codigo_pdv}`,
+                            nome: nomePdv(item),
+                            valor: Number(item.realizado_mes || 0),
+                            meta: Number(item.meta_mensal || 0) > 0 ? Number(item.meta_mensal) : null,
+                          }));
+                          const grupos = servicosPdvFiltrados.map((item) => ({
+                            chave: `s:${item.codigo_pdv}`,
+                            pessoas: servicosConsultoresFiltrados
+                              .filter((consultor) => String(consultor.codigo_pdv || '') === String(item.codigo_pdv || ''))
+                              .map((consultor, indice) => ({
+                                chave: `c:${consultor.id_consultor || `${consultor.nome_consultor}:${indice}`}`,
+                                nome: String(consultor.nome_consultor || 'Consultor').toUpperCase(),
+                                sub: consultor.id_consultor ? `ID ${consultor.id_consultor}` : '',
+                                estrutura: nomePdv(item),
+                                valor: Number(consultor.realizado_mes || 0),
+                                meta: null,
+                              })),
+                          }));
+                          return definicaoValorMeta({
+                            titulo: `SERVIÇOS ${String(formatarCompetenciaServicosLoja(resumoCardsLoja.competencia_servicos) || '').toUpperCase()}`.trim(),
+                            arquivo: 'Servicos_LOJA',
+                            ciclo: '',
+                            baseAtualizada: formatarDataHoraAtualizacao(resumoCardsLoja.ultima_atualizacao),
+                            formatos: ['png'],
+                            tipoValor: 'inteiro',
+                            rotulos: { ...ROTULOS_LOJA, pessoa: 'consultor', pessoas: 'consultores', modoGrupo: 'PDV e consultores', colunaItem: 'PDV', colunaPessoa: 'CONSULTOR', valor: 'REALIZADOS', meta: 'META MENSAL', falta: 'FALTAM' },
+                            itens,
+                            grupos,
+                            semConsultor: false,
+                          });
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -23282,6 +23548,29 @@ const enviarArquivo = async (tipo) => {
                 <h2 className="text-xl sm:text-2xl font-black text-gray-700 mt-1">
                   Detalhamento das vendas do dia
                 </h2>
+                {!modalRealizadoDiarioVD.carregando && (modalRealizadoDiarioVD.estruturas || []).length > 0 && (
+                  <div className="mt-2">
+                    <BaixarRelatorio
+                      geradoPor={usuarioLogado?.nome || usuarioLogado?.email || ''}
+                      definicao={() => {
+                        const diaUtil = modalRealizadoDiarioVD.resumo?.dia_util !== false;
+                        const { itens, grupos } = dadosDoDia(modalRealizadoDiarioVD.estruturas || [], { diaUtil });
+                        const dataDia = formatarDataBR(modalRealizadoDiarioVD.resumo?.data_referencia || new Date().toISOString().slice(0, 10));
+                        return definicaoValorMeta({
+                          titulo: `REALIZADO DIÁRIO ${dataDia}`,
+                          arquivo: `Realizado_Diario_${dataDia}`,
+                          ciclo: modalRealizadoDiarioVD.resumo?.ciclo || '',
+                          baseAtualizada: textoBaseRelatorioVD('PEDIDOS'),
+                          rotulos: { valor: 'VENDIDO HOJE', meta: 'META DO DIA' },
+                          itens,
+                          grupos,
+                          colunasExtras: [colunaExtra('pedidos', 'PEDIDOS', 'inteiro', { antes: true })],
+                          cartoesExtras: (linha) => [{ rotulo: 'PEDIDOS', valor: Number(linha.pedidos || 0).toLocaleString('pt-BR'), cor: '#4b5563' }],
+                        });
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col items-end gap-2 shrink-0">
@@ -23508,6 +23797,29 @@ const enviarArquivo = async (tipo) => {
                 <h2 className="text-xl sm:text-2xl font-black text-gray-700 mt-1">
                   Detalhamento das vendas do dia
                 </h2>
+                {(modalVendaDiariaLoja.unidades || []).length > 0 && (
+                  <div className="mt-2">
+                    <BaixarRelatorio
+                      geradoPor={usuarioLogado?.nome || usuarioLogado?.email || ''}
+                      definicao={() => {
+                        const { itens, grupos } = dadosDoDia(modalVendaDiariaLoja.unidades || [], { diaUtil: modalVendaDiariaLoja.diaUtil !== false });
+                        const dataDia = formatarDataBR(modalVendaDiariaLoja.dataReferencia || new Date().toISOString().slice(0, 10));
+                        return definicaoValorMeta({
+                          titulo: `VENDA DIÁRIA ${dataDia}`,
+                          arquivo: `Venda_Diaria_LOJA_${dataDia}`,
+                          ciclo: modalVendaDiariaLoja.ciclo || '',
+                          baseAtualizada: formatarDataHoraAtualizacao(modalVendaDiariaLoja.atualizacao),
+                          formatos: ['png'],
+                          rotulos: { ...ROTULOS_LOJA, valor: 'VENDIDO HOJE', meta: 'META DO DIA' },
+                          itens,
+                          grupos,
+                          colunasExtras: [colunaExtra('pedidos', 'BOLETOS', 'inteiro', { antes: true, padrao: false })],
+                          detalheSemPessoa: 'Vendas sem consultora identificada',
+                        });
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               <button
@@ -23587,6 +23899,68 @@ const enviarArquivo = async (tipo) => {
                 <p className="text-sm text-gray-400 font-semibold mt-1">
                   Resultado consolidado por núcleo, com abertura por estruturas e consultores.
                 </p>
+                {(dadosModalDesempenho.gruposEstruturas || []).length > 0 && (
+                  <div className="mt-2">
+                    <BaixarRelatorio
+                      key={dadosModalDesempenho.indicador}
+                      geradoPor={usuarioLogado?.nome || usuarioLogado?.email || ''}
+                      definicao={() => {
+                        const indicador = dadosModalDesempenho.indicador;
+                        const base = indicador === 'TKT'
+                          ? { id: 'pedidos', rotulo: 'PEDIDOS' }
+                          : { id: 'ativados', rotulo: 'ATIVADOS' };
+                        const extrasLinha = (linha) => ({ receita: linha.realizadoReceita, ativados: linha.ativados, pedidos: linha.pedidos, itensVendidos: linha.itens });
+                        const itens = (dadosModalDesempenho.gruposEstruturas || []).flatMap((grupo) => grupo.itens.map((linha) => ({
+                          chave: `e:${linha.grupo || linha.nome}`,
+                          nome: String(linha.nome || '').toUpperCase(),
+                          aliases: [linha.grupo],
+                          grupoLista: grupo.nucleo === 'A DEFINIR' ? '' : grupo.nucleo,
+                          valor: linha.valor,
+                          meta: Number(linha.meta || 0) > 0 ? Number(linha.meta) : null,
+                          ...extrasLinha(linha),
+                        })));
+                        const casar = criarCasador(itens);
+                        const porChave = new Map();
+                        (dadosModalDesempenho.gruposConsultores || []).forEach((grupo) => grupo.itens.forEach((linha, indice) => {
+                          const alvo = casar(linha.grupo || linha.estrutura, grupo.nucleo);
+                          if (!alvo) return;
+                          porChave.set(alvo.chave, [...(porChave.get(alvo.chave) || []), {
+                            chave: `c:${linha.idColaborador || `${linha.nome}:${indice}`}`,
+                            nome: String(linha.nome || '').toUpperCase(),
+                            sub: linha.idColaborador ? `ID ${linha.idColaborador}` : '',
+                            estrutura: String(linha.estrutura || '').toUpperCase(),
+                            valor: linha.valor,
+                            meta: Number(linha.meta || 0) > 0 ? Number(linha.meta) : null,
+                            ...extrasLinha(linha),
+                          }]);
+                        }));
+                        const tipoValor = indicador === 'UPA' ? 'decimal2' : 'moeda';
+                        const rotuloValor = indicador === 'TKT' ? 'TICKET MÉDIO' : indicador;
+                        return definicaoValorMeta({
+                          titulo: rotuloValor,
+                          arquivo: rotuloValor,
+                          ciclo: String(dadosMetas?.ciclo || cicloVisualizacaoVDRef.current || cicloSelecionadoVD || ''),
+                          baseAtualizada: textoBaseRelatorioVD('PEDIDOS'),
+                          tipoValor,
+                          somavel: false,
+                          mostrarFalta: false,
+                          rotulos: { valor: rotuloValor, meta: `META ${rotuloValor}` },
+                          itens,
+                          grupos: Array.from(porChave.entries()).map(([chave, pessoas]) => ({ chave, pessoas })),
+                          colunasExtras: [
+                            colunaExtra('receita', 'RECEITA', 'moeda', { padrao: false }),
+                            colunaExtra(base.id, base.rotulo, 'inteiro', { padrao: false }),
+                            ...(indicador === 'UPA' ? [colunaExtra('itensVendidos', 'ITENS', 'inteiro', { padrao: false })] : []),
+                          ],
+                          cartoesExtras: (linha) => [
+                            { rotulo: 'RECEITA', valor: formatarMoeda(linha.receita || 0), cor: '#4b5563' },
+                            { rotulo: base.rotulo, valor: formatarNumeroBR(linha[base.id] || 0, 0), cor: '#4b5563' },
+                          ],
+                        });
+                      }}
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <button
@@ -23718,21 +24092,26 @@ const enviarArquivo = async (tipo) => {
                   </p>
                 )}
                 {modalValorExpandido.descricao && (<p className="mt-1 text-sm text-gray-400">{modalValorExpandido.descricao}</p>)}
-                {/* Nuvem: imagem PNG 4K ou a planilha Excel (só MAKE/CABELO), dentro do acesso de cada um. */}
-                {modalValorExpandido.indicadorIaf && !modalValorExpandido.carregando && !modalValorExpandido.erro && (
+                {/* Nuvem: relatório em imagem PNG 4K e Excel no mesmo modelo, dentro do acesso de cada um.
+                    MAKE/CABELO mantêm também a planilha detalhada das revendedoras. */}
+                {(modalValorExpandido.indicadorIaf || modalValorExpandido.relatorio) && !modalValorExpandido.carregando && !modalValorExpandido.erro && (
                   <div className="mt-2">
-                    <BaixarRelatorioIndicador
-                      dados={modalValorExpandido.indicadorIaf}
-                      mostrarEstruturas={!modoGerenteVD}
-                      acessoCompleto={['admin', 'gestor', 'visualizador'].includes(tipoAcessoUsuario(usuarioLogado))}
-                      baseAtualizada={textoBaseRelatorioIndicador}
+                    <BaixarRelatorio
+                      definicao={modalValorExpandido.indicadorIaf
+                        ? () => definicaoIaf(modalValorExpandido.indicadorIaf, {
+                          mostrarEstruturas: !modoGerenteVD,
+                          acessoCompleto: ['admin', 'gestor', 'visualizador'].includes(tipoAcessoUsuario(usuarioLogado)),
+                          baseAtualizada: textoBaseRelatorioIndicador,
+                        })
+                        : modalValorExpandido.relatorio}
                       geradoPor={usuarioLogado?.nome || usuarioLogado?.email || ''}
-                      excel={{
-                        disponivel: Boolean(modalValorExpandido.relatorioIaf),
+                      excelExtra={modalValorExpandido.indicadorIaf && modalValorExpandido.relatorioIaf ? {
+                        titulo: 'Revendedoras (Excel detalhado)',
+                        descricao: 'Todas as revendedoras desta contagem: quem ativou e quem fez o 1º pedido',
                         baixando: baixandoRelatorioIaf,
                         erro: erroRelatorioIaf,
                         baixar: baixarRelatorioIaf,
-                      }}
+                      } : null}
                     />
                   </div>
                 )}
@@ -23924,6 +24303,11 @@ const enviarArquivo = async (tipo) => {
                 <h2 className="text-lg sm:text-xl font-bold text-gray-700">{modalDetalhes.titulo}</h2>
                 {modalDetalhes.subtitulo ? (
                   <p className="text-sm text-gray-400 mt-1 leading-relaxed">{modalDetalhes.subtitulo}</p>
+                ) : null}
+                {modalDetalhes.relatorio ? (
+                  <div className="mt-2">
+                    <BaixarRelatorio definicao={modalDetalhes.relatorio} geradoPor={usuarioLogado?.nome || usuarioLogado?.email || ''} />
+                  </div>
                 ) : null}
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">

@@ -1,11 +1,12 @@
 // Cartões do topo da janela MAKE / CABELO / MULTIMARCAS / ATIVIDADE (modelo do usuário, 18/11/2026):
 // rótulo em cima e número embaixo, centralizados, sem o quadro grande de "% ativação".
-// Os mesmos rótulos e formatos saem no relatório em imagem (relatorioIndicadorPng.js).
-import { metaCartao, numero, percentual, rotulosIndicador, textoSaldo } from '../relatorios/relatorioIndicadorPng';
+// Os mesmos rótulos e formatos saem no relatório em imagem/Excel (src/relatorios/definicoes.js).
+import { metaCartao, numero, percentual, textoSaldo } from '../relatorios/formatos';
+import { rotulosIaf } from '../relatorios/definicoes';
 
 export const ResumoIndicadorIaf = ({ dados }) => {
   const resumo = dados?.resumo || {};
-  const rotulos = rotulosIndicador(dados);
+  const rotulos = rotulosIaf(dados);
   const saldo = Math.round(Number(resumo.saldo_meta || 0));
   const itens = [
     { rotulo: rotulos.comCartao, valor: numero(resumo.com_indicador), cor: 'text-[#048187]' },
