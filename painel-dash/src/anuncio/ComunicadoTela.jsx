@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { PlayCircle, X } from 'lucide-react';
 import { IconeIndicador } from '../cards/CardsTopo';
 
 // Comunicado no meio da tela (texto), uma vez por pessoa. Quem decide quem vê e quando é o backend
 // (/comunicados/pendente); fechar por "Entendi", X ou Esc conta como visto (o App avisa o backend).
-// comunicado: { id, titulo, paragrafos: [texto], exemplo?: { nome, icone, indicador, meta } }
+// comunicado: { id, titulo, paragrafos: [texto], exemplo?: { nome, icone, indicador, meta },
+//               tutorial_id?, rotulo?, video?, botao? }
+// Com tutorial_id (18/11/2026): botões "Assistir o tutorial" (aoAbrirTutorial) e "Agora não" (aoFechar);
+// o backend volta a mostrar no dia seguinte até a pessoa abrir o tutorial.
 
 const formatarPercentual = (valor) => `${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 
@@ -78,7 +81,7 @@ function Exemplo({ exemplo }) {
   );
 }
 
-export default function ComunicadoTela({ comunicado, aoFechar }) {
+export default function ComunicadoTela({ comunicado, aoFechar, aoAbrirTutorial }) {
   const botaoRef = useRef(null);
   // O App redesenha muito: guardar o aoFechar num ref evita religar o Esc a cada redesenho.
   const aoFecharRef = useRef(aoFechar);
@@ -93,6 +96,7 @@ export default function ComunicadoTela({ comunicado, aoFechar }) {
 
   if (!comunicado) return null;
   const paragrafos = Array.isArray(comunicado.paragrafos) ? comunicado.paragrafos : [];
+  const ehTutorial = Boolean(comunicado.tutorial_id && aoAbrirTutorial);
 
   return (
     <div
@@ -104,7 +108,7 @@ export default function ComunicadoTela({ comunicado, aoFechar }) {
       <style>{ESTILO}</style>
       <div className="comunicado-quadro bg-white w-full max-w-[460px] max-h-[92dvh] overflow-y-auto rounded-2xl shadow-2xl">
         <div className="relative px-6 pt-5 pb-5 bg-gradient-to-br from-[#048187] to-[#036e73] text-white rounded-t-2xl">
-          <p className="text-[10px] font-black uppercase tracking-[.14em] text-white/75">Comunicado DASH</p>
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-white/75">{comunicado.rotulo || 'Comunicado DASH'}</p>
           <h2 id="comunicado-titulo" className="mt-1.5 pr-9 text-lg sm:text-xl font-black leading-snug">{comunicado.titulo}</h2>
           <button
             type="button"
@@ -117,19 +121,55 @@ export default function ComunicadoTela({ comunicado, aoFechar }) {
         </div>
         <div className="px-6 pt-5 pb-2 space-y-4">
           {comunicado.exemplo ? <Exemplo exemplo={comunicado.exemplo} /> : null}
+          {ehTutorial && comunicado.video ? (
+            <button
+              type="button"
+              onClick={() => aoAbrirTutorial()}
+              className="w-full rounded-2xl bg-[#f3f8f8] border border-[#e3ecee] p-4 flex items-center gap-4 text-left cursor-pointer hover:bg-[#e8f4f4] transition-colors"
+            >
+              <span className="w-14 h-14 shrink-0 rounded-full bg-[#048187] text-white inline-flex items-center justify-center shadow-md">
+                <PlayCircle size={30} strokeWidth={2.2} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[10px] font-black uppercase tracking-[.08em] text-[#64748b]">Tutorial em vídeo</span>
+                <span className="block mt-1 text-[14px] font-black text-[#048187] leading-snug">{comunicado.video}</span>
+              </span>
+            </button>
+          ) : null}
           {paragrafos.map((texto) => (
             <p key={texto} className="text-[13.5px] leading-relaxed text-[#475569]">{texto}</p>
           ))}
         </div>
-        <div className="px-6 pt-3 pb-6">
-          <button
-            ref={botaoRef}
-            type="button"
-            onClick={() => aoFecharRef.current?.()}
-            className="w-full rounded-xl bg-[#048187] hover:bg-[#036e73] text-white text-sm font-black py-3 cursor-pointer transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-[#048187]/25"
-          >
-            Entendi
-          </button>
+        <div className={`px-6 pt-3 pb-6 ${ehTutorial ? 'flex flex-col-reverse sm:flex-row gap-2' : ''}`}>
+          {ehTutorial ? (
+            <>
+              <button
+                type="button"
+                onClick={() => aoFecharRef.current?.()}
+                className="sm:w-[38%] rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm font-black py-3 cursor-pointer transition-colors"
+              >
+                Agora não
+              </button>
+              <button
+                ref={botaoRef}
+                type="button"
+                onClick={() => aoAbrirTutorial()}
+                className="flex-1 rounded-xl bg-[#048187] hover:bg-[#036e73] text-white text-sm font-black py-3 inline-flex items-center justify-center gap-2 cursor-pointer transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-[#048187]/25"
+              >
+                <PlayCircle size={18} />
+                {comunicado.botao || 'Assistir o tutorial'}
+              </button>
+            </>
+          ) : (
+            <button
+              ref={botaoRef}
+              type="button"
+              onClick={() => aoFecharRef.current?.()}
+              className="w-full rounded-xl bg-[#048187] hover:bg-[#036e73] text-white text-sm font-black py-3 cursor-pointer transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-[#048187]/25"
+            >
+              Entendi
+            </button>
+          )}
         </div>
       </div>
     </div>

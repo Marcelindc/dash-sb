@@ -5761,6 +5761,17 @@ export default function App() {
     setComunicadoTela(null);
   };
 
+  // Comunicado de tutorial: "Assistir o tutorial" vai para a aba Tutoriais e abre o post (abrir já grava o
+  // progresso, e o backend para de mostrar o comunicado para esta pessoa).
+  const abrirTutorialDoComunicado = () => {
+    const tutorialId = comunicadoTela?.tutorial_id;
+    fecharComunicadoTela();
+    if (!tutorialId) return;
+    setMenuHamburguerAberto(false);
+    setTelaAtual('Tutoriais');
+    abrirDetalheTutorial({ id: tutorialId });
+  };
+
   // Avisos da Campanha Incentivo 2026 para consultor e gestor de unidade (o backend decide o que é novo).
   // O nível só existe quando a pessoa pode ver a campanha (liberada).
   const [avisosCampanha, setAvisosCampanha] = useState({ itens: [], simulacao: false });
@@ -25333,7 +25344,7 @@ const enviarArquivo = async (tipo) => {
 
       {comunicadoTela && !anuncioVideo && (
         <React.Suspense fallback={null}>
-          <ComunicadoTela comunicado={comunicadoTela} aoFechar={fecharComunicadoTela} />
+          <ComunicadoTela comunicado={comunicadoTela} aoFechar={fecharComunicadoTela} aoAbrirTutorial={abrirTutorialDoComunicado} />
         </React.Suspense>
       )}
 
