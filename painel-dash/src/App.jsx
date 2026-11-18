@@ -976,7 +976,10 @@ const regraAbaPermissao = (aba, usuario) => {
         ? { estado: 'sempre', motivo: 'Liberada para o perfil Gestor da VD.' }
         : { estado: 'nunca', motivo: 'Só para o perfil Gestor da VD.' };
     }
-    if (['Revendedores', 'VendasCidades', 'Ações'].includes(aba)) return { estado: 'livre' };
+    // Revendedores (18/11/2026): sempre, igual ao admin/gestores, só com os revendedores da estrutura dele
+    // (o /revendedores/resumo libera pelo escopo VD e filtra pela estrutura). O Excel continua só para admin/gestor.
+    if (aba === 'Revendedores') return { estado: 'sempre', motivo: 'Sempre liberada para a unidade (só os revendedores da estrutura dela).' };
+    if (['VendasCidades', 'Ações'].includes(aba)) return { estado: 'livre' };
     if (ehLoja) return { estado: 'nunca', motivo: 'Gestor de unidade da VD não vê a LOJA.' };
     return { estado: 'nunca', motivo: 'Gestor de unidade vê só a própria unidade.' };
   }
@@ -6424,14 +6427,15 @@ export default function App() {
       return podeAcessarPrimeiroPedidoCaptacao;
     }
     if (tela === 'Revendedores') {
-      // O servidor exige a permissão "Revendedores": sem ela o menu mostrava a aba e a tela dava erro.
-      return podeAcessarRevendedoresVD && permissoesDoUsuarioAtual().includes('Revendedores');
+      // Gestor de unidade: sempre (o servidor libera o /revendedores/resumo pelo escopo VD e filtra pela estrutura dele).
+      // Demais: o servidor exige a permissão "Revendedores"; sem ela o menu mostrava a aba e a tela dava erro.
+      return podeAcessarRevendedoresVD && (modoGerenteVD || permissoesDoUsuarioAtual().includes('Revendedores'));
     }
     if (tela === 'Rotas') {
       return podeAcessarRotasVD;
     }
     if (modoGerenteVD) {
-      // Gestor de unidade: Acompanhamento, Adições e Rotas fixos; o resto vem de "Configurar abas"
+      // Gestor de unidade: Acompanhamento, Adições, Revendedores e Rotas fixos; o resto vem de "Configurar abas"
       // (só telas que respeitam a estrutura dele: regraAbaPermissao).
       if (['Adições', 'Tutoriais', 'Solicitações', 'Perfil'].includes(tela)) return true;
       if (['VendasCidades', 'Ações'].includes(tela)) return permissoesDoUsuarioAtual().includes(tela);
