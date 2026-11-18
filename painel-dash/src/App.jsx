@@ -19,6 +19,8 @@ import { GradeCardsTopo, CardKpi, CardTendencia, CardPedidos, CardIndicadores, C
 import { useAtualizarComBaseNova, useRecarregarComVersaoNova } from './sistema/atualizacaoAutomatica';
 import { ResumoDetalhe, TabelaAcumulado } from './cards/DetalheCards';
 import { RankingIndividualConsultores } from './cards/RankingIndividual';
+import { ResumoIndicadorIaf } from './cards/ResumoIndicadorIaf';
+import BaixarRelatorioIndicador from './relatorios/BaixarRelatorioIndicador';
 import EstruturasDoDia from './cards/EstruturasDoDia';
 import CadastroEstruturasPorCodigo from './cadastro/CadastroEstruturasPorCodigo';
 
@@ -1067,7 +1069,7 @@ const BASES_INDICADOR_VD = {
   ADICOES: ['PEDIDOS', 'BASE_ADICOES'],
   INDICADORES: ['PEDIDOS', 'VENDAS_MAKE', 'VENDAS_CABELO', 'VENDAS_MULTIMARCAS', 'BASE_ATIVA'],
 };
-// Títulos dos modais: "MAKE Geral", "MULTIMARCAS - Estrutura", "Fulano • EUDORA", "Atividade Fulano".
+// Títulos dos modais: "MAKE", "MULTIMARCAS - Estrutura", "Fulano • EUDORA", "Atividade Fulano".
 // Faturamento, Realizado, Tendência, RPA, Ticket e UPA saem só de Pedidos.
 const basesDoIndicadorVD = (titulo) => {
   const texto = String(titulo || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
@@ -11160,6 +11162,10 @@ const carregarRevendedores = async (_filtros = filtrosAtivos, _forcarAtualizacao
   }, [usuarioLogado, telaAtual, visaoMetas, detalheMeta]);
 
   const basesModalValorExpandido = modalValorExpandido.bases ?? basesDoIndicadorVD(modalValorExpandido.titulo);
+  // "BASE ATUALIZADA" do relatório em imagem: a base do próprio indicador (MAKE, CABELO, MULTIMARCAS); Atividade usa Pedidos.
+  const baseRelatorioIndicador = basesModalValorExpandido.find((tipo) => String(tipo).startsWith('VENDAS_')) || 'PEDIDOS';
+  const textoBaseRelatorioIndicador = formatarDataHoraAtualizacao(atualizacoesBasesVD?.itens?.[baseRelatorioIndicador])
+    || formatarDataHoraAtualizacao(modalValorExpandido.indicadorIaf?.ultima_atualizacao);
   const modalIndicadorVDAberto = Boolean(
     (modalDetalhes?.bases || []).length
     || (modalValorExpandido.aberto && basesModalValorExpandido.length)
@@ -12676,7 +12682,7 @@ const enviarArquivo = async (tipo) => {
           consultores: [],
         }
       : filtrosSnapshotR93;
-    const tituloModal = String(opcoes?.titulo || '').trim() || 'Atividade Geral';
+    const tituloModal = String(opcoes?.titulo || '').trim() || 'ATIVIDADE';
 
     setModalValorExpandido({
       aberto: true,
@@ -12762,7 +12768,7 @@ const enviarArquivo = async (tipo) => {
           consultores: [],
         }
       : filtrosSnapshotR93;
-    const tituloModal = String(opcoes?.titulo || '').trim() || `${indicador} Geral`;
+    const tituloModal = String(opcoes?.titulo || '').trim() || indicador;
 
     setModalValorExpandido({
       aberto: true,
@@ -23708,26 +23714,27 @@ const enviarArquivo = async (tipo) => {
                   </p>
                 )}
                 {modalValorExpandido.descricao && (<p className="mt-1 text-sm text-gray-400">{modalValorExpandido.descricao}</p>)}
+                {/* Nuvem: imagem PNG 4K ou a planilha Excel (só MAKE/CABELO), dentro do acesso de cada um. */}
+                {modalValorExpandido.indicadorIaf && !modalValorExpandido.carregando && !modalValorExpandido.erro && (
+                  <div className="mt-2">
+                    <BaixarRelatorioIndicador
+                      dados={modalValorExpandido.indicadorIaf}
+                      mostrarEstruturas={!modoGerenteVD}
+                      acessoCompleto={['admin', 'gestor', 'visualizador'].includes(tipoAcessoUsuario(usuarioLogado))}
+                      baseAtualizada={textoBaseRelatorioIndicador}
+                      geradoPor={usuarioLogado?.nome || usuarioLogado?.email || ''}
+                      excel={{
+                        disponivel: Boolean(modalValorExpandido.relatorioIaf),
+                        baixando: baixandoRelatorioIaf,
+                        erro: erroRelatorioIaf,
+                        baixar: baixarRelatorioIaf,
+                      }}
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
-                <div className="flex items-center gap-3">
-                  {modalValorExpandido.relatorioIaf && !modalValorExpandido.carregando && !modalValorExpandido.erro && (
-                    <div className="flex flex-col items-end">
-                      <button
-                        type="button"
-                        onClick={baixarRelatorioIaf}
-                        disabled={baixandoRelatorioIaf}
-                        title="Baixar a planilha com todas as revendedoras desta contagem: quem ativou e quem fez o 1º pedido do indicador"
-                        className="px-4 py-2.5 rounded-xl bg-[#048187] hover:bg-[#036b70] text-white text-sm font-black inline-flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-wait"
-                      >
-                        {baixandoRelatorioIaf ? <Loader2 size={17} className="animate-spin" /> : <FileSpreadsheet size={17} />}
-                        <span className="hidden sm:inline">{baixandoRelatorioIaf ? 'Gerando...' : 'Gerar relatório'}</span>
-                      </button>
-                      {erroRelatorioIaf && (<p className="mt-1 max-w-xs text-right text-xs font-bold text-red-600">{erroRelatorioIaf}</p>)}
-                    </div>
-                  )}
-                  <button type="button" onClick={fecharModalValExp} className="w-10 h-10 rounded-full hover:bg-gray-50 text-gray-400 flex items-center justify-center"><X size={20} /></button>
-                </div>
+                <button type="button" onClick={fecharModalValExp} className="w-10 h-10 rounded-full hover:bg-gray-50 text-gray-400 flex items-center justify-center"><X size={20} /></button>
                 <DataAtualizacaoBases bases={basesModalValorExpandido} atualizacoes={atualizacoesBasesVD} />
               </div>
             </div>
@@ -23745,23 +23752,7 @@ const enviarArquivo = async (tipo) => {
               ) : (
                 <>
                   {modalValorExpandido.indicadorIaf ? (
-                    <>
-                      <div className="rounded-2xl bg-[#f8fbfc] border border-gray-100 p-6">
-                        <p className="text-sm font-bold uppercase tracking-wide text-gray-400">% ativação</p>
-                        <h4 className="mt-3 text-4xl font-extrabold text-[#048187] break-words">{modalValorExpandido.valorTexto}</h4>
-                      </div>
-
-                      {Array.isArray(modalValorExpandido.detalhes) && modalValorExpandido.detalhes.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
-                          {modalValorExpandido.detalhes.map((item) => (
-                            <div key={item.label} className="rounded-xl bg-gray-50 border border-gray-100 p-4 min-w-0">
-                              <p className="text-[10px] font-black uppercase text-gray-400 tracking-wide">{item.label}</p>
-                              <p className="mt-1 text-lg font-black text-gray-700 break-words">{item.valor}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
+                    <ResumoIndicadorIaf dados={modalValorExpandido.indicadorIaf} />
                   ) : (
                     // O valor principal quase sempre repete um dos quadros; só vira quadro próprio quando não repete.
                     <ResumoDetalhe
