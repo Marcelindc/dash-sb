@@ -13373,28 +13373,38 @@ const enviarArquivo = async (tipo) => {
     // o resultado com a META correspondente.
     const resumoMetasDashboard = obterResumoMetasAtual();
 
+    // 19/11/2026: as metas dos anéis vêm do próprio /dashboard (meta_make, meta_cabelo, meta_atividade =
+    // média das metas do ciclo). O resumo de Metas (carregado depois, já com os filtros) só vale se for do
+    // mesmo ciclo: o cacheMetas pode ter ficado do ciclo anterior. Sem meta fixa: o card usava 45% na
+    // Atividade enquanto o resumo não chegava (C16 = 54%) e mostrava 99,8% da meta, contra 83,1% na janela.
+    const cicloDadosDashboard = String(dados?.ciclo_retorno || '').trim();
+    const resumoMetasMesmoCiclo = cicloDadosDashboard
+      && String(resumoMetasDashboard?.ciclo_retorno || '').trim() === cicloDadosDashboard
+      ? resumoMetasDashboard
+      : {};
+
     const metaMakeDashboard = Number(
-      resumoMetasDashboard?.meta_make_geral
+      resumoMetasMesmoCiclo?.meta_make_geral
       || dados?.meta_make
-      || 40
+      || 0
     );
 
     const metaCabeloDashboard = Number(
-      resumoMetasDashboard?.meta_cabelo_geral
+      resumoMetasMesmoCiclo?.meta_cabelo_geral
       || dados?.meta_cabelo
-      || 40
+      || 0
     );
 
     const metaMultimarcasDashboard = Number(
-      resumoMetasDashboard?.meta_multimarcas_geral
+      resumoMetasMesmoCiclo?.meta_multimarcas_geral
       || dados?.meta_multimarcas
       || 78
     );
 
     const metaAtividadeDashboard = Number(
-      resumoMetasDashboard?.meta_atividade_geral
+      resumoMetasMesmoCiclo?.meta_atividade_geral
       || dados?.meta_atividade
-      || 45
+      || 0
     );
 
     const atingimentoMakeDashboard = calcPerc(pMk, metaMakeDashboard);
