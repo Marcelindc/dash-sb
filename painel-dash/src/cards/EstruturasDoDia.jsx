@@ -6,6 +6,7 @@
 // Sábado e domingo não têm meta: o que vende neles é bônus e baixa a meta dos próximos dias úteis.
 import { Fragment, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
+import { ordenarPorPercentualMeta } from './ordenarPorMeta';
 
 const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(v || 0));
 const formatarNumeroBR = (v, casas = 0) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
@@ -89,8 +90,22 @@ const Etiqueta = ({ texto, pequena = false }) => (
   <span className={`${pequena ? 'shrink-0 text-[9px]' : 'ml-2 text-[10px]'} rounded-full bg-gray-100 px-2 py-0.5 font-black text-gray-500`}>{texto}</span>
 );
 
-export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abertasIniciais = [], rotulos = {} }) {
+// Ordem (23/11/2026): maior % da meta do dia primeiro; "Meta batida" (ciclo já batido, meta do dia zerada) no topo;
+// sem meta no fim. Fim de semana não tem meta: vai pelo vendido hoje. Vale para as estruturas e para os consultores do +.
+const percentualDoDia = (diaUtil) => (item) => {
+  if (!diaUtil) return null;
+  const meta = Number(item?.meta_hoje || 0);
+  if (meta > 0) return calcPerc(item?.vendido_hoje, meta);
+  return item?.sem_meta || item?.sem_meta_individual ? null : Infinity;
+};
+const ordenarDoDia = (lista, diaUtil) => ordenarPorPercentualMeta(lista, percentualDoDia(diaUtil), (item) => item?.vendido_hoje);
+
+export default function EstruturasDoDia({ estruturas: estruturasRecebidas = [], diaUtil = true, abertasIniciais = [], rotulos = {} }) {
   const r = { ...ROTULOS_VD, ...rotulos };
+  const estruturas = ordenarDoDia(estruturasRecebidas, diaUtil).map((item) => ({
+    ...item,
+    consultores: Array.isArray(item?.consultores) ? ordenarDoDia(item.consultores, diaUtil) : item?.consultores,
+  }));
   const [abertas, setAbertas] = useState(() => new Set(abertasIniciais));
   const alternar = (chave) => setAbertas((atual) => {
     const proximo = new Set(atual);
@@ -136,7 +151,7 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className="flex items-baseline gap-2 min-w-0">
-                    <span className="text-[12px] font-black text-[#257B9C] shrink-0">{item?.posicao || indice + 1}º</span>
+                    <span className="text-[12px] font-black text-[#257B9C] shrink-0">{indice + 1}º</span>
                     <span className="text-[13px] font-black text-gray-700 truncate">{item?.estrutura || 'Não informada'}</span>
                     {item?.nucleo && item.nucleo !== 'SEM META' && <span className="text-[10px] font-black text-gray-400 shrink-0">{item.nucleo}</span>}
                   </span>
@@ -200,7 +215,7 @@ export default function EstruturasDoDia({ estruturas = [], diaUtil = true, abert
                         {aberta ? <Minus size={15} strokeWidth={3} /> : <Plus size={15} strokeWidth={3} />}
                       </button>
                     </td>
-                    <td className="px-2 py-3 font-black text-[#257B9C]">{item?.posicao || indice + 1}º</td>
+                    <td className="px-2 py-3 font-black text-[#257B9C]">{indice + 1}º</td>
                     <td className="px-4 py-3 font-black text-gray-700">
                       {item?.estrutura || 'Não informada'}
                       {item?.nucleo && item.nucleo !== 'SEM META' && (

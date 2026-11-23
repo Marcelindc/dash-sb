@@ -2,6 +2,7 @@
 // Só desenham: textos, percentuais e cores chegam prontos do App (regra de cores fica em corPorFaixaMeta).
 // Tamanhos em classes próprias (dashboard-refinado.css) porque algumas janelas abrem dentro de .dash-visual-standard,
 // que reescreve text-* e font-*.
+import { ordenarPorPercentualMeta } from './ordenarPorMeta';
 
 const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(valor || 0));
 const formatarPercentual = (valor) => `${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
@@ -64,8 +65,13 @@ export const ResumoDetalhe = ({ itens = [] }) => {
 //          mostrarMeta, carregandoMeta, totalMeta, percentualMetaTotal, corMetaTotal }
 // mostrarMeta acrescenta a coluna Meta entre Nome e Valor acumulado e troca "% do realizado" por "% da meta"
 // (valor da linha sobre a meta da própria estrutura/unidade). Sem meta, "—".
+// Com meta, as linhas vão do maior para o menor % da meta (sem meta no fim) e a Posição acompanha essa ordem;
+// enquanto a meta carrega, fica a ordem do valor que veio do App.
 export const TabelaAcumulado = ({ secao }) => {
-  const linhas = secao.linhas || [];
+  const linhas = secao.mostrarMeta && !secao.carregandoMeta
+    ? ordenarPorPercentualMeta(secao.linhas, (item) => item.percentualMeta, (item) => item.valor)
+      .map((item, indice) => ({ ...item, posicao: indice + 1 }))
+    : (secao.linhas || []);
   const totalSecao = linhas.reduce((acc, item) => acc + Number(item.valor || 0), 0);
   const colunas = secao.mostrarMeta ? 5 : 4;
   const semMeta = <span className="text-gray-300" title="Sem meta cadastrada">—</span>;

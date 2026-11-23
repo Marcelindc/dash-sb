@@ -18,6 +18,7 @@ import TelaAdicoes from './telas/TelaAdicoes';
 import { GradeCardsTopo, CardKpi, CardTendencia, CardPedidos, CardIndicadores, CardDesempenho } from './cards/CardsTopo';
 import { useAtualizarComBaseNova, useRecarregarComVersaoNova } from './sistema/atualizacaoAutomatica';
 import { ResumoDetalhe, TabelaAcumulado } from './cards/DetalheCards';
+import { ordenarPorPercentualMeta } from './cards/ordenarPorMeta';
 import { RankingIndividualConsultores } from './cards/RankingIndividual';
 import { ResumoIndicadorIaf } from './cards/ResumoIndicadorIaf';
 import BaixarRelatorio from './relatorios/BaixarRelatorio';
@@ -3843,6 +3844,8 @@ const completarPercentualMeta = (linhas = [], totalMeta = 0) => {
     corMetaTotal: percentualMetaTotal == null ? null : corPorFaixaMeta(percentualMetaTotal),
   };
 };
+// % da meta de uma linha das janelas MAKE/CABELO/MULTI/ATIVIDADE para ordenar; sem meta cadastrada, null (vai pro fim).
+const percentualMetaIaf = (item) => (Number(item?.meta_percentual || 0) > 0 ? Number(item?.percentual_meta || 0) : null);
 const calcularQtdMetaAtividade = (baseAtiva, metaPercentual) => {
   const base = Number(baseAtiva || 0);
   const meta = Number(metaPercentual || 0);
@@ -13928,7 +13931,7 @@ const enviarArquivo = async (tipo) => {
                           <h4 className="font-black text-gray-700 mb-2">Resultado por estrutura</h4>
                           <table className="w-full min-w-[760px] text-sm">
                             <thead className="bg-gray-50 text-[10px] uppercase text-gray-400"><tr><th className="p-3 text-left">Estrutura</th><th className="p-3 text-right">Pedidos</th><th className="p-3 text-right">Realizado</th><th className="p-3 text-right">Meta</th><th className="p-3 text-right">% meta</th><th className="p-3 text-right">Falta</th></tr></thead>
-                            <tbody className="divide-y divide-gray-100">{(bloco.estruturas || []).map((item) => <tr key={item.estrutura}><td className="p-3 font-black text-gray-700">{item.estrutura}</td><td className="p-3 text-right font-bold">{item.pedidos}</td><td className="p-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td><td className="p-3 text-right font-bold text-[#7c1f31]">{formatarMoeda(item.meta)}</td><td className="p-3 text-right font-black">{Number(item.percentual || 0).toFixed(1)}%</td><td className="p-3 text-right font-bold text-[#7c1f31]">{formatarMoeda(item.falta)}</td></tr>)}</tbody>
+                            <tbody className="divide-y divide-gray-100">{ordenarPorPercentualMeta(bloco.estruturas, (item) => (Number(item.meta || 0) > 0 ? Number(item.percentual || 0) : null), (item) => item.realizado).map((item) => <tr key={item.estrutura}><td className="p-3 font-black text-gray-700">{item.estrutura}</td><td className="p-3 text-right font-bold">{item.pedidos}</td><td className="p-3 text-right font-black text-[#048187]">{formatarMoeda(item.realizado)}</td><td className="p-3 text-right font-bold text-[#7c1f31]">{formatarMoeda(item.meta)}</td><td className="p-3 text-right font-black">{Number(item.percentual || 0).toFixed(1)}%</td><td className="p-3 text-right font-bold text-[#7c1f31]">{formatarMoeda(item.falta)}</td></tr>)}</tbody>
                           </table>
                         </div>
                         <div className="overflow-x-auto">
@@ -14042,9 +14045,12 @@ const enviarArquivo = async (tipo) => {
     const agrupar = (lista, tipo) => {
       const linhas = lista.map((item) => criarLinha(item, tipo));
       return ['N1', 'N2', 'N3', 'A DEFINIR'].map((nucleo) => {
-        const itensNucleo = linhas
-          .filter((linha) => linha.nucleo === nucleo)
-          .sort((a, b) => b.valor - a.valor);
+        // Maior % da meta primeiro; sem meta no fim (23/11/2026).
+        const itensNucleo = ordenarPorPercentualMeta(
+          linhas.filter((linha) => linha.nucleo === nucleo),
+          (linha) => (linha.meta > 0 ? linha.percentual : null),
+          (linha) => linha.valor
+        );
         const receita = itensNucleo.reduce((acc, linha) => acc + linha.realizadoReceita, 0);
         const ativados = itensNucleo.reduce((acc, linha) => acc + linha.ativados, 0);
         const pedidos = itensNucleo.reduce((acc, linha) => acc + linha.pedidos, 0);
@@ -20398,7 +20404,7 @@ const enviarArquivo = async (tipo) => {
             </tr>
           </thead>
           <tbody>
-            {lista.map((item) => (
+            {ordenarPorPercentualMeta(lista, (item) => (Number(item.meta_mensal || 0) > 0 ? Number(item.percentual || 0) : null), (item) => item.realizado_mes).map((item) => (
               <tr key={`${item.competencia}-${item.codigo_pdv}`} className="border-b border-gray-50 last:border-0 hover:bg-[#f7fafb]">
                 <td className="py-3 px-3 font-black text-[#048187]">{item.codigo_pdv}</td>
                 <td className="py-3 px-3">
@@ -24204,7 +24210,7 @@ const enviarArquivo = async (tipo) => {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                  {(grupo.estruturas || []).map((item) => (
+                                  {ordenarPorPercentualMeta(grupo.estruturas, percentualMetaIaf, (item) => item.com_indicador).map((item) => (
                                     <tr key={`${grupo.nucleo}-${item.estrutura}`} className="hover:bg-[#fbfefe]">
                                       <td className="px-4 py-3 font-black text-gray-700">{item.estrutura}</td>
                                       <td className="px-4 py-3 text-right font-black text-[#048187]">{formatarNumeroBR(item.com_indicador || 0, 0)}</td>
@@ -24267,7 +24273,7 @@ const enviarArquivo = async (tipo) => {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                  {(grupo.consultores || []).map((item) => (
+                                  {ordenarPorPercentualMeta(grupo.consultores, percentualMetaIaf, (item) => item.com_indicador).map((item) => (
                                     <tr key={`${grupo.nucleo}-${item.id_colaborador || item.nome}`} className="hover:bg-[#fcfbff]">
                                       <td className="px-4 py-3 font-black text-gray-700">
                                         {item.nome}
