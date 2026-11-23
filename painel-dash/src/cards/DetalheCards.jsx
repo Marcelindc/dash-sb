@@ -6,6 +6,8 @@ import { ordenarPorPercentualMeta } from './ordenarPorMeta';
 
 const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(Number(valor || 0));
 const formatarPercentual = (valor) => `${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+const formatarDecimal = (valor) => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatarInteiro = (valor) => Number(valor || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 const limitarPercentual = (valor) => Math.min(Math.max(Number(valor || 0), 0), 100);
 
 // Fonte do valor pelo tamanho do texto: o maior que cabe no quadro, até 26px (dígito ≈ 0,62 da fonte).
@@ -61,8 +63,11 @@ export const ResumoDetalhe = ({ itens = [] }) => {
   );
 };
 
-// secao: { titulo, cor, totalRotulo, linhas: [{ posicao, nome, valor, percentual, meta?, percentualMeta?, corMeta? }],
-//          mostrarMeta, carregandoMeta, totalMeta, percentualMetaTotal, corMetaTotal }
+// secao: { titulo, cor, totalRotulo, linhas: [{ posicao, nome, sub?, valor, percentual, meta?, percentualMeta?, corMeta?, extra? }],
+//          mostrarMeta, carregandoMeta, totalMeta, percentualMetaTotal, corMetaTotal,
+//          formato?, rotuloValor?, totalValor?, tituloExtra?, totalExtra? }
+// formato: 'moeda' (padrão) ou 'decimal2' (Itens por boleto). totalValor substitui a soma no rodapé quando o
+// indicador é média (Boleto médio, Itens por boleto). tituloExtra liga uma coluna de quantidade (ex.: Boletos).
 // mostrarMeta acrescenta a coluna Meta entre Nome e Valor acumulado e troca "% do realizado" por "% da meta"
 // (valor da linha sobre a meta da própria estrutura/unidade). Sem meta, "—".
 // Com meta, as linhas vão do maior para o menor % da meta (sem meta no fim) e a Posição acompanha essa ordem;
@@ -72,13 +77,15 @@ export const TabelaAcumulado = ({ secao }) => {
     ? ordenarPorPercentualMeta(secao.linhas, (item) => item.percentualMeta, (item) => item.valor)
       .map((item, indice) => ({ ...item, posicao: indice + 1 }))
     : (secao.linhas || []);
-  const totalSecao = linhas.reduce((acc, item) => acc + Number(item.valor || 0), 0);
-  const colunas = secao.mostrarMeta ? 5 : 4;
+  const totalSecao = secao.totalValor ?? linhas.reduce((acc, item) => acc + Number(item.valor || 0), 0);
+  const formatarValor = secao.formato === 'decimal2' ? formatarDecimal : formatarMoeda;
+  const comExtra = Boolean(secao.tituloExtra);
+  const colunas = (secao.mostrarMeta ? 5 : 4) + (comExtra ? 1 : 0);
   const semMeta = <span className="text-gray-300" title="Sem meta cadastrada">—</span>;
   const carregando = <span className="text-gray-300">carregando…</span>;
   const textoMeta = (meta) => {
     if (secao.carregandoMeta) return carregando;
-    return Number(meta || 0) > 0 ? formatarMoeda(meta) : semMeta;
+    return Number(meta || 0) > 0 ? formatarValor(meta) : semMeta;
   };
   const textoPercentualMeta = (percentualMeta, cor) => {
     if (secao.carregandoMeta) return carregando;
@@ -90,13 +97,14 @@ export const TabelaAcumulado = ({ secao }) => {
         <h3 className="font-black text-gray-700">{secao.titulo}</h3>
       </div>
       <div className="overflow-x-auto">
-        <table className={`w-full ${secao.mostrarMeta ? 'min-w-[860px]' : 'min-w-[720px]'} text-sm`}>
+        <table className={`w-full ${secao.mostrarMeta ? (comExtra ? 'min-w-[960px]' : 'min-w-[860px]') : 'min-w-[720px]'} text-sm`}>
           <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
             <tr>
               <th className="px-5 py-3 text-left">Posição</th>
               <th className="px-5 py-3 text-left">Nome</th>
+              {comExtra ? <th className="px-5 py-3 text-right">{secao.tituloExtra}</th> : null}
               {secao.mostrarMeta ? <th className="px-5 py-3 text-right">Meta</th> : null}
-              <th className="px-5 py-3 text-right">Valor acumulado</th>
+              <th className="px-5 py-3 text-right">{secao.rotuloValor || 'Valor acumulado'}</th>
               <th className="px-5 py-3 text-right">{secao.mostrarMeta ? '% da meta' : '% do realizado'}</th>
             </tr>
           </thead>
@@ -104,9 +112,13 @@ export const TabelaAcumulado = ({ secao }) => {
             {linhas.map((item) => (
               <tr key={`${secao.titulo}-${item.posicao}-${item.nome}`} className="hover:bg-[#f8fcfc]">
                 <td className="px-5 py-3 font-black" style={{ color: secao.cor }}>{item.posicao}º</td>
-                <td className="px-5 py-3 font-black text-gray-700">{item.nome}</td>
+                <td className="px-5 py-3 font-black text-gray-700">
+                  {item.nome}
+                  {item.sub ? <span className="block text-[10px] font-bold text-gray-400 mt-0.5">{item.sub}</span> : null}
+                </td>
+                {comExtra ? <td className="px-5 py-3 text-right font-bold text-gray-500">{formatarInteiro(item.extra)}</td> : null}
                 {secao.mostrarMeta ? <td className="px-5 py-3 text-right font-black text-gray-500">{textoMeta(item.meta)}</td> : null}
-                <td className="px-5 py-3 text-right font-black" style={{ color: secao.cor }}>{formatarMoeda(item.valor || 0)}</td>
+                <td className="px-5 py-3 text-right font-black" style={{ color: secao.cor }}>{formatarValor(item.valor || 0)}</td>
                 <td className="px-5 py-3 text-right font-black text-gray-600">
                   {secao.mostrarMeta ? textoPercentualMeta(item.percentualMeta, item.corMeta) : formatarPercentual(item.percentual)}
                 </td>
@@ -121,8 +133,9 @@ export const TabelaAcumulado = ({ secao }) => {
           <tfoot className="bg-[#f7fafb]">
             <tr>
               <td colSpan="2" className="px-5 py-4 font-black text-gray-600">{secao.totalRotulo}</td>
+              {comExtra ? <td className="px-5 py-4 text-right font-black text-gray-500">{formatarInteiro(secao.totalExtra)}</td> : null}
               {secao.mostrarMeta ? <td className="px-5 py-4 text-right font-black text-gray-500">{textoMeta(secao.totalMeta)}</td> : null}
-              <td className="px-5 py-4 text-right font-black" style={{ color: secao.cor }}>{formatarMoeda(totalSecao)}</td>
+              <td className="px-5 py-4 text-right font-black" style={{ color: secao.cor }}>{formatarValor(totalSecao)}</td>
               <td className="px-5 py-4 text-right font-black text-gray-600">
                 {secao.mostrarMeta ? textoPercentualMeta(secao.percentualMetaTotal, secao.corMetaTotal) : '100,0%'}
               </td>

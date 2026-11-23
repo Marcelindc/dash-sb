@@ -19956,18 +19956,6 @@ const enviarArquivo = async (tipo) => {
       });
     };
 
-    const abrirDetalheCardLoja = (titulo, linhas = [], formula = '', relatorio = null) => {
-      abrirModalValExp(
-        titulo,
-        linhas?.[0]?.valor || '-',
-        'Detalhamento do indicador da LOJA.',
-        linhas,
-        formula,
-        [],
-        relatorio
-      );
-    };
-
     // Relatório em imagem da LOJA (só PNG, 18/11/2026): unidades e, em "Unidade e consultoras", as consultoras de
     // cada PDV — as mesmas listas da tela (escopo do usuário e filtros aplicados).
     const nomeUnidadeRelatorio = (u) => `${u?.codigo_pdv || ''}${u?.cidade || u?.nome_loja ? ` - ${u.cidade || u.nome_loja}` : ''}`.toUpperCase();
@@ -20058,6 +20046,124 @@ const enviarArquivo = async (tipo) => {
       colunasExtras: [colunaExtra('boletos', 'BOLETOS', 'inteiro')],
       extrasUnidade: (u) => ({ boletos: Number(u.qtd_boletos || u.pedidos || 0) }),
       extrasConsultora: (c) => ({ boletos: Number(c.qtd_boletos || c.pedidos || 0) }),
+    });
+
+    // Skin, Boleto médio e Itens por boleto no mesmo formato do Faturamento LOJA / Realizado Total VD (23/11/2026):
+    // quadros + tabela por unidade e por consultora, cada linha com a própria meta (mesmas regras do relatório PNG).
+    // Indicador de média (somavel false): o rodapé mostra o valor geral da LOJA, não a soma das linhas.
+    const boletosDe = (item) => Number(item?.qtd_boletos || item?.pedidos || 0);
+    const unidadeDaConsultora = (c) => unidadesFiltradas.find(
+      (u) => String(u.codigo_pdv || '') === String(c?.codigo_pdv_oficial || c?.codigo_pdv || '')
+    );
+    const abrirDetalheIndicadorLoja = ({
+      titulo, subtitulo, itens, relatorio, formato = 'moeda', rotuloValor, valorDe, metaDe,
+      somavel = true, valorGeral = 0, metaGeral = 0, comBoletos = false,
+    }) => {
+      const montarSecao = (tituloSecao, cor, totalRotulo, linhas) => {
+        const metaSomada = linhas.reduce((acc, linha) => acc + (linha.meta > 0 ? linha.meta : 0), 0);
+        const comMeta = completarPercentualMeta(linhas, somavel ? metaSomada : Number(metaGeral || 0));
+        const percentualGeral = Number(metaGeral || 0) > 0 ? calcPerc(valorGeral, metaGeral) : null;
+        return {
+          titulo: tituloSecao,
+          cor,
+          totalRotulo,
+          mostrarMeta: true,
+          formato,
+          rotuloValor,
+          ...(comBoletos ? { tituloExtra: 'Boletos', totalExtra: linhas.reduce((acc, linha) => acc + Number(linha.extra || 0), 0) } : {}),
+          ...comMeta,
+          ...(somavel ? {} : {
+            totalValor: Number(valorGeral || 0),
+            percentualMetaTotal: percentualGeral,
+            corMetaTotal: percentualGeral == null ? null : corPorFaixaMeta(percentualGeral),
+          }),
+        };
+      };
+      const linhaDe = (item, nome, unidade, sub = '') => ({
+        nome,
+        sub,
+        valor: Number(valorDe(item) || 0),
+        meta: Number(metaDe(item, unidade) || 0),
+        ...(comBoletos ? { extra: boletosDe(item) } : {}),
+      });
+      const linhasUnidades = unidadesFiltradas.map((u) => linhaDe(u, `${u.codigo_pdv} - ${u.cidade || u.nome_loja || ''}`.trim(), u));
+      const linhasConsultoras = consultorasFiltradas
+        .filter((c) => Number(c?.realizado || 0) > 0 || Number(valorDe(c) || 0) > 0)
+        .map((c) => {
+          const unidade = unidadeDaConsultora(c);
+          const codigo = c?.codigo_pdv_oficial || c?.codigo_pdv || '';
+          return linhaDe(c, c.nome_consultora || c.id_consultora || 'Não informada', unidade, codigo ? `PDV ${codigo}${unidade?.cidade ? ` - ${unidade.cidade}` : ''}` : '');
+        });
+      setModalDetalhes({
+        titulo,
+        subtitulo,
+        tipo: 'realizado_total_acumulado',
+        bases: [],
+        relatorio,
+        itens,
+        secoesTabelas: [
+          montarSecao('Por unidade', '#048187', somavel ? 'TOTAL DAS UNIDADES' : 'GERAL DA LOJA', linhasUnidades),
+          montarSecao('Por consultora', '#5c4b8a', somavel ? 'TOTAL DAS CONSULTORAS' : 'GERAL DA LOJA', linhasConsultoras),
+        ],
+      });
+    };
+    const metaBoletoGeralLoja = Number(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA);
+    const metaItensGeralLoja = Number(resumoCardsLoja.meta_itens_boleto || 4);
+    const abrirDetalheSkinLoja = () => abrirDetalheIndicadorLoja({
+      titulo: 'Skin LOJA',
+      subtitulo: 'Skin = soma da aba CONSULTOR, coluna RECEITA (R$), ignorando linhas de total.',
+      relatorio: relatorioSkinLoja,
+      rotuloValor: 'Realizado Skin',
+      valorDe: (item) => item?.realizado_skin,
+      metaDe: (item) => metaSkinLoja(item),
+      itens: [
+        { label: 'Meta Skin', valor: formatarMoeda(resumoCardsLoja.meta_skin || 0) },
+        { label: 'Realizado Skin', valor: formatarMoeda(resumoCardsLoja.skin_realizado || 0) },
+        { label: '% da meta', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_skin || 0, 1)}%`, percentual: Number(resumoCardsLoja.percentual_skin || 0) },
+        {
+          label: 'Falta para a meta',
+          valor: Number(resumoCardsLoja.meta_skin || 0) - Number(resumoCardsLoja.skin_realizado || 0) > 0
+            ? formatarMoeda(Number(resumoCardsLoja.meta_skin || 0) - Number(resumoCardsLoja.skin_realizado || 0))
+            : 'Meta batida',
+        },
+      ],
+    });
+    const abrirDetalheBoletoLoja = () => abrirDetalheIndicadorLoja({
+      titulo: 'Boleto médio LOJA',
+      subtitulo: 'Boleto médio = GMV-GMV ÷ GMV-Qtd de boletos.',
+      relatorio: relatorioBoletoLoja,
+      rotuloValor: 'Boleto médio',
+      somavel: false,
+      comBoletos: true,
+      valorGeral: Number(resumoCardsLoja.boleto_medio || 0),
+      metaGeral: metaBoletoGeralLoja,
+      valorDe: (item) => item?.boleto_medio,
+      metaDe: (item, unidade) => metaBoletoLoja(item, unidade),
+      itens: [
+        { label: 'Meta boleto', valor: formatarMoeda(metaBoletoGeralLoja) },
+        { label: 'Boleto médio', valor: formatarMoeda(resumoCardsLoja.boleto_medio || 0) },
+        { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.boleto_medio || 0, metaBoletoGeralLoja), 1)}%`, percentual: calcPerc(resumoCardsLoja.boleto_medio || 0, metaBoletoGeralLoja) },
+        { label: 'Qtd de boletos', valor: formatarNumeroBR(resumoCardsLoja.pedidos || 0, 0) },
+      ],
+    });
+    const abrirDetalheItensLoja = () => abrirDetalheIndicadorLoja({
+      titulo: 'Itens por boleto LOJA',
+      subtitulo: 'Itens por boleto = coluna GMV-Itens por boleto da base de vendas.',
+      relatorio: relatorioItensLoja,
+      formato: 'decimal2',
+      rotuloValor: 'Itens por boleto',
+      somavel: false,
+      comBoletos: true,
+      valorGeral: Number(resumoCardsLoja.itens_por_boleto || 0),
+      metaGeral: metaItensGeralLoja,
+      valorDe: (item) => item?.itens_por_boleto,
+      metaDe: (item, unidade) => metaItensLoja(item, unidade),
+      itens: [
+        { label: 'Meta itens', valor: formatarNumeroBR(metaItensGeralLoja, 2) },
+        { label: 'Itens por boleto', valor: formatarNumeroBR(resumoCardsLoja.itens_por_boleto || 0, 2) },
+        { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.itens_por_boleto || 0, metaItensGeralLoja), 1)}%`, percentual: calcPerc(resumoCardsLoja.itens_por_boleto || 0, metaItensGeralLoja) },
+        { label: 'Qtd de boletos', valor: formatarNumeroBR(resumoCardsLoja.pedidos || 0, 0) },
+      ],
     });
 
     // Faturamento LOJA no mesmo formato do Realizado Total VD: quadros + acumulado por unidade (com a meta de cada PDV)
@@ -21770,11 +21876,7 @@ const enviarArquivo = async (tipo) => {
                 cor={corPorFaixaMeta(resumoCardsLoja.percentual_skin || 0)}
                 labelMeta="Meta skin"
                 valorMeta={formatarMoedaCompactaCard(resumoCardsLoja.meta_skin || 0)}
-                onAbrir={() => abrirDetalheCardLoja('Skin LOJA', [
-                  { label: 'Realizado Skin', valor: formatarMoeda(resumoCardsLoja.skin_realizado || 0) },
-                  { label: 'Meta Skin', valor: formatarMoeda(resumoCardsLoja.meta_skin || 0) },
-                  { label: '% da meta', valor: `${formatarNumeroBR(resumoCardsLoja.percentual_skin || 0, 1)}%` }
-                ], 'Skin = soma da aba CONSULTOR, coluna RECEITA (R$), ignorando linhas de total.', relatorioSkinLoja)}
+                onAbrir={abrirDetalheSkinLoja}
               />
               <CardKpi
                 titulo="Boleto médio"
@@ -21783,12 +21885,7 @@ const enviarArquivo = async (tipo) => {
                 cor={corPorFaixaMeta(calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA))}
                 labelMeta="Meta boleto"
                 valorMeta={formatarMoeda(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA)}
-                onAbrir={() => abrirDetalheCardLoja('Boleto médio LOJA', [
-                  { label: 'Boleto médio', valor: formatarMoeda(resumoCardsLoja.boleto_medio || 0) },
-                  { label: 'Meta boleto', valor: formatarMoeda(resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA) },
-                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.boleto_medio || 0, resumoCardsLoja.meta_boleto_medio || META_BOLETO_MEDIO_PADRAO_LOJA), 1)}%` },
-                  { label: 'Qtd de boletos/pedidos', valor: formatarNumeroBR(resumoCardsLoja.pedidos || 0, 0) }
-                ], 'Boleto médio = GMV-GMV / GMV-Qtd de boletos.', relatorioBoletoLoja)}
+                onAbrir={abrirDetalheBoletoLoja}
               />
               <CardKpi
                 titulo="Itens por boleto"
@@ -21797,12 +21894,7 @@ const enviarArquivo = async (tipo) => {
                 cor={corPorFaixaMeta(calcPerc(resumoCardsLoja.itens_por_boleto || 0, resumoCardsLoja.meta_itens_boleto || 4))}
                 labelMeta="Meta itens"
                 valorMeta={formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1)}
-                onAbrir={() => abrirDetalheCardLoja('Itens por boleto LOJA', [
-                  { label: 'Itens por boleto', valor: formatarNumeroBR(resumoCardsLoja.itens_por_boleto || 0, 2) },
-                  { label: 'Meta itens', valor: formatarNumeroBR(resumoCardsLoja.meta_itens_boleto || 4, 1) },
-                  { label: '% da meta', valor: `${formatarNumeroBR(calcPerc(resumoCardsLoja.itens_por_boleto || 0, resumoCardsLoja.meta_itens_boleto || 4), 1)}%` },
-                  { label: 'Regra', valor: 'Coluna GMV-Itens por boleto' }
-                ], 'Itens/Boleto usa a coluna GMV-Itens por boleto da base de vendas.', relatorioItensLoja)}
+                onAbrir={abrirDetalheItensLoja}
               />
               <CardKpi
                 titulo="Serviços"
