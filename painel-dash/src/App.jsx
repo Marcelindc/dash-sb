@@ -12049,6 +12049,8 @@ const enviarArquivo = async (tipo) => {
   // Meta de cada linha do "Acumulado por estrutura": casa o nome do Dashboard (rótulo oficial da equipe) com o
   // nome da meta ou de uma estrutura vinculada. Sem o prefixo ("N1 - ", "3011 - ") só vale quando um único bloco
   // de meta tem aquele nome — equipes homônimas em núcleos diferentes (EDNA N1/N3) ficam sem palpite.
+  // rotulos_dashboard (servidor, pelo Cód Estrutura) é o nome com que as vendas da meta aparecem aqui; nas
+  // homônimas ele não vem nas vinculadas (Edna Marcela 16335 = "N1 - EQUIPE EDNA MARCELA", 25/11/2026).
   const criarBuscaMetaEstrutura = (estruturasMeta = []) => {
     const chave = (valor) => normalizarChaveAcompanhamento(valor).replace(/[^a-z0-9]+/g, ' ').trim();
     const chaveSemPrefixo = (valor) => {
@@ -12068,6 +12070,16 @@ const enviarArquivo = async (tipo) => {
           registrar(porNome, chave(nome), item);
           registrar(porNomeSemPrefixo, chaveSemPrefixo(nome), item);
         });
+    });
+    // Rótulo das vendas: só entra onde nenhum outro bloco já usa o nome (nunca cria ambiguidade).
+    const livreOuDoItem = (mapa, nome, item) => !mapa.has(nome) || [...mapa.get(nome)].every((outro) => outro === item);
+    estruturasMeta.forEach((item) => {
+      (Array.isArray(item?.rotulos_dashboard) ? item.rotulos_dashboard : []).forEach((rotulo) => {
+        const nome = chave(rotulo);
+        const nomeSemPrefixo = chaveSemPrefixo(rotulo);
+        if (nome && livreOuDoItem(porNome, nome, item)) registrar(porNome, nome, item);
+        if (nomeSemPrefixo && livreOuDoItem(porNomeSemPrefixo, nomeSemPrefixo, item)) registrar(porNomeSemPrefixo, nomeSemPrefixo, item);
+      });
     });
     const unico = (conjunto) => (conjunto?.size === 1 ? [...conjunto][0] : null);
     return (nomeEstrutura) => unico(porNome.get(chave(nomeEstrutura))) || unico(porNomeSemPrefixo.get(chaveSemPrefixo(nomeEstrutura)));
